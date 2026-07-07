@@ -258,6 +258,11 @@ export class ObjectStore {
       context,
       existing.values,
       updated.values,
+      {
+        lifecycleAction: details.lifecycleAction,
+        fromState: details.fromState,
+        toState: details.toState,
+      },
     );
     this.recordOperation("transition", objectName, updated, context, {
       baseRevision: existing.meta.revision,

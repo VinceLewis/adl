@@ -10,6 +10,8 @@ Keep runtime services independent of the storage backend. Tests should continue 
 
 Recommended path: IndexedDB first if quickest, SQLite WASM plus OPFS later only if the runtime shape is stable and the added complexity is justified.
 
+Phase 8 made lifecycle transitions explicit in audit events and operation log entries with `lifecycleAction`, `fromState`, and `toState`. Storage work must preserve that transition metadata and must not collapse transitions into ordinary update records.
+
 ## Expected Deliverables
 
 - Stable storage abstraction if not already present
@@ -25,6 +27,7 @@ Recommended path: IndexedDB first if quickest, SQLite WASM plus OPFS later only 
 - Browser demo persists records across reloads.
 - Indexed/search fields are honored to the extent supported by the current model.
 - Tombstones are supported instead of physical deletion for shared objects.
+- Transition-specific audit and operation-log metadata remains intact if persisted.
 
 ## Suggested Codex Prompt
 

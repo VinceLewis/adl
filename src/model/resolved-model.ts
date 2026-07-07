@@ -286,6 +286,9 @@ export interface AuditEvent {
   object: string;
   recordId: string;
   operation: AuditOperation;
+  lifecycleAction?: string;
+  fromState?: string;
+  toState?: string;
   actorId: string;
   occurredAt: string;
   before?: Record<string, JsonValue>;

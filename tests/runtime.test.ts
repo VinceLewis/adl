@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ApplicationRuntime,
+  HookError,
   LifecycleError,
   MASKED_POLICY_FIELD_VALUE,
   ModelValidationError,
@@ -113,6 +114,41 @@ const runtimePartialModel = {
             from: "Submitted",
             to: "Approved",
             policyRefs: ["PurchaseOrderPolicy"],
+          },
+        ],
+      },
+    },
+    {
+      name: "ServiceAccount",
+      businessKey: "AccountNumber",
+      displayField: "Name",
+      fields: [
+        { name: "AccountNumber", type: "text", required: true },
+        { name: "Name", type: "text", required: true },
+        { name: "Status", type: "text", required: true },
+      ],
+      lifecycle: {
+        name: "ServiceAccountLifecycle",
+        stateField: "Status",
+        initialState: "Draft",
+        states: [{ name: "Draft" }, { name: "Active" }, { name: "Suspended" }],
+        actions: [
+          {
+            name: "activate",
+            from: "Draft",
+            to: "Active",
+            policyRefs: ["ServiceAccountPolicy"],
+            hooks: {
+              before: ["hooks.serviceAccount.beforeActivate"],
+              after: ["hooks.serviceAccount.afterActivate"],
+              onError: ["hooks.serviceAccount.onActivateError"],
+            },
+          },
+          {
+            name: "suspend",
+            from: "Active",
+            to: "Suspended",
+            policyRefs: ["ServiceAccountPolicy"],
           },
         ],
       },
@@ -245,6 +281,18 @@ const runtimePartialModel = {
           action: "transition",
           state: "Submitted",
           lifecycleAction: "approve",
+        },
+      ],
+    },
+    {
+      name: "ServiceAccountPolicy",
+      object: "ServiceAccount",
+      rules: [
+        {
+          name: "allowAdminAllServiceAccountOps",
+          effect: "allow",
+          principal: { match: "specific", roles: ["Admin"] },
+          action: "*",
         },
       ],
     },
@@ -516,6 +564,94 @@ describe("ApplicationRuntime", () => {
     expect(approved.meta.state).toBe("Approved");
   });
 
+  it("allows Draft to Active and Active to Suspended transitions with ordered hooks", async () => {
+    const runtime = createRuntime();
+    const hookCalls: string[] = [];
+    runtime.registerHook("hooks.serviceAccount.beforeActivate", (event) => {
+      hookCalls.push(`before:${event.fromState}->${event.toState}:${event.record.values.Status}`);
+      expect(
+        runtime.operationLog
+          .getOperations()
+          .filter((operation) => operation.operation === "transition"),
+      ).toHaveLength(0);
+    });
+    runtime.registerHook("hooks.serviceAccount.afterActivate", (event) => {
+      hookCalls.push(`after:${event.fromState}->${event.toState}:${event.record.values.Status}`);
+      expect(runtime.auditService.getEvents().at(-1)).toMatchObject({
+        operation: "transition",
+        lifecycleAction: "activate",
+        fromState: "Draft",
+        toState: "Active",
+      });
+      expect(runtime.operationLog.getOperations().at(-1)).toMatchObject({
+        operation: "transition",
+        lifecycleAction: "activate",
+        fromState: "Draft",
+        toState: "Active",
+      });
+    });
+    const serviceAccount = await runtime.create(
+      "ServiceAccount",
+      { AccountNumber: "SA-100", Name: "Primary account" },
+      adminContext,
+    );
+
+    expect(serviceAccount.values.Status).toBe("Draft");
+
+    const active = await runtime.transition(
+      "ServiceAccount",
+      serviceAccount.meta.guid,
+      "activate",
+      adminContext,
+    );
+    expect(active.values.Status).toBe("Active");
+    expect(active.meta.state).toBe("Active");
+    expect(hookCalls).toEqual(["before:Draft->Active:Draft", "after:Draft->Active:Active"]);
+
+    const suspended = await runtime.transition(
+      "ServiceAccount",
+      serviceAccount.meta.guid,
+      "suspend",
+      adminContext,
+    );
+    expect(suspended.values.Status).toBe("Suspended");
+    expect(suspended.meta.state).toBe("Suspended");
+  });
+
+  it("runs error hooks and does not persist when a before hook fails", async () => {
+    const runtime = createRuntime();
+    const hookCalls: string[] = [];
+    runtime.registerHook("hooks.serviceAccount.beforeActivate", () => {
+      hookCalls.push("beforeActivate");
+      throw new Error("blocked by hook");
+    });
+    runtime.registerHook("hooks.serviceAccount.onActivateError", (event) => {
+      hookCalls.push(`onActivateError:${event.record.values.Status}`);
+    });
+    const serviceAccount = await runtime.create(
+      "ServiceAccount",
+      { AccountNumber: "SA-200", Name: "Hook failure account" },
+      adminContext,
+    );
+
+    await expect(
+      runtime.transition("ServiceAccount", serviceAccount.meta.guid, "activate", adminContext),
+    ).rejects.toBeInstanceOf(HookError);
+
+    expect(hookCalls).toEqual(["beforeActivate", "onActivateError:Draft"]);
+    await expect(
+      runtime.read("ServiceAccount", serviceAccount.meta.guid, adminContext),
+    ).resolves.toMatchObject({
+      values: {
+        Status: "Draft",
+      },
+    });
+    expect(runtime.auditService.getEvents().map((event) => event.operation)).toEqual(["create"]);
+    expect(runtime.operationLog.getOperations().map((operation) => operation.operation)).toEqual([
+      "create",
+    ]);
+  });
+
   it("rejects invalid lifecycle transitions", async () => {
     const runtime = createRuntime();
     const purchaseOrder = await runtime.create(
@@ -536,6 +672,22 @@ describe("ApplicationRuntime", () => {
       { PONumber: "PO-350", Supplier: "Contoso", Value: 250 },
       requesterContext,
     );
+
+    await expect(
+      runtime.update(
+        "PurchaseOrder",
+        purchaseOrder.meta.guid,
+        { Status: "Submitted" },
+        requesterContext,
+      ),
+    ).rejects.toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_LIFECYCLE_STATE_DIRECT_UPDATE",
+          field: "Status",
+        }),
+      ],
+    });
 
     await expect(
       runtime.transition("PurchaseOrder", purchaseOrder.meta.guid, "submit", approverContext),
@@ -582,6 +734,24 @@ describe("ApplicationRuntime", () => {
       "create",
       "transition",
     ]);
+    expect(runtime.auditService.getEvents().at(-1)).toMatchObject({
+      object: "PurchaseOrder",
+      recordId: purchaseOrder.meta.guid,
+      operation: "transition",
+      lifecycleAction: "submit",
+      fromState: "Draft",
+      toState: "Submitted",
+      actorId: "requester-1",
+      before: expect.objectContaining({
+        Status: "Draft",
+      }),
+      after: expect.objectContaining({
+        Status: "Submitted",
+      }),
+      metadata: expect.objectContaining({
+        state: "Submitted",
+      }),
+    });
     expect(runtime.operationLog.getOperations().map((operation) => operation.operation)).toEqual([
       "create",
       "update",

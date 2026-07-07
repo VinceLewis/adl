@@ -9,6 +9,12 @@ import { RuntimeModelIndex } from "./model-helpers.js";
 import { cloneJson, getContextNowIso, noopRuntimeLogger } from "./runtime-types.js";
 import type { RuntimeContext, RuntimeLogger } from "./runtime-types.js";
 
+export interface AuditEventDetails {
+  lifecycleAction?: string;
+  fromState?: string;
+  toState?: string;
+}
+
 export class AuditService {
   private readonly events: AuditEvent[] = [];
   private nextAuditId = 1;
@@ -26,6 +32,7 @@ export class AuditService {
     context: RuntimeContext,
     before?: Record<string, JsonValue>,
     after?: Record<string, JsonValue>,
+    details: AuditEventDetails = {},
   ): AuditEvent | undefined {
     this.logger.debug("ENTER AuditService.record", {
       objectName,
@@ -49,6 +56,11 @@ export class AuditService {
       object: objectName,
       recordId: record.meta.guid,
       operation,
+      ...(details.lifecycleAction === undefined
+        ? {}
+        : { lifecycleAction: details.lifecycleAction }),
+      ...(details.fromState === undefined ? {} : { fromState: details.fromState }),
+      ...(details.toState === undefined ? {} : { toState: details.toState }),
       actorId: context.userId,
       occurredAt: getContextNowIso(context),
       ...(before === undefined ? {} : { before: cloneJson(before) }),

@@ -95,6 +95,12 @@ export class LifecycleEngine {
     );
 
     try {
+      const nextValues = this.validationEngine.prepareTransitionValues(
+        objectName,
+        record,
+        action.to,
+      );
+
       await this.hookRegistry.run(action.hooks.before, {
         objectName,
         recordId: id,
@@ -105,11 +111,6 @@ export class LifecycleEngine {
         toState: action.to,
       });
 
-      const nextValues = this.validationEngine.prepareTransitionValues(
-        objectName,
-        record,
-        action.to,
-      );
       const updated = await this.objectStore.commitTransition(objectName, id, nextValues, context, {
         lifecycleAction: action.name,
         fromState: currentState,

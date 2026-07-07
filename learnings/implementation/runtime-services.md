@@ -2,14 +2,16 @@
 
 Read this before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
 
-## Key decisions from Phase 3
+## Key decisions from Phases 3 and 8
 
 - `ApplicationRuntime` is the public facade for later UI work. It validates `ResolvedApplicationModel` with `validateApplicationModel(model)` during construction and throws `ModelValidationError` if startup diagnostics include errors.
 - Public runtime operations are async: `create`, `read`, `update`, `delete`, `search`, and `transition` all return promises.
 - Runtime calls use `RuntimeContext` with `userId`, `roles`, `channel`, and optional `now`, groups, online state, and request id. Tests use fixed `now` values for deterministic metadata.
 - `ObjectStore` is still in-memory, but it is not a policy bypass. CRUD calls enforce runtime validation, policy, audit, and operation log recording.
 - Records use the existing `StoredObjectRecord` shape: platform metadata in `meta`, business values in `values`. Delete is a tombstone and normal read/search paths exclude deleted records.
-- `LifecycleEngine.transition` is a first-class operation, not a simple update. It checks current state, transition legality, transition policy, hooks, validation, audit, and operation-log recording.
+- `LifecycleEngine.transition` is a first-class operation, not a simple update. It checks current state, transition legality, transition policy, target validation, before hooks, persistence, audit, operation-log recording, and after hooks in that order.
+- Transition validation runs before registered before hooks. If validation, hooks, persistence, audit, or operation-log work fails inside the transition flow, registered `onError` hooks run before the original error is re-thrown.
+- `AuditService` records lifecycle transition audit metadata explicitly with `lifecycleAction`, `fromState`, and `toState`, in addition to before/after values, actor, object, record id, and persisted record metadata.
 - `OperationLog` records lifecycle transitions with `operation: "transition"` and includes `lifecycleAction`, `fromState`, and `toState`. Do not collapse transitions into update operations.
 - `HookRegistry` is no-op-capable: missing hook registrations are skipped, while registered hook failures throw `HookError`.
 
