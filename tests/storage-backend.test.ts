@@ -148,6 +148,11 @@ describe("object storage backends", () => {
       adminContext,
     );
     expect(created.meta.schemaVersion).toBe(7);
+    await expect(
+      new IndexedDbObjectStorageBackend({ databaseName }).readApplicationMetadata(),
+    ).resolves.toEqual({
+      modelVersion: model.modelVersion,
+    });
 
     const reloadedRuntime = new ApplicationRuntime(model, {
       storage: new IndexedDbObjectStorageBackend({ databaseName }),

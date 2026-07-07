@@ -7,7 +7,9 @@ import {
   MASKED_POLICY_FIELD_VALUE,
   ModelValidationError,
   PolicyDeniedError,
+  RUNTIME_STARTUP_COMPATIBILITY_CODES,
   RuntimeValidationError,
+  RuntimeStartupError,
   SyncPolicyError,
   resolveApplicationModel,
 } from "../src/index.js";
@@ -763,6 +765,84 @@ describe("ApplicationRuntime", () => {
     ).rejects.toBeInstanceOf(SyncPolicyError);
     expect(runtime.operationLog.getOperations()).toEqual([]);
     expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
+  it("stores application model metadata and opens compatible persisted records", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const model = resolveApplicationModel(createSyncModePartialModel("cacheReadonly"));
+    const syncObject = requireResolvedObject(model.objects[0]);
+    const cachedRecord = createStoredSyncRecord(syncObject);
+    await storage.create("SyncItem", cachedRecord);
+
+    const runtime = new ApplicationRuntime(model, { storage });
+
+    await expect(runtime.whenReady()).resolves.toBeUndefined();
+    await expect(storage.readApplicationMetadata()).resolves.toEqual({
+      modelVersion: model.modelVersion,
+    });
+    expect(runtime.getStartupDiagnostics()).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MODEL_VERSION_MISSING,
+      }),
+    ]);
+    await expect(runtime.read("SyncItem", cachedRecord.meta.guid, adminContext)).resolves.toEqual(
+      cachedRecord,
+    );
+  });
+
+  it("returns structured diagnostics for incompatible persisted object schema versions", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const model = resolveApplicationModel(createSyncModePartialModel("cacheReadonly"));
+    const syncObject = requireResolvedObject(model.objects[0]);
+    const baseRecord = createStoredSyncRecord(syncObject);
+    const cachedRecord = {
+      ...baseRecord,
+      meta: {
+        ...baseRecord.meta,
+        schemaVersion: syncObject.schemaVersion + 1,
+      },
+    };
+    await storage.writeApplicationMetadata({ modelVersion: model.modelVersion });
+    await storage.create("SyncItem", cachedRecord);
+
+    const runtime = new ApplicationRuntime(model, { storage });
+
+    await expect(runtime.whenReady()).rejects.toMatchObject({
+      code: "ADL_RUNTIME_STARTUP_COMPATIBILITY_FAILED",
+      diagnostics: [
+        expect.objectContaining({
+          severity: "error",
+          code: RUNTIME_STARTUP_COMPATIBILITY_CODES.RECORD_SCHEMA_VERSION_MISMATCH,
+          objectName: "SyncItem",
+          recordId: cachedRecord.meta.guid,
+          expected: syncObject.schemaVersion,
+          actual: syncObject.schemaVersion + 1,
+        }),
+      ],
+    });
+    await expect(
+      runtime.read("SyncItem", cachedRecord.meta.guid, adminContext),
+    ).rejects.toBeInstanceOf(RuntimeStartupError);
+  });
+
+  it("returns structured diagnostics for incompatible persisted application model versions", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const model = resolveApplicationModel(createSyncModePartialModel("cacheReadonly"));
+    await storage.writeApplicationMetadata({ modelVersion: "legacy-model-version" });
+
+    const runtime = new ApplicationRuntime(model, { storage });
+
+    await expect(runtime.whenReady()).rejects.toMatchObject({
+      diagnostics: [
+        expect.objectContaining({
+          severity: "error",
+          code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MODEL_VERSION_MISMATCH,
+          expected: model.modelVersion,
+          actual: "legacy-model-version",
+        }),
+      ],
+    });
   });
 
   it("checks policy before sync mode blocks writes", async () => {

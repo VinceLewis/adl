@@ -1,6 +1,15 @@
 import type { JsonValue, ResolvedObject, StoredObjectRecord } from "../model/resolved-model.js";
 import { StorageError, cloneJson } from "./runtime-types.js";
 
+export interface PersistedApplicationMetadata {
+  modelVersion: string;
+}
+
+export interface PersistedObjectRecord {
+  objectName: string;
+  record: StoredObjectRecord;
+}
+
 export interface ObjectStorageSearchRequest {
   object: ResolvedObject;
   fields: string[];
@@ -14,10 +23,14 @@ export interface ObjectStorageBackend {
   update(objectName: string, record: StoredObjectRecord): Promise<void>;
   delete(objectName: string, tombstone: StoredObjectRecord): Promise<void>;
   search(request: ObjectStorageSearchRequest): Promise<StoredObjectRecord[]>;
+  listRecords(): Promise<PersistedObjectRecord[]>;
+  readApplicationMetadata(): Promise<PersistedApplicationMetadata | null>;
+  writeApplicationMetadata(metadata: PersistedApplicationMetadata): Promise<void>;
 }
 
 export class InMemoryObjectStorageBackend implements ObjectStorageBackend {
   private readonly recordsByObject = new Map<string, Map<string, StoredObjectRecord>>();
+  private applicationMetadata: PersistedApplicationMetadata | undefined;
 
   async create(objectName: string, record: StoredObjectRecord): Promise<void> {
     const records = this.recordsForObject(objectName);
@@ -76,8 +89,26 @@ export class InMemoryObjectStorageBackend implements ObjectStorageBackend {
       .map((record) => cloneJson(record));
   }
 
+  async listRecords(): Promise<PersistedObjectRecord[]> {
+    return [...this.recordsByObject.entries()].flatMap(([objectName, records]) =>
+      [...records.values()].map((record) => ({
+        objectName,
+        record: cloneJson(record),
+      })),
+    );
+  }
+
+  async readApplicationMetadata(): Promise<PersistedApplicationMetadata | null> {
+    return this.applicationMetadata === undefined ? null : cloneJson(this.applicationMetadata);
+  }
+
+  async writeApplicationMetadata(metadata: PersistedApplicationMetadata): Promise<void> {
+    this.applicationMetadata = cloneJson(metadata);
+  }
+
   clear(): void {
     this.recordsByObject.clear();
+    this.applicationMetadata = undefined;
   }
 
   private recordsForObject(objectName: string): Map<string, StoredObjectRecord> {

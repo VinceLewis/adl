@@ -1,5 +1,10 @@
 import type { StoredObjectRecord } from "../model/resolved-model.js";
-import type { ObjectStorageBackend, ObjectStorageSearchRequest } from "./object-storage-backend.js";
+import type {
+  ObjectStorageBackend,
+  ObjectStorageSearchRequest,
+  PersistedApplicationMetadata,
+  PersistedObjectRecord,
+} from "./object-storage-backend.js";
 import { recordMatchesSearch } from "./object-storage-backend.js";
 import { StorageError, cloneJson } from "./runtime-types.js";
 
@@ -10,14 +15,26 @@ export interface IndexedDbObjectStorageOptions {
 }
 
 interface IndexedDbStoredRecord {
+  kind?: "record";
   key: string;
   object: string;
   guid: string;
   record: StoredObjectRecord;
 }
 
+interface IndexedDbStoredApplicationMetadata {
+  kind: "applicationMetadata";
+  key: string;
+  object: string;
+  metadata: PersistedApplicationMetadata;
+}
+
+type IndexedDbStoredEntry = IndexedDbStoredRecord | IndexedDbStoredApplicationMetadata;
+
 const DEFAULT_DATABASE_NAME = "adl-runtime";
 const DEFAULT_STORE_NAME = "objectRecords";
+const APPLICATION_METADATA_KEY = "__adl_application_metadata";
+const APPLICATION_METADATA_OBJECT = "__adl_application_metadata";
 
 export class IndexedDbObjectStorageBackend implements ObjectStorageBackend {
   private readonly databaseName: string;
@@ -73,6 +90,55 @@ export class IndexedDbObjectStorageBackend implements ObjectStorageBackend {
       .filter((record) => request.includeDeleted === true || record.meta.deletedAt === undefined)
       .filter((record) => recordMatchesSearch(record, request.fields, request.text))
       .map((record) => cloneJson(record));
+  }
+
+  async listRecords(): Promise<PersistedObjectRecord[]> {
+    const db = await this.openDatabase();
+    const transaction = db.transaction(this.storeName, "readonly");
+    const store = transaction.objectStore(this.storeName);
+    const stored = await requestToPromise<IndexedDbStoredEntry[]>(store.getAll(), "list records");
+    await transactionDone(transaction, "list records");
+
+    return stored.flatMap((entry) =>
+      isIndexedDbStoredRecord(entry)
+        ? [
+            {
+              objectName: entry.object,
+              record: cloneJson(entry.record),
+            },
+          ]
+        : [],
+    );
+  }
+
+  async readApplicationMetadata(): Promise<PersistedApplicationMetadata | null> {
+    const db = await this.openDatabase();
+    const transaction = db.transaction(this.storeName, "readonly");
+    const store = transaction.objectStore(this.storeName);
+    const stored = await requestToPromise<IndexedDbStoredEntry | undefined>(
+      store.get(APPLICATION_METADATA_KEY),
+      "read application metadata",
+    );
+    await transactionDone(transaction, "read application metadata");
+
+    return isIndexedDbStoredApplicationMetadata(stored) ? cloneJson(stored.metadata) : null;
+  }
+
+  async writeApplicationMetadata(metadata: PersistedApplicationMetadata): Promise<void> {
+    const db = await this.openDatabase();
+    const transaction = db.transaction(this.storeName, "readwrite");
+    const store = transaction.objectStore(this.storeName);
+
+    await requestToPromise(
+      store.put({
+        kind: "applicationMetadata",
+        key: APPLICATION_METADATA_KEY,
+        object: APPLICATION_METADATA_OBJECT,
+        metadata: cloneJson(metadata),
+      } satisfies IndexedDbStoredApplicationMetadata),
+      "write application metadata",
+    );
+    await transactionDone(transaction, "write application metadata");
   }
 
   private async write(
@@ -166,6 +232,7 @@ export class IndexedDbObjectStorageBackend implements ObjectStorageBackend {
 
 function toIndexedDbRecord(objectName: string, record: StoredObjectRecord): IndexedDbStoredRecord {
   return {
+    kind: "record",
     key: recordKey(objectName, record.meta.guid),
     object: objectName,
     guid: record.meta.guid,
@@ -203,6 +270,18 @@ function transactionDone(transaction: IDBTransaction, action: string): Promise<v
       reject(toStorageError(`IndexedDB failed while attempting to ${action}.`, transaction.error));
     };
   });
+}
+
+function isIndexedDbStoredRecord(
+  entry: IndexedDbStoredEntry | undefined,
+): entry is IndexedDbStoredRecord {
+  return entry !== undefined && "record" in entry && entry.record !== undefined;
+}
+
+function isIndexedDbStoredApplicationMetadata(
+  entry: IndexedDbStoredEntry | undefined,
+): entry is IndexedDbStoredApplicationMetadata {
+  return entry?.kind === "applicationMetadata" && "metadata" in entry;
 }
 
 function toStorageError(message: string, error: DOMException | null): StorageError {

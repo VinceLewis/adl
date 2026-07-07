@@ -14,8 +14,19 @@ import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import { ObjectStore } from "./object-store.js";
 import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
-import { ModelValidationError, noopRuntimeLogger, safeContextLog } from "./runtime-types.js";
-import type { RuntimeContext, RuntimeLogger, RuntimeSearchInput } from "./runtime-types.js";
+import {
+  ModelValidationError,
+  RuntimeStartupError,
+  noopRuntimeLogger,
+  safeContextLog,
+} from "./runtime-types.js";
+import type {
+  RuntimeContext,
+  RuntimeLogger,
+  RuntimeSearchInput,
+  RuntimeStartupDiagnostic,
+} from "./runtime-types.js";
+import { runRuntimeStartupCompatibilityChecks } from "./startup-compatibility.js";
 import { SyncPolicyService } from "./sync-policy-service.js";
 import { SyncQueue } from "./sync-queue.js";
 import { ValidationEngine } from "./validation-engine.js";
@@ -38,6 +49,8 @@ export class ApplicationRuntime {
   readonly lifecycleEngine: LifecycleEngine;
 
   private readonly logger: RuntimeLogger;
+  private readonly startupPromise: Promise<void>;
+  private startupDiagnostics: RuntimeStartupDiagnostic[] = [];
 
   constructor(
     readonly model: ResolvedApplicationModel,
@@ -58,6 +71,8 @@ export class ApplicationRuntime {
     this.syncQueue = new SyncQueue(model, this.index, this.logger);
     this.hookRegistry = new HookRegistry(this.logger);
     const storage = options.storage ?? new InMemoryObjectStorageBackend();
+    this.startupPromise = this.runStartupCompatibilityChecks(storage);
+    void this.startupPromise.catch(() => undefined);
     this.objectStore = new ObjectStore(
       model,
       this.validationEngine,
@@ -69,6 +84,7 @@ export class ApplicationRuntime {
       this.index,
       storage,
       this.logger,
+      () => this.whenReady(),
     );
     this.lifecycleEngine = new LifecycleEngine(
       model,
@@ -82,11 +98,20 @@ export class ApplicationRuntime {
     );
   }
 
+  async whenReady(): Promise<void> {
+    await this.startupPromise;
+  }
+
+  getStartupDiagnostics(): RuntimeStartupDiagnostic[] {
+    return this.startupDiagnostics.map((diagnostic) => ({ ...diagnostic }));
+  }
+
   async create(
     objectName: string,
     values: Record<string, JsonValue>,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
+    await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.create", {
       objectName,
       context: safeContextLog(context),
@@ -104,6 +129,7 @@ export class ApplicationRuntime {
     id: string,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord | null> {
+    await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.read", {
       objectName,
       recordId: id,
@@ -124,6 +150,7 @@ export class ApplicationRuntime {
     patch: Record<string, JsonValue>,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
+    await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.update", {
       objectName,
       recordId: id,
@@ -142,6 +169,7 @@ export class ApplicationRuntime {
     id: string,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
+    await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.delete", {
       objectName,
       recordId: id,
@@ -160,6 +188,7 @@ export class ApplicationRuntime {
     query: RuntimeSearchInput,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord[]> {
+    await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.search", {
       objectName,
       context: safeContextLog(context),
@@ -178,6 +207,7 @@ export class ApplicationRuntime {
     actionName: string,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
+    await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.transition", {
       objectName,
       recordId: id,
@@ -197,5 +227,21 @@ export class ApplicationRuntime {
     this.logger.debug("ENTER ApplicationRuntime.registerHook", { name });
     this.hookRegistry.registerHook(name, hook);
     this.logger.debug("EXIT ApplicationRuntime.registerHook", { name });
+  }
+
+  private async runStartupCompatibilityChecks(storage: ObjectStorageBackend): Promise<void> {
+    try {
+      this.startupDiagnostics = await runRuntimeStartupCompatibilityChecks(
+        this.model,
+        storage,
+        this.logger,
+      );
+    } catch (error) {
+      if (error instanceof RuntimeStartupError) {
+        this.startupDiagnostics = error.diagnostics;
+      }
+
+      throw error;
+    }
   }
 }

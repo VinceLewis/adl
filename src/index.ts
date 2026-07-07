@@ -15,6 +15,7 @@ export * from "./runtime/object-store.js";
 export * from "./runtime/operation-log.js";
 export * from "./runtime/policy-engine.js";
 export * from "./runtime/runtime-types.js";
+export * from "./runtime/startup-compatibility.js";
 export * from "./runtime/sync-policy-service.js";
 export * from "./runtime/sync-queue.js";
 export * from "./runtime/validation-engine.js";

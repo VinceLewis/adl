@@ -38,6 +38,7 @@ export class ObjectStore {
     private readonly index = new RuntimeModelIndex(model),
     private readonly storage: ObjectStorageBackend = new InMemoryObjectStorageBackend(),
     private readonly logger: RuntimeLogger = noopRuntimeLogger,
+    private readonly startupGuard: () => Promise<void> = async () => undefined,
   ) {}
 
   async create(
@@ -45,6 +46,7 @@ export class ObjectStore {
     values: Record<string, JsonValue>,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
+    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.create", { objectName, context: safeContextLog(context) });
     const object = this.index.getObject(objectName);
     const preparedValues = this.validationEngine.prepareCreateValues(objectName, values);
@@ -79,6 +81,7 @@ export class ObjectStore {
     id: string,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord | null> {
+    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.read", {
       objectName,
       recordId: id,
@@ -112,6 +115,7 @@ export class ObjectStore {
     patch: Record<string, JsonValue>,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
+    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.update", {
       objectName,
       recordId: id,
@@ -158,6 +162,7 @@ export class ObjectStore {
     id: string,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
+    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.delete", {
       objectName,
       recordId: id,
@@ -200,6 +205,7 @@ export class ObjectStore {
     query: RuntimeSearchInput,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord[]> {
+    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.search", { objectName, context: safeContextLog(context) });
     const object = this.index.getObject(objectName);
     const searchQuery = normaliseSearchQuery(query);
@@ -243,6 +249,7 @@ export class ObjectStore {
   }
 
   async getRecordForRuntime(objectName: string, id: string): Promise<StoredObjectRecord | null> {
+    await this.startupGuard();
     const record = await this.getActiveRecord(objectName, id);
     return record === undefined ? null : cloneJson(record);
   }
@@ -254,6 +261,7 @@ export class ObjectStore {
     context: RuntimeContext,
     details: Required<Pick<OperationLogDetails, "lifecycleAction" | "fromState" | "toState">>,
   ): Promise<StoredObjectRecord> {
+    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.commitTransition", {
       objectName,
       recordId: id,

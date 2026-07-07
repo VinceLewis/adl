@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../compiler/validate-model.js";
+import type { DiagnosticSeverity } from "../compiler/validate-model.js";
 import type {
   JsonValue,
   PolicyAction,
@@ -41,6 +42,17 @@ export interface RuntimeValidationIssue {
   message: string;
   path?: string;
   field?: string;
+}
+
+export interface RuntimeStartupDiagnostic {
+  severity: DiagnosticSeverity;
+  code: string;
+  message: string;
+  path?: string;
+  objectName?: string;
+  recordId?: string;
+  expected?: string | number;
+  actual?: string | number | null;
 }
 
 export interface PolicyRequest {
@@ -93,6 +105,19 @@ export class ModelValidationError extends RuntimeError {
     super(
       "ADL_RUNTIME_MODEL_VALIDATION_FAILED",
       "Resolved application model failed validation before runtime startup.",
+      { diagnostics },
+    );
+    this.diagnostics = diagnostics;
+  }
+}
+
+export class RuntimeStartupError extends RuntimeError {
+  readonly diagnostics: RuntimeStartupDiagnostic[];
+
+  constructor(diagnostics: RuntimeStartupDiagnostic[]) {
+    super(
+      "ADL_RUNTIME_STARTUP_COMPATIBILITY_FAILED",
+      "Persisted runtime data is incompatible with the resolved application model.",
       { diagnostics },
     );
     this.diagnostics = diagnostics;
