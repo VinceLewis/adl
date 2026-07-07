@@ -1,5 +1,6 @@
 import type { ApplicationRuntime } from "../runtime/application-runtime.js";
 import type {
+  JsonValue,
   ResolvedField,
   ResolvedLifecycleAction,
   ResolvedObject,
@@ -45,6 +46,7 @@ export function resolveFieldPresentation({
       objectName: object.name,
       action: mode === "create" ? "create" : "update",
       field: field.name,
+      ...(mode === "create" ? createScopePatchProperty(object, context) : {}),
       ...(record === undefined ? {} : { record }),
       ...(currentState === undefined ? {} : { currentState }),
     },
@@ -150,6 +152,7 @@ export function canRunCommand(
     {
       objectName: object.name,
       action,
+      ...(action === "create" ? createScopePatchProperty(object, context) : {}),
       ...(record === undefined ? {} : { record }),
       ...(currentState === undefined ? {} : { currentState }),
     },
@@ -157,6 +160,26 @@ export function canRunCommand(
   );
   const syncDecision = runtime.syncPolicy.evaluateLocalWrite(object.name, action, context);
   return decision.effect === "allow" && syncDecision.allowed;
+}
+
+function createScopePatchProperty(
+  object: ResolvedObject,
+  context: RuntimeContext,
+): { patch: Record<string, JsonValue> } | {} {
+  if (object.scope === undefined) {
+    return {};
+  }
+
+  const selectedContextId = context.selectedContexts?.[object.scope.context];
+  if (selectedContextId === undefined || selectedContextId.length === 0) {
+    return {};
+  }
+
+  return {
+    patch: {
+      [object.scope.field]: selectedContextId,
+    },
+  };
 }
 
 function canRunLifecycleAction(

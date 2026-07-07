@@ -221,7 +221,12 @@ describe("resolveApplicationModel", () => {
     expect(bandContext).toEqual({
       name: "Band",
       object: "Band",
-      selection: { mode: "optional" },
+      selection: {
+        mode: "optional",
+        autoSelect: true,
+        persistence: "none",
+        source: "runtime",
+      },
       membership: {
         object: "BandMember",
         userField: "User",

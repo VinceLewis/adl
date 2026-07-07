@@ -212,6 +212,9 @@ describe("validateApplicationModel", () => {
 
     bandContext.object = "MissingContextObject";
     (bandContext.selection as unknown as { mode: string }).mode = "sometimes";
+    (bandContext.selection as unknown as { persistence: string }).persistence = "forever";
+    (bandContext.selection as unknown as { source: string }).source = "cookie";
+    (bandContext.selection as unknown as { routeParam: string }).routeParam = "";
     bandContext.membership.userField = "MissingUser";
     bandContext.membership.contextField = "Role";
 
@@ -224,7 +227,12 @@ describe("validateApplicationModel", () => {
     invalid.contexts.push({
       name: "MissingMembership",
       object: "Band",
-      selection: { mode: "optional" },
+      selection: {
+        mode: "optional",
+        autoSelect: true,
+        persistence: "none",
+        source: "runtime",
+      },
       membership: {
         object: "MissingBandMember",
         userField: "User",
@@ -266,6 +274,9 @@ describe("validateApplicationModel", () => {
         MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_ROLE_FIELD_INVALID,
         MODEL_VALIDATION_CODES.CONTEXT_OBJECT_UNKNOWN,
         MODEL_VALIDATION_CODES.CONTEXT_SELECTION_MODE_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_PERSISTENCE_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_ROUTE_PARAM_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_SOURCE_INVALID,
         MODEL_VALIDATION_CODES.OBJECT_SCOPE_FIELD_CONTEXT_MISMATCH,
         MODEL_VALIDATION_CODES.READ_MODEL_CONTEXT_UNKNOWN,
         MODEL_VALIDATION_CODES.READ_MODEL_FIELD_SOURCE_UNKNOWN,

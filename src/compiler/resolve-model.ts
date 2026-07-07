@@ -154,6 +154,10 @@ function resolveContextSelection(
 ): ResolvedContextSelectionPolicy {
   return {
     mode: input?.mode ?? "optional",
+    autoSelect: input?.autoSelect ?? true,
+    persistence: input?.persistence ?? "none",
+    source: input?.source ?? "runtime",
+    ...(input?.routeParam === undefined ? {} : { routeParam: input.routeParam }),
   };
 }
 

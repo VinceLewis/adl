@@ -30,6 +30,7 @@ Before tasks that change business context/scope modelling, context-scoped roles,
 - `architecture/business-contexts-and-backends.md`
 - `implementation/business-context-model.md`
 - `implementation/context-runtime.md`
+- `implementation/context-ui-navigation.md`
 
 Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
 
@@ -59,6 +60,7 @@ Before tasks that change runtime startup compatibility checks, persisted applica
 Before tasks that change browser UI runtime components, browser demo fixtures, UI policy or sync presentation, or browser verification, also read:
 
 - `implementation/browser-ui-runtime.md`
+- `implementation/context-ui-navigation.md`
 - `implementation/policy-engine.md`
 - `implementation/sync-policy.md`
 
@@ -101,6 +103,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/model-versioning-guard.md`: read before changing runtime startup compatibility checks, persisted application metadata, object schema version guards, or future migration handling.
 - `implementation/business-context-model.md`: read before changing business context, object scope, view context, or read-model resolution and validation.
 - `implementation/context-runtime.md`: read before changing runtime context resolution, context-scoped roles, scoped object authorization, context-aware UI calls, or tests that assert context policy behavior.
+- `implementation/context-ui-navigation.md`: read before changing context selectors, view navigation, context-aware dashboard rendering, or browser UI calls for context-scoped objects.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.

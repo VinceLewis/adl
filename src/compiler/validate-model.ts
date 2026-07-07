@@ -2,6 +2,8 @@ import { DEFAULT_LIFECYCLE_STATE_FIELD } from "../model/defaults.js";
 import type {
   ConflictStrategy,
   ContextSelectionMode,
+  ContextSelectionPersistence,
+  ContextSelectionSource,
   FieldType,
   PolicyAction,
   ResolvedApplicationModel,
@@ -59,6 +61,9 @@ export const MODEL_VALIDATION_CODES = {
   CONTEXT_MEMBERSHIP_ROLE_FIELD_INVALID: "ADL_CONTEXT_MEMBERSHIP_ROLE_FIELD_INVALID",
   CONTEXT_OBJECT_UNKNOWN: "ADL_CONTEXT_OBJECT_UNKNOWN",
   CONTEXT_SELECTION_MODE_INVALID: "ADL_CONTEXT_SELECTION_MODE_INVALID",
+  CONTEXT_SELECTION_PERSISTENCE_INVALID: "ADL_CONTEXT_SELECTION_PERSISTENCE_INVALID",
+  CONTEXT_SELECTION_ROUTE_PARAM_INVALID: "ADL_CONTEXT_SELECTION_ROUTE_PARAM_INVALID",
+  CONTEXT_SELECTION_SOURCE_INVALID: "ADL_CONTEXT_SELECTION_SOURCE_INVALID",
   FIELD_DEFAULT_INCOMPATIBLE: "ADL_FIELD_DEFAULT_INCOMPATIBLE",
   FIELD_DUPLICATE: "ADL_FIELD_DUPLICATE",
   HOOK_REFERENCE_INVALID: "ADL_HOOK_REFERENCE_INVALID",
@@ -146,6 +151,12 @@ const VIEW_KINDS = new Set<ViewKind>([
 ]);
 
 const CONTEXT_SELECTION_MODES = new Set<ContextSelectionMode>(["required", "optional"]);
+const CONTEXT_SELECTION_PERSISTENCE = new Set<ContextSelectionPersistence>([
+  "none",
+  "session",
+  "local",
+]);
+const CONTEXT_SELECTION_SOURCES = new Set<ContextSelectionSource>(["runtime", "route"]);
 const VIEW_CONTEXT_MODES = new Set<ViewContextMode>(["none", "required", "optional", "all"]);
 
 const POLICY_ACTIONS = new Set<PolicyAction>([
@@ -368,6 +379,39 @@ function validateBusinessContext(
         MODEL_VALIDATION_CODES.CONTEXT_SELECTION_MODE_INVALID,
         `Business context '${context.name}' has invalid selection mode '${String(context.selection.mode)}'.`,
         `${contextPath}.selection.mode`,
+      ),
+    );
+  }
+
+  if (!CONTEXT_SELECTION_PERSISTENCE.has(context.selection.persistence)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_PERSISTENCE_INVALID,
+        `Business context '${context.name}' has invalid selection persistence '${String(context.selection.persistence)}'.`,
+        `${contextPath}.selection.persistence`,
+      ),
+    );
+  }
+
+  if (!CONTEXT_SELECTION_SOURCES.has(context.selection.source)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_SOURCE_INVALID,
+        `Business context '${context.name}' has invalid selection source '${String(context.selection.source)}'.`,
+        `${contextPath}.selection.source`,
+      ),
+    );
+  }
+
+  if (
+    context.selection.routeParam !== undefined &&
+    (typeof context.selection.routeParam !== "string" || context.selection.routeParam.trim() === "")
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_ROUTE_PARAM_INVALID,
+        `Business context '${context.name}' route parameter must not be empty.`,
+        `${contextPath}.selection.routeParam`,
       ),
     );
   }

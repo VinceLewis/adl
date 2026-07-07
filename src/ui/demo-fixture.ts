@@ -25,7 +25,31 @@ export const browserDemoPartialModel = {
     startView: "UserList",
     theme: "CorporateLight",
   },
-  roles: [{ name: "Admin" }, { name: "Viewer" }, { name: "Requester" }, { name: "Approver" }],
+  roles: [
+    { name: "Admin" },
+    { name: "Viewer" },
+    { name: "Requester" },
+    { name: "Approver" },
+    { name: "WorkspaceMember" },
+    { name: "WorkspaceAdmin", inherits: ["WorkspaceMember"] },
+  ],
+  contexts: [
+    {
+      name: "Workspace",
+      selection: {
+        mode: "optional",
+        persistence: "session",
+        autoSelect: false,
+      },
+      membership: {
+        object: "WorkspaceMember",
+        userField: "User",
+        contextField: "Workspace",
+        roleField: "Role",
+        roles: ["WorkspaceAdmin", "WorkspaceMember"],
+      },
+    },
+  ],
   objects: [
     {
       name: "User",
@@ -134,6 +158,93 @@ export const browserDemoPartialModel = {
           name: "PurchaseOrderForm",
           kind: "form",
           fields: ["PONumber", "Supplier", "Value", "Status", "InternalNotes", "ApprovalComment"],
+          actions: ["save", "delete"],
+        },
+      ],
+    },
+    {
+      name: "Workspace",
+      displayField: "Name",
+      fields: [{ name: "Name", type: "text", required: true }],
+      views: [
+        {
+          name: "WorkspaceList",
+          kind: "list",
+          fields: ["Name"],
+          searchFields: ["Name"],
+          actions: ["read", "search"],
+        },
+      ],
+    },
+    {
+      name: "WorkspaceMember",
+      scope: { context: "Workspace", field: "Workspace" },
+      fields: [
+        {
+          name: "User",
+          type: "text",
+          required: true,
+          lookup: { targetObject: "User", displayField: "Name" },
+        },
+        {
+          name: "Workspace",
+          type: "text",
+          required: true,
+          lookup: { targetObject: "Workspace", displayField: "Name" },
+        },
+        { name: "Role", type: "text", required: true },
+      ],
+      views: [
+        {
+          name: "WorkspaceMemberList",
+          kind: "list",
+          context: { mode: "required", context: "Workspace" },
+          fields: ["User", "Role"],
+          searchFields: ["Role"],
+          actions: ["read", "search"],
+        },
+      ],
+    },
+    {
+      name: "WorkspaceTask",
+      displayField: "Title",
+      scope: { context: "Workspace", field: "Workspace" },
+      fields: [
+        {
+          name: "Workspace",
+          type: "text",
+          required: true,
+          lookup: { targetObject: "Workspace", displayField: "Name" },
+        },
+        { name: "Title", type: "text", required: true },
+        { name: "DueDate", type: "date" },
+        { name: "Status", type: "text", required: true, defaultValue: "Open" },
+        { name: "Notes", type: "text" },
+      ],
+      views: [
+        {
+          name: "WorkspaceTaskDashboard",
+          kind: "dashboard",
+          context: { mode: "all", context: "Workspace" },
+          fields: ["Workspace", "Title", "DueDate", "Status"],
+          searchFields: ["Title", "Status"],
+          sort: [{ field: "DueDate", direction: "asc" }],
+          actions: ["read", "search"],
+        },
+        {
+          name: "WorkspaceTaskList",
+          kind: "list",
+          context: { mode: "required", context: "Workspace" },
+          fields: ["Title", "DueDate", "Status"],
+          searchFields: ["Title", "Status"],
+          sort: [{ field: "DueDate", direction: "asc" }],
+          actions: ["create", "read", "update", "delete"],
+        },
+        {
+          name: "WorkspaceTaskForm",
+          kind: "form",
+          context: { mode: "required", context: "Workspace" },
+          fields: ["Title", "DueDate", "Status", "Notes"],
           actions: ["save", "delete"],
         },
       ],
@@ -247,6 +358,84 @@ export const browserDemoPartialModel = {
         },
       ],
     },
+    {
+      name: "WorkspacePolicy",
+      object: "Workspace",
+      rules: [
+        {
+          name: "allowAdminAllWorkspaceOps",
+          effect: "allow",
+          principal: { match: "specific", roles: ["Admin"] },
+          action: "*",
+        },
+      ],
+    },
+    {
+      name: "WorkspaceMemberPolicy",
+      object: "WorkspaceMember",
+      rules: [
+        {
+          name: "allowAdminAllWorkspaceMemberOps",
+          effect: "allow",
+          principal: { match: "specific", roles: ["Admin"] },
+          action: "*",
+        },
+        {
+          name: "allowWorkspaceAdminReadMembers",
+          effect: "allow",
+          principal: { match: "specific", roles: ["WorkspaceAdmin"] },
+          action: "read",
+        },
+        {
+          name: "allowWorkspaceAdminSearchMembers",
+          effect: "allow",
+          principal: { match: "specific", roles: ["WorkspaceAdmin"] },
+          action: "search",
+        },
+      ],
+    },
+    {
+      name: "WorkspaceTaskPolicy",
+      object: "WorkspaceTask",
+      rules: [
+        {
+          name: "allowAdminAllWorkspaceTaskOps",
+          effect: "allow",
+          principal: { match: "specific", roles: ["Admin"] },
+          action: "*",
+        },
+        {
+          name: "allowWorkspaceMemberReadTasks",
+          effect: "allow",
+          principal: { match: "specific", roles: ["WorkspaceMember"] },
+          action: "read",
+        },
+        {
+          name: "allowWorkspaceMemberSearchTasks",
+          effect: "allow",
+          principal: { match: "specific", roles: ["WorkspaceMember"] },
+          action: "search",
+        },
+        {
+          name: "allowWorkspaceAdminCreateTasks",
+          effect: "allow",
+          principal: { match: "specific", roles: ["WorkspaceAdmin"] },
+          action: "create",
+        },
+        {
+          name: "allowWorkspaceAdminUpdateTasks",
+          effect: "allow",
+          principal: { match: "specific", roles: ["WorkspaceAdmin"] },
+          action: "update",
+        },
+        {
+          name: "allowWorkspaceAdminDeleteTasks",
+          effect: "allow",
+          principal: { match: "specific", roles: ["WorkspaceAdmin"] },
+          action: "delete",
+        },
+      ],
+    },
   ],
 } satisfies PartialApplicationModel;
 
@@ -321,6 +510,50 @@ export async function seedBrowserDemoRuntime(
     context,
   );
   await runtime.transition("PurchaseOrder", submittedOrder.meta.guid, "submit", context);
+
+  const firstWorkspace = await runtime.create("Workspace", { Name: "Studio Ops" }, context);
+  const secondWorkspace = await runtime.create("Workspace", { Name: "Tour Planning" }, context);
+  const firstWorkspaceContext = contextForWorkspace(context, firstWorkspace.meta.guid);
+  const secondWorkspaceContext = contextForWorkspace(context, secondWorkspace.meta.guid);
+
+  await runtime.create(
+    "WorkspaceMember",
+    {
+      User: context.userId,
+      Workspace: firstWorkspace.meta.guid,
+      Role: "WorkspaceAdmin",
+    },
+    firstWorkspaceContext,
+  );
+  await runtime.create(
+    "WorkspaceMember",
+    {
+      User: context.userId,
+      Workspace: secondWorkspace.meta.guid,
+      Role: "WorkspaceMember",
+    },
+    secondWorkspaceContext,
+  );
+  await runtime.create(
+    "WorkspaceTask",
+    {
+      Workspace: firstWorkspace.meta.guid,
+      Title: "Confirm rehearsal room",
+      DueDate: "2026-07-12",
+      Notes: "Check access codes before arrival.",
+    },
+    firstWorkspaceContext,
+  );
+  await runtime.create(
+    "WorkspaceTask",
+    {
+      Workspace: secondWorkspace.meta.guid,
+      Title: "Send stage plot",
+      DueDate: "2026-07-15",
+      Status: "Open",
+    },
+    secondWorkspaceContext,
+  );
 }
 
 export async function seedBrowserDemoRuntimeIfEmpty(
@@ -328,7 +561,7 @@ export async function seedBrowserDemoRuntimeIfEmpty(
   model: ResolvedApplicationModel = createBrowserDemoModel(),
   context: RuntimeContext = browserDemoContext,
 ): Promise<boolean> {
-  for (const object of model.objects) {
+  for (const object of model.objects.filter((candidate) => candidate.scope === undefined)) {
     const records = await runtime.search(
       object.name,
       {
@@ -345,4 +578,14 @@ export async function seedBrowserDemoRuntimeIfEmpty(
 
   await seedBrowserDemoRuntime(runtime, context);
   return true;
+}
+
+function contextForWorkspace(context: RuntimeContext, workspaceId: string): RuntimeContext {
+  return {
+    ...context,
+    selectedContexts: {
+      ...(context.selectedContexts ?? {}),
+      Workspace: workspaceId,
+    },
+  };
 }

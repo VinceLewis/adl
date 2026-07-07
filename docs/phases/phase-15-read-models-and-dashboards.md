@@ -10,6 +10,8 @@ For the band-management reference app, this enables a home dashboard that combin
 
 Implement a small read-model/query runtime over the local storage abstraction and render results through generic list/dashboard components. The first target is an event-list style dashboard grouped or sorted by date.
 
+Phase 14 added generic view navigation and active-view context resolution in the browser runtime. Read-model/dashboard rendering should reuse that context path: required-context dashboards use the selected context, while `context.mode: "all"` dashboards must resolve all available context roles and must not inherit `selectedContexts[contextName]`.
+
 Do not implement arbitrary SQL, PostgreSQL materialised views, a production reporting engine, or specialised calendar/scheduler UI in this phase.
 
 ## Expected Deliverables
@@ -38,7 +40,7 @@ Execute Phase 15 only. Add backend-neutral read-model execution and generic dash
 
 ## Tasks
 
-1. Review read-model declarations from Phase 12, context enforcement from Phase 13, and UI context handling from Phase 14.
+1. Review read-model declarations from Phase 12, context enforcement from Phase 13, UI context handling from Phase 14, and `learnings/implementation/context-ui-navigation.md`.
 2. Define a minimal runtime query service that can execute declared read models over local object storage.
 3. Support source filtering by:
    - current context

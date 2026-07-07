@@ -50,6 +50,8 @@ export type ThemeRadius = "none" | "small" | "medium" | "large";
 export type ThemeDensity = "compact" | "comfortable" | "spacious";
 export type ThemeNav = "top" | "side" | "bottom";
 export type ContextSelectionMode = "required" | "optional";
+export type ContextSelectionPersistence = "none" | "session" | "local";
+export type ContextSelectionSource = "runtime" | "route";
 export type ViewContextMode = "none" | "required" | "optional" | "all";
 
 export interface ResolvedApplicationModel {
@@ -100,6 +102,10 @@ export interface ResolvedBusinessContext {
 
 export interface ResolvedContextSelectionPolicy {
   mode: ContextSelectionMode;
+  autoSelect: boolean;
+  persistence: ContextSelectionPersistence;
+  source: ContextSelectionSource;
+  routeParam?: string;
 }
 
 export interface ResolvedContextMembership {
@@ -409,6 +415,10 @@ export interface PartialBusinessContextModel {
 
 export interface PartialContextSelectionPolicyModel {
   mode?: ContextSelectionMode;
+  autoSelect?: boolean;
+  persistence?: ContextSelectionPersistence;
+  source?: ContextSelectionSource;
+  routeParam?: string;
 }
 
 export interface PartialContextMembershipModel {

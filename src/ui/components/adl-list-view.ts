@@ -6,7 +6,11 @@ import type {
   StoredObjectRecord,
 } from "../../model/resolved-model.js";
 import type { RuntimeContext } from "../../runtime/runtime-types.js";
-import { getRecordLifecycleState, resolveFieldPresentation } from "../policy-presentation.js";
+import {
+  canRunCommand,
+  getRecordLifecycleState,
+  resolveFieldPresentation,
+} from "../policy-presentation.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
 
 export class AdlListViewElement extends HTMLElement {
@@ -115,6 +119,9 @@ export class AdlListViewElement extends HTMLElement {
     const fields = this._view.fields
       .map((fieldName) => this._object?.fields.find((field) => field.name === fieldName))
       .filter((field): field is ResolvedField => field !== undefined && !field.hidden);
+    const canCreate =
+      this._view.actions.includes("create") &&
+      canRunCommand(this._runtime, this._object, "create", this._context);
 
     this.innerHTML = `
       <section class="adl-panel">
@@ -128,7 +135,11 @@ export class AdlListViewElement extends HTMLElement {
               value="${escapeHtml(this._searchText)}"
               placeholder="Search"
             />
-            <button type="button" class="adl-primary" data-list-action="new">New</button>
+            ${
+              canCreate
+                ? '<button type="button" class="adl-primary" data-list-action="new">New</button>'
+                : ""
+            }
           </div>
         </header>
         ${this.renderRows(fields)}
