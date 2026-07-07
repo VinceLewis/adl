@@ -4,6 +4,7 @@ import {
   DEFAULT_OBJECT_SCHEMA_VERSION,
   DEFAULT_THEME_NAME,
   SYSTEM_ID_FIELD,
+  createBuiltInThemes,
   createDefaultAuditModel,
   createDefaultDenyPolicy,
   createDefaultModelDefaults,
@@ -13,6 +14,7 @@ import {
   createDefaultTheme,
   createEveryonePrincipal,
   createMetadataFields,
+  getBuiltInTheme,
   toStorageName,
   toTableName,
 } from "../model/defaults.js";
@@ -53,6 +55,7 @@ import type {
   ResolvedState,
   ResolvedSyncPolicy,
   ResolvedTheme,
+  ResolvedThemeTokens,
   ResolvedValidator,
   ResolvedView,
 } from "../model/resolved-model.js";
@@ -352,22 +355,61 @@ function resolvePrincipal(
 }
 
 function resolveThemes(input: PartialThemeModel[]): ResolvedTheme[] {
-  const hasDefaultTheme = input.some((theme) => theme.name === DEFAULT_THEME_NAME);
-  const themes = hasDefaultTheme ? input : [createDefaultTheme(), ...input];
-  return themes.map(resolveTheme);
+  const inputThemeNames = new Set(input.map((theme) => theme.name));
+  const themes = [
+    ...createBuiltInThemes().filter((theme) => !inputThemeNames.has(theme.name)),
+    ...input,
+  ];
+  const themesByName = new Map<string, PartialThemeModel | ResolvedTheme>();
+
+  for (const theme of themes) {
+    if (!themesByName.has(theme.name)) {
+      themesByName.set(theme.name, theme);
+    }
+  }
+
+  return themes.map((theme) => resolveTheme(theme, themesByName, []));
 }
 
-function resolveTheme(input: PartialThemeModel | ResolvedTheme): ResolvedTheme {
-  const defaultTokens = createDefaultTheme().tokens;
+function resolveTheme(
+  input: PartialThemeModel | ResolvedTheme,
+  themesByName: Map<string, PartialThemeModel | ResolvedTheme>,
+  resolutionPath: string[],
+): ResolvedTheme {
+  const baseTokens = resolveThemeBaseTokens(input, themesByName, resolutionPath);
 
   return {
     name: input.name,
     ...(input.base === undefined ? {} : { base: input.base }),
     tokens: {
-      ...defaultTokens,
+      ...baseTokens,
       ...(input.tokens ?? {}),
     },
   };
+}
+
+function resolveThemeBaseTokens(
+  input: PartialThemeModel | ResolvedTheme,
+  themesByName: Map<string, PartialThemeModel | ResolvedTheme>,
+  resolutionPath: string[],
+): ResolvedThemeTokens {
+  const builtInTheme = getBuiltInTheme(input.name);
+  const defaultTokens = builtInTheme?.tokens ?? createDefaultTheme().tokens;
+
+  if (
+    input.base === undefined ||
+    input.base === input.name ||
+    resolutionPath.includes(input.base)
+  ) {
+    return defaultTokens;
+  }
+
+  const baseTheme = themesByName.get(input.base);
+  if (baseTheme === undefined) {
+    return defaultTokens;
+  }
+
+  return resolveTheme(baseTheme, themesByName, [...resolutionPath, input.name]).tokens;
 }
 
 function stripObjectFromSync(

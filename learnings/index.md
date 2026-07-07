@@ -36,6 +36,10 @@ Before tasks that change browser UI runtime components, browser demo fixtures, U
 
 - `implementation/browser-ui-runtime.md`
 
+Before tasks that change resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`, also read:
+
+- `implementation/theme-system.md`
+
 Before tasks that change the phase plan, also read:
 
 - `process/phase-execution.md`
@@ -66,3 +70,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, or runtime model startup checks.
 - `implementation/runtime-services.md`: read before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
+- `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.

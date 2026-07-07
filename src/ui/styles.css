@@ -1,19 +1,39 @@
 :root {
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  color: #172033;
-  background: #eef2f6;
+  --adl-color-primary: #155eef;
+  --adl-color-accent: #12b76a;
+  --adl-color-background: #f8fafc;
+  --adl-color-surface: #ffffff;
+  --adl-color-surface-alt: #f1f5f9;
+  --adl-color-text: #101828;
+  --adl-color-text-muted: #667085;
+  --adl-color-text-inverted: #ffffff;
+  --adl-color-border: #d9e1ec;
+  --adl-color-danger: #d92d20;
+  --adl-color-success: #039855;
+  --adl-color-info: #155eef;
+  --adl-radius: 6px;
+  --adl-control-height: 34px;
+  --adl-space-xs: 6px;
+  --adl-space-sm: 8px;
+  --adl-space-md: 12px;
+  --adl-space-lg: 16px;
+  --adl-table-cell-y: 10px;
+  --adl-table-cell-x: 12px;
+  --adl-form-gap: 12px;
+  --adl-font-family: system-ui, sans-serif;
+  font-family: var(--adl-font-family);
+  color: var(--adl-color-text);
+  background: var(--adl-color-background);
 }
 
 body {
   margin: 0;
   min-width: 320px;
+}
+
+adl-app {
+  display: block;
+  min-height: 100vh;
 }
 
 button,
@@ -24,17 +44,17 @@ textarea {
 }
 
 button {
-  border: 1px solid #c8d0dc;
-  border-radius: var(--adl-radius, 6px);
-  background: var(--adl-color-surface, #ffffff);
-  color: var(--adl-color-text, #172033);
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text);
   cursor: pointer;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: var(--adl-control-height);
+  padding: 0 var(--adl-space-md);
 }
 
 button:hover:not(:disabled) {
-  border-color: var(--adl-color-primary, #155eef);
+  border-color: var(--adl-color-primary);
 }
 
 button:disabled {
@@ -43,26 +63,26 @@ button:disabled {
 }
 
 .adl-shell {
-  background: var(--adl-color-background, #f8fafc);
-  color: var(--adl-color-text, #101828);
+  background: var(--adl-color-background);
+  color: var(--adl-color-text);
   min-height: 100vh;
 }
 
 .adl-topbar {
   align-items: center;
-  background: var(--adl-color-surface, #ffffff);
-  border-bottom: 1px solid #d9e1ec;
+  background: var(--adl-color-surface);
+  border-bottom: 1px solid var(--adl-color-border);
   display: flex;
-  gap: 16px;
+  gap: var(--adl-space-lg);
   justify-content: space-between;
   min-height: 60px;
-  padding: 0 20px;
+  padding: 0 var(--adl-space-lg);
 }
 
 .adl-brand {
   align-items: baseline;
   display: flex;
-  gap: 12px;
+  gap: var(--adl-space-md);
   min-width: 0;
 }
 
@@ -74,46 +94,48 @@ button:disabled {
 }
 
 .adl-brand span {
-  color: #5d6b82;
+  color: var(--adl-color-text-muted);
   font-size: 13px;
 }
 
 .adl-object-switch {
   align-items: center;
   display: flex;
-  gap: 8px;
+  gap: var(--adl-space-sm);
 }
 
 .adl-object-switch select,
 .adl-search-input,
 .adl-field-control {
-  border: 1px solid #c8d0dc;
-  border-radius: var(--adl-radius, 6px);
-  min-height: 34px;
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text);
+  min-height: var(--adl-control-height);
   padding: 0 10px;
 }
 
 .adl-workspace {
   display: grid;
-  gap: 16px;
+  gap: var(--adl-space-lg);
   grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.4fr);
-  padding: 16px;
+  padding: var(--adl-space-lg);
 }
 
 .adl-panel {
-  background: var(--adl-color-surface, #ffffff);
-  border: 1px solid #d9e1ec;
-  border-radius: var(--adl-radius, 6px);
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
   min-width: 0;
 }
 
 .adl-panel-header {
   align-items: center;
-  border-bottom: 1px solid #e4eaf2;
+  border-bottom: 1px solid var(--adl-color-border);
   display: flex;
-  gap: 12px;
+  gap: var(--adl-space-md);
   justify-content: space-between;
-  padding: 12px;
+  padding: var(--adl-space-md);
 }
 
 .adl-panel-title {
@@ -124,7 +146,7 @@ button:disabled {
 
 .adl-list-tools {
   display: flex;
-  gap: 8px;
+  gap: var(--adl-space-sm);
   min-width: 0;
 }
 
@@ -133,20 +155,20 @@ button:disabled {
 }
 
 .adl-primary {
-  background: var(--adl-color-primary, #155eef);
-  border-color: var(--adl-color-primary, #155eef);
-  color: #ffffff;
+  background: var(--adl-color-primary);
+  border-color: var(--adl-color-primary);
+  color: var(--adl-color-text-inverted);
 }
 
 .adl-danger {
-  border-color: #d92d20;
-  color: #b42318;
+  border-color: var(--adl-color-danger);
+  color: var(--adl-color-danger);
 }
 
 .adl-action-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--adl-space-sm);
 }
 
 .adl-table-wrap {
@@ -162,16 +184,16 @@ button:disabled {
 
 .adl-table th,
 .adl-table td {
-  border-bottom: 1px solid #e4eaf2;
+  border-bottom: 1px solid var(--adl-color-border);
   overflow: hidden;
-  padding: 10px 12px;
+  padding: var(--adl-table-cell-y) var(--adl-table-cell-x);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .adl-table th {
-  color: #536176;
+  color: var(--adl-color-text-muted);
   font-size: 12px;
   font-weight: 650;
 }
@@ -181,85 +203,84 @@ button:disabled {
 }
 
 .adl-table tr[aria-selected="true"] {
-  background: #edf4ff;
+  background: var(--adl-color-surface-alt);
 }
 
 .adl-empty {
-  color: #667085;
-  padding: 16px;
+  color: var(--adl-color-text-muted);
+  padding: var(--adl-space-lg);
 }
 
 .adl-form-body {
   display: grid;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--adl-form-gap);
+  padding: var(--adl-space-md);
 }
 
 .adl-field {
   display: grid;
-  gap: 6px;
+  gap: var(--adl-space-xs);
 }
 
 .adl-field-label-row {
   align-items: center;
   display: flex;
-  gap: 8px;
+  gap: var(--adl-space-sm);
   justify-content: space-between;
 }
 
 .adl-field-label {
-  color: #344054;
+  color: var(--adl-color-text);
   font-size: 13px;
   font-weight: 650;
 }
 
 .adl-field-badge {
-  color: #667085;
+  color: var(--adl-color-text-muted);
   font-size: 12px;
 }
 
 .adl-field-control {
-  background: #ffffff;
   box-sizing: border-box;
   width: 100%;
 }
 
 textarea.adl-field-control {
   min-height: 78px;
-  padding: 8px 10px;
+  padding: var(--adl-space-sm) 10px;
 }
 
 .adl-field-control[disabled],
 .adl-field-control[readonly] {
-  background: #f5f7fa;
-  color: #59677a;
+  background: var(--adl-color-surface-alt);
+  color: var(--adl-color-text-muted);
 }
 
 .adl-checkbox-row {
   align-items: center;
   display: flex;
-  gap: 8px;
-  min-height: 34px;
+  gap: var(--adl-space-sm);
+  min-height: var(--adl-control-height);
 }
 
 .adl-field-errors {
-  color: #b42318;
+  color: var(--adl-color-danger);
   display: grid;
   font-size: 12px;
-  gap: 4px;
+  gap: var(--adl-space-xs);
 }
 
 .adl-message-area {
   display: grid;
-  gap: 8px;
-  padding: 12px 16px 0;
+  gap: var(--adl-space-sm);
+  padding: var(--adl-space-md) var(--adl-space-lg) 0;
 }
 
 .adl-message {
-  border: 1px solid #d9e1ec;
-  border-radius: var(--adl-radius, 6px);
-  background: var(--adl-color-surface, #ffffff);
-  padding: 10px 12px;
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  padding: 10px var(--adl-space-md);
 }
 
 .adl-message strong {
@@ -268,26 +289,27 @@ textarea.adl-field-control {
 }
 
 .adl-message ul {
-  margin: 6px 0 0;
+  margin: var(--adl-space-xs) 0 0;
   padding-left: 18px;
 }
 
 .adl-message-error {
-  border-color: #fda29b;
+  border-color: var(--adl-color-danger);
 }
 
 .adl-message-success {
-  border-color: #75e0a7;
+  border-color: var(--adl-color-success);
 }
 
 .adl-message-info {
-  border-color: #b2ccff;
+  border-color: var(--adl-color-info);
 }
 
 .adl-state-pill {
-  background: #eef2f6;
-  border-radius: 999px;
-  color: #344054;
+  background: var(--adl-color-surface-alt);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text);
   display: inline-block;
   font-size: 12px;
   padding: 3px 8px;
@@ -297,8 +319,8 @@ textarea.adl-field-control {
   .adl-topbar {
     align-items: stretch;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px;
+    gap: var(--adl-space-sm);
+    padding: var(--adl-space-md);
   }
 
   .adl-object-switch {
@@ -307,7 +329,7 @@ textarea.adl-field-control {
 
   .adl-workspace {
     grid-template-columns: 1fr;
-    padding: 12px;
+    padding: var(--adl-space-md);
   }
 
   .adl-panel-header {

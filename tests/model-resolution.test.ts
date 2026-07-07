@@ -1,6 +1,8 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   ADL_MODEL_VERSION,
+  BUILT_IN_THEME_NAMES,
+  CORPORATE_DARK_THEME_TOKENS,
   DEFAULT_LIFECYCLE_STATE_FIELD,
   DEFAULT_OBJECT_SCHEMA_VERSION,
   DEFAULT_SYNC_MODE,
@@ -118,7 +120,7 @@ describe("resolveApplicationModel", () => {
       startView: "PatientRecordList",
       theme: DEFAULT_THEME_NAME,
     });
-    expect(resolved.themes[0]?.name).toBe(DEFAULT_THEME_NAME);
+    expect(resolved.themes.map((theme) => theme.name)).toEqual([...BUILT_IN_THEME_NAMES]);
     expect(resolved.sync).toEqual([
       {
         object: "PatientRecord",
@@ -173,6 +175,43 @@ describe("resolveApplicationModel", () => {
       density: "compact",
       nav: "top",
       colorPrimary: "#155EEF",
+      colorBorder: "#D9E1EC",
+    });
+  });
+
+  it("resolves customer themes from explicit base themes and token overrides", () => {
+    const resolved = resolveApplicationModel({
+      ...minimalModel,
+      app: {
+        ...minimalModel.app,
+        theme: "CustomerDark",
+      },
+      themes: [
+        {
+          name: "CustomerDark",
+          base: "CorporateDark",
+          tokens: {
+            colorPrimary: "#F04438",
+            radius: "large",
+            density: "spacious",
+          },
+        },
+      ],
+    });
+
+    const theme = resolved.themes.find((candidate) => candidate.name === "CustomerDark");
+
+    expect(resolved.app.theme).toBe("CustomerDark");
+    expect(resolved.themes.map((candidate) => candidate.name)).toEqual([
+      ...BUILT_IN_THEME_NAMES,
+      "CustomerDark",
+    ]);
+    expect(theme?.base).toBe("CorporateDark");
+    expect(theme?.tokens).toMatchObject({
+      ...CORPORATE_DARK_THEME_TOKENS,
+      colorPrimary: "#F04438",
+      radius: "large",
+      density: "spacious",
     });
   });
 

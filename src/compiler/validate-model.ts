@@ -12,6 +12,7 @@ import type {
   ResolvedPolicyRule,
   ResolvedSyncPolicy,
   ResolvedTheme,
+  ResolvedThemeTokens,
   RuntimeChannel,
   SyncMode,
   SyncScope,
@@ -80,6 +81,7 @@ export const MODEL_VALIDATION_CODES = {
   SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
   SYNC_SCOPE_INVALID: "ADL_SYNC_SCOPE_INVALID",
   THEME_BASE_SELF_REFERENCE: "ADL_THEME_BASE_SELF_REFERENCE",
+  THEME_BASE_CYCLE: "ADL_THEME_BASE_CYCLE",
   THEME_BASE_UNKNOWN: "ADL_THEME_BASE_UNKNOWN",
   THEME_DUPLICATE: "ADL_THEME_DUPLICATE",
   THEME_TOKEN_INVALID: "ADL_THEME_TOKEN_INVALID",
@@ -149,6 +151,22 @@ const CONFLICT_STRATEGIES = new Set<ConflictStrategy>([
 const THEME_RADIUS_VALUES = new Set(["none", "small", "medium", "large"]);
 const THEME_DENSITY_VALUES = new Set(["compact", "comfortable", "spacious"]);
 const THEME_NAV_VALUES = new Set(["top", "side", "bottom"]);
+const THEME_STRING_TOKENS = [
+  "colorPrimary",
+  "colorAccent",
+  "colorBackground",
+  "colorSurface",
+  "colorSurfaceAlt",
+  "colorText",
+  "colorTextMuted",
+  "colorTextInverted",
+  "colorBorder",
+  "colorDanger",
+  "colorSuccess",
+  "colorInfo",
+  "fontFamily",
+  "logoUrl",
+] as const satisfies readonly (keyof ResolvedThemeTokens)[];
 const HOOK_REFERENCE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 
 interface NamedReference<T> {
@@ -849,6 +867,30 @@ function validateTheme(
     }
   }
 
+  const baseCycle = findThemeBaseCycle(theme, indexes);
+  if (baseCycle !== undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.THEME_BASE_CYCLE,
+        `Theme '${theme.name}' has a base theme cycle: ${baseCycle.join(" -> ")}.`,
+        `${themePath}.base`,
+      ),
+    );
+  }
+
+  for (const tokenName of THEME_STRING_TOKENS) {
+    const token = theme.tokens[tokenName];
+    if (token !== undefined && (typeof token !== "string" || token.trim().length === 0)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
+          `Theme '${theme.name}' has invalid ${tokenName} token '${String(token)}'.`,
+          `${themePath}.tokens.${tokenName}`,
+        ),
+      );
+    }
+  }
+
   if (!THEME_RADIUS_VALUES.has(theme.tokens.radius)) {
     diagnostics.push(
       diagnostic(
@@ -878,6 +920,24 @@ function validateTheme(
       ),
     );
   }
+}
+
+function findThemeBaseCycle(theme: ResolvedTheme, indexes: ModelIndexes): string[] | undefined {
+  const seen = new Set<string>([theme.name]);
+  const path = [theme.name];
+  let current: ResolvedTheme | undefined = theme;
+
+  while (current?.base !== undefined) {
+    path.push(current.base);
+    if (seen.has(current.base)) {
+      return path;
+    }
+
+    seen.add(current.base);
+    current = indexes.themesByName.get(current.base)?.item;
+  }
+
+  return undefined;
 }
 
 function validateSyncPolicy(

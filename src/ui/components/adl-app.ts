@@ -3,7 +3,6 @@ import { RuntimeValidationError } from "../../runtime/runtime-types.js";
 import type {
   ResolvedApplicationModel,
   ResolvedObject,
-  ResolvedThemeTokens,
   ResolvedView,
   StoredObjectRecord,
 } from "../../model/resolved-model.js";
@@ -14,6 +13,7 @@ import {
   seedBrowserDemoRuntime,
 } from "../demo-fixture.js";
 import { infoMessage, messageFromRuntimeError, successMessage } from "../runtime-error-messages.js";
+import { applyResolvedTheme, findApplicationTheme } from "../theme/default-theme.js";
 import type { SaveRecordDetail, TransitionRecordDetail, UiMessage, UiMode } from "../types.js";
 import { AdlFormViewElement } from "./adl-form-view.js";
 import { AdlListViewElement } from "./adl-list-view.js";
@@ -183,6 +183,12 @@ export class AdlAppElement extends HTMLElement {
     this._model = model;
     this._runtime = undefined;
     this.seeded = false;
+
+    if (this.initialized) {
+      this.readyPromise = this.initialize();
+    } else {
+      this.applyThemeTokens();
+    }
   }
 
   get model(): ResolvedApplicationModel {
@@ -377,17 +383,7 @@ export class AdlAppElement extends HTMLElement {
   }
 
   private applyThemeTokens(): void {
-    const theme = this._model.themes.find((candidate) => candidate.name === this._model.app.theme);
-    if (theme === undefined) {
-      return;
-    }
-
-    setThemeProperty(this, theme.tokens, "colorPrimary", "--adl-color-primary");
-    setThemeProperty(this, theme.tokens, "colorAccent", "--adl-color-accent");
-    setThemeProperty(this, theme.tokens, "colorBackground", "--adl-color-background");
-    setThemeProperty(this, theme.tokens, "colorSurface", "--adl-color-surface");
-    setThemeProperty(this, theme.tokens, "colorText", "--adl-color-text");
-    this.style.setProperty("--adl-radius", radiusToCss(theme.tokens.radius));
+    applyResolvedTheme(this, findApplicationTheme(this._model));
   }
 
   private findStartObject(): ResolvedObject {
@@ -426,31 +422,6 @@ export class AdlAppElement extends HTMLElement {
 export function defineAdlApp(): void {
   if (customElements.get("adl-app") === undefined) {
     customElements.define("adl-app", AdlAppElement);
-  }
-}
-
-function setThemeProperty(
-  element: HTMLElement,
-  tokens: ResolvedThemeTokens,
-  tokenName: keyof ResolvedThemeTokens,
-  propertyName: string,
-): void {
-  const value = tokens[tokenName];
-  if (typeof value === "string") {
-    element.style.setProperty(propertyName, value);
-  }
-}
-
-function radiusToCss(radius: ResolvedThemeTokens["radius"]): string {
-  switch (radius) {
-    case "none":
-      return "0";
-    case "small":
-      return "4px";
-    case "medium":
-      return "6px";
-    case "large":
-      return "8px";
   }
 }
 

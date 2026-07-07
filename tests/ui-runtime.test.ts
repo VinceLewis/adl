@@ -2,9 +2,14 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { PolicyDeniedError } from "../src/index.js";
-import { browserDemoContext, createBrowserDemoRuntime } from "../src/ui/demo-fixture.js";
+import {
+  browserDemoContext,
+  createBrowserDemoModel,
+  createBrowserDemoRuntime,
+} from "../src/ui/demo-fixture.js";
 import { AdlAppElement } from "../src/ui/components/adl-app.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
+import type { ResolvedApplicationModel } from "../src/index.js";
 
 describe("browser UI runtime", () => {
   beforeEach(() => {
@@ -83,6 +88,25 @@ describe("browser UI runtime", () => {
     ).toBe("Active");
   });
 
+  it("applies the resolved application theme as CSS custom properties", async () => {
+    const model = createBrowserDemoModel();
+    model.app.theme = "CorporateDark";
+    const theme = model.themes.find((candidate) => candidate.name === model.app.theme);
+    if (theme === undefined) {
+      throw new Error("Expected CorporateDark in browser demo model.");
+    }
+
+    const app = await mountApp(model);
+
+    expect(app.dataset.adlTheme).toBe("CorporateDark");
+    expect(app.dataset.adlDensity).toBe(theme.tokens.density);
+    expect(app.dataset.adlNav).toBe(theme.tokens.nav);
+    expect(app.style.getPropertyValue("--adl-color-primary")).toBe(theme.tokens.colorPrimary);
+    expect(app.style.getPropertyValue("--adl-color-background")).toBe(theme.tokens.colorBackground);
+    expect(app.style.getPropertyValue("--adl-color-border")).toBe(theme.tokens.colorBorder);
+    expect(app.style.getPropertyValue("--adl-radius")).toBe("6px");
+  });
+
   it("runtime policy still blocks direct writes to readonly UI fields", async () => {
     const runtime = createBrowserDemoRuntime();
     const user = await runtime.create(
@@ -101,8 +125,11 @@ describe("browser UI runtime", () => {
   });
 });
 
-async function mountApp(): Promise<AdlAppElement> {
+async function mountApp(model?: ResolvedApplicationModel): Promise<AdlAppElement> {
   const app = document.createElement("adl-app") as AdlAppElement;
+  if (model !== undefined) {
+    app.model = model;
+  }
   document.body.append(app);
   await app.whenReady();
   await flushUi();

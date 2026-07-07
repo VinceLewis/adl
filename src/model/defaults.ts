@@ -21,6 +21,9 @@ export const DEFAULT_THEME_NAME = "CorporateLight";
 export const DEFAULT_SYNC_MODE = "localFirst";
 export const DEFAULT_SYNC_SCOPE = "all";
 export const DEFAULT_CONFLICT_STRATEGY = "manual";
+export const BUILT_IN_THEME_NAMES = ["CorporateLight", "CorporateDark", "MinimalLight"] as const;
+
+export type BuiltInThemeName = (typeof BUILT_IN_THEME_NAMES)[number];
 
 export const DEFAULT_AUDIT_OPERATIONS = [
   "create",
@@ -44,17 +47,81 @@ export const LOCAL_OPERATION_STATUSES = [
   "conflict",
 ] as const;
 
-export const DEFAULT_THEME_TOKENS: ResolvedThemeTokens = {
+export const CORPORATE_LIGHT_THEME_TOKENS: ResolvedThemeTokens = {
   colorPrimary: "#155EEF",
   colorAccent: "#12B76A",
   colorBackground: "#F8FAFC",
   colorSurface: "#FFFFFF",
+  colorSurfaceAlt: "#F1F5F9",
   colorText: "#101828",
+  colorTextMuted: "#667085",
+  colorTextInverted: "#FFFFFF",
+  colorBorder: "#D9E1EC",
+  colorDanger: "#D92D20",
+  colorSuccess: "#039855",
+  colorInfo: "#155EEF",
   radius: "medium",
   density: "comfortable",
   nav: "side",
   fontFamily: "system-ui, sans-serif",
 };
+
+export const CORPORATE_DARK_THEME_TOKENS: ResolvedThemeTokens = {
+  colorPrimary: "#84ADFF",
+  colorAccent: "#32D583",
+  colorBackground: "#111827",
+  colorSurface: "#1F2937",
+  colorSurfaceAlt: "#374151",
+  colorText: "#F9FAFB",
+  colorTextMuted: "#CBD5E1",
+  colorTextInverted: "#111827",
+  colorBorder: "#4B5563",
+  colorDanger: "#FDA29B",
+  colorSuccess: "#75E0A7",
+  colorInfo: "#B2CCFF",
+  radius: "medium",
+  density: "comfortable",
+  nav: "side",
+  fontFamily: "system-ui, sans-serif",
+};
+
+export const MINIMAL_LIGHT_THEME_TOKENS: ResolvedThemeTokens = {
+  colorPrimary: "#1F2937",
+  colorAccent: "#0E9384",
+  colorBackground: "#FAFAFA",
+  colorSurface: "#FFFFFF",
+  colorSurfaceAlt: "#F4F4F5",
+  colorText: "#18181B",
+  colorTextMuted: "#71717A",
+  colorTextInverted: "#FFFFFF",
+  colorBorder: "#D4D4D8",
+  colorDanger: "#DC2626",
+  colorSuccess: "#16A34A",
+  colorInfo: "#2563EB",
+  radius: "small",
+  density: "compact",
+  nav: "top",
+  fontFamily: "system-ui, sans-serif",
+};
+
+export const DEFAULT_THEME_TOKENS: ResolvedThemeTokens = {
+  ...CORPORATE_LIGHT_THEME_TOKENS,
+};
+
+const BUILT_IN_THEME_DEFINITIONS = [
+  {
+    name: "CorporateLight",
+    tokens: CORPORATE_LIGHT_THEME_TOKENS,
+  },
+  {
+    name: "CorporateDark",
+    tokens: CORPORATE_DARK_THEME_TOKENS,
+  },
+  {
+    name: "MinimalLight",
+    tokens: MINIMAL_LIGHT_THEME_TOKENS,
+  },
+] as const satisfies readonly { name: BuiltInThemeName; tokens: ResolvedThemeTokens }[];
 
 const METADATA_FIELD_DEFINITIONS = [
   {
@@ -163,10 +230,16 @@ export function createDefaultModelDefaults(): ResolvedModelDefaults {
 }
 
 export function createDefaultTheme(): ResolvedTheme {
-  return {
-    name: DEFAULT_THEME_NAME,
-    tokens: { ...DEFAULT_THEME_TOKENS },
-  };
+  return cloneTheme(getBuiltInTheme(DEFAULT_THEME_NAME) ?? failMissingDefaultTheme());
+}
+
+export function createBuiltInThemes(): ResolvedTheme[] {
+  return BUILT_IN_THEME_DEFINITIONS.map((theme) => cloneTheme(theme));
+}
+
+export function getBuiltInTheme(name: string): ResolvedTheme | undefined {
+  const theme = BUILT_IN_THEME_DEFINITIONS.find((candidate) => candidate.name === name);
+  return theme === undefined ? undefined : cloneTheme(theme);
 }
 
 export function createDefaultObjectSyncPolicy(): ResolvedObjectSyncPolicy {
@@ -235,4 +308,20 @@ export function toStorageName(name: string): string {
 
 export function toTableName(objectName: string): string {
   return toStorageName(objectName);
+}
+
+function cloneTheme(theme: {
+  name: string;
+  base?: string;
+  tokens: ResolvedThemeTokens;
+}): ResolvedTheme {
+  return {
+    name: theme.name,
+    ...(theme.base === undefined ? {} : { base: theme.base }),
+    tokens: { ...theme.tokens },
+  };
+}
+
+function failMissingDefaultTheme(): never {
+  throw new Error(`Built-in default theme '${DEFAULT_THEME_NAME}' is not defined.`);
 }

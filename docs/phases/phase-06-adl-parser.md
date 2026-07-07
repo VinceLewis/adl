@@ -10,6 +10,8 @@ Parse a small declarative ADL subset into an AST, convert the AST into the parti
 
 Do not add procedural keywords, inline host language code, Dart generation, Elixir generation, or app-code generation.
 
+Phase 5 added built-in resolved base themes and token inheritance. Parser work should compile textual theme declarations into `PartialThemeModel` and rely on the existing resolver/validator for base-theme flattening and diagnostics.
+
 ## Expected Deliverables
 
 - `src/parser/lexer.ts`
@@ -25,6 +27,7 @@ Do not add procedural keywords, inline host language code, Dart generation, Elix
 - Parser errors include useful messages and locations where possible.
 - Parsed ADL resolves to the same model shape consumed by runtime services.
 - Invalid parsed models produce structured validation diagnostics.
+- Parsed theme declarations can reference built-in base themes and token overrides without producing customer-specific components.
 - No generated Dart, Flutter, Elixir, LiveView, or bespoke application code is produced.
 
 ## Suggested Codex Prompt
@@ -49,7 +52,7 @@ Execute Phase 6 only. Implement the initial declarative ADL lexer/parser/compile
    - `ACTION`
    - `VIEW`
    - `POLICY`
-   - `THEME`
+   - `THEME` with optional base theme and token overrides matching `PartialThemeModel`
    - `SYNC`
    - `END.*`
 5. Implement parser support for a small initial grammar that can express the demo model.

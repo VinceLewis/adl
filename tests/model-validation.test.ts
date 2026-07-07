@@ -149,6 +149,7 @@ describe("validateApplicationModel", () => {
         MODEL_VALIDATION_CODES.SYNC_MODE_INVALID,
         MODEL_VALIDATION_CODES.SYNC_OBJECT_UNKNOWN,
         MODEL_VALIDATION_CODES.THEME_BASE_UNKNOWN,
+        MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
         MODEL_VALIDATION_CODES.VIEW_FIELD_UNKNOWN,
         MODEL_VALIDATION_CODES.VIEW_OBJECT_UNKNOWN,
         MODEL_VALIDATION_CODES.VIEW_SEARCH_FIELD_UNKNOWN,
@@ -179,6 +180,41 @@ describe("validateApplicationModel", () => {
 
     expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toContain(
       MODEL_VALIDATION_CODES.POLICY_FIELD_UNKNOWN,
+    );
+  });
+
+  it("reports invalid theme tokens and base-theme cycles", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      themes: [
+        { name: "ThemeA", base: "ThemeB", tokens: { colorPrimary: "" } },
+        { name: "ThemeB", base: "ThemeA", tokens: { radius: "small" } },
+      ],
+    });
+
+    const themeA = resolved.themes.find((theme) => theme.name === "ThemeA");
+    if (themeA === undefined) {
+      throw new Error("Expected ThemeA in resolved fixture.");
+    }
+
+    (themeA.tokens as unknown as { density: string }).density = "crowded";
+
+    const diagnostics = validateApplicationModel(resolved);
+    const codes = diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(codes).toContain(MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID);
+    expect(codes).toContain(MODEL_VALIDATION_CODES.THEME_BASE_CYCLE);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
+          path: "themes[3].tokens.colorPrimary",
+        }),
+        expect.objectContaining({
+          code: MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
+          path: "themes[3].tokens.density",
+        }),
+      ]),
     );
   });
 });
@@ -311,7 +347,7 @@ function createInvalidResolvedModel(): ResolvedApplicationModel {
   invalid.themes.push({
     name: "BrokenTheme",
     base: "MissingBaseTheme",
-    tokens: { ...baseTheme.tokens, radius: "medium" },
+    tokens: { ...baseTheme.tokens, colorBorder: "", radius: "medium" },
   });
 
   return invalid;

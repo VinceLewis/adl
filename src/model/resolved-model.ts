@@ -46,6 +46,9 @@ export type SyncStatus = "local" | "pending" | "synced" | "conflict" | "rejected
 export type LocalOperationKind = "create" | "update" | "delete" | "transition";
 export type LocalOperationStatus = "pending" | "sent" | "accepted" | "rejected" | "conflict";
 export type AuditOperation = LocalOperationKind | "read" | "search";
+export type ThemeRadius = "none" | "small" | "medium" | "large";
+export type ThemeDensity = "compact" | "comfortable" | "spacious";
+export type ThemeNav = "top" | "side" | "bottom";
 
 export interface ResolvedApplicationModel {
   modelVersion: string;
@@ -223,10 +226,17 @@ export interface ResolvedThemeTokens {
   colorAccent: string;
   colorBackground: string;
   colorSurface: string;
+  colorSurfaceAlt: string;
   colorText: string;
-  radius: "none" | "small" | "medium" | "large";
-  density: "compact" | "comfortable" | "spacious";
-  nav: "top" | "side" | "bottom";
+  colorTextMuted: string;
+  colorTextInverted: string;
+  colorBorder: string;
+  colorDanger: string;
+  colorSuccess: string;
+  colorInfo: string;
+  radius: ThemeRadius;
+  density: ThemeDensity;
+  nav: ThemeNav;
   fontFamily?: string;
   logoUrl?: string;
 }
