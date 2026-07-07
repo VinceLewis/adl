@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ApplicationRuntime,
   MODEL_VALIDATION_CODES,
+  PolicyDeniedError,
   compileAdl,
   validateApplicationModel,
 } from "../src/index.js";
@@ -11,6 +12,20 @@ import type { RuntimeContext } from "../src/index.js";
 const adminContext: RuntimeContext = {
   userId: "admin-1",
   roles: ["Admin"],
+  channel: "api",
+  now: new Date("2026-07-07T08:00:00.000Z"),
+};
+
+const operatorContext: RuntimeContext = {
+  userId: "operator-1",
+  roles: ["Operator"],
+  channel: "api",
+  now: new Date("2026-07-07T08:00:00.000Z"),
+};
+
+const clerkContext: RuntimeContext = {
+  userId: "clerk-1",
+  roles: ["Clerk"],
   channel: "api",
   now: new Date("2026-07-07T08:00:00.000Z"),
 };
@@ -106,6 +121,80 @@ describe("compileAdl", () => {
       fields: ["InternalNotes"],
       principal: { roles: ["Requester"] },
     });
+  });
+
+  it("enforces parser-generated inline lifecycle action policies at runtime", async () => {
+    const result = compileAdl(`APP TicketDesk
+  START_VIEW TicketList
+END.APP
+
+ROLE Operator
+ROLE Clerk
+
+OBJECT Ticket
+  DISPLAY Title
+  FIELD Title TEXT REQUIRED
+  FIELD Status TEXT REQUIRED
+
+  LIFECYCLE TicketLifecycle FIELD Status INITIAL Draft
+    STATE Draft
+    STATE Open
+
+    ACTION open FROM Draft TO Open LABEL 'Open'
+      ALLOW ROLE Operator
+    END.ACTION
+  END.LIFECYCLE
+
+  VIEW TicketList LIST
+    FIELDS Title Status
+    SEARCH Title
+    ACTIONS create read
+  END.VIEW
+
+  VIEW TicketForm FORM
+    FIELDS Title Status
+    ACTIONS save open
+  END.VIEW
+END.OBJECT
+
+POLICY TicketPolicy ON Ticket
+  ALLOW CREATE ROLE Operator Clerk
+  ALLOW READ ROLE Operator Clerk
+  ALLOW SEARCH ROLE Operator Clerk
+END.POLICY
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(
+      result.model.policies.find((policy) => policy.name === "TicketOpenPolicy"),
+    ).toMatchObject({
+      object: "Ticket",
+      rules: [
+        expect.objectContaining({
+          effect: "allow",
+          action: "transition",
+          state: ["Draft"],
+          lifecycleAction: "open",
+          principal: expect.objectContaining({ roles: ["Operator"] }),
+        }),
+      ],
+    });
+
+    const runtime = new ApplicationRuntime(result.model);
+    const operatorTicket = await runtime.create("Ticket", { Title: "Printer" }, operatorContext);
+    const clerkTicket = await runtime.create("Ticket", { Title: "Monitor" }, clerkContext);
+
+    await expect(
+      runtime.transition("Ticket", clerkTicket.meta.guid, "open", clerkContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    const opened = await runtime.transition(
+      "Ticket",
+      operatorTicket.meta.guid,
+      "open",
+      operatorContext,
+    );
+    expect(opened.values.Status).toBe("Open");
   });
 
   it("returns structured validation diagnostics for parsed but invalid models", () => {

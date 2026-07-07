@@ -133,7 +133,7 @@ export class LifecycleEngine {
         toState: action.to,
       });
 
-      return updated;
+      return this.policyEngine.applyReadPolicy(objectName, updated, context);
     } catch (error) {
       await this.hookRegistry.run(action.hooks.onError, {
         objectName,

@@ -6,10 +6,19 @@ import {
   browserDemoContext,
   createBrowserDemoModel,
   createBrowserDemoRuntime,
+  seedBrowserDemoRuntime,
 } from "../src/ui/demo-fixture.js";
 import { AdlAppElement } from "../src/ui/components/adl-app.js";
+import { AdlFormViewElement } from "../src/ui/components/adl-form-view.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
-import type { ResolvedApplicationModel } from "../src/index.js";
+import type { ResolvedApplicationModel, RuntimeContext } from "../src/index.js";
+
+const viewerUiContext: RuntimeContext = {
+  userId: "viewer-ui",
+  roles: ["Viewer"],
+  channel: "ui",
+  now: new Date("2026-07-07T08:00:00.000Z"),
+};
 
 describe("browser UI runtime", () => {
   beforeEach(() => {
@@ -23,6 +32,7 @@ describe("browser UI runtime", () => {
     expect(app.textContent).toContain("Ada Lovelace");
     expect(app.textContent).toContain("Grace Hopper");
     expect(app.textContent).not.toContain("ada@example.com");
+    expect(app.querySelectorAll("td[aria-label='Email masked']").length).toBeGreaterThan(0);
 
     const search = requireElement<HTMLInputElement>(app, "[data-list-search='true']");
     search.value = "Grace";
@@ -86,6 +96,37 @@ describe("browser UI runtime", () => {
       requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='Status'] input")
         .value,
     ).toBe("Active");
+  });
+
+  it("hides lifecycle actions when the shared policy engine denies them", async () => {
+    const model = createBrowserDemoModel();
+    const runtime = createBrowserDemoRuntime();
+    await seedBrowserDemoRuntime(runtime, browserDemoContext);
+
+    const object = model.objects.find((candidate) => candidate.name === "User");
+    const view = object?.views.find((candidate) => candidate.name === "UserForm");
+    if (object === undefined || view === undefined) {
+      throw new Error("Expected User form view in browser demo model.");
+    }
+
+    const records = await runtime.search(
+      "User",
+      { text: "Ada", fields: ["Name"] },
+      viewerUiContext,
+    );
+    const form = document.createElement("adl-form-view") as AdlFormViewElement;
+    form.runtime = runtime;
+    form.object = object;
+    form.view = view;
+    form.context = viewerUiContext;
+    form.record = records[0];
+    form.mode = "edit";
+    document.body.append(form);
+    await flushUi();
+
+    expect(form.querySelector("button[data-action-name='activate']")).toBeNull();
+    expect(form.querySelector("button[data-action-name='save']")).toBeNull();
+    expect(form.querySelector("button[data-action-name='cancel']")).not.toBeNull();
   });
 
   it("applies the resolved application theme as CSS custom properties", async () => {

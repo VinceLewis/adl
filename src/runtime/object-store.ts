@@ -65,7 +65,7 @@ export class ObjectStore {
       recordId: record.meta.guid,
     });
 
-    return cloneJson(record);
+    return this.policyEngine.applyReadPolicy(objectName, record, context);
   }
 
   async read(
@@ -97,7 +97,7 @@ export class ObjectStore {
     this.auditService.record("read", objectName, record, context, record.values, record.values);
     this.logger.debug("EXIT ObjectStore.read", { objectName, recordId: id, found: true });
 
-    return cloneJson(record);
+    return this.policyEngine.applyReadPolicy(objectName, record, context);
   }
 
   async update(
@@ -143,7 +143,7 @@ export class ObjectStore {
     });
     this.logger.debug("EXIT ObjectStore.update", { objectName, recordId: id });
 
-    return cloneJson(updated);
+    return this.policyEngine.applyReadPolicy(objectName, updated, context);
   }
 
   async delete(
@@ -184,7 +184,7 @@ export class ObjectStore {
     });
     this.logger.debug("EXIT ObjectStore.delete", { objectName, recordId: id });
 
-    return cloneJson(deleted);
+    return this.policyEngine.applyReadPolicy(objectName, deleted, context);
   }
 
   async search(
@@ -222,8 +222,12 @@ export class ObjectStore {
         ? records
         : records.slice(0, searchQuery.limit);
 
-    this.logger.debug("EXIT ObjectStore.search", { objectName, count: limited.length });
-    return cloneJson(limited);
+    const shaped = limited.map((record) =>
+      this.policyEngine.applyReadPolicy(objectName, record, context),
+    );
+
+    this.logger.debug("EXIT ObjectStore.search", { objectName, count: shaped.length });
+    return shaped;
   }
 
   getRecordForRuntime(objectName: string, id: string): StoredObjectRecord | null {

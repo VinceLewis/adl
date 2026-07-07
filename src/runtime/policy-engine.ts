@@ -1,13 +1,16 @@
 import type {
+  JsonValue,
+  PolicyEffect,
   ResolvedApplicationModel,
   ResolvedPolicy,
   ResolvedPolicyRule,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
 import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
-import { PolicyDeniedError, noopRuntimeLogger } from "./runtime-types.js";
+import { PolicyDeniedError, cloneJson, noopRuntimeLogger } from "./runtime-types.js";
 import type {
   PolicyDecision,
+  PolicyDecisionReason,
   PolicyRequest,
   RuntimeContext,
   RuntimeLogger,
@@ -17,6 +20,8 @@ interface MatchingRule {
   policy: ResolvedPolicy;
   rule: ResolvedPolicyRule;
 }
+
+export const MASKED_POLICY_FIELD_VALUE = "••••••";
 
 export class PolicyEngine {
   constructor(
@@ -46,13 +51,10 @@ export class PolicyEngine {
     if (deny !== undefined) {
       const decision: PolicyDecision = {
         effect: "deny",
-        reasons: [
-          {
-            policyName: deny.policy.name,
-            ruleName: deny.rule.name,
-            message: `Policy rule '${deny.rule.name}' explicitly denied ${request.action}.`,
-          },
-        ],
+        reasons: matchingRuleReasons(
+          matches.filter((match) => match.rule.effect === "deny"),
+          request.action,
+        ),
       };
       this.logger.debug("EXIT PolicyEngine.evaluate", { effect: decision.effect });
       return decision;
@@ -62,13 +64,10 @@ export class PolicyEngine {
     if (restrictive !== undefined) {
       const decision: PolicyDecision = {
         effect: restrictive.rule.effect,
-        reasons: [
-          {
-            policyName: restrictive.policy.name,
-            ruleName: restrictive.rule.name,
-            message: `Policy rule '${restrictive.rule.name}' returned ${restrictive.rule.effect}.`,
-          },
-        ],
+        reasons: matchingRuleReasons(
+          matches.filter((match) => match.rule.effect === restrictive.rule.effect),
+          request.action,
+        ),
       };
       this.logger.debug("EXIT PolicyEngine.evaluate", { effect: decision.effect });
       return decision;
@@ -78,13 +77,10 @@ export class PolicyEngine {
     if (allow !== undefined) {
       const decision: PolicyDecision = {
         effect: "allow",
-        reasons: [
-          {
-            policyName: allow.policy.name,
-            ruleName: allow.rule.name,
-            message: `Policy rule '${allow.rule.name}' allowed ${request.action}.`,
-          },
-        ],
+        reasons: matchingRuleReasons(
+          matches.filter((match) => match.rule.effect === "allow"),
+          request.action,
+        ),
       };
       this.logger.debug("EXIT PolicyEngine.evaluate", { effect: decision.effect });
       return decision;
@@ -98,6 +94,7 @@ export class PolicyEngine {
       reasons: [
         {
           policyName: defaultPolicyName,
+          effect: "deny",
           message: `No policy rule allowed ${request.action}; default deny applies.`,
         },
       ],
@@ -117,6 +114,52 @@ export class PolicyEngine {
     }
 
     return decision;
+  }
+
+  applyReadPolicy(
+    objectName: string,
+    record: StoredObjectRecord,
+    context: RuntimeContext,
+  ): StoredObjectRecord {
+    const object = this.index.getObject(objectName);
+    const currentState = getRecordState(object, record);
+    const rowDecision = this.evaluate(
+      {
+        objectName,
+        action: "read",
+        record,
+        ...(currentState === undefined ? {} : { currentState }),
+      },
+      context,
+    );
+    const values = cloneJson(record.values);
+
+    if (rowDecision.effect === "deny" || rowDecision.effect === "hidden") {
+      return {
+        meta: cloneJson(record.meta),
+        values: {},
+      };
+    }
+
+    for (const field of object.fields) {
+      const decision = this.evaluate(
+        {
+          objectName,
+          action: "read",
+          field: field.name,
+          record,
+          ...(currentState === undefined ? {} : { currentState }),
+        },
+        context,
+      );
+
+      applyFieldReadDecision(values, field.name, decision.effect);
+    }
+
+    return {
+      meta: cloneJson(record.meta),
+      values,
+    };
   }
 
   private ruleMatches(
@@ -230,4 +273,47 @@ function findMostRestrictivePresentationRule(matches: MatchingRule[]): MatchingR
     matches.find((match) => match.rule.effect === "mask") ??
     matches.find((match) => match.rule.effect === "readonly")
   );
+}
+
+function matchingRuleReasons(
+  matches: MatchingRule[],
+  action: PolicyRequest["action"],
+): PolicyDecisionReason[] {
+  return matches.map(({ policy, rule }) => ({
+    policyName: policy.name,
+    ruleName: rule.name,
+    effect: rule.effect,
+    message: reasonMessage(rule.name, rule.effect, action),
+  }));
+}
+
+function reasonMessage(
+  ruleName: string,
+  effect: PolicyEffect,
+  action: PolicyRequest["action"],
+): string {
+  if (effect === "allow") {
+    return `Policy rule '${ruleName}' allowed ${action}.`;
+  }
+
+  if (effect === "deny") {
+    return `Policy rule '${ruleName}' explicitly denied ${action}.`;
+  }
+
+  return `Policy rule '${ruleName}' returned ${effect}.`;
+}
+
+function applyFieldReadDecision(
+  values: Record<string, JsonValue>,
+  fieldName: string,
+  effect: PolicyEffect,
+): void {
+  if (effect === "mask") {
+    values[fieldName] = MASKED_POLICY_FIELD_VALUE;
+    return;
+  }
+
+  if (effect === "deny" || effect === "hidden") {
+    delete values[fieldName];
+  }
 }

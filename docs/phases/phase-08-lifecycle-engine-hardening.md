@@ -10,6 +10,8 @@ Harden `LifecycleEngine.transition` and runtime integration. Transitions must en
 
 Do not build full workflow scripting or procedural language support in this phase.
 
+Phase 7 already hardened lifecycle action policy checks for both UI action visibility and runtime transition permission, and public transition responses are now shaped by read policy after hooks run. Preserve that baseline while hardening lifecycle ordering, hooks, audit, and operation-log behavior.
+
 ## Expected Deliverables
 
 - Hardened `src/runtime/lifecycle-engine.ts`
@@ -63,6 +65,7 @@ Execute Phase 8 only. Harden lifecycle transition behavior as a first-class runt
 7. Add tests for audit and operation log entries.
 8. Add hook-order tests.
 9. Run typecheck and tests.
-10. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
-11. Review what happened in this phase and update `docs/phases/phase-09-storage-upgrade.md` if the actual results require changed scope, constraints, deliverables, or tasks.
-12. Commit all repository changes for this phase and push the current branch.
+10. Preserve Phase 7 policy-shaped public transition responses while keeping hooks, audit, and operation-log writes on full persisted records.
+11. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
+12. Review what happened in this phase and update `docs/phases/phase-09-storage-upgrade.md` if the actual results require changed scope, constraints, deliverables, or tasks.
+13. Commit all repository changes for this phase and push the current branch.

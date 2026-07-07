@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ApplicationRuntime,
   LifecycleError,
+  MASKED_POLICY_FIELD_VALUE,
   ModelValidationError,
   PolicyDeniedError,
   RuntimeValidationError,
@@ -39,11 +40,24 @@ const viewerContext: RuntimeContext = {
   now: fixedNow,
 };
 
+const emailOnlyViewerContext: RuntimeContext = {
+  userId: "email-viewer-1",
+  roles: ["EmailOnlyViewer"],
+  channel: "api",
+  now: fixedNow,
+};
+
 const runtimePartialModel = {
   app: {
     name: "RuntimeDemo",
   },
-  roles: [{ name: "Admin" }, { name: "Requester" }, { name: "Approver" }, { name: "Viewer" }],
+  roles: [
+    { name: "Admin" },
+    { name: "Requester" },
+    { name: "Approver" },
+    { name: "Viewer" },
+    { name: "EmailOnlyViewer" },
+  ],
   objects: [
     {
       name: "User",
@@ -122,10 +136,31 @@ const runtimePartialModel = {
           action: "read",
         },
         {
+          name: "maskViewerUserEmailRead",
+          effect: "mask",
+          principal: { match: "specific", roles: ["Viewer"] },
+          action: "read",
+          fields: ["Email"],
+        },
+        {
+          name: "hideViewerUserPhoneRead",
+          effect: "hidden",
+          principal: { match: "specific", roles: ["Viewer"] },
+          action: "read",
+          fields: ["Phone"],
+        },
+        {
           name: "allowViewerSearchUsers",
           effect: "allow",
           principal: { match: "specific", roles: ["Viewer"] },
           action: "search",
+        },
+        {
+          name: "allowEmailOnlyViewerUserEmailReadField",
+          effect: "allow",
+          principal: { match: "specific", roles: ["EmailOnlyViewer"] },
+          action: "read",
+          fields: ["Email"],
         },
       ],
     },
@@ -174,6 +209,14 @@ const runtimePartialModel = {
           fields: ["InternalNotes"],
         },
         {
+          name: "denyRequesterApprovalCommentUpdate",
+          effect: "deny",
+          principal: { match: "specific", roles: ["Requester"] },
+          action: "update",
+          state: "Draft",
+          fields: ["ApprovalComment"],
+        },
+        {
           name: "allowRequesterSubmitPurchaseOrder",
           effect: "allow",
           principal: { match: "specific", roles: ["Requester"] },
@@ -187,6 +230,13 @@ const runtimePartialModel = {
           principal: { match: "specific", roles: ["Approver"] },
           action: "read",
           state: "Submitted",
+        },
+        {
+          name: "allowApproverReadApprovedPurchaseOrder",
+          effect: "allow",
+          principal: { match: "specific", roles: ["Approver"] },
+          action: "read",
+          state: "Approved",
         },
         {
           name: "allowApproverApprovePurchaseOrder",
@@ -267,6 +317,29 @@ describe("ApplicationRuntime", () => {
     ).rejects.toBeInstanceOf(PolicyDeniedError);
   });
 
+  it("returns explainable default-deny decisions", () => {
+    const runtime = createRuntime();
+
+    const decision = runtime.policyEngine.evaluate(
+      {
+        objectName: "User",
+        action: "update",
+      },
+      viewerContext,
+    );
+
+    expect(decision).toEqual({
+      effect: "deny",
+      reasons: [
+        {
+          policyName: "UserDefaultDeny",
+          effect: "deny",
+          message: "No policy rule allowed update; default deny applies.",
+        },
+      ],
+    });
+  });
+
   it("enforces validation and field-level readonly policy", async () => {
     const runtime = createRuntime();
 
@@ -292,6 +365,116 @@ describe("ApplicationRuntime", () => {
         { InternalNotes: "Requester changed the note" },
         requesterContext,
       ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+  });
+
+  it("lets field-level policy restrict row-level policy with explicit deny precedence", async () => {
+    const runtime = createRuntime();
+    const purchaseOrder = await runtime.create(
+      "PurchaseOrder",
+      {
+        PONumber: "PO-110",
+        Supplier: "Acme Supplies",
+        Value: 125,
+      },
+      requesterContext,
+    );
+
+    const decision = runtime.policyEngine.evaluate(
+      {
+        objectName: "PurchaseOrder",
+        action: "update",
+        field: "ApprovalComment",
+        record: purchaseOrder,
+        currentState: "Draft",
+      },
+      requesterContext,
+    );
+
+    expect(decision).toMatchObject({
+      effect: "deny",
+      reasons: [
+        {
+          policyName: "PurchaseOrderPolicy",
+          ruleName: "denyRequesterApprovalCommentUpdate",
+          effect: "deny",
+        },
+      ],
+    });
+    await expect(
+      runtime.update(
+        "PurchaseOrder",
+        purchaseOrder.meta.guid,
+        { ApprovalComment: "Requester should not set this" },
+        requesterContext,
+      ),
+    ).rejects.toMatchObject({
+      decision: {
+        effect: "deny",
+        reasons: [
+          expect.objectContaining({
+            policyName: "PurchaseOrderPolicy",
+            ruleName: "denyRequesterApprovalCommentUpdate",
+            effect: "deny",
+          }),
+        ],
+      },
+    });
+  });
+
+  it("masks and hides fields in read and search output", async () => {
+    const runtime = createRuntime();
+    const created = await runtime.create(
+      "User",
+      {
+        Name: "Dorothy Vaughan",
+        Email: "dorothy@example.com",
+        Phone: "020 7946 0199",
+      },
+      adminContext,
+    );
+
+    const read = await runtime.read("User", created.meta.guid, viewerContext);
+    expect(read?.values.Email).toBe(MASKED_POLICY_FIELD_VALUE);
+    expect(read?.values).not.toHaveProperty("Phone");
+
+    const search = await runtime.search(
+      "User",
+      { text: "dorothy", fields: ["Name", "Email"] },
+      viewerContext,
+    );
+    expect(search).toHaveLength(1);
+    expect(search[0]?.values.Email).toBe(MASKED_POLICY_FIELD_VALUE);
+    expect(search[0]?.values).not.toHaveProperty("Phone");
+  });
+
+  it("does not let field-level read policy expand a missing row-level read grant", async () => {
+    const runtime = createRuntime();
+    const created = await runtime.create(
+      "User",
+      {
+        Name: "Mary Jackson",
+        Email: "mary@example.com",
+        Phone: "020 7946 0188",
+      },
+      adminContext,
+    );
+
+    const fieldDecision = runtime.policyEngine.evaluate(
+      {
+        objectName: "User",
+        action: "read",
+        field: "Email",
+        record: created,
+      },
+      emailOnlyViewerContext,
+    );
+    expect(fieldDecision.effect).toBe("allow");
+
+    const shaped = runtime.policyEngine.applyReadPolicy("User", created, emailOnlyViewerContext);
+    expect(shaped.values).toEqual({});
+    await expect(
+      runtime.read("User", created.meta.guid, emailOnlyViewerContext),
     ).rejects.toBeInstanceOf(PolicyDeniedError);
   });
 
@@ -344,6 +527,35 @@ describe("ApplicationRuntime", () => {
     await expect(
       runtime.transition("PurchaseOrder", purchaseOrder.meta.guid, "approve", approverContext),
     ).rejects.toBeInstanceOf(LifecycleError);
+  });
+
+  it("enforces state-specific update policy and lifecycle action policy", async () => {
+    const runtime = createRuntime();
+    const purchaseOrder = await runtime.create(
+      "PurchaseOrder",
+      { PONumber: "PO-350", Supplier: "Contoso", Value: 250 },
+      requesterContext,
+    );
+
+    await expect(
+      runtime.transition("PurchaseOrder", purchaseOrder.meta.guid, "submit", approverContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    const submitted = await runtime.transition(
+      "PurchaseOrder",
+      purchaseOrder.meta.guid,
+      "submit",
+      requesterContext,
+    );
+
+    await expect(
+      runtime.update(
+        "PurchaseOrder",
+        submitted.meta.guid,
+        { Supplier: "Changed after submit" },
+        requesterContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
   });
 
   it("records audit events and local operation log entries", async () => {

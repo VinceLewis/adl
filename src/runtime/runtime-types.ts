@@ -58,6 +58,7 @@ export interface PolicyRequest {
 export interface PolicyDecisionReason {
   policyName: string;
   ruleName?: string;
+  effect: PolicyEffect;
   message: string;
 }
 

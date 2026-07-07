@@ -23,6 +23,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 
 - `architecture/resolved-model-defaults.md`
 - `implementation/model-validator.md`
+- `implementation/policy-engine.md`
 
 Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
 
@@ -35,10 +36,12 @@ Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, 
 Before tasks that change runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests, also read:
 
 - `implementation/runtime-services.md`
+- `implementation/policy-engine.md`
 
 Before tasks that change browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification, also read:
 
 - `implementation/browser-ui-runtime.md`
+- `implementation/policy-engine.md`
 
 Before tasks that change resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`, also read:
 
@@ -75,4 +78,5 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/adl-parser.md`: read before changing ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour.
 - `implementation/runtime-services.md`: read before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
+- `implementation/policy-engine.md`: read before changing policy evaluation, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
