@@ -32,7 +32,7 @@ Phase 10 added an in-memory `SyncQueue` runtime service. Unless a later phase pe
 ```text
 Use ADL_Codex_Implementation_Brief_v2.md and docs/phases/phase-11-model-versioning-and-migration-guard.md as the source of truth.
 
-Execute Phase 11 only. Add basic model version and object schema version guards for persisted local data. Do not build a full migration framework. Before the final review, update learnings/ if required. End by reviewing what happened and creating or updating the next phase/follow-up plan if actual results show more work is required.
+Execute Phase 11 only. Add basic model version and object schema version guards for persisted local data. Do not build a full migration framework. Before the final review, update learnings/ if required. End by reviewing what happened and updating docs/phases/phase-12-business-context-model.md if actual results show more work is required.
 ```
 
 ## Tasks
@@ -47,5 +47,5 @@ Execute Phase 11 only. Add basic model version and object schema version guards 
 8. Add tests for compatible records, incompatible object schema version, and incompatible application model version.
 9. Run typecheck, tests, and build.
 10. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
-11. Review what happened in this phase and create or update the next phase/follow-up plan if the actual results require changed scope, constraints, deliverables, or tasks.
+11. Review what happened in this phase and update `docs/phases/phase-12-business-context-model.md` if the actual results require changed scope, constraints, deliverables, or tasks.
 12. Commit all repository changes for this phase and push the current branch.

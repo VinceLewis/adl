@@ -17,5 +17,11 @@ Code phases should add or update tests that prove the behavior introduced by the
 - Phase 9: storage abstraction and persistence behavior
 - Phase 10: sync policy behavior
 - Phase 11: model and schema version guards
+- Phase 12: business context model resolution and validation
+- Phase 13: context runtime, scoped roles, and policy enforcement
+- Phase 14: context UI selection and navigation behavior
+- Phase 15: read-model query behavior and dashboard rendering
+- Phase 16: context-aware offline dataset selection
+- Phase 17: band-app reference model, runtime authorization, and browser demo behavior
 
 Run the strongest relevant commands available at that point, usually some combination of tests, typecheck, lint, format check, and build. If the project does not yet have one of those commands, do not invent unrelated tooling just to satisfy the word "test"; record the gap and proceed with the best available verification.
