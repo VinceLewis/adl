@@ -45,6 +45,7 @@ import type {
   PartialValidatorModel,
   PartialViewModel,
   PartialViewContextModel,
+  ReadModelSourceScope,
   ResolvedApplicationModel,
   ResolvedAutoId,
   ResolvedBusinessContext,
@@ -366,6 +367,7 @@ function resolveView(
     object: input.object ?? objectName,
     kind: input.kind,
     ...(input.context === undefined ? {} : { context: resolveViewContext(input.context) }),
+    ...(input.readModel === undefined ? {} : { readModel: input.readModel }),
     fields: [...(input.fields ?? fields.map((field) => field.name))],
     searchFields: [...(input.searchFields ?? [])],
     sort: [...(input.sort ?? [])].map(resolveSort),
@@ -399,7 +401,8 @@ function resolveReadModel(
   input: PartialReadModelModel,
   objectsByName: Map<string, ResolvedObject>,
 ): ResolvedReadModel {
-  const sources = input.sources.map(resolveReadModelSource);
+  const defaultScope = defaultReadModelSourceScope(input.context);
+  const sources = input.sources.map((source) => resolveReadModelSource(source, defaultScope));
   const sourcesByName = new Map(sources.map((source) => [source.name, source]));
 
   return {
@@ -409,14 +412,33 @@ function resolveReadModel(
     fields: input.fields.map((field) =>
       resolveReadModelField(field, sources, sourcesByName, objectsByName),
     ),
+    sort: [...(input.sort ?? [])].map(resolveSort),
   };
 }
 
-function resolveReadModelSource(input: PartialReadModelSourceModel): ResolvedReadModelSource {
+function resolveReadModelSource(
+  input: PartialReadModelSourceModel,
+  defaultScope: ReadModelSourceScope,
+): ResolvedReadModelSource {
   return {
     name: input.name ?? input.object,
     object: input.object,
+    scope: input.scope ?? defaultScope,
   };
+}
+
+function defaultReadModelSourceScope(
+  context: PartialViewContextModel | undefined,
+): ReadModelSourceScope {
+  if (context?.mode === "all") {
+    return "allAvailableContexts";
+  }
+
+  if (context?.mode === "required" || context?.mode === "optional") {
+    return "currentContext";
+  }
+
+  return "all";
 }
 
 function resolveReadModelField(

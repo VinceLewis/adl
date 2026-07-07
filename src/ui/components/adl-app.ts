@@ -4,13 +4,16 @@ import type {
   ResolvedApplicationModel,
   ResolvedBusinessContext,
   ResolvedObject,
+  ResolvedReadModel,
   ResolvedView,
+  ResolvedViewContext,
   StoredObjectRecord,
 } from "../../model/resolved-model.js";
 import type {
   RuntimeAvailableContext,
   RuntimeContext,
   RuntimeContextRole,
+  RuntimeReadModelRow,
   RuntimeValidationIssue,
 } from "../../runtime/runtime-types.js";
 import {
@@ -23,6 +26,7 @@ import { infoMessage, messageFromRuntimeError, successMessage } from "../runtime
 import { applyResolvedTheme, findApplicationTheme } from "../theme/default-theme.js";
 import type { SaveRecordDetail, TransitionRecordDetail, UiMessage, UiMode } from "../types.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
+import { AdlDashboardViewElement } from "./adl-dashboard-view.js";
 import { AdlFormViewElement } from "./adl-form-view.js";
 import { AdlListViewElement } from "./adl-list-view.js";
 import { AdlMessageAreaElement } from "./adl-message-area.js";
@@ -43,6 +47,7 @@ export class AdlAppElement extends HTMLElement {
   private viewName = "";
   private searchText = "";
   private records: StoredObjectRecord[] = [];
+  private readModelRows: RuntimeReadModelRow[] = [];
   private selectedRecord: StoredObjectRecord | undefined;
   private mode: UiMode = "edit";
   private messages: UiMessage[] = [];
@@ -344,17 +349,31 @@ export class AdlAppElement extends HTMLElement {
   private async refreshRecords(preferredRecordId?: string): Promise<void> {
     const object = this.activeObject;
     const view = this.activeView;
-    const viewContext = await this.resolveActiveViewContext(view);
+    const readModel = this.activeReadModel;
+    const viewContext = await this.resolveActiveViewContext(view.context ?? readModel?.context);
     this.activeRuntimeContext = viewContext.context;
     this.activeViewEmptyState = viewContext.emptyState;
 
     if (viewContext.context === undefined) {
       this.records = [];
+      this.readModelRows = [];
       this.selectedRecord = undefined;
       this.mode = "create";
       return;
     }
 
+    if (readModel !== undefined) {
+      const result = await this.runtime.executeReadModel(readModel.name, viewContext.context, {
+        sort: view.sort.length > 0 ? view.sort : readModel.sort,
+      });
+      this.records = [];
+      this.readModelRows = result.rows;
+      this.selectedRecord = undefined;
+      this.mode = "edit";
+      return;
+    }
+
+    this.readModelRows = [];
     this.records = await this.runtime.search(
       object.name,
       {
@@ -406,6 +425,7 @@ export class AdlAppElement extends HTMLElement {
   private render(): void {
     const object = this.activeObject;
     const view = this.activeView;
+    const readModel = this.activeReadModel;
     const formView = this.formView;
     const showWorkspace =
       this.activeRuntimeContext !== undefined && this.activeViewEmptyState === undefined;
@@ -445,12 +465,18 @@ export class AdlAppElement extends HTMLElement {
         <adl-message-area></adl-message-area>
         ${
           showWorkspace
-            ? `
-              <div class="adl-workspace">
-                <adl-list-view></adl-list-view>
-                <adl-form-view></adl-form-view>
-              </div>
-            `
+            ? readModel === undefined
+              ? `
+                <div class="adl-workspace">
+                  <adl-list-view></adl-list-view>
+                  <adl-form-view></adl-form-view>
+                </div>
+              `
+              : `
+                <div class="adl-dashboard-workspace">
+                  <adl-dashboard-view></adl-dashboard-view>
+                </div>
+              `
             : `<section class="adl-empty-state">${escapeHtml(this.activeViewEmptyState ?? "No runtime context is available for this view.")}</section>`
         }
       </main>
@@ -481,6 +507,12 @@ export class AdlAppElement extends HTMLElement {
       form.record = this.selectedRecord;
       form.mode = this.mode;
       form.fieldIssues = this.fieldIssues;
+    }
+
+    const dashboard = this.querySelector<AdlDashboardViewElement>("adl-dashboard-view");
+    if (dashboard !== null) {
+      dashboard.readModel = readModel;
+      dashboard.rows = this.readModelRows;
     }
 
     for (const selector of this.querySelectorAll<AdlContextSelectorElement>(
@@ -555,8 +587,9 @@ export class AdlAppElement extends HTMLElement {
     );
   }
 
-  private async resolveActiveViewContext(view: ResolvedView): Promise<ActiveViewContextState> {
-    const viewContext = view.context;
+  private async resolveActiveViewContext(
+    viewContext: ResolvedViewContext | undefined,
+  ): Promise<ActiveViewContextState> {
     if (viewContext === undefined || viewContext.mode === "none") {
       return { context: this.baseRuntimeContext() };
     }
@@ -765,6 +798,11 @@ export class AdlAppElement extends HTMLElement {
     return this.findView(this.viewName)?.view ?? this.findStartView();
   }
 
+  private get activeReadModel(): ResolvedReadModel | undefined {
+    const readModelName = this.activeView.readModel;
+    return readModelName === undefined ? undefined : this.findReadModel(readModelName);
+  }
+
   private get formView(): ResolvedView {
     return (
       this.activeObject.views.find((view) => view.kind === "form" || view.kind === "detail") ??
@@ -784,8 +822,10 @@ export class AdlAppElement extends HTMLElement {
 
   private get navigableContexts(): ResolvedBusinessContext[] {
     const contextNames = new Set(
-      this.allViews
-        .map(({ view }) => view.context)
+      [
+        ...this.allViews.map(({ view }) => view.context),
+        ...(this._model.readModels ?? []).map((readModel) => readModel.context),
+      ]
         .filter(
           (context): context is NonNullable<ResolvedView["context"]> =>
             context !== undefined && context.mode !== "none" && context.context !== undefined,
@@ -798,6 +838,10 @@ export class AdlAppElement extends HTMLElement {
 
   private findView(viewName: string): { object: ResolvedObject; view: ResolvedView } | undefined {
     return this.allViews.find(({ view }) => view.name === viewName);
+  }
+
+  private findReadModel(readModelName: string): ResolvedReadModel | undefined {
+    return this._model.readModels?.find((readModel) => readModel.name === readModelName);
   }
 }
 

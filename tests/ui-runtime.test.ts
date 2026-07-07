@@ -250,8 +250,18 @@ describe("browser UI runtime", () => {
     viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
     await flushUi();
 
+    expect(app.querySelector("adl-dashboard-view")).not.toBeNull();
+    const dashboardRows = [...app.querySelectorAll("[data-read-model-row]")].map((row) =>
+      row.textContent?.replace(/\s+/g, " ").trim(),
+    );
+    expect(dashboardRows).toEqual([
+      expect.stringContaining("Alpha Hall"),
+      expect.stringContaining("Beta Hall"),
+    ]);
     expect(app.textContent).toContain("Alpha Hall");
     expect(app.textContent).toContain("Beta Hall");
+    expect(app.textContent).toContain("The Alphas");
+    expect(app.textContent).toContain("The Betas");
   });
 
   it("rejects invalid persisted and route-provided contexts", async () => {
@@ -490,6 +500,12 @@ function createBandUiPartialModel(
             effect: "allow",
             principal: { match: "specific", roles: ["SystemAdmin"] },
             action: "*",
+          },
+          {
+            name: "allowBandMemberReadBand",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandMember"] },
+            action: "read",
           },
         ],
       },

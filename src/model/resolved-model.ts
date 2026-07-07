@@ -53,6 +53,11 @@ export type ContextSelectionMode = "required" | "optional";
 export type ContextSelectionPersistence = "none" | "session" | "local";
 export type ContextSelectionSource = "runtime" | "route";
 export type ViewContextMode = "none" | "required" | "optional" | "all";
+export type ReadModelSourceScope =
+  | "all"
+  | "currentContext"
+  | "allAvailableContexts"
+  | "currentUser";
 
 export interface ResolvedApplicationModel {
   modelVersion: string;
@@ -240,6 +245,7 @@ export interface ResolvedView {
   object: string;
   kind: ViewKind;
   context?: ResolvedViewContext;
+  readModel?: string;
   fields: string[];
   searchFields: string[];
   sort: ResolvedSort[];
@@ -261,11 +267,13 @@ export interface ResolvedReadModel {
   context?: ResolvedViewContext;
   sources: ResolvedReadModelSource[];
   fields: ResolvedReadModelField[];
+  sort: ResolvedSort[];
 }
 
 export interface ResolvedReadModelSource {
   name: string;
   object: string;
+  scope: ReadModelSourceScope;
 }
 
 export interface ResolvedReadModelField {
@@ -540,6 +548,7 @@ export interface PartialViewModel {
   object?: string;
   kind: ViewKind;
   context?: PartialViewContextModel;
+  readModel?: string;
   fields?: string[];
   searchFields?: string[];
   sort?: ResolvedSort[];
@@ -556,11 +565,13 @@ export interface PartialReadModelModel {
   context?: PartialViewContextModel;
   sources: PartialReadModelSourceModel[];
   fields: PartialReadModelFieldModel[];
+  sort?: ResolvedSort[];
 }
 
 export interface PartialReadModelSourceModel {
   name?: string;
   object: string;
+  scope?: ReadModelSourceScope;
 }
 
 export interface PartialReadModelFieldModel {

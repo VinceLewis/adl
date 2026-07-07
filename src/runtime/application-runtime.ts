@@ -15,6 +15,7 @@ import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import { ObjectStore } from "./object-store.js";
 import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
+import { ReadModelService } from "./read-model-service.js";
 import {
   ModelValidationError,
   RuntimeStartupError,
@@ -25,6 +26,8 @@ import type {
   RuntimeContext,
   RuntimeAvailableContext,
   RuntimeLogger,
+  RuntimeReadModelQuery,
+  RuntimeReadModelResult,
   RuntimeSearchInput,
   RuntimeStartupDiagnostic,
 } from "./runtime-types.js";
@@ -48,6 +51,7 @@ export class ApplicationRuntime {
   readonly syncQueue: SyncQueue;
   readonly hookRegistry: HookRegistry;
   readonly contextService: RuntimeContextService;
+  readonly readModelService: ReadModelService;
   readonly objectStore: ObjectStore;
   readonly lifecycleEngine: LifecycleEngine;
 
@@ -78,6 +82,15 @@ export class ApplicationRuntime {
     void this.startupPromise.catch(() => undefined);
     this.contextService = new RuntimeContextService(model, this.index, storage, this.logger, () =>
       this.whenReady(),
+    );
+    this.readModelService = new ReadModelService(
+      model,
+      this.policyEngine,
+      this.contextService,
+      this.index,
+      storage,
+      this.logger,
+      () => this.whenReady(),
     );
     this.objectStore = new ObjectStore(
       model,
@@ -220,6 +233,24 @@ export class ApplicationRuntime {
     this.logger.debug("EXIT ApplicationRuntime.search", {
       objectName,
       count: result.length,
+    });
+    return result;
+  }
+
+  async executeReadModel(
+    readModelName: string,
+    context: RuntimeContext,
+    query: RuntimeReadModelQuery = {},
+  ): Promise<RuntimeReadModelResult> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.executeReadModel", {
+      readModelName,
+      context: safeContextLog(context),
+    });
+    const result = await this.readModelService.execute(readModelName, context, query);
+    this.logger.debug("EXIT ApplicationRuntime.executeReadModel", {
+      readModelName,
+      count: result.rows.length,
     });
     return result;
   }

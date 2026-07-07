@@ -6,6 +6,7 @@ import type {
   ContextSelectionSource,
   FieldType,
   PolicyAction,
+  ReadModelSourceScope,
   ResolvedApplicationModel,
   ResolvedBusinessContext,
   ResolvedContextMembership,
@@ -20,6 +21,7 @@ import type {
   ResolvedSyncPolicy,
   ResolvedTheme,
   ResolvedThemeTokens,
+  ResolvedView,
   ResolvedViewContext,
   RuntimeChannel,
   SyncMode,
@@ -108,6 +110,8 @@ export const MODEL_VALIDATION_CODES = {
   READ_MODEL_FIELD_UNKNOWN: "ADL_READ_MODEL_FIELD_UNKNOWN",
   READ_MODEL_SOURCE_DUPLICATE: "ADL_READ_MODEL_SOURCE_DUPLICATE",
   READ_MODEL_SOURCE_OBJECT_UNKNOWN: "ADL_READ_MODEL_SOURCE_OBJECT_UNKNOWN",
+  READ_MODEL_SOURCE_SCOPE_INVALID: "ADL_READ_MODEL_SOURCE_SCOPE_INVALID",
+  READ_MODEL_SORT_FIELD_UNKNOWN: "ADL_READ_MODEL_SORT_FIELD_UNKNOWN",
   SYNC_CONFLICT_INVALID: "ADL_SYNC_CONFLICT_INVALID",
   SYNC_MODE_INVALID: "ADL_SYNC_MODE_INVALID",
   SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
@@ -123,6 +127,7 @@ export const MODEL_VALIDATION_CODES = {
   VIEW_CONTEXT_UNKNOWN: "ADL_VIEW_CONTEXT_UNKNOWN",
   VIEW_KIND_INVALID: "ADL_VIEW_KIND_INVALID",
   VIEW_OBJECT_UNKNOWN: "ADL_VIEW_OBJECT_UNKNOWN",
+  VIEW_READ_MODEL_UNKNOWN: "ADL_VIEW_READ_MODEL_UNKNOWN",
   VIEW_SEARCH_FIELD_UNKNOWN: "ADL_VIEW_SEARCH_FIELD_UNKNOWN",
   VIEW_SORT_FIELD_UNKNOWN: "ADL_VIEW_SORT_FIELD_UNKNOWN",
 } as const;
@@ -158,6 +163,12 @@ const CONTEXT_SELECTION_PERSISTENCE = new Set<ContextSelectionPersistence>([
 ]);
 const CONTEXT_SELECTION_SOURCES = new Set<ContextSelectionSource>(["runtime", "route"]);
 const VIEW_CONTEXT_MODES = new Set<ViewContextMode>(["none", "required", "optional", "all"]);
+const READ_MODEL_SOURCE_SCOPES = new Set<ReadModelSourceScope>([
+  "all",
+  "currentContext",
+  "allAvailableContexts",
+  "currentUser",
+]);
 
 const POLICY_ACTIONS = new Set<PolicyAction>([
   "*",
@@ -222,6 +233,7 @@ interface ModelIndexes {
   contextsByName: Map<string, NamedReference<ResolvedBusinessContext>>;
   objectsByName: Map<string, NamedReference<ResolvedObject>>;
   policiesByName: Map<string, NamedReference<ResolvedPolicy>>;
+  readModelsByName: Map<string, NamedReference<ResolvedReadModel>>;
   themesByName: Map<string, NamedReference<ResolvedTheme>>;
   viewNames: Set<string>;
 }
@@ -232,6 +244,7 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
     contextsByName: indexByName(model.contexts ?? []),
     objectsByName: indexByName(model.objects),
     policiesByName: indexByName(model.policies),
+    readModelsByName: indexByName(model.readModels ?? []),
     themesByName: indexByName(model.themes),
     viewNames: new Set(model.objects.flatMap((object) => object.views.map((view) => view.name))),
   };
@@ -626,17 +639,7 @@ function validateObject(
       continue;
     }
     const viewPath = `${objectPath}.views[${viewIndex}]`;
-    validateView(
-      view.object,
-      view.kind,
-      view.context,
-      view.fields,
-      view.searchFields,
-      view.sort,
-      viewPath,
-      indexes,
-      diagnostics,
-    );
+    validateView(view, viewPath, indexes, diagnostics);
   }
 }
 
@@ -1050,45 +1053,57 @@ function validatePolicyRule(
 }
 
 function validateView(
-  viewObject: string,
-  kind: ViewKind,
-  context: ResolvedViewContext | undefined,
-  fields: string[],
-  searchFields: string[],
-  sort: { field: string }[],
+  view: ResolvedView,
   viewPath: string,
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
-  const targetObject = indexes.objectsByName.get(viewObject)?.item;
+  const targetObject = indexes.objectsByName.get(view.object)?.item;
 
-  if (!VIEW_KINDS.has(kind)) {
+  if (!VIEW_KINDS.has(view.kind)) {
     diagnostics.push(
       diagnostic(
         MODEL_VALIDATION_CODES.VIEW_KIND_INVALID,
-        `View has invalid kind '${String(kind)}'.`,
+        `View has invalid kind '${String(view.kind)}'.`,
         `${viewPath}.kind`,
       ),
     );
   }
 
-  validateViewContext(context, `${viewPath}.context`, indexes, diagnostics);
+  validateViewContext(view.context, `${viewPath}.context`, indexes, diagnostics);
 
   if (targetObject === undefined) {
     diagnostics.push(
       diagnostic(
         MODEL_VALIDATION_CODES.VIEW_OBJECT_UNKNOWN,
-        `View references unknown object '${viewObject}'.`,
+        `View references unknown object '${view.object}'.`,
         `${viewPath}.object`,
       ),
     );
     return;
   }
 
-  const fieldNames = new Set(targetObject.fields.map((field) => field.name));
+  const readModel =
+    view.readModel === undefined ? undefined : indexes.readModelsByName.get(view.readModel)?.item;
+  if (view.readModel !== undefined && readModel === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_READ_MODEL_UNKNOWN,
+        `View '${view.name}' references unknown read model '${view.readModel}'.`,
+        `${viewPath}.readModel`,
+      ),
+    );
+  }
 
-  for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex += 1) {
-    const field = fields[fieldIndex];
+  const fieldNames =
+    readModel === undefined
+      ? new Set(targetObject.fields.map((field) => field.name))
+      : new Set(readModel.fields.map((field) => field.name));
+  const fieldOwner =
+    readModel === undefined ? `object '${targetObject.name}'` : `read model '${readModel.name}'`;
+
+  for (let fieldIndex = 0; fieldIndex < view.fields.length; fieldIndex += 1) {
+    const field = view.fields[fieldIndex];
     if (field === undefined) {
       continue;
     }
@@ -1096,15 +1111,15 @@ function validateView(
       diagnostics.push(
         diagnostic(
           MODEL_VALIDATION_CODES.VIEW_FIELD_UNKNOWN,
-          `View references unknown field '${field}' on object '${targetObject.name}'.`,
+          `View references unknown field '${field}' on ${fieldOwner}.`,
           `${viewPath}.fields[${fieldIndex}]`,
         ),
       );
     }
   }
 
-  for (let fieldIndex = 0; fieldIndex < searchFields.length; fieldIndex += 1) {
-    const field = searchFields[fieldIndex];
+  for (let fieldIndex = 0; fieldIndex < view.searchFields.length; fieldIndex += 1) {
+    const field = view.searchFields[fieldIndex];
     if (field === undefined) {
       continue;
     }
@@ -1112,15 +1127,15 @@ function validateView(
       diagnostics.push(
         diagnostic(
           MODEL_VALIDATION_CODES.VIEW_SEARCH_FIELD_UNKNOWN,
-          `View references unknown search field '${field}' on object '${targetObject.name}'.`,
+          `View references unknown search field '${field}' on ${fieldOwner}.`,
           `${viewPath}.searchFields[${fieldIndex}]`,
         ),
       );
     }
   }
 
-  for (let sortIndex = 0; sortIndex < sort.length; sortIndex += 1) {
-    const sortItem = sort[sortIndex];
+  for (let sortIndex = 0; sortIndex < view.sort.length; sortIndex += 1) {
+    const sortItem = view.sort[sortIndex];
     if (sortItem === undefined) {
       continue;
     }
@@ -1128,7 +1143,7 @@ function validateView(
       diagnostics.push(
         diagnostic(
           MODEL_VALIDATION_CODES.VIEW_SORT_FIELD_UNKNOWN,
-          `View references unknown sort field '${sortItem.field}' on object '${targetObject.name}'.`,
+          `View references unknown sort field '${sortItem.field}' on ${fieldOwner}.`,
           `${viewPath}.sort[${sortIndex}].field`,
         ),
       );
@@ -1209,12 +1224,39 @@ function validateReadModel(
       continue;
     }
 
+    if (!READ_MODEL_SOURCE_SCOPES.has(source.scope)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_SCOPE_INVALID,
+          `Read model '${readModel.name}' source '${source.name}' has invalid scope '${String(source.scope)}'.`,
+          `${readModelPath}.sources[${sourceIndex}].scope`,
+        ),
+      );
+    }
+
     if (!indexes.objectsByName.has(source.object)) {
       diagnostics.push(
         diagnostic(
           MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_OBJECT_UNKNOWN,
           `Read model '${readModel.name}' source '${source.name}' references unknown object '${source.object}'.`,
           `${readModelPath}.sources[${sourceIndex}].object`,
+        ),
+      );
+    }
+  }
+
+  const fieldNames = new Set(readModel.fields.map((field) => field.name));
+  for (let sortIndex = 0; sortIndex < readModel.sort.length; sortIndex += 1) {
+    const sortItem = readModel.sort[sortIndex];
+    if (sortItem === undefined) {
+      continue;
+    }
+    if (!fieldNames.has(sortItem.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.READ_MODEL_SORT_FIELD_UNKNOWN,
+          `Read model '${readModel.name}' sorts by unknown output field '${sortItem.field}'.`,
+          `${readModelPath}.sort[${sortIndex}].field`,
         ),
       );
     }

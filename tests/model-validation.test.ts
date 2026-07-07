@@ -248,6 +248,7 @@ describe("validateApplicationModel", () => {
       throw new Error("Expected HomeDashboard view context.");
     }
     homeDashboard.context.context = "MissingContext";
+    homeDashboard.readModel = "MissingReadModel";
 
     if (readModel.context === undefined) {
       throw new Error("Expected read model context.");
@@ -258,6 +259,8 @@ describe("validateApplicationModel", () => {
       throw new Error("Expected read model gig source.");
     }
     gigSource.object = "MissingGig";
+    (gigSource as unknown as { scope: string }).scope = "nearby";
+    readModel.sort.push({ field: "MissingSortField", direction: "asc" });
     readModel.fields.push(
       { name: "UnknownSourceField", source: "missing", field: "Date", type: "date" },
       { name: "UnknownBandField", source: "band", field: "MissingName", type: "text" },
@@ -281,8 +284,11 @@ describe("validateApplicationModel", () => {
         MODEL_VALIDATION_CODES.READ_MODEL_CONTEXT_UNKNOWN,
         MODEL_VALIDATION_CODES.READ_MODEL_FIELD_SOURCE_UNKNOWN,
         MODEL_VALIDATION_CODES.READ_MODEL_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.READ_MODEL_SORT_FIELD_UNKNOWN,
         MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_OBJECT_UNKNOWN,
+        MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_SCOPE_INVALID,
         MODEL_VALIDATION_CODES.VIEW_CONTEXT_UNKNOWN,
+        MODEL_VALIDATION_CODES.VIEW_READ_MODEL_UNKNOWN,
       ]),
     );
   });

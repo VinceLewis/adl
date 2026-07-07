@@ -236,14 +236,20 @@ describe("resolveApplicationModel", () => {
       },
     });
     expect(gig?.scope).toEqual({ context: "Band", field: "Band" });
-    expect(homeDashboard?.context).toEqual({ mode: "all", context: "Band" });
+    expect(homeDashboard).toMatchObject({
+      context: { mode: "all", context: "Band" },
+      readModel: "UpcomingGigsByBand",
+      fields: ["GigDate", "Venue", "BandName"],
+      sort: [{ field: "GigDate", direction: "asc" }],
+    });
     expect(readModel).toMatchObject({
       name: "UpcomingGigsByBand",
       context: { mode: "all", context: "Band" },
       sources: [
-        { name: "gig", object: "Gig" },
-        { name: "band", object: "Band" },
+        { name: "gig", object: "Gig", scope: "allAvailableContexts" },
+        { name: "band", object: "Band", scope: "allAvailableContexts" },
       ],
+      sort: [{ field: "GigDate", direction: "asc" }],
     });
     expect(readModel?.fields).toEqual([
       { name: "GigDate", type: "date", source: "gig", field: "Date" },

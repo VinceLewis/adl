@@ -4,6 +4,8 @@ import type {
   JsonValue,
   PolicyAction,
   PolicyEffect,
+  ResolvedReadModel,
+  ResolvedSort,
   RuntimeChannel,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
@@ -53,6 +55,28 @@ export interface RuntimeSearchQuery {
 }
 
 export type RuntimeSearchInput = string | RuntimeSearchQuery | undefined;
+
+export interface RuntimeReadModelQuery {
+  sort?: ResolvedSort[];
+  limit?: number;
+}
+
+export interface RuntimeReadModelSourceReference {
+  objectName: string;
+  recordId: string;
+}
+
+export interface RuntimeReadModelRow {
+  id: string;
+  readModel: string;
+  values: Record<string, JsonValue>;
+  sources: Record<string, RuntimeReadModelSourceReference>;
+}
+
+export interface RuntimeReadModelResult {
+  readModel: ResolvedReadModel;
+  rows: RuntimeReadModelRow[];
+}
 
 export interface RuntimeValidationIssue {
   code: string;

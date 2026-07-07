@@ -77,8 +77,9 @@ export const bandContextPartialModel = {
           name: "HomeDashboard",
           kind: "dashboard",
           context: { mode: "all", context: "Band" },
-          fields: ["Band", "Date", "Venue"],
-          sort: [{ field: "Date", direction: "asc" }],
+          readModel: "UpcomingGigsByBand",
+          fields: ["GigDate", "Venue", "BandName"],
+          sort: [{ field: "GigDate", direction: "asc" }],
           actions: ["read", "search"],
         },
         {
@@ -98,14 +99,15 @@ export const bandContextPartialModel = {
       name: "UpcomingGigsByBand",
       context: { mode: "all", context: "Band" },
       sources: [
-        { name: "gig", object: "Gig" },
-        { name: "band", object: "Band" },
+        { name: "gig", object: "Gig", scope: "allAvailableContexts" },
+        { name: "band", object: "Band", scope: "allAvailableContexts" },
       ],
       fields: [
         { name: "GigDate", source: "gig", field: "Date" },
         { name: "Venue", source: "gig", field: "Venue" },
         { name: "BandName", source: "band", field: "Name" },
       ],
+      sort: [{ field: "GigDate", direction: "asc" }],
     },
   ],
 } satisfies PartialApplicationModel;

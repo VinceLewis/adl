@@ -518,6 +518,117 @@ describe("ApplicationRuntime", () => {
     ]);
   });
 
+  it("executes all-context read models with projection, sorting, and joined labels", async () => {
+    const seeded = await createSeededBandRuntime();
+    await seeded.runtime.create(
+      "Gig",
+      {
+        Band: seeded.firstBand.meta.guid,
+        Date: "2026-07-15",
+        Venue: "Early Hall",
+      },
+      seeded.firstBandContext,
+    );
+
+    const result = await seeded.runtime.executeReadModel("UpcomingGigsByBand", {
+      ...seeded.musicianContext,
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    });
+
+    expect(result.rows.map((row) => row.values)).toEqual([
+      {
+        GigDate: "2026-07-15",
+        Venue: "Early Hall",
+        BandName: "The Alphas",
+      },
+      {
+        GigDate: "2026-08-01",
+        Venue: "Alpha Hall",
+        BandName: "The Alphas",
+      },
+      {
+        GigDate: "2026-08-02",
+        Venue: "Beta Hall",
+        BandName: "The Betas",
+      },
+    ]);
+    expect(result.rows[0]?.sources).toMatchObject({
+      gig: { objectName: "Gig" },
+      band: { objectName: "Band", recordId: seeded.firstBand.meta.guid },
+    });
+  });
+
+  it("executes current-context read models without crossing selected context scope", async () => {
+    const partialModel = createBandRuntimePartialModel();
+    partialModel.readModels = [
+      ...(partialModel.readModels ?? []),
+      {
+        name: "CurrentBandGigs",
+        context: { mode: "required", context: "Band" },
+        sources: [{ name: "gig", object: "Gig", scope: "currentContext" }],
+        fields: [
+          { name: "GigDate", source: "gig", field: "Date" },
+          { name: "Venue", source: "gig", field: "Venue" },
+        ],
+        sort: [{ field: "GigDate", direction: "asc" }],
+      },
+    ];
+    const seeded = await createSeededBandRuntime(partialModel);
+
+    const result = await seeded.runtime.executeReadModel(
+      "CurrentBandGigs",
+      seeded.firstBandContext,
+    );
+
+    expect(result.rows.map((row) => row.values)).toEqual([
+      {
+        GigDate: "2026-08-01",
+        Venue: "Alpha Hall",
+      },
+    ]);
+  });
+
+  it("filters read-model sources by current user and shapes projected fields by policy", async () => {
+    const runtime = new ApplicationRuntime(
+      resolveApplicationModel({
+        ...runtimePartialModel,
+        readModels: [
+          {
+            name: "CurrentUserDirectoryEntry",
+            sources: [{ name: "user", object: "User", scope: "currentUser" }],
+            fields: [
+              { name: "Name", source: "user", field: "Name" },
+              { name: "Email", source: "user", field: "Email" },
+              { name: "Phone", source: "user", field: "Phone" },
+            ],
+            sort: [{ field: "Name", direction: "asc" }],
+          },
+        ],
+      }),
+    );
+    await runtime.create(
+      "User",
+      { Name: "Ada Lovelace", Email: "ada@example.com", Phone: "123" },
+      adminContext,
+    );
+    const grace = await runtime.create(
+      "User",
+      { Name: "Grace Hopper", Email: "grace@example.com", Phone: "456" },
+      adminContext,
+    );
+
+    const result = await runtime.executeReadModel("CurrentUserDirectoryEntry", {
+      ...viewerContext,
+      userId: grace.meta.guid,
+    });
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.values).toEqual({
+      Name: "Grace Hopper",
+      Email: MASKED_POLICY_FIELD_VALUE,
+    });
+  });
+
   it("denies writes and transitions outside the selected object scope", async () => {
     const seeded = await createSeededBandRuntime();
 
@@ -1117,7 +1228,7 @@ function createSyncModeRuntime(mode: SyncMode): ApplicationRuntime {
   return new ApplicationRuntime(resolveApplicationModel(createSyncModePartialModel(mode)));
 }
 
-async function createSeededBandRuntime(): Promise<{
+async function createSeededBandRuntime(partialModel = createBandRuntimePartialModel()): Promise<{
   runtime: ApplicationRuntime;
   musicianContext: RuntimeContext;
   firstBandContext: RuntimeContext;
@@ -1127,7 +1238,7 @@ async function createSeededBandRuntime(): Promise<{
   firstGig: StoredObjectRecord;
   secondGig: StoredObjectRecord;
 }> {
-  const runtime = new ApplicationRuntime(resolveApplicationModel(createBandRuntimePartialModel()));
+  const runtime = new ApplicationRuntime(resolveApplicationModel(partialModel));
   const systemContext: RuntimeContext = {
     userId: "system-admin",
     roles: ["SystemAdmin"],
@@ -1262,6 +1373,12 @@ function createBandRuntimePartialModel(): PartialApplicationModel {
             effect: "allow",
             principal: { match: "specific", roles: ["SystemAdmin"] },
             action: "*",
+          },
+          {
+            name: "allowBandMemberReadBand",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandMember"] },
+            action: "read",
           },
         ],
       },

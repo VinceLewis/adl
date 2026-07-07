@@ -5,6 +5,7 @@ import type {
   ResolvedField,
   ResolvedObject,
   ResolvedPolicy,
+  ResolvedReadModel,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
 import { RuntimeModelError, cloneJson } from "./runtime-types.js";
@@ -12,6 +13,7 @@ import { RuntimeModelError, cloneJson } from "./runtime-types.js";
 export class RuntimeModelIndex {
   private readonly objectsByName: Map<string, ResolvedObject>;
   private readonly policiesByObject: Map<string, ResolvedPolicy[]>;
+  private readonly readModelsByName: Map<string, ResolvedReadModel>;
   private readonly rolesByName: Map<string, string[]>;
   private readonly contextsByName: Map<string, ResolvedBusinessContext>;
   private readonly contextsByObject: Map<string, ResolvedBusinessContext[]>;
@@ -19,6 +21,9 @@ export class RuntimeModelIndex {
   constructor(readonly model: ResolvedApplicationModel) {
     this.objectsByName = new Map(model.objects.map((object) => [object.name, object]));
     this.policiesByObject = groupPoliciesByObject(model.policies);
+    this.readModelsByName = new Map(
+      (model.readModels ?? []).map((readModel) => [readModel.name, readModel]),
+    );
     this.rolesByName = new Map(model.roles.map((role) => [role.name, role.inherits]));
     this.contextsByName = new Map((model.contexts ?? []).map((context) => [context.name, context]));
     this.contextsByObject = groupContextsByObject(model.contexts ?? []);
@@ -39,6 +44,19 @@ export class RuntimeModelIndex {
   getPoliciesForObject(objectName: string): ResolvedPolicy[] {
     this.getObject(objectName);
     return [...(this.policiesByObject.get(objectName) ?? [])];
+  }
+
+  getReadModel(readModelName: string): ResolvedReadModel {
+    const readModel = this.readModelsByName.get(readModelName);
+
+    if (readModel === undefined) {
+      throw new RuntimeModelError(
+        `Read model '${readModelName}' does not exist in the resolved model.`,
+        { readModelName },
+      );
+    }
+
+    return readModel;
   }
 
   getBusinessContext(contextName: string): ResolvedBusinessContext {
