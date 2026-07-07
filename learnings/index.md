@@ -28,6 +28,10 @@ Before tasks that integrate compile-time validation, runtime model startup check
 
 - `implementation/model-validator.md`
 
+Before tasks that change runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests, also read:
+
+- `implementation/runtime-services.md`
+
 Before tasks that change the phase plan, also read:
 
 - `process/phase-execution.md`
@@ -56,3 +60,4 @@ When adding a new learning document, update this index with when future agents s
 - `minil/repository-audit.md`: read before comparing ADL with MINIL, reusing MINIL concepts, or designing parser/model/validator/runtime-test behaviour informed by MINIL.
 - `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, or runtime model startup checks.
+- `implementation/runtime-services.md`: read before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.

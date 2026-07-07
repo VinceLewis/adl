@@ -41,17 +41,19 @@ Execute Phase 4 only. Build the minimal browser UI runtime over the existing res
 ## Tasks
 
 1. Review existing runtime APIs and adapt UI design to the runtime facade instead of bypassing services.
-2. Choose Web Components or Lit based on current project dependencies and keep the runtime framework-light.
-3. Create a browser demo that loads a hardcoded resolved model and seeded data.
-4. Implement `adl-app` to coordinate model, runtime, selected view, selected record, messages, and commands.
-5. Implement `adl-list-view` with search, rows, row selection, and new action.
-6. Implement `adl-form-view` with generated fields, save, delete, cancel, validation display, and lifecycle action area.
-7. Implement `adl-field-renderer` for text, number, date, datetime, time, boolean, lookup placeholder, and attachment placeholder if represented by the model.
-8. Implement `adl-action-bar` for primary actions and lifecycle actions.
-9. Implement `adl-message-area` for validation, policy, and runtime diagnostics.
-10. Ensure UI asks policy engine for visibility, readonly, hidden, and masked behavior.
-11. Add test coverage where practical and manually verify the demo in the browser.
-12. Run typecheck, tests, and any build command.
-13. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
-14. Review what happened in this phase and update `docs/phases/phase-05-theme-system.md` if the actual results require changed scope, constraints, deliverables, or tasks.
-15. Commit all repository changes for this phase and push the current branch.
+2. Treat `ApplicationRuntime` operations as async and pass a `RuntimeContext` with user id, roles, and channel for every create/read/update/delete/search/transition call.
+3. Surface typed runtime errors from the Phase 3 services (`ModelValidationError`, `RuntimeValidationError`, `PolicyDeniedError`, `LifecycleError`, `StorageError`, and `HookError`) through the message area.
+4. Choose Web Components or Lit based on current project dependencies and keep the runtime framework-light.
+5. Create a browser demo that loads a hardcoded resolved model and seeded data.
+6. Implement `adl-app` to coordinate model, runtime, selected view, selected record, messages, and commands.
+7. Implement `adl-list-view` with search, rows, row selection, and new action.
+8. Implement `adl-form-view` with generated fields, save, delete, cancel, validation display, and lifecycle action area.
+9. Implement `adl-field-renderer` for text, number, date, datetime, time, boolean, lookup placeholder, and attachment placeholder if represented by the model.
+10. Implement `adl-action-bar` for primary actions and lifecycle actions.
+11. Implement `adl-message-area` for validation, policy, and runtime diagnostics.
+12. Ensure UI asks policy engine for visibility, readonly, hidden, and masked behavior.
+13. Add test coverage where practical and manually verify the demo in the browser.
+14. Run typecheck, tests, and any build command.
+15. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
+16. Review what happened in this phase and update `docs/phases/phase-05-theme-system.md` if the actual results require changed scope, constraints, deliverables, or tasks.
+17. Commit all repository changes for this phase and push the current branch.
