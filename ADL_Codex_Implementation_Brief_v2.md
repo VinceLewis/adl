@@ -36,11 +36,14 @@ It should define business applications in terms of:
 business objects
 fields
 relationships
+business contexts
+context scopes
 lifecycles
 states
 transitions
 policies
 views
+queries / read models
 themes
 sync behaviour
 APIs
@@ -71,6 +74,9 @@ The developer or business analyst should mostly think in terms of:
 What object exists?
 What fields does it have?
 What lifecycle states can it be in?
+What business contexts exist?
+Which rows are scoped by which context?
+Which views work inside one context, and which aggregate across contexts?
 Who can see or change which rows and fields in each state?
 What actions move it between states?
 What views should exist?
@@ -85,6 +91,7 @@ API route boilerplate
 form widget code
 client/server serialisation
 state management
+database engine selection
 low-level validation plumbing
 manual audit logic
 hand-coded role checks
@@ -118,7 +125,38 @@ not parser AST nodes.
 
 ADL source, YAML fixtures, JSON fixtures, old-MINIL importers, visual designers, or AI assistants must all compile into the same resolved model.
 
-## Boundary 3 — Policy is a runtime service, not a UI feature
+## Boundary 3 — Separate language constructs from runtime behaviour
+
+The ADL language and resolved model should describe business semantics:
+
+```text
+objects
+fields
+relationships
+business contexts
+context-scoped roles
+lifecycles
+policies
+views
+queries / read models
+sync declarations
+constraints
+```
+
+Runtime services decide how those semantics are executed:
+
+```text
+how a current context is selected and persisted
+how context roles are resolved for a request
+how queries are executed or materialised
+how local database records sync with a remote authority
+how a view is rendered as browser components
+which server database, if any, backs shared data
+```
+
+Do not make implementation choices such as PostgreSQL tables, HTTP routes, IndexedDB object stores, localStorage keys, or calendar widgets into core ADL language constructs. ADL may declare enough structure for those runtime pieces to be generated or enforced later, but the language must remain business-facing.
+
+## Boundary 4 — Policy is a runtime service, not a UI feature
 
 The same policy decision must control:
 
@@ -136,7 +174,7 @@ exports
 
 The UI may hide buttons and fields, but the runtime must enforce the same decision again when the action is attempted.
 
-## Boundary 4 — The browser is not trusted
+## Boundary 5 — The browser is not trusted
 
 Even if the browser performs local-first validation and policy checks, the authoritative server must re-check:
 
@@ -153,7 +191,7 @@ base revision / conflict state
 
 Local-first means optimistic local operation. It does not mean the browser becomes the system of record for shared enterprise data.
 
-## Boundary 5 — Offline-first is an object policy, not a global rule
+## Boundary 6 — Offline-first is an object policy, not a global rule
 
 Default platform capability can be offline-first.
 
@@ -168,7 +206,7 @@ LOCAL_PRIVATE
 
 Do not blindly copy the whole enterprise database to every device.
 
-## Boundary 6 — Defaults must be explicit and inspectable
+## Boundary 7 — Defaults must be explicit and inspectable
 
 Convention over configuration is correct, but invisible magic is dangerous.
 
@@ -295,6 +333,10 @@ DASHBOARD
 
 However, views should be runtime-rendered from the resolved model, not generated as full bespoke application code.
 
+Do not add a calendar view as a required first-class ADL interface just because a domain has dated events. Calendars are often data-thin and leave large empty regions. For many business applications, an event list grouped by date is denser, more searchable, more accessible, and can still be rendered from a normal list view over date-sorted records.
+
+The MVP should treat a date picker as a field widget for `DATE` and `DATETIME` fields. Rich calendar, timeline, scheduler, map, kanban, or matrix presentations can be runtime view components later, but only when they correspond to reusable view semantics in the resolved model. They should not become bespoke application code or mandatory ADL language constructs.
+
 ### Workflow concepts
 
 Preserve:
@@ -348,6 +390,48 @@ The central policy question is:
 ```text
 can(principal, action, object, row, field?, state, context) -> allow | deny | readonly | mask | hidden
 ```
+
+### Context and scope concepts
+
+ADL must distinguish identity context from business context.
+
+Examples:
+
+```text
+current user
+current band
+current project
+current customer account
+current workspace
+all contexts available to the current user
+```
+
+A business context is not just a lookup field. It can affect:
+
+```text
+navigation
+default filters
+row permissions
+field permissions
+role meaning
+sync dataset selection
+offline snapshot shape
+view availability
+cross-context dashboards
+```
+
+ADL should eventually model these as first-class resolved-model concepts:
+
+```text
+CONTEXT              the business scope, such as Band or Project
+CONTEXT MEMBERSHIP   how users belong to context instances
+CONTEXT ROLE         role within a context instance, such as Admin in one band
+OBJECT SCOPE         which context, if any, owns each object row
+VIEW CONTEXT         whether a view requires one context, allows one, or spans many
+QUERY / READ MODEL   reusable cross-object or cross-context projection
+```
+
+Runtime behaviour remains separate. The runtime may choose to persist a selected context in local storage, derive it from a URL parameter, auto-select when only one context exists, or force the user to choose. Those are runtime and UI behaviours, not ADL syntax.
 
 ### Testing concepts
 
@@ -506,6 +590,8 @@ export interface ResolvedApplicationModel {
   generatedAt?: string;
   app: ResolvedApp;
   objects: ResolvedObject[];
+  contexts?: ResolvedContext[];
+  queries?: ResolvedQuery[];
   roles: ResolvedRole[];
   policies: ResolvedPolicy[];
   themes: ResolvedTheme[];
@@ -525,6 +611,7 @@ export interface ResolvedObject {
   systemIdField: string;
   businessKey?: string;
   displayField?: string;
+  scope?: ResolvedObjectScope;
   fields: ResolvedField[];
   lifecycle?: ResolvedLifecycle;
   views: ResolvedView[];
@@ -620,6 +707,7 @@ export interface ResolvedView {
   name: string;
   object: string;
   kind: "list" | "detail" | "form" | "dashboard" | "masterDetail" | "grid" | "composite";
+  context?: ResolvedViewContext;
   fields: string[];
   searchFields?: string[];
   sort?: ResolvedSort[];
@@ -661,6 +749,76 @@ export type ResolvedObjectSyncPolicy = Omit<ResolvedSyncPolicy, "object">;
 ```
 
 This will evolve, but Codex should create this model explicitly and keep it separate from parser details.
+
+## 7.1 Contexts, scopes and read models
+
+Context support belongs in the resolved model before it belongs in parser syntax.
+
+The language should eventually let authors declare business contexts in business terms. The runtime should then decide how to resolve, persist, validate and expose the current context for a request.
+
+Recommended model direction:
+
+```ts
+export interface ResolvedContext {
+  name: string;
+  object: string;
+  identityField: string;
+  displayField: string;
+  membership?: ResolvedContextMembership;
+  selection: ResolvedContextSelectionPolicy;
+}
+
+export interface ResolvedContextMembership {
+  object: string;
+  userField: string;
+  contextField: string;
+  roleField?: string;
+}
+
+export interface ResolvedContextSelectionPolicy {
+  required: boolean;
+  default: "none" | "firstAvailable" | "onlyAvailable" | "lastUsed";
+  persistence: "none" | "session" | "local";
+  sourceOrder: ("runtime" | "route" | "storage")[];
+}
+
+export interface ResolvedObjectScope {
+  context: string;
+  field: string;
+  required: boolean;
+}
+
+export interface ResolvedViewContext {
+  mode: "requiresContext" | "optionalContext" | "allAvailableContexts";
+  context?: string;
+}
+
+export interface ResolvedQuery {
+  name: string;
+  kind: "object" | "projection" | "aggregate";
+  context?: ResolvedViewContext;
+  sources: ResolvedQuerySource[];
+  fields: ResolvedQueryField[];
+  sort?: ResolvedSort[];
+}
+
+export interface ResolvedQuerySource {
+  object: string;
+  alias?: string;
+  scope?: "currentContext" | "allAvailableContexts" | "currentUser" | "all";
+}
+
+export interface ResolvedQueryField {
+  name: string;
+  source?: string;
+  field?: string;
+  type: "text" | "number" | "date" | "datetime" | "time" | "boolean";
+}
+```
+
+These are model concepts, not runtime algorithms. For example, `ResolvedContextSelectionPolicy` says that an application has a selected context concept and how it should behave from the user's perspective. It does not require localStorage, a modal, a URL parameter, or a particular browser implementation.
+
+Queries/read models should cover cross-context dashboards without forcing bespoke SQL into ADL. A runtime might execute them over IndexedDB, SQLite, PostgreSQL, a cached API response, or a materialised local table. The resolved model should describe the projection and security boundary; the backend chooses the execution plan.
 
 ---
 
@@ -726,6 +884,8 @@ export interface RuntimeContext {
   userId: string;
   roles: string[];
   groups?: Record<string, string[]>;
+  contexts?: Record<string, string>;
+  contextRoles?: Record<string, string[]>;
   now: Date;
   channel: "ui" | "api" | "sync" | "import" | "test";
 }
@@ -782,7 +942,11 @@ Use these rules until there is a reason to change them.
 8. Every policy decision must be explainable.
 9. The same policy engine must be used by UI and runtime enforcement.
 10. The server must re-evaluate policy for synchronised operations.
+11. Context-scoped roles are not global roles. A user may be Admin in one context instance and Member in another.
+12. Relationship-aware policy must be enforceable by the runtime, not only by hiding UI controls.
 ```
+
+Runtime context is request state. It may contain already-resolved business context IDs and context roles, but ADL source should not specify how the browser or server obtained them. Context resolution belongs in a runtime service.
 
 ## 9.3 Suggested ADL policy syntax for later
 
@@ -958,6 +1122,39 @@ Full sync implementation is not part of the first runtime slice.
 
 However, the model and local operation log design should be included early so storage is not designed incorrectly.
 
+## 10.4 Local database first, remote authority later
+
+The local database is not a throwaway prototype. It is part of the correct shape for offline-first applications.
+
+The early runtime should prove:
+
+```text
+resolved model
+local object storage
+policy enforcement
+lifecycle enforcement
+operation log
+sync classification
+```
+
+before committing to a particular authoritative server backend.
+
+PostgreSQL may be a good later backend for shared data, relational constraints, reporting, and authoritative sync. It is not required as an ADL language dependency, and it is not required before the local runtime shape is stable.
+
+ADL should model business constraints and scopes in backend-neutral terms:
+
+```text
+required fields
+lookup relationships
+context-scoped uniqueness
+referential delete behaviour
+authoritative policy checks
+sync windows / datasets
+read models
+```
+
+A PostgreSQL backend could enforce those with enums, foreign keys, unique indexes, check constraints, transactions, and materialised views. A different backend could enforce the same semantics differently. ADL should not expose SQL DDL or SQL query text as the normal authoring surface.
+
 ---
 
 # 11. Model Versioning and Migrations
@@ -1084,7 +1281,7 @@ Model format: JSON-compatible resolved model
 Authoring language: ADL text syntax
 Parser: initially hand-written recursive descent or Chevrotain if helpful
 Validation: TypeScript validator first; JSON Schema can follow
-Server later: Go + PostgreSQL
+Server later: optional authoritative sync service; Go + PostgreSQL is one candidate
 Sync later: object-level local-first sync
 ```
 
@@ -1852,6 +2049,8 @@ The MVP should not be considered complete until these are all true:
 14. There is no Dart/Flutter or LiveView application emitter in the main path.
 ```
 
+The MVP does not need to implement multi-context applications. It must, however, avoid design decisions that would make business contexts, context-scoped roles, or cross-context read models impossible to add cleanly.
+
 ---
 
 # 19. Non-Goals for MVP
@@ -1871,7 +2070,9 @@ email sending
 attachments
 reports
 custom widgets
+specialised calendar UI beyond normal date/datetime field inputs
 SQL escape hatches
+PostgreSQL-specific schema generation
 external API integrations
 Cedar/Rego/Casbin integration
 full migrations
@@ -2061,6 +2262,7 @@ ADL should feel like this:
 
 ```text
 Define the business object.
+Define the business contexts and scopes.
 Define its lifecycle.
 Define who can do what in each state.
 Define the standard views.
@@ -2076,11 +2278,13 @@ validation
 search
 forms
 navigation
+context resolution
 audit
 policy
 state transitions
 API consistency
 sync behaviour
+backend enforcement
 theme rendering
 ```
 
@@ -2089,10 +2293,13 @@ The developer owns:
 ```text
 business meaning
 fields
+contexts
+scopes
 states
 actions
 rules
 policy
+read model intent
 exceptional hooks
 ```
 

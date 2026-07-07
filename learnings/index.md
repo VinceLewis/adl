@@ -25,6 +25,10 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 - `implementation/model-validator.md`
 - `implementation/policy-engine.md`
 
+Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
+
+- `architecture/business-contexts-and-backends.md`
+
 Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
 
 - `implementation/model-validator.md`
@@ -86,6 +90,7 @@ When adding a new learning document, update this index with when future agents s
 - `process/testing-expectations.md`: read before code implementation or verification work.
 - `minil/repository-audit.md`: read before comparing ADL with MINIL, reusing MINIL concepts, or designing parser/model/validator/runtime-test behaviour informed by MINIL.
 - `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.
+- `architecture/business-contexts-and-backends.md`: read before changing business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions.
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, or runtime model startup checks.
 - `implementation/adl-parser.md`: read before changing ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour.
 - `implementation/runtime-services.md`: read before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
