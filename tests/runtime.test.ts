@@ -2,14 +2,22 @@ import { describe, expect, it } from "vitest";
 import {
   ApplicationRuntime,
   HookError,
+  InMemoryObjectStorageBackend,
   LifecycleError,
   MASKED_POLICY_FIELD_VALUE,
   ModelValidationError,
   PolicyDeniedError,
   RuntimeValidationError,
+  SyncPolicyError,
   resolveApplicationModel,
 } from "../src/index.js";
-import type { PartialApplicationModel, RuntimeContext } from "../src/index.js";
+import type {
+  PartialApplicationModel,
+  ResolvedObject,
+  RuntimeContext,
+  StoredObjectRecord,
+  SyncMode,
+} from "../src/index.js";
 
 const fixedNow = new Date("2026-07-07T08:00:00.000Z");
 
@@ -39,6 +47,11 @@ const viewerContext: RuntimeContext = {
   roles: ["Viewer"],
   channel: "api",
   now: fixedNow,
+};
+
+const offlineAdminContext: RuntimeContext = {
+  ...adminContext,
+  online: false,
 };
 
 const emailOnlyViewerContext: RuntimeContext = {
@@ -710,6 +723,85 @@ describe("ApplicationRuntime", () => {
     ).rejects.toBeInstanceOf(PolicyDeniedError);
   });
 
+  it("records local-first operations in the operation log and sync queue", async () => {
+    const runtime = createSyncModeRuntime("localFirst");
+    const item = await runtime.create("SyncItem", { Name: "Queued local item" }, adminContext);
+
+    await runtime.update("SyncItem", item.meta.guid, { Name: "Updated queued item" }, adminContext);
+    await runtime.delete("SyncItem", item.meta.guid, adminContext);
+
+    expect(runtime.operationLog.getOperations().map((operation) => operation.operation)).toEqual([
+      "create",
+      "update",
+      "delete",
+    ]);
+    expect(runtime.syncQueue.getEntries().map((entry) => entry.operation.operation)).toEqual([
+      "create",
+      "update",
+      "delete",
+    ]);
+    expect(runtime.syncQueue.getEntries().map((entry) => entry.objectSync.mode)).toEqual([
+      "localFirst",
+      "localFirst",
+      "localFirst",
+    ]);
+  });
+
+  it("blocks cache-readonly writes while allowing cached reads", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const model = resolveApplicationModel(createSyncModePartialModel("cacheReadonly"));
+    const syncObject = requireResolvedObject(model.objects[0]);
+    const cachedRecord = createStoredSyncRecord(syncObject);
+    await storage.create("SyncItem", cachedRecord);
+    const runtime = new ApplicationRuntime(model, { storage });
+
+    await expect(runtime.read("SyncItem", cachedRecord.meta.guid, adminContext)).resolves.toEqual(
+      cachedRecord,
+    );
+    await expect(
+      runtime.create("SyncItem", { Name: "Blocked cache write" }, adminContext),
+    ).rejects.toBeInstanceOf(SyncPolicyError);
+    expect(runtime.operationLog.getOperations()).toEqual([]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
+  it("checks policy before sync mode blocks writes", async () => {
+    const runtime = createSyncModeRuntime("cacheReadonly");
+
+    await expect(
+      runtime.create("SyncItem", { Name: "Denied before sync" }, viewerContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+  });
+
+  it("blocks online-required writes while offline", async () => {
+    const runtime = createSyncModeRuntime("onlineRequired");
+
+    await expect(
+      runtime.create("SyncItem", { Name: "Offline item" }, offlineAdminContext),
+    ).rejects.toMatchObject({
+      decision: {
+        mode: "onlineRequired",
+        online: false,
+        allowed: false,
+      },
+    });
+    expect(runtime.operationLog.getOperations()).toEqual([]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
+  it("allows local-private writes without adding them to the sync queue", async () => {
+    const runtime = createSyncModeRuntime("localPrivate");
+    const item = await runtime.create("SyncItem", { Name: "Private item" }, adminContext);
+
+    await runtime.update("SyncItem", item.meta.guid, { Name: "Private update" }, adminContext);
+
+    expect(runtime.operationLog.getOperations().map((operation) => operation.operation)).toEqual([
+      "create",
+      "update",
+    ]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
   it("records audit events and local operation log entries", async () => {
     const runtime = createRuntime();
     const user = await runtime.create(
@@ -766,9 +858,85 @@ describe("ApplicationRuntime", () => {
       toState: "Submitted",
       status: "pending",
     });
+    expect(runtime.syncQueue.getEntries().map((entry) => entry.operation.operation)).toEqual([
+      "create",
+      "update",
+      "delete",
+      "create",
+      "transition",
+    ]);
   });
 });
 
 function createRuntime(): ApplicationRuntime {
   return new ApplicationRuntime(resolveApplicationModel(runtimePartialModel));
+}
+
+function createSyncModeRuntime(mode: SyncMode): ApplicationRuntime {
+  return new ApplicationRuntime(resolveApplicationModel(createSyncModePartialModel(mode)));
+}
+
+function createSyncModePartialModel(mode: SyncMode): PartialApplicationModel {
+  return {
+    app: {
+      name: "SyncModeRuntime",
+    },
+    roles: [{ name: "Admin" }, { name: "Viewer" }],
+    objects: [
+      {
+        name: "SyncItem",
+        businessKey: "Name",
+        displayField: "Name",
+        fields: [{ name: "Name", type: "text", required: true }],
+        sync: { mode },
+      },
+    ],
+    policies: [
+      {
+        name: "SyncItemPolicy",
+        object: "SyncItem",
+        rules: [
+          {
+            name: "allowAdminSyncItemOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+          {
+            name: "allowViewerSyncItemRead",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Viewer"] },
+            action: "read",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function createStoredSyncRecord(object: ResolvedObject): StoredObjectRecord {
+  return {
+    meta: {
+      guid: "sync-item-1",
+      object: object.name,
+      schemaVersion: object.schemaVersion,
+      revision: "rev-seeded",
+      createdAt: fixedNow.toISOString(),
+      createdBy: "sync-seed",
+      updatedAt: fixedNow.toISOString(),
+      updatedBy: "sync-seed",
+      syncStatus: "synced",
+    },
+    values: {
+      Name: "Cached item",
+    },
+  };
+}
+
+function requireResolvedObject(object: ResolvedObject | undefined): ResolvedObject {
+  if (object === undefined) {
+    throw new Error("Expected resolved sync test object.");
+  }
+
+  return object;
 }

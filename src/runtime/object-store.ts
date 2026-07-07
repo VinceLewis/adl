@@ -20,6 +20,8 @@ import {
   safeContextLog,
 } from "./runtime-types.js";
 import type { RuntimeContext, RuntimeLogger, RuntimeSearchInput } from "./runtime-types.js";
+import type { SyncPolicyService } from "./sync-policy-service.js";
+import type { SyncQueue } from "./sync-queue.js";
 import type { ValidationEngine } from "./validation-engine.js";
 
 export class ObjectStore {
@@ -31,6 +33,8 @@ export class ObjectStore {
     private readonly policyEngine: PolicyEngine,
     private readonly auditService: AuditService,
     private readonly operationLog: OperationLog,
+    private readonly syncPolicy: SyncPolicyService,
+    private readonly syncQueue: SyncQueue,
     private readonly index = new RuntimeModelIndex(model),
     private readonly storage: ObjectStorageBackend = new InMemoryObjectStorageBackend(),
     private readonly logger: RuntimeLogger = noopRuntimeLogger,
@@ -56,6 +60,7 @@ export class ObjectStore {
       context,
     );
     this.requireFieldPolicy("create", objectName, preparedValues, context, undefined, currentState);
+    this.syncPolicy.requireLocalWriteAllowed(objectName, "create", context);
 
     const record = this.buildNewRecord(object, preparedValues, context, currentState);
     await this.storage.create(objectName, record);
@@ -127,6 +132,7 @@ export class ObjectStore {
       context,
     );
     this.requireFieldPolicy("update", objectName, patch, context, existing, currentState);
+    this.syncPolicy.requireLocalWriteAllowed(objectName, "update", context);
 
     const updated = this.updatedRecord(existing, nextValues, context, currentState);
     await this.storage.update(objectName, updated);
@@ -169,6 +175,7 @@ export class ObjectStore {
       },
       context,
     );
+    this.syncPolicy.requireLocalWriteAllowed(objectName, "delete", context);
 
     const deleted = this.deletedRecord(existing, context);
     await this.storage.delete(objectName, deleted);
@@ -253,6 +260,7 @@ export class ObjectStore {
       lifecycleAction: details.lifecycleAction,
     });
     const existing = await this.requireActiveRecord(objectName, id);
+    this.syncPolicy.requireLocalWriteAllowed(objectName, "transition", context);
     const updated = this.updatedRecord(existing, nextValues, context, details.toState);
 
     await this.storage.update(objectName, updated);
@@ -423,7 +431,14 @@ export class ObjectStore {
     context: RuntimeContext,
     details: OperationLogDetails = {},
   ): void {
-    this.operationLog.record(operation, objectName, record, context, details);
+    const localOperation = this.operationLog.record(
+      operation,
+      objectName,
+      record,
+      context,
+      details,
+    );
+    this.syncQueue.enqueue(localOperation);
   }
 
   private nextRevision(): string {

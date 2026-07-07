@@ -33,19 +33,22 @@ Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, 
 
 - `implementation/adl-parser.md`
 
-Before tasks that change runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests, also read:
+Before tasks that change runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, sync policy enforcement, or runtime tests, also read:
 
 - `implementation/runtime-services.md`
 - `implementation/policy-engine.md`
+- `implementation/sync-policy.md`
 
 Before tasks that change runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests, also read:
 
 - `implementation/storage-backend.md`
+- `implementation/sync-policy.md`
 
-Before tasks that change browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification, also read:
+Before tasks that change browser UI runtime components, browser demo fixtures, UI policy or sync presentation, or browser verification, also read:
 
 - `implementation/browser-ui-runtime.md`
 - `implementation/policy-engine.md`
+- `implementation/sync-policy.md`
 
 Before tasks that change resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`, also read:
 
@@ -84,4 +87,5 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/storage-backend.md`: read before changing runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
+- `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.

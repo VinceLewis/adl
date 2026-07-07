@@ -35,6 +35,7 @@ export class AdlAppElement extends HTMLElement {
   private mode: UiMode = "edit";
   private messages: UiMessage[] = [];
   private fieldIssues: RuntimeValidationIssue[] = [];
+  private useBrowserOnlineState = this._context.online === undefined;
 
   private readonly handleSearch = (event: Event): void => {
     const detail = (event as CustomEvent<{ text: string }>).detail;
@@ -180,6 +181,26 @@ export class AdlAppElement extends HTMLElement {
     });
   };
 
+  private readonly handleOnlineStateChange = (): void => {
+    this.applyBrowserOnlineState(true);
+  };
+
+  private applyBrowserOnlineState(renderAfterChange: boolean): void {
+    if (!this.useBrowserOnlineState) {
+      return;
+    }
+
+    const online = getBrowserOnlineState();
+    if (online === undefined) {
+      return;
+    }
+
+    this._context = { ...this._context, online };
+    if (renderAfterChange && this.initialized) {
+      this.render();
+    }
+  }
+
   set model(model: ResolvedApplicationModel) {
     this._model = model;
     this._runtime = undefined;
@@ -212,6 +233,7 @@ export class AdlAppElement extends HTMLElement {
 
   set context(context: RuntimeContext) {
     this._context = context;
+    this.useBrowserOnlineState = context.online === undefined;
   }
 
   get context(): RuntimeContext {
@@ -232,6 +254,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-cancel-record", this.handleCancel);
     this.addEventListener("adl-transition-record", this.handleTransition);
     this.addEventListener("change", this.handleChange);
+    addBrowserOnlineListeners(this.handleOnlineStateChange);
     this.readyPromise = this.initialize();
   }
 
@@ -244,6 +267,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-cancel-record", this.handleCancel);
     this.removeEventListener("adl-transition-record", this.handleTransition);
     this.removeEventListener("change", this.handleChange);
+    removeBrowserOnlineListeners(this.handleOnlineStateChange);
     this.initialized = false;
   }
 
@@ -253,6 +277,7 @@ export class AdlAppElement extends HTMLElement {
 
   private async initialize(): Promise<void> {
     this.objectName = this.findStartObject().name;
+    this.applyBrowserOnlineState(false);
     this.applyThemeTokens();
     this.renderLoading();
 
@@ -438,4 +463,18 @@ function failNoViews(objectName: string): never {
 
 function browserPersistenceAvailable(): boolean {
   return globalThis.indexedDB !== undefined;
+}
+
+function getBrowserOnlineState(): boolean | undefined {
+  return globalThis.navigator?.onLine;
+}
+
+function addBrowserOnlineListeners(listener: () => void): void {
+  globalThis.addEventListener?.("online", listener);
+  globalThis.addEventListener?.("offline", listener);
+}
+
+function removeBrowserOnlineListeners(listener: () => void): void {
+  globalThis.removeEventListener?.("online", listener);
+  globalThis.removeEventListener?.("offline", listener);
 }

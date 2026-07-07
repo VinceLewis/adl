@@ -138,10 +138,34 @@ button:disabled {
   padding: var(--adl-space-md);
 }
 
+.adl-panel-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+  min-width: 0;
+}
+
 .adl-panel-title {
   font-size: 15px;
   font-weight: 650;
   margin: 0;
+}
+
+.adl-sync-status {
+  background: var(--adl-color-surface-alt);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text-muted);
+  display: inline-flex;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 3px 8px;
+}
+
+.adl-sync-status-readonly {
+  border-color: var(--adl-color-danger);
+  color: var(--adl-color-danger);
 }
 
 .adl-list-tools {

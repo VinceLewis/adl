@@ -50,6 +50,11 @@ export function resolveFieldPresentation({
     },
     context,
   );
+  const syncDecision = runtime.syncPolicy.evaluateLocalWrite(
+    object.name,
+    mode === "create" ? "create" : "update",
+    context,
+  );
 
   const hidden =
     field.hidden ||
@@ -63,6 +68,7 @@ export function resolveFieldPresentation({
     lifecycleStateField ||
     masked ||
     writeDecision.effect !== "allow" ||
+    !syncDecision.allowed ||
     readDecision?.effect === "readonly";
 
   return {
@@ -74,6 +80,7 @@ export function resolveFieldPresentation({
     reasons: [
       ...(readDecision?.reasons.map((reason) => reason.message) ?? []),
       ...writeDecision.reasons.map((reason) => reason.message),
+      ...(syncDecision.allowed ? [] : [syncDecision.reason]),
     ],
   };
 }
@@ -148,7 +155,8 @@ export function canRunCommand(
     },
     context,
   );
-  return decision.effect === "allow";
+  const syncDecision = runtime.syncPolicy.evaluateLocalWrite(object.name, action, context);
+  return decision.effect === "allow" && syncDecision.allowed;
 }
 
 function canRunLifecycleAction(
@@ -170,5 +178,6 @@ function canRunLifecycleAction(
     },
     context,
   );
-  return decision.effect === "allow";
+  const syncDecision = runtime.syncPolicy.evaluateLocalWrite(object.name, "transition", context);
+  return decision.effect === "allow" && syncDecision.allowed;
 }

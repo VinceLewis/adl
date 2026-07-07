@@ -145,11 +145,21 @@ export class AdlFormViewElement extends HTMLElement {
       this._mode === "create"
         ? `New ${titleCaseIdentifier(this._object.name)}`
         : getRecordTitle(this._object, this._record);
+    const syncState = this._runtime.syncPolicy.getObjectState(this._object.name, this._context);
 
     this.innerHTML = `
       <section class="adl-panel">
         <header class="adl-panel-header">
-          <h2 class="adl-panel-title">${escapeHtml(title)}</h2>
+          <div class="adl-panel-heading">
+            <h2 class="adl-panel-title">${escapeHtml(title)}</h2>
+            <span
+              class="adl-sync-status ${syncState.readonly ? "adl-sync-status-readonly" : ""}"
+              data-sync-mode="${escapeHtml(syncState.mode)}"
+              title="${escapeHtml(syncState.detail)}"
+            >
+              ${escapeHtml(syncState.label)}
+            </span>
+          </div>
           <adl-action-bar></adl-action-bar>
         </header>
         <div class="adl-form-body">

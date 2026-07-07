@@ -179,6 +179,33 @@ describe("resolveApplicationModel", () => {
     });
   });
 
+  it("resolves all object-level sync modes", () => {
+    const resolved = resolveApplicationModel({
+      app: {
+        name: "SyncModes",
+      },
+      objects: [
+        createSyncModeObject("LocalFirstRecord", "localFirst"),
+        createSyncModeObject("CacheRecord", "cacheReadonly"),
+        createSyncModeObject("OnlineRecord", "onlineRequired"),
+        createSyncModeObject("PrivateRecord", "localPrivate"),
+      ],
+    });
+
+    expect(resolved.sync.map((sync) => [sync.object, sync.mode])).toEqual([
+      ["LocalFirstRecord", "localFirst"],
+      ["CacheRecord", "cacheReadonly"],
+      ["OnlineRecord", "onlineRequired"],
+      ["PrivateRecord", "localPrivate"],
+    ]);
+    expect(resolved.objects.map((object) => [object.name, object.sync.mode])).toEqual([
+      ["LocalFirstRecord", "localFirst"],
+      ["CacheRecord", "cacheReadonly"],
+      ["OnlineRecord", "onlineRequired"],
+      ["PrivateRecord", "localPrivate"],
+    ]);
+  });
+
   it("resolves customer themes from explicit base themes and token overrides", () => {
     const resolved = resolveApplicationModel({
       ...minimalModel,
@@ -221,3 +248,15 @@ describe("resolveApplicationModel", () => {
     expect(toStorageName("123 Value")).toBe("_123_value");
   });
 });
+
+function createSyncModeObject(
+  name: string,
+  mode: "localFirst" | "cacheReadonly" | "onlineRequired" | "localPrivate",
+): PartialApplicationModel["objects"][number] {
+  return {
+    name,
+    displayField: "Name",
+    fields: [{ name: "Name", type: "text", required: true }],
+    sync: { mode },
+  };
+}

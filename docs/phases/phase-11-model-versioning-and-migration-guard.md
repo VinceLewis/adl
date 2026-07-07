@@ -8,6 +8,8 @@ Prevent persisted local data from becoming ambiguous as object definitions evolv
 
 Add basic model and schema version checks at runtime startup. Produce clear diagnostics for incompatible persisted records. Do not implement full migrations yet.
 
+Phase 10 added an in-memory `SyncQueue` runtime service. Unless a later phase persists that queue, Phase 11 migration guards should focus on persisted object records and any explicit persisted application metadata, not transient sync queue entries.
+
 ## Expected Deliverables
 
 - Runtime startup/version check logic
@@ -35,7 +37,7 @@ Execute Phase 11 only. Add basic model version and object schema version guards 
 
 ## Tasks
 
-1. Review record metadata, storage implementation, resolved model version fields, and validation diagnostics.
+1. Review record metadata, storage implementation, resolved model version fields, validation diagnostics, and the Phase 10 sync queue persistence boundary.
 2. Ensure persisted records carry object name and object schema version, or that equivalent metadata is reliably available.
 3. Ensure persisted local storage records the application model version where needed.
 4. Implement runtime startup checks that compare persisted metadata against the current `ResolvedApplicationModel`.

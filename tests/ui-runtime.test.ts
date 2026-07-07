@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { indexedDB as fakeIndexedDB } from "fake-indexeddb";
-import { PolicyDeniedError } from "../src/index.js";
+import { ApplicationRuntime, PolicyDeniedError } from "../src/index.js";
 import {
   BROWSER_DEMO_DATABASE_NAME,
   browserDemoContext,
@@ -131,6 +131,31 @@ describe("browser UI runtime", () => {
     expect(form.querySelector("button[data-action-name='cancel']")).not.toBeNull();
   });
 
+  it("shows sync read-only and offline state in the form UI", async () => {
+    const cacheModel = createBrowserDemoModel();
+    setUserSyncMode(cacheModel, "cacheReadonly");
+    const cacheForm = await renderUserForm(cacheModel, browserDemoContext);
+
+    expect(cacheForm.textContent).toContain("Read-only cache");
+    expect(cacheForm.querySelector("button[data-action-name='save']")).toBeNull();
+    expect(
+      requireElement<HTMLInputElement>(
+        cacheForm,
+        "adl-field-renderer[data-field-name='Name'] input",
+      ).readOnly,
+    ).toBe(true);
+
+    const onlineRequiredModel = createBrowserDemoModel();
+    setUserSyncMode(onlineRequiredModel, "onlineRequired");
+    const offlineForm = await renderUserForm(onlineRequiredModel, {
+      ...browserDemoContext,
+      online: false,
+    });
+
+    expect(offlineForm.textContent).toContain("Offline");
+    expect(offlineForm.querySelector("button[data-action-name='save']")).toBeNull();
+  });
+
   it("applies the resolved application theme as CSS custom properties", async () => {
     const model = createBrowserDemoModel();
     model.app.theme = "CorporateDark";
@@ -196,6 +221,41 @@ describe("browser UI runtime", () => {
     }
   });
 });
+
+async function renderUserForm(
+  model: ResolvedApplicationModel,
+  context: RuntimeContext,
+): Promise<AdlFormViewElement> {
+  const runtime = new ApplicationRuntime(model);
+  const object = model.objects.find((candidate) => candidate.name === "User");
+  const view = object?.views.find((candidate) => candidate.name === "UserForm");
+  if (object === undefined || view === undefined) {
+    throw new Error("Expected User form view in browser demo model.");
+  }
+
+  const form = document.createElement("adl-form-view") as AdlFormViewElement;
+  form.runtime = runtime;
+  form.object = object;
+  form.view = view;
+  form.context = context;
+  form.mode = "create";
+  document.body.append(form);
+  await flushUi();
+  return form;
+}
+
+function setUserSyncMode(
+  model: ResolvedApplicationModel,
+  mode: "cacheReadonly" | "onlineRequired",
+): void {
+  const user = model.objects.find((candidate) => candidate.name === "User");
+  if (user === undefined) {
+    throw new Error("Expected User object in browser demo model.");
+  }
+
+  user.sync = { ...user.sync, mode };
+  model.sync = model.sync.map((sync) => (sync.object === "User" ? { ...sync, mode } : sync));
+}
 
 async function mountApp(model?: ResolvedApplicationModel): Promise<AdlAppElement> {
   const app = document.createElement("adl-app") as AdlAppElement;

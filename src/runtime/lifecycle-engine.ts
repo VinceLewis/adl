@@ -10,6 +10,7 @@ import {
   safeContextLog,
 } from "./runtime-types.js";
 import type { RuntimeContext, RuntimeLogger } from "./runtime-types.js";
+import type { SyncPolicyService } from "./sync-policy-service.js";
 import type { ValidationEngine } from "./validation-engine.js";
 
 export class LifecycleEngine {
@@ -18,6 +19,7 @@ export class LifecycleEngine {
     private readonly objectStore: ObjectStore,
     private readonly validationEngine: ValidationEngine,
     private readonly policyEngine: PolicyEngine,
+    private readonly syncPolicy: SyncPolicyService,
     private readonly hookRegistry: HookRegistry,
     private readonly index = new RuntimeModelIndex(model),
     private readonly logger: RuntimeLogger = noopRuntimeLogger,
@@ -93,6 +95,7 @@ export class LifecycleEngine {
       },
       context,
     );
+    this.syncPolicy.requireLocalWriteAllowed(objectName, "transition", context);
 
     try {
       const nextValues = this.validationEngine.prepareTransitionValues(

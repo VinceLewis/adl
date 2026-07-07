@@ -16,6 +16,8 @@ import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
 import { ModelValidationError, noopRuntimeLogger, safeContextLog } from "./runtime-types.js";
 import type { RuntimeContext, RuntimeLogger, RuntimeSearchInput } from "./runtime-types.js";
+import { SyncPolicyService } from "./sync-policy-service.js";
+import { SyncQueue } from "./sync-queue.js";
 import { ValidationEngine } from "./validation-engine.js";
 
 export interface ApplicationRuntimeOptions {
@@ -29,6 +31,8 @@ export class ApplicationRuntime {
   readonly policyEngine: PolicyEngine;
   readonly auditService: AuditService;
   readonly operationLog: OperationLog;
+  readonly syncPolicy: SyncPolicyService;
+  readonly syncQueue: SyncQueue;
   readonly hookRegistry: HookRegistry;
   readonly objectStore: ObjectStore;
   readonly lifecycleEngine: LifecycleEngine;
@@ -50,6 +54,8 @@ export class ApplicationRuntime {
     this.policyEngine = new PolicyEngine(model, this.index, this.logger);
     this.auditService = new AuditService(model, this.index, this.logger);
     this.operationLog = new OperationLog(model, this.logger);
+    this.syncPolicy = new SyncPolicyService(model, this.index, this.logger);
+    this.syncQueue = new SyncQueue(model, this.index, this.logger);
     this.hookRegistry = new HookRegistry(this.logger);
     const storage = options.storage ?? new InMemoryObjectStorageBackend();
     this.objectStore = new ObjectStore(
@@ -58,6 +64,8 @@ export class ApplicationRuntime {
       this.policyEngine,
       this.auditService,
       this.operationLog,
+      this.syncPolicy,
+      this.syncQueue,
       this.index,
       storage,
       this.logger,
@@ -67,6 +75,7 @@ export class ApplicationRuntime {
       this.objectStore,
       this.validationEngine,
       this.policyEngine,
+      this.syncPolicy,
       this.hookRegistry,
       this.index,
       this.logger,
