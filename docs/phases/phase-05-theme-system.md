@@ -10,13 +10,15 @@ Implement theme model support and runtime/browser application of theme tokens. K
 
 Do not redesign the UI as a marketing page. Do not add per-customer component forks.
 
+Phase 4 already added a Vite/Web Components browser demo and basic `adl-app` application of the resolved app theme tokens to CSS custom properties. Phase 5 should extend that path with explicit base themes, richer token coverage, and theme resolution tests rather than replacing the browser UI runtime.
+
 ## Expected Deliverables
 
 - Theme interfaces refined in `src/model/resolved-model.ts` if needed
 - Theme defaults in `src/model/defaults.ts` or a dedicated theme module
 - `src/ui/theme/theme-types.ts`
 - `src/ui/theme/default-theme.ts`
-- CSS custom property application in UI runtime
+- CSS custom property application in UI runtime, extending the Phase 4 `adl-app` token application
 - Tests for theme resolution where practical
 
 ## Acceptance Criteria
@@ -37,7 +39,7 @@ Execute Phase 5 only. Implement resolved theme tokens and CSS custom property ap
 
 ## Tasks
 
-1. Review current theme-related model fields and UI styling from prior phases.
+1. Review current theme-related model fields and the Phase 4 UI styling in `src/ui/styles.css`, `src/ui/components/adl-app.ts`, and `src/ui/demo-fixture.ts`.
 2. Define or refine `ResolvedTheme` token coverage for:
    - primary color
    - accent color
@@ -52,7 +54,7 @@ Execute Phase 5 only. Implement resolved theme tokens and CSS custom property ap
    - `CorporateDark`
    - `MinimalLight`
 4. Add theme resolution so the app-level theme name maps to explicit theme tokens.
-5. Apply tokens to the browser UI via CSS custom properties such as:
+5. Extend the existing Phase 4 CSS custom property application in `adl-app` with tokens such as:
 
    ```css
    --adl-color-primary

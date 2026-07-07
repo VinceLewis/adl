@@ -32,6 +32,10 @@ Before tasks that change runtime services, UI runtime integration, lifecycle exe
 
 - `implementation/runtime-services.md`
 
+Before tasks that change browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification, also read:
+
+- `implementation/browser-ui-runtime.md`
+
 Before tasks that change the phase plan, also read:
 
 - `process/phase-execution.md`
@@ -61,3 +65,4 @@ When adding a new learning document, update this index with when future agents s
 - `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, or runtime model startup checks.
 - `implementation/runtime-services.md`: read before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
+- `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.

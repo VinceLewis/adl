@@ -5,15 +5,20 @@
   "type": "module",
   "description": "Standalone ADL resolved model contract and resolver.",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\""
+    "format": "prettier --write \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\"",
+    "format:check": "prettier --check \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\""
   },
   "devDependencies": {
     "@types/node": "20.17.6",
+    "happy-dom": "^20.10.6",
     "prettier": "3.3.3",
     "typescript": "5.5.4",
+    "vite": "^6.4.3",
     "vitest": "4.1.10"
   }
 }
