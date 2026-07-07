@@ -1,0 +1,59 @@
+APP UserDirectory
+  THEME DirectoryTheme
+  START_VIEW UserList
+END.APP
+
+ROLE Admin
+ROLE Viewer
+
+THEME DirectoryTheme BASE CorporateLight
+  PRIMARY '#155EEF'
+  ACCENT '#12B76A'
+  DENSITY Compact
+  RADIUS Medium
+  NAV Side
+END.THEME
+
+OBJECT User
+  KEY Email
+  DISPLAY Name
+
+  FIELD Name TEXT(100) REQUIRED
+  FIELD Email TEXT REQUIRED EMAIL
+  FIELD Phone TEXT
+  FIELD Active BOOL DEFAULT(TRUE)
+  FIELD Status TEXT REQUIRED
+
+  LIFECYCLE UserLifecycle FIELD Status INITIAL Draft
+    STATE Draft
+    STATE Active
+    STATE Suspended TERMINAL
+
+    ACTION activate FROM Draft TO Active LABEL 'Activate'
+      ALLOW ROLE Admin
+    END.ACTION
+
+    ACTION suspend FROM Active TO Suspended LABEL 'Suspend'
+      ALLOW ROLE Admin
+    END.ACTION
+  END.LIFECYCLE
+
+  VIEW UserList LIST
+    FIELDS Name Email Active Status
+    SEARCH Name Email
+    ACTIONS create read
+  END.VIEW
+
+  VIEW UserForm FORM
+    FIELDS Name Email Phone Active Status
+    ACTIONS save delete
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE All CONFLICT Manual
+END.OBJECT
+
+POLICY UserPolicy ON User
+  ALLOW * ROLE Admin
+  ALLOW READ ROLE Viewer
+  ALLOW SEARCH ROLE Viewer
+END.POLICY

@@ -10,6 +10,8 @@ Harden the existing `PolicyEngine` and its integration with runtime and UI. Poli
 
 Do not add server authorization or a full identity provider in this phase.
 
+Phase 6 added `compileAdl` and parsed policy syntax. Parser-produced policies, including generated `<Object><Action>Policy` entries from inline lifecycle action `ALLOW ROLE ...` declarations, should be treated as ordinary resolved policies during hardening. Do not expand ADL parser syntax in this phase unless a small fixture adjustment is needed to prove policy behaviour.
+
 ## Expected Deliverables
 
 - Hardened `src/runtime/policy-engine.ts`
@@ -38,23 +40,25 @@ Execute Phase 7 only. Harden policy decisions and enforcement across runtime and
 ## Tasks
 
 1. Review current policy model, policy engine tests, runtime enforcement points, and UI usage.
-2. Define a policy decision result that can represent:
+2. Review Phase 6 parsed examples in `examples/*.adl` and the generated action policies from `compileAdl`.
+3. Define a policy decision result that can represent:
    - allow
    - deny
    - readonly
    - mask
    - hidden
    - reasons
-3. Implement deny-by-default behavior for missing policy.
-4. Implement explicit deny precedence.
-5. Implement field-level policy that can further restrict row-level permission.
-6. Implement state-specific and lifecycle-action-specific checks.
-7. Ensure create, read, update, delete, search, and transition paths call `PolicyEngine`.
-8. Ensure UI calls the same `PolicyEngine` for visible, hidden, readonly, masked, and action-enabled behavior.
-9. Add tests proving direct runtime calls cannot bypass policy.
-10. Add tests for masking in list/search output.
-11. Add tests for policy decision reasons.
-12. Run typecheck, tests, and browser verification if UI behavior changed.
-13. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
-14. Review what happened in this phase and update `docs/phases/phase-08-lifecycle-engine-hardening.md` if the actual results require changed scope, constraints, deliverables, or tasks.
-15. Commit all repository changes for this phase and push the current branch.
+4. Implement deny-by-default behavior for missing policy.
+5. Implement explicit deny precedence.
+6. Implement field-level policy that can further restrict row-level permission.
+7. Implement state-specific and lifecycle-action-specific checks.
+8. Ensure create, read, update, delete, search, and transition paths call `PolicyEngine`.
+9. Ensure UI calls the same `PolicyEngine` for visible, hidden, readonly, masked, and action-enabled behavior.
+10. Add tests proving direct runtime calls cannot bypass policy.
+11. Add tests for masking in list/search output.
+12. Add tests for policy decision reasons.
+13. Add at least one compile/runtime test or fixture assertion using parser-produced policy rules if policy hardening changes rule matching semantics.
+14. Run typecheck, tests, and browser verification if UI behavior changed.
+15. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
+16. Review what happened in this phase and update `docs/phases/phase-08-lifecycle-engine-hardening.md` if the actual results require changed scope, constraints, deliverables, or tasks.
+17. Commit all repository changes for this phase and push the current branch.

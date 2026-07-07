@@ -1,0 +1,75 @@
+APP PurchaseOrders
+  THEME ProcurementTheme
+  START_VIEW PurchaseOrderList
+END.APP
+
+ROLE Admin
+ROLE Requester
+ROLE Buyer
+ROLE Approver
+ROLE Auditor
+
+THEME ProcurementTheme BASE CorporateLight
+  LOGO 'assets/acme.svg'
+  PRIMARY '#0047AB'
+  ACCENT '#00A676'
+  BACKGROUND '#F8FAFC'
+  SURFACE '#FFFFFF'
+  DENSITY Compact
+  RADIUS Medium
+  NAV Side
+END.THEME
+
+OBJECT PurchaseOrder
+  KEY PONumber
+  DISPLAY Supplier
+
+  FIELD PONumber TEXT REQUIRED AUTO_ID PREFIX('PO-') PAD(6)
+  FIELD Supplier TEXT(120) REQUIRED
+  FIELD Value NUMBER REQUIRED MIN(0)
+  FIELD Status TEXT REQUIRED
+  FIELD InternalNotes TEXT
+  FIELD ApprovalComment TEXT
+
+  LIFECYCLE PurchaseOrderLifecycle FIELD Status INITIAL Draft
+    STATE Draft
+    STATE Submitted
+    STATE Approved TERMINAL
+    STATE Cancelled TERMINAL
+
+    ACTION submit FROM Draft TO Submitted LABEL 'Submit'
+      ALLOW ROLE Requester
+    END.ACTION
+
+    ACTION approve FROM Submitted TO Approved LABEL 'Approve'
+      ALLOW ROLE Approver
+    END.ACTION
+  END.LIFECYCLE
+
+  VIEW PurchaseOrderList LIST
+    FIELDS PONumber Supplier Value Status
+    SEARCH PONumber Supplier
+    SORT PONumber ASC
+    ACTIONS create read
+  END.VIEW
+
+  VIEW PurchaseOrderForm FORM
+    FIELDS PONumber Supplier Value Status InternalNotes ApprovalComment
+    ACTIONS save delete submit approve
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE AssignedToUser CONFLICT StateTransitionWins
+END.OBJECT
+
+POLICY PurchaseOrderPolicy ON PurchaseOrder
+  ALLOW * ROLE Admin
+  ALLOW CREATE ROLE Requester STATE Draft
+  ALLOW READ ROLE Requester Approver Buyer Auditor Admin
+  ALLOW SEARCH ROLE Requester Approver Buyer Auditor Admin
+  ALLOW UPDATE ROLE Requester STATE Draft
+  READONLY UPDATE FIELD InternalNotes ROLE Requester STATE Draft
+  HIDDEN READ FIELD InternalNotes ROLE Requester
+  ALLOW TRANSITION ROLE Requester STATE Draft ACTION submit
+  ALLOW TRANSITION ROLE Approver STATE Submitted ACTION approve
+  DENY UPDATE ROLE Requester Approver Auditor STATE Approved
+END.POLICY
