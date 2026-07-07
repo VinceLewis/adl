@@ -22,23 +22,34 @@ import type {
   JsonValue,
   PartialApplicationModel,
   PartialAutoIdModel,
+  PartialBusinessContextModel,
+  PartialContextMembershipModel,
+  PartialContextSelectionPolicyModel,
   PartialFieldModel,
   PartialHookRefsModel,
   PartialLifecycleActionModel,
   PartialLifecycleModel,
   PartialLookupModel,
   PartialObjectModel,
+  PartialObjectScopeModel,
   PartialObjectSyncPolicyModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
   PartialPrincipalSelectorModel,
+  PartialReadModelFieldModel,
+  PartialReadModelModel,
+  PartialReadModelSourceModel,
   PartialStateModel,
   PartialSyncPolicyModel,
   PartialThemeModel,
   PartialValidatorModel,
   PartialViewModel,
+  PartialViewContextModel,
   ResolvedApplicationModel,
   ResolvedAutoId,
+  ResolvedBusinessContext,
+  ResolvedContextMembership,
+  ResolvedContextSelectionPolicy,
   ResolvedField,
   ResolvedHookRefs,
   ResolvedLifecycle,
@@ -46,10 +57,14 @@ import type {
   ResolvedLookup,
   ResolvedObject,
   ResolvedObjectAuditPolicy,
+  ResolvedObjectScope,
   ResolvedObjectSyncPolicy,
   ResolvedPolicy,
   ResolvedPolicyRule,
   ResolvedPrincipalSelector,
+  ResolvedReadModel,
+  ResolvedReadModelField,
+  ResolvedReadModelSource,
   ResolvedRole,
   ResolvedSort,
   ResolvedState,
@@ -58,12 +73,15 @@ import type {
   ResolvedThemeTokens,
   ResolvedValidator,
   ResolvedView,
+  ResolvedViewContext,
 } from "../model/resolved-model.js";
 
 export function resolveApplicationModel(input: PartialApplicationModel): ResolvedApplicationModel {
   const themes = resolveThemes(input.themes ?? []);
   const topLevelSync = new Map((input.sync ?? []).map((policy) => [policy.object, policy]));
   const partialPolicies = input.policies ?? [];
+  const contexts =
+    input.contexts === undefined ? undefined : resolveBusinessContexts(input.contexts);
   const objects = input.objects.map((object) =>
     resolveObject(object, topLevelSync.get(object.name), partialPolicies),
   );
@@ -76,6 +94,10 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
       ...object.policies,
     ]),
   }));
+  const readModels =
+    input.readModels === undefined
+      ? undefined
+      : resolveReadModels(input.readModels, objectsWithPolicies);
   const sync = objectsWithPolicies.map((object) => ({
     object: object.name,
     ...object.sync,
@@ -90,7 +112,9 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
       theme: input.app.theme ?? DEFAULT_THEME_NAME,
     },
     roles: resolveRoles(input.roles ?? []),
+    ...(contexts === undefined ? {} : { contexts }),
     objects: objectsWithPolicies,
+    ...(readModels === undefined ? {} : { readModels }),
     policies,
     themes,
     sync,
@@ -106,6 +130,41 @@ function resolveRoles(roles: ResolvedRole[] | PartialApplicationModel["roles"]):
     ...(role.description === undefined ? {} : { description: role.description }),
     inherits: [...(role.inherits ?? [])],
   }));
+}
+
+function resolveBusinessContexts(
+  contexts: PartialBusinessContextModel[],
+): ResolvedBusinessContext[] {
+  return contexts.map(resolveBusinessContext);
+}
+
+function resolveBusinessContext(input: PartialBusinessContextModel): ResolvedBusinessContext {
+  return {
+    name: input.name,
+    object: input.object ?? input.name,
+    selection: resolveContextSelection(input.selection),
+    ...(input.membership === undefined
+      ? {}
+      : { membership: resolveContextMembership(input.membership) }),
+  };
+}
+
+function resolveContextSelection(
+  input: PartialContextSelectionPolicyModel | undefined,
+): ResolvedContextSelectionPolicy {
+  return {
+    mode: input?.mode ?? "optional",
+  };
+}
+
+function resolveContextMembership(input: PartialContextMembershipModel): ResolvedContextMembership {
+  return {
+    object: input.object,
+    userField: input.userField,
+    contextField: input.contextField,
+    roleField: input.roleField,
+    roles: [...(input.roles ?? [])],
+  };
 }
 
 function resolveObject(
@@ -130,11 +189,19 @@ function resolveObject(
     ...(input.displayField === undefined ? {} : { displayField: input.displayField }),
     fields,
     metadataFields: createMetadataFields(),
+    ...(input.scope === undefined ? {} : { scope: resolveObjectScope(input.scope) }),
     ...(lifecycle === undefined ? {} : { lifecycle }),
     policies: [...(input.policies ?? []), ...objectPolicies],
     views,
     sync,
     audit: resolveObjectAudit(input.audit),
+  };
+}
+
+function resolveObjectScope(input: PartialObjectScopeModel): ResolvedObjectScope {
+  return {
+    context: input.context,
+    field: input.field,
   };
 }
 
@@ -294,6 +361,7 @@ function resolveView(
     name: input.name,
     object: input.object ?? objectName,
     kind: input.kind,
+    ...(input.context === undefined ? {} : { context: resolveViewContext(input.context) }),
     fields: [...(input.fields ?? fields.map((field) => field.name))],
     searchFields: [...(input.searchFields ?? [])],
     sort: [...(input.sort ?? [])].map(resolveSort),
@@ -301,10 +369,72 @@ function resolveView(
   };
 }
 
+function resolveViewContext(input: PartialViewContextModel): ResolvedViewContext {
+  return {
+    mode: input.mode,
+    ...(input.context === undefined ? {} : { context: input.context }),
+  };
+}
+
 function resolveSort(input: ResolvedSort): ResolvedSort {
   return {
     field: input.field,
     direction: input.direction,
+  };
+}
+
+function resolveReadModels(
+  input: PartialReadModelModel[],
+  objects: ResolvedObject[],
+): ResolvedReadModel[] {
+  const objectsByName = new Map(objects.map((object) => [object.name, object]));
+  return input.map((readModel) => resolveReadModel(readModel, objectsByName));
+}
+
+function resolveReadModel(
+  input: PartialReadModelModel,
+  objectsByName: Map<string, ResolvedObject>,
+): ResolvedReadModel {
+  const sources = input.sources.map(resolveReadModelSource);
+  const sourcesByName = new Map(sources.map((source) => [source.name, source]));
+
+  return {
+    name: input.name,
+    ...(input.context === undefined ? {} : { context: resolveViewContext(input.context) }),
+    sources,
+    fields: input.fields.map((field) =>
+      resolveReadModelField(field, sources, sourcesByName, objectsByName),
+    ),
+  };
+}
+
+function resolveReadModelSource(input: PartialReadModelSourceModel): ResolvedReadModelSource {
+  return {
+    name: input.name ?? input.object,
+    object: input.object,
+  };
+}
+
+function resolveReadModelField(
+  input: PartialReadModelFieldModel,
+  sources: ResolvedReadModelSource[],
+  sourcesByName: Map<string, ResolvedReadModelSource>,
+  objectsByName: Map<string, ResolvedObject>,
+): ResolvedReadModelField {
+  const sourceName = input.source ?? (sources.length === 1 ? sources[0]?.name : undefined);
+  const source = sourceName === undefined ? undefined : sourcesByName.get(sourceName);
+  const sourceObject = source === undefined ? undefined : objectsByName.get(source.object);
+  const sourceField =
+    input.field === undefined
+      ? undefined
+      : sourceObject?.fields.find((field) => field.name === input.field);
+  const fieldType = input.type ?? sourceField?.type;
+
+  return {
+    name: input.name,
+    ...(fieldType === undefined ? {} : { type: fieldType }),
+    ...(sourceName === undefined ? {} : { source: sourceName }),
+    ...(input.field === undefined ? {} : { field: input.field }),
   };
 }
 

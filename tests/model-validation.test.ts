@@ -10,6 +10,7 @@ import type {
   ResolvedApplicationModel,
   ResolvedSyncPolicy,
 } from "../src/index.js";
+import { bandContextPartialModel } from "./fixtures/band-context-model.js";
 
 const validPartialModel = {
   app: {
@@ -93,6 +94,12 @@ describe("validateApplicationModel", () => {
         rules: [],
       },
     ]);
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
+  it("accepts valid business context, object scope, view context, and read-model declarations", () => {
+    const resolved = resolveApplicationModel(bandContextPartialModel);
+
     expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
@@ -180,6 +187,92 @@ describe("validateApplicationModel", () => {
 
     expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toContain(
       MODEL_VALIDATION_CODES.POLICY_FIELD_UNKNOWN,
+    );
+  });
+
+  it("reports invalid business context and read-model declarations", () => {
+    const invalid = cloneResolved(resolveApplicationModel(bandContextPartialModel));
+    const bandContext = invalid.contexts?.find((context) => context.name === "Band");
+    const bandMember = invalid.objects.find((object) => object.name === "BandMember");
+    const gig = invalid.objects.find((object) => object.name === "Gig");
+    const readModel = invalid.readModels?.find(
+      (candidate) => candidate.name === "UpcomingGigsByBand",
+    );
+
+    if (
+      bandContext === undefined ||
+      bandContext.membership === undefined ||
+      bandMember === undefined ||
+      gig === undefined ||
+      readModel === undefined ||
+      invalid.contexts === undefined
+    ) {
+      throw new Error("Expected valid band context fixture.");
+    }
+
+    bandContext.object = "MissingContextObject";
+    (bandContext.selection as unknown as { mode: string }).mode = "sometimes";
+    bandContext.membership.userField = "MissingUser";
+    bandContext.membership.contextField = "Role";
+
+    const roleField = bandMember.fields.find((field) => field.name === "Role");
+    if (roleField === undefined) {
+      throw new Error("Expected BandMember.Role field.");
+    }
+    (roleField as unknown as { type: string }).type = "number";
+
+    invalid.contexts.push({
+      name: "MissingMembership",
+      object: "Band",
+      selection: { mode: "optional" },
+      membership: {
+        object: "MissingBandMember",
+        userField: "User",
+        contextField: "Band",
+        roleField: "Role",
+        roles: [],
+      },
+    });
+
+    gig.scope = { context: "Band", field: "Venue" };
+    const homeDashboard = gig.views.find((view) => view.name === "HomeDashboard");
+    if (homeDashboard === undefined || homeDashboard.context === undefined) {
+      throw new Error("Expected HomeDashboard view context.");
+    }
+    homeDashboard.context.context = "MissingContext";
+
+    if (readModel.context === undefined) {
+      throw new Error("Expected read model context.");
+    }
+    readModel.context.context = "MissingContext";
+    const gigSource = readModel.sources.find((source) => source.name === "gig");
+    if (gigSource === undefined) {
+      throw new Error("Expected read model gig source.");
+    }
+    gigSource.object = "MissingGig";
+    readModel.fields.push(
+      { name: "UnknownSourceField", source: "missing", field: "Date", type: "date" },
+      { name: "UnknownBandField", source: "band", field: "MissingName", type: "text" },
+    );
+
+    const diagnostics = validateApplicationModel(invalid);
+    const codes = diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_CONTEXT_FIELD_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_OBJECT_UNKNOWN,
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_ROLE_FIELD_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_OBJECT_UNKNOWN,
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_MODE_INVALID,
+        MODEL_VALIDATION_CODES.OBJECT_SCOPE_FIELD_CONTEXT_MISMATCH,
+        MODEL_VALIDATION_CODES.READ_MODEL_CONTEXT_UNKNOWN,
+        MODEL_VALIDATION_CODES.READ_MODEL_FIELD_SOURCE_UNKNOWN,
+        MODEL_VALIDATION_CODES.READ_MODEL_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_OBJECT_UNKNOWN,
+        MODEL_VALIDATION_CODES.VIEW_CONTEXT_UNKNOWN,
+      ]),
     );
   });
 

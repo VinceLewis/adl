@@ -28,6 +28,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
 
 - `architecture/business-contexts-and-backends.md`
+- `implementation/business-context-model.md`
 
 Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
 
@@ -96,6 +97,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/runtime-services.md`: read before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
 - `implementation/storage-backend.md`: read before changing runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests.
 - `implementation/model-versioning-guard.md`: read before changing runtime startup compatibility checks, persisted application metadata, object schema version guards, or future migration handling.
+- `implementation/business-context-model.md`: read before changing business context, object scope, view context, or read-model resolution and validation.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.

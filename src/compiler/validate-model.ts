@@ -1,21 +1,28 @@
 import { DEFAULT_LIFECYCLE_STATE_FIELD } from "../model/defaults.js";
 import type {
   ConflictStrategy,
+  ContextSelectionMode,
   FieldType,
   PolicyAction,
   ResolvedApplicationModel,
+  ResolvedBusinessContext,
+  ResolvedContextMembership,
   ResolvedField,
   ResolvedHookRefs,
   ResolvedLifecycle,
   ResolvedObject,
+  ResolvedObjectScope,
   ResolvedPolicy,
   ResolvedPolicyRule,
+  ResolvedReadModel,
   ResolvedSyncPolicy,
   ResolvedTheme,
   ResolvedThemeTokens,
+  ResolvedViewContext,
   RuntimeChannel,
   SyncMode,
   SyncScope,
+  ViewContextMode,
   ViewKind,
 } from "../model/resolved-model.js";
 
@@ -45,6 +52,13 @@ export const MODEL_VALIDATION_CODES = {
   APP_THEME_UNKNOWN: "ADL_APP_THEME_UNKNOWN",
   AUTO_ID_NON_TEXT: "ADL_AUTO_ID_NON_TEXT",
   AUTO_ID_SCOPE_FIELD_UNKNOWN: "ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN",
+  CONTEXT_DUPLICATE: "ADL_CONTEXT_DUPLICATE",
+  CONTEXT_MEMBERSHIP_CONTEXT_FIELD_INVALID: "ADL_CONTEXT_MEMBERSHIP_CONTEXT_FIELD_INVALID",
+  CONTEXT_MEMBERSHIP_FIELD_UNKNOWN: "ADL_CONTEXT_MEMBERSHIP_FIELD_UNKNOWN",
+  CONTEXT_MEMBERSHIP_OBJECT_UNKNOWN: "ADL_CONTEXT_MEMBERSHIP_OBJECT_UNKNOWN",
+  CONTEXT_MEMBERSHIP_ROLE_FIELD_INVALID: "ADL_CONTEXT_MEMBERSHIP_ROLE_FIELD_INVALID",
+  CONTEXT_OBJECT_UNKNOWN: "ADL_CONTEXT_OBJECT_UNKNOWN",
+  CONTEXT_SELECTION_MODE_INVALID: "ADL_CONTEXT_SELECTION_MODE_INVALID",
   FIELD_DEFAULT_INCOMPATIBLE: "ADL_FIELD_DEFAULT_INCOMPATIBLE",
   FIELD_DUPLICATE: "ADL_FIELD_DUPLICATE",
   HOOK_REFERENCE_INVALID: "ADL_HOOK_REFERENCE_INVALID",
@@ -65,6 +79,9 @@ export const MODEL_VALIDATION_CODES = {
   OBJECT_DUPLICATE: "ADL_OBJECT_DUPLICATE",
   OBJECT_POLICY_MISMATCH: "ADL_OBJECT_POLICY_MISMATCH",
   OBJECT_POLICY_UNKNOWN: "ADL_OBJECT_POLICY_UNKNOWN",
+  OBJECT_SCOPE_CONTEXT_UNKNOWN: "ADL_OBJECT_SCOPE_CONTEXT_UNKNOWN",
+  OBJECT_SCOPE_FIELD_CONTEXT_MISMATCH: "ADL_OBJECT_SCOPE_FIELD_CONTEXT_MISMATCH",
+  OBJECT_SCOPE_FIELD_UNKNOWN: "ADL_OBJECT_SCOPE_FIELD_UNKNOWN",
   OBJECT_SYNC_CONFLICT_INVALID: "ADL_OBJECT_SYNC_CONFLICT_INVALID",
   OBJECT_SYNC_MODE_INVALID: "ADL_OBJECT_SYNC_MODE_INVALID",
   OBJECT_SYNC_SCOPE_INVALID: "ADL_OBJECT_SYNC_SCOPE_INVALID",
@@ -76,6 +93,16 @@ export const MODEL_VALIDATION_CODES = {
   POLICY_OBJECT_UNKNOWN: "ADL_POLICY_OBJECT_UNKNOWN",
   POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
   POLICY_CHANNEL_INVALID: "ADL_POLICY_CHANNEL_INVALID",
+  READ_MODEL_CONTEXT_MODE_INVALID: "ADL_READ_MODEL_CONTEXT_MODE_INVALID",
+  READ_MODEL_CONTEXT_REQUIRED: "ADL_READ_MODEL_CONTEXT_REQUIRED",
+  READ_MODEL_CONTEXT_UNKNOWN: "ADL_READ_MODEL_CONTEXT_UNKNOWN",
+  READ_MODEL_DUPLICATE: "ADL_READ_MODEL_DUPLICATE",
+  READ_MODEL_FIELD_DUPLICATE: "ADL_READ_MODEL_FIELD_DUPLICATE",
+  READ_MODEL_FIELD_SOURCE_UNKNOWN: "ADL_READ_MODEL_FIELD_SOURCE_UNKNOWN",
+  READ_MODEL_FIELD_TYPE_INVALID: "ADL_READ_MODEL_FIELD_TYPE_INVALID",
+  READ_MODEL_FIELD_UNKNOWN: "ADL_READ_MODEL_FIELD_UNKNOWN",
+  READ_MODEL_SOURCE_DUPLICATE: "ADL_READ_MODEL_SOURCE_DUPLICATE",
+  READ_MODEL_SOURCE_OBJECT_UNKNOWN: "ADL_READ_MODEL_SOURCE_OBJECT_UNKNOWN",
   SYNC_CONFLICT_INVALID: "ADL_SYNC_CONFLICT_INVALID",
   SYNC_MODE_INVALID: "ADL_SYNC_MODE_INVALID",
   SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
@@ -86,6 +113,9 @@ export const MODEL_VALIDATION_CODES = {
   THEME_DUPLICATE: "ADL_THEME_DUPLICATE",
   THEME_TOKEN_INVALID: "ADL_THEME_TOKEN_INVALID",
   VIEW_FIELD_UNKNOWN: "ADL_VIEW_FIELD_UNKNOWN",
+  VIEW_CONTEXT_MODE_INVALID: "ADL_VIEW_CONTEXT_MODE_INVALID",
+  VIEW_CONTEXT_REQUIRED: "ADL_VIEW_CONTEXT_REQUIRED",
+  VIEW_CONTEXT_UNKNOWN: "ADL_VIEW_CONTEXT_UNKNOWN",
   VIEW_KIND_INVALID: "ADL_VIEW_KIND_INVALID",
   VIEW_OBJECT_UNKNOWN: "ADL_VIEW_OBJECT_UNKNOWN",
   VIEW_SEARCH_FIELD_UNKNOWN: "ADL_VIEW_SEARCH_FIELD_UNKNOWN",
@@ -114,6 +144,9 @@ const VIEW_KINDS = new Set<ViewKind>([
   "grid",
   "composite",
 ]);
+
+const CONTEXT_SELECTION_MODES = new Set<ContextSelectionMode>(["required", "optional"]);
+const VIEW_CONTEXT_MODES = new Set<ViewContextMode>(["none", "required", "optional", "all"]);
 
 const POLICY_ACTIONS = new Set<PolicyAction>([
   "*",
@@ -175,6 +208,7 @@ interface NamedReference<T> {
 }
 
 interface ModelIndexes {
+  contextsByName: Map<string, NamedReference<ResolvedBusinessContext>>;
   objectsByName: Map<string, NamedReference<ResolvedObject>>;
   policiesByName: Map<string, NamedReference<ResolvedPolicy>>;
   themesByName: Map<string, NamedReference<ResolvedTheme>>;
@@ -184,12 +218,20 @@ interface ModelIndexes {
 export function validateApplicationModel(model: ResolvedApplicationModel): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const indexes: ModelIndexes = {
+    contextsByName: indexByName(model.contexts ?? []),
     objectsByName: indexByName(model.objects),
     policiesByName: indexByName(model.policies),
     themesByName: indexByName(model.themes),
     viewNames: new Set(model.objects.flatMap((object) => object.views.map((view) => view.name))),
   };
 
+  reportDuplicateNames(
+    model.contexts ?? [],
+    "contexts",
+    MODEL_VALIDATION_CODES.CONTEXT_DUPLICATE,
+    diagnostics,
+    "Business context names must be unique.",
+  );
   reportDuplicateNames(
     model.objects,
     "objects",
@@ -205,6 +247,13 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
     "Policy names must be unique.",
   );
   reportDuplicateNames(
+    model.readModels ?? [],
+    "readModels",
+    MODEL_VALIDATION_CODES.READ_MODEL_DUPLICATE,
+    diagnostics,
+    "Read model names must be unique.",
+  );
+  reportDuplicateNames(
     model.themes,
     "themes",
     MODEL_VALIDATION_CODES.THEME_DUPLICATE,
@@ -213,6 +262,14 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
   );
 
   validateApplicationReferences(model, indexes, diagnostics);
+
+  for (let contextIndex = 0; contextIndex < (model.contexts ?? []).length; contextIndex += 1) {
+    const context = model.contexts?.[contextIndex];
+    if (context === undefined) {
+      continue;
+    }
+    validateBusinessContext(context, contextIndex, indexes, diagnostics);
+  }
 
   for (let objectIndex = 0; objectIndex < model.objects.length; objectIndex += 1) {
     const object = model.objects[objectIndex];
@@ -228,6 +285,18 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
       continue;
     }
     validatePolicy(policy, policyIndex, indexes, diagnostics);
+  }
+
+  for (
+    let readModelIndex = 0;
+    readModelIndex < (model.readModels ?? []).length;
+    readModelIndex += 1
+  ) {
+    const readModel = model.readModels?.[readModelIndex];
+    if (readModel === undefined) {
+      continue;
+    }
+    validateReadModel(readModel, readModelIndex, indexes, diagnostics);
   }
 
   for (let themeIndex = 0; themeIndex < model.themes.length; themeIndex += 1) {
@@ -275,6 +344,182 @@ function validateApplicationReferences(
   }
 }
 
+function validateBusinessContext(
+  context: ResolvedBusinessContext,
+  contextIndex: number,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const contextPath = `contexts[${contextIndex}]`;
+
+  if (!indexes.objectsByName.has(context.object)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_OBJECT_UNKNOWN,
+        `Business context '${context.name}' references unknown object '${context.object}'.`,
+        `${contextPath}.object`,
+      ),
+    );
+  }
+
+  if (!CONTEXT_SELECTION_MODES.has(context.selection.mode)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_SELECTION_MODE_INVALID,
+        `Business context '${context.name}' has invalid selection mode '${String(context.selection.mode)}'.`,
+        `${contextPath}.selection.mode`,
+      ),
+    );
+  }
+
+  if (context.membership !== undefined) {
+    validateContextMembership(
+      context.membership,
+      context,
+      `${contextPath}.membership`,
+      indexes,
+      diagnostics,
+    );
+  }
+}
+
+function validateContextMembership(
+  membership: ResolvedContextMembership,
+  context: ResolvedBusinessContext,
+  membershipPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const membershipObject = indexes.objectsByName.get(membership.object)?.item;
+
+  if (membershipObject === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_OBJECT_UNKNOWN,
+        `Business context '${context.name}' membership references unknown object '${membership.object}'.`,
+        `${membershipPath}.object`,
+      ),
+    );
+    return;
+  }
+
+  const fieldsByName = indexByName(membershipObject.fields);
+  validateMembershipField(
+    membership.userField,
+    "userField",
+    context,
+    membershipObject,
+    fieldsByName,
+    membershipPath,
+    diagnostics,
+  );
+  const contextField = validateMembershipField(
+    membership.contextField,
+    "contextField",
+    context,
+    membershipObject,
+    fieldsByName,
+    membershipPath,
+    diagnostics,
+  );
+  const roleField = validateMembershipField(
+    membership.roleField,
+    "roleField",
+    context,
+    membershipObject,
+    fieldsByName,
+    membershipPath,
+    diagnostics,
+  );
+
+  if (contextField !== undefined && contextField.lookup?.targetObject !== context.object) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_CONTEXT_FIELD_INVALID,
+        `Business context '${context.name}' membership context field '${membership.contextField}' must look up '${context.object}'.`,
+        `${membershipPath}.contextField`,
+      ),
+    );
+  }
+
+  if (roleField !== undefined && roleField.type !== "text") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_ROLE_FIELD_INVALID,
+        `Business context '${context.name}' membership role field '${membership.roleField}' must be a text field.`,
+        `${membershipPath}.roleField`,
+      ),
+    );
+  }
+}
+
+function validateMembershipField(
+  fieldName: string,
+  propertyName: "userField" | "contextField" | "roleField",
+  context: ResolvedBusinessContext,
+  membershipObject: ResolvedObject,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  membershipPath: string,
+  diagnostics: Diagnostic[],
+): ResolvedField | undefined {
+  const field = fieldsByName.get(fieldName)?.item;
+
+  if (field === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_MEMBERSHIP_FIELD_UNKNOWN,
+        `Business context '${context.name}' membership field '${fieldName}' does not exist on object '${membershipObject.name}'.`,
+        `${membershipPath}.${propertyName}`,
+      ),
+    );
+  }
+
+  return field;
+}
+
+function validateObjectScope(
+  scope: ResolvedObjectScope,
+  object: ResolvedObject,
+  objectPath: string,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const context = indexes.contextsByName.get(scope.context)?.item;
+  const scopeField = fieldsByName.get(scope.field)?.item;
+
+  if (context === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_SCOPE_CONTEXT_UNKNOWN,
+        `Object '${object.name}' scope references unknown context '${scope.context}'.`,
+        `${objectPath}.scope.context`,
+      ),
+    );
+  }
+
+  if (scopeField === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_SCOPE_FIELD_UNKNOWN,
+        `Object '${object.name}' scope field '${scope.field}' does not exist.`,
+        `${objectPath}.scope.field`,
+      ),
+    );
+    return;
+  }
+
+  if (context !== undefined && scopeField.lookup?.targetObject !== context.object) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_SCOPE_FIELD_CONTEXT_MISMATCH,
+        `Object '${object.name}' scope field '${scope.field}' must look up context object '${context.object}'.`,
+        `${objectPath}.scope.field`,
+      ),
+    );
+  }
+}
+
 function validateObject(
   object: ResolvedObject,
   objectIndex: number,
@@ -312,6 +557,10 @@ function validateObject(
     );
   }
 
+  if (object.scope !== undefined) {
+    validateObjectScope(object.scope, object, objectPath, fieldsByName, indexes, diagnostics);
+  }
+
   for (let fieldIndex = 0; fieldIndex < object.fields.length; fieldIndex += 1) {
     const field = object.fields[fieldIndex];
     if (field === undefined) {
@@ -336,6 +585,7 @@ function validateObject(
     validateView(
       view.object,
       view.kind,
+      view.context,
       view.fields,
       view.searchFields,
       view.sort,
@@ -758,6 +1008,7 @@ function validatePolicyRule(
 function validateView(
   viewObject: string,
   kind: ViewKind,
+  context: ResolvedViewContext | undefined,
   fields: string[],
   searchFields: string[],
   sort: { field: string }[],
@@ -776,6 +1027,8 @@ function validateView(
       ),
     );
   }
+
+  validateViewContext(context, `${viewPath}.context`, indexes, diagnostics);
 
   if (targetObject === undefined) {
     diagnostics.push(
@@ -836,6 +1089,194 @@ function validateView(
         ),
       );
     }
+  }
+}
+
+function validateViewContext(
+  context: ResolvedViewContext | undefined,
+  contextPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (context === undefined) {
+    return;
+  }
+
+  if (!VIEW_CONTEXT_MODES.has(context.mode)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_CONTEXT_MODE_INVALID,
+        `View has invalid context mode '${String(context.mode)}'.`,
+        `${contextPath}.mode`,
+      ),
+    );
+  }
+
+  if (context.mode !== "none" && context.context === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_CONTEXT_REQUIRED,
+        `View context mode '${String(context.mode)}' must reference a business context.`,
+        `${contextPath}.context`,
+      ),
+    );
+    return;
+  }
+
+  if (context.context !== undefined && !indexes.contextsByName.has(context.context)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_CONTEXT_UNKNOWN,
+        `View references unknown context '${context.context}'.`,
+        `${contextPath}.context`,
+      ),
+    );
+  }
+}
+
+function validateReadModel(
+  readModel: ResolvedReadModel,
+  readModelIndex: number,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const readModelPath = `readModels[${readModelIndex}]`;
+  const sourcesByName = indexByName(readModel.sources);
+
+  validateReadModelContext(readModel.context, `${readModelPath}.context`, indexes, diagnostics);
+  reportDuplicateNames(
+    readModel.sources,
+    `${readModelPath}.sources`,
+    MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_DUPLICATE,
+    diagnostics,
+    `Source names must be unique within read model '${readModel.name}'.`,
+  );
+  reportDuplicateNames(
+    readModel.fields,
+    `${readModelPath}.fields`,
+    MODEL_VALIDATION_CODES.READ_MODEL_FIELD_DUPLICATE,
+    diagnostics,
+    `Output field names must be unique within read model '${readModel.name}'.`,
+  );
+
+  for (let sourceIndex = 0; sourceIndex < readModel.sources.length; sourceIndex += 1) {
+    const source = readModel.sources[sourceIndex];
+    if (source === undefined) {
+      continue;
+    }
+
+    if (!indexes.objectsByName.has(source.object)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_OBJECT_UNKNOWN,
+          `Read model '${readModel.name}' source '${source.name}' references unknown object '${source.object}'.`,
+          `${readModelPath}.sources[${sourceIndex}].object`,
+        ),
+      );
+    }
+  }
+
+  for (let fieldIndex = 0; fieldIndex < readModel.fields.length; fieldIndex += 1) {
+    const field = readModel.fields[fieldIndex];
+    if (field === undefined) {
+      continue;
+    }
+    const fieldPath = `${readModelPath}.fields[${fieldIndex}]`;
+
+    if (field.type !== undefined && !FIELD_TYPES.has(field.type)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.READ_MODEL_FIELD_TYPE_INVALID,
+          `Read model '${readModel.name}' output field '${field.name}' has invalid type '${String(field.type)}'.`,
+          `${fieldPath}.type`,
+        ),
+      );
+    }
+
+    if (field.field !== undefined && field.source === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.READ_MODEL_FIELD_SOURCE_UNKNOWN,
+          `Read model '${readModel.name}' output field '${field.name}' must name a source before referencing field '${field.field}'.`,
+          `${fieldPath}.source`,
+        ),
+      );
+      continue;
+    }
+
+    if (field.source === undefined) {
+      continue;
+    }
+
+    const source = sourcesByName.get(field.source)?.item;
+    if (source === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.READ_MODEL_FIELD_SOURCE_UNKNOWN,
+          `Read model '${readModel.name}' output field '${field.name}' references unknown source '${field.source}'.`,
+          `${fieldPath}.source`,
+        ),
+      );
+      continue;
+    }
+
+    const sourceObject = indexes.objectsByName.get(source.object)?.item;
+    if (sourceObject === undefined || field.field === undefined) {
+      continue;
+    }
+
+    const sourceFieldNames = new Set(sourceObject.fields.map((candidate) => candidate.name));
+    if (!sourceFieldNames.has(field.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.READ_MODEL_FIELD_UNKNOWN,
+          `Read model '${readModel.name}' output field '${field.name}' references unknown field '${field.field}' on source '${source.name}'.`,
+          `${fieldPath}.field`,
+        ),
+      );
+    }
+  }
+}
+
+function validateReadModelContext(
+  context: ResolvedViewContext | undefined,
+  contextPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (context === undefined) {
+    return;
+  }
+
+  if (!VIEW_CONTEXT_MODES.has(context.mode)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_CONTEXT_MODE_INVALID,
+        `Read model has invalid context mode '${String(context.mode)}'.`,
+        `${contextPath}.mode`,
+      ),
+    );
+  }
+
+  if (context.mode !== "none" && context.context === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_CONTEXT_REQUIRED,
+        `Read model context mode '${String(context.mode)}' must reference a business context.`,
+        `${contextPath}.context`,
+      ),
+    );
+    return;
+  }
+
+  if (context.context !== undefined && !indexes.contextsByName.has(context.context)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_CONTEXT_UNKNOWN,
+        `Read model references unknown context '${context.context}'.`,
+        `${contextPath}.context`,
+      ),
+    );
   }
 }
 

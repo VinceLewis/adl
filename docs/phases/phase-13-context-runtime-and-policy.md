@@ -12,6 +12,8 @@ Add runtime context resolution and policy integration over the existing local ru
 
 The browser remains untrusted. Any UI context picker added later must call the same runtime services and must not become the only enforcement point.
 
+Phase 12 delivered business context, object scope, view context, and read-model declarations through the TypeScript/JSON partial and resolved model contracts. Phase 13 should consume those resolved declarations and the `tests/fixtures/band-context-model.ts` fixture rather than adding textual ADL parser syntax. Read-model execution and dashboard rendering remain Phase 15 work.
+
 ## Expected Deliverables
 
 - Runtime context service or equivalent runtime helper
@@ -39,7 +41,7 @@ Execute Phase 13 only. Implement runtime support for business context resolution
 
 ## Tasks
 
-1. Review Phase 12 model outputs, `RuntimeContext`, `PolicyEngine`, `ObjectStore`, `ApplicationRuntime`, and storage boundaries.
+1. Review Phase 12 model outputs, `tests/fixtures/band-context-model.ts`, `RuntimeContext`, `PolicyEngine`, `ObjectStore`, `ApplicationRuntime`, and storage boundaries.
 2. Define how selected context IDs and resolved context roles are represented in runtime calls.
 3. Implement a context resolver that can:
    - list contexts available to the current user

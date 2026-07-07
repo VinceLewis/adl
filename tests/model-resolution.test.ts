@@ -12,6 +12,7 @@ import {
   toStorageName,
 } from "../src/index.js";
 import type { PartialApplicationModel, ResolvedApplicationModel } from "../src/index.js";
+import { bandContextPartialModel } from "./fixtures/band-context-model.js";
 
 const minimalModel = {
   app: {
@@ -131,6 +132,8 @@ describe("resolveApplicationModel", () => {
     ]);
     expect(resolved.audit.enabled).toBe(true);
     expect(resolved.operationLog.operations).toEqual(["create", "update", "delete", "transition"]);
+    expect("contexts" in resolved).toBe(false);
+    expect("readModels" in resolved).toBe(false);
   });
 
   it("produces deterministic output for the same input", () => {
@@ -203,6 +206,44 @@ describe("resolveApplicationModel", () => {
       ["CacheRecord", "cacheReadonly"],
       ["OnlineRecord", "onlineRequired"],
       ["PrivateRecord", "localPrivate"],
+    ]);
+  });
+
+  it("resolves business contexts, object scopes, view contexts, and read models", () => {
+    const resolved = resolveApplicationModel(bandContextPartialModel);
+    const bandContext = resolved.contexts?.find((context) => context.name === "Band");
+    const gig = resolved.objects.find((object) => object.name === "Gig");
+    const homeDashboard = gig?.views.find((view) => view.name === "HomeDashboard");
+    const readModel = resolved.readModels?.find(
+      (candidate) => candidate.name === "UpcomingGigsByBand",
+    );
+
+    expect(bandContext).toEqual({
+      name: "Band",
+      object: "Band",
+      selection: { mode: "optional" },
+      membership: {
+        object: "BandMember",
+        userField: "User",
+        contextField: "Band",
+        roleField: "Role",
+        roles: ["BandAdmin", "BandMember"],
+      },
+    });
+    expect(gig?.scope).toEqual({ context: "Band", field: "Band" });
+    expect(homeDashboard?.context).toEqual({ mode: "all", context: "Band" });
+    expect(readModel).toMatchObject({
+      name: "UpcomingGigsByBand",
+      context: { mode: "all", context: "Band" },
+      sources: [
+        { name: "gig", object: "Gig" },
+        { name: "band", object: "Band" },
+      ],
+    });
+    expect(readModel?.fields).toEqual([
+      { name: "GigDate", type: "date", source: "gig", field: "Date" },
+      { name: "Venue", type: "text", source: "gig", field: "Venue" },
+      { name: "BandName", type: "text", source: "band", field: "Name" },
     ]);
   });
 

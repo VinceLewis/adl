@@ -49,13 +49,17 @@ export type AuditOperation = LocalOperationKind | "read" | "search";
 export type ThemeRadius = "none" | "small" | "medium" | "large";
 export type ThemeDensity = "compact" | "comfortable" | "spacious";
 export type ThemeNav = "top" | "side" | "bottom";
+export type ContextSelectionMode = "required" | "optional";
+export type ViewContextMode = "none" | "required" | "optional" | "all";
 
 export interface ResolvedApplicationModel {
   modelVersion: string;
   generatedAt?: string;
   app: ResolvedApp;
   roles: ResolvedRole[];
+  contexts?: ResolvedBusinessContext[];
   objects: ResolvedObject[];
+  readModels?: ResolvedReadModel[];
   policies: ResolvedPolicy[];
   themes: ResolvedTheme[];
   sync: ResolvedSyncPolicy[];
@@ -87,6 +91,25 @@ export interface ResolvedRole {
   inherits: string[];
 }
 
+export interface ResolvedBusinessContext {
+  name: string;
+  object: string;
+  selection: ResolvedContextSelectionPolicy;
+  membership?: ResolvedContextMembership;
+}
+
+export interface ResolvedContextSelectionPolicy {
+  mode: ContextSelectionMode;
+}
+
+export interface ResolvedContextMembership {
+  object: string;
+  userField: string;
+  contextField: string;
+  roleField: string;
+  roles: string[];
+}
+
 export interface ResolvedObject {
   name: string;
   schemaVersion: number;
@@ -96,11 +119,17 @@ export interface ResolvedObject {
   displayField?: string;
   fields: ResolvedField[];
   metadataFields: ResolvedMetadataField[];
+  scope?: ResolvedObjectScope;
   lifecycle?: ResolvedLifecycle;
   policies: string[];
   views: ResolvedView[];
   sync: ResolvedObjectSyncPolicy;
   audit: ResolvedObjectAuditPolicy;
+}
+
+export interface ResolvedObjectScope {
+  context: string;
+  field: string;
 }
 
 export interface ResolvedField {
@@ -204,15 +233,40 @@ export interface ResolvedView {
   name: string;
   object: string;
   kind: ViewKind;
+  context?: ResolvedViewContext;
   fields: string[];
   searchFields: string[];
   sort: ResolvedSort[];
   actions: string[];
 }
 
+export interface ResolvedViewContext {
+  mode: ViewContextMode;
+  context?: string;
+}
+
 export interface ResolvedSort {
   field: string;
   direction: "asc" | "desc";
+}
+
+export interface ResolvedReadModel {
+  name: string;
+  context?: ResolvedViewContext;
+  sources: ResolvedReadModelSource[];
+  fields: ResolvedReadModelField[];
+}
+
+export interface ResolvedReadModelSource {
+  name: string;
+  object: string;
+}
+
+export interface ResolvedReadModelField {
+  name: string;
+  type?: FieldType;
+  source?: string;
+  field?: string;
 }
 
 export interface ResolvedTheme {
@@ -326,7 +380,9 @@ export interface PartialApplicationModel {
   modelVersion?: string;
   app: PartialAppModel;
   roles?: PartialRoleModel[];
+  contexts?: PartialBusinessContextModel[];
   objects: PartialObjectModel[];
+  readModels?: PartialReadModelModel[];
   policies?: PartialPolicyModel[];
   themes?: PartialThemeModel[];
   sync?: PartialSyncPolicyModel[];
@@ -344,6 +400,25 @@ export interface PartialRoleModel {
   inherits?: string[];
 }
 
+export interface PartialBusinessContextModel {
+  name: string;
+  object?: string;
+  selection?: PartialContextSelectionPolicyModel;
+  membership?: PartialContextMembershipModel;
+}
+
+export interface PartialContextSelectionPolicyModel {
+  mode?: ContextSelectionMode;
+}
+
+export interface PartialContextMembershipModel {
+  object: string;
+  userField: string;
+  contextField: string;
+  roleField: string;
+  roles?: string[];
+}
+
 export interface PartialObjectModel {
   name: string;
   schemaVersion?: number;
@@ -352,11 +427,17 @@ export interface PartialObjectModel {
   businessKey?: string;
   displayField?: string;
   fields?: PartialFieldModel[];
+  scope?: PartialObjectScopeModel;
   lifecycle?: PartialLifecycleModel;
   policies?: string[];
   views?: PartialViewModel[];
   sync?: PartialObjectSyncPolicyModel;
   audit?: PartialObjectAuditPolicyModel;
+}
+
+export interface PartialObjectScopeModel {
+  context: string;
+  field: string;
 }
 
 export interface PartialFieldModel {
@@ -448,10 +529,35 @@ export interface PartialViewModel {
   name: string;
   object?: string;
   kind: ViewKind;
+  context?: PartialViewContextModel;
   fields?: string[];
   searchFields?: string[];
   sort?: ResolvedSort[];
   actions?: string[];
+}
+
+export interface PartialViewContextModel {
+  mode: ViewContextMode;
+  context?: string;
+}
+
+export interface PartialReadModelModel {
+  name: string;
+  context?: PartialViewContextModel;
+  sources: PartialReadModelSourceModel[];
+  fields: PartialReadModelFieldModel[];
+}
+
+export interface PartialReadModelSourceModel {
+  name?: string;
+  object: string;
+}
+
+export interface PartialReadModelFieldModel {
+  name: string;
+  type?: FieldType;
+  source?: string;
+  field?: string;
 }
 
 export interface PartialThemeModel {
