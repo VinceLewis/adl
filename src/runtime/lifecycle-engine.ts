@@ -53,7 +53,7 @@ export class LifecycleEngine {
       );
     }
 
-    const record = this.objectStore.getRecordForRuntime(objectName, id);
+    const record = await this.objectStore.getRecordForRuntime(objectName, id);
     if (record === null) {
       throw new StorageError(`Record '${id}' for object '${objectName}' does not exist.`, {
         objectName,

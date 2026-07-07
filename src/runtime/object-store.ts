@@ -7,6 +7,8 @@ import type {
 } from "../model/resolved-model.js";
 import { RuntimeModelIndex, getInitialLifecycleState, getRecordState } from "./model-helpers.js";
 import type { AuditService } from "./audit-service.js";
+import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
+import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import type { OperationLog, OperationLogDetails } from "./operation-log.js";
 import type { PolicyEngine } from "./policy-engine.js";
 import {
@@ -21,8 +23,6 @@ import type { RuntimeContext, RuntimeLogger, RuntimeSearchInput } from "./runtim
 import type { ValidationEngine } from "./validation-engine.js";
 
 export class ObjectStore {
-  private readonly recordsByObject = new Map<string, Map<string, StoredObjectRecord>>();
-  private nextRecordId = 1;
   private nextRevisionId = 1;
 
   constructor(
@@ -32,6 +32,7 @@ export class ObjectStore {
     private readonly auditService: AuditService,
     private readonly operationLog: OperationLog,
     private readonly index = new RuntimeModelIndex(model),
+    private readonly storage: ObjectStorageBackend = new InMemoryObjectStorageBackend(),
     private readonly logger: RuntimeLogger = noopRuntimeLogger,
   ) {}
 
@@ -57,7 +58,7 @@ export class ObjectStore {
     this.requireFieldPolicy("create", objectName, preparedValues, context, undefined, currentState);
 
     const record = this.buildNewRecord(object, preparedValues, context, currentState);
-    this.recordsForObject(objectName).set(record.meta.guid, cloneJson(record));
+    await this.storage.create(objectName, record);
     this.auditService.record("create", objectName, record, context, undefined, record.values);
     this.recordOperation("create", objectName, record, context, { patch: record.values });
     this.logger.debug("EXIT ObjectStore.create", {
@@ -78,7 +79,7 @@ export class ObjectStore {
       recordId: id,
       context: safeContextLog(context),
     });
-    const record = this.getActiveRecord(objectName, id);
+    const record = await this.getActiveRecord(objectName, id);
 
     if (record === undefined) {
       this.logger.debug("EXIT ObjectStore.read", { objectName, recordId: id, found: false });
@@ -111,7 +112,7 @@ export class ObjectStore {
       recordId: id,
       context: safeContextLog(context),
     });
-    const existing = this.requireActiveRecord(objectName, id);
+    const existing = await this.requireActiveRecord(objectName, id);
     const currentState = this.getState(objectName, existing);
     const nextValues = this.validationEngine.prepareUpdateValues(objectName, existing, patch);
 
@@ -128,7 +129,7 @@ export class ObjectStore {
     this.requireFieldPolicy("update", objectName, patch, context, existing, currentState);
 
     const updated = this.updatedRecord(existing, nextValues, context, currentState);
-    this.recordsForObject(objectName).set(id, cloneJson(updated));
+    await this.storage.update(objectName, updated);
     this.auditService.record(
       "update",
       objectName,
@@ -156,7 +157,7 @@ export class ObjectStore {
       recordId: id,
       context: safeContextLog(context),
     });
-    const existing = this.requireActiveRecord(objectName, id);
+    const existing = await this.requireActiveRecord(objectName, id);
     const currentState = this.getState(objectName, existing);
 
     this.policyEngine.requireAllowed(
@@ -170,7 +171,7 @@ export class ObjectStore {
     );
 
     const deleted = this.deletedRecord(existing, context);
-    this.recordsForObject(objectName).set(id, cloneJson(deleted));
+    await this.storage.delete(objectName, deleted);
     this.auditService.record(
       "delete",
       objectName,
@@ -211,12 +212,16 @@ export class ObjectStore {
 
     this.policyEngine.requireAllowed({ objectName, action: "search" }, context);
 
-    const records = [...this.recordsForObject(objectName).values()]
-      .filter(
-        (record) => searchQuery.includeDeleted === true || record.meta.deletedAt === undefined,
-      )
-      .filter((record) => recordMatchesQuery(record, fields, searchQuery.text))
-      .filter((record) => this.canReadSearchResult(objectName, record, context));
+    const records = (
+      await this.storage.search({
+        object,
+        fields,
+        ...(searchQuery.text === undefined ? {} : { text: searchQuery.text }),
+        ...(searchQuery.includeDeleted === undefined
+          ? {}
+          : { includeDeleted: searchQuery.includeDeleted }),
+      })
+    ).filter((record) => this.canReadSearchResult(objectName, record, context));
     const limited =
       searchQuery.limit === undefined || searchQuery.limit < 0
         ? records
@@ -230,8 +235,8 @@ export class ObjectStore {
     return shaped;
   }
 
-  getRecordForRuntime(objectName: string, id: string): StoredObjectRecord | null {
-    const record = this.getActiveRecord(objectName, id);
+  async getRecordForRuntime(objectName: string, id: string): Promise<StoredObjectRecord | null> {
+    const record = await this.getActiveRecord(objectName, id);
     return record === undefined ? null : cloneJson(record);
   }
 
@@ -247,10 +252,10 @@ export class ObjectStore {
       recordId: id,
       lifecycleAction: details.lifecycleAction,
     });
-    const existing = this.requireActiveRecord(objectName, id);
+    const existing = await this.requireActiveRecord(objectName, id);
     const updated = this.updatedRecord(existing, nextValues, context, details.toState);
 
-    this.recordsForObject(objectName).set(id, cloneJson(updated));
+    await this.storage.update(objectName, updated);
     this.auditService.record(
       "transition",
       objectName,
@@ -286,7 +291,7 @@ export class ObjectStore {
     currentState: string | undefined,
   ): StoredObjectRecord {
     const now = getContextNowIso(context);
-    const guid = `${object.name.toLowerCase()}-${this.nextRecordId++}`;
+    const guid = createRecordGuid(object);
 
     return {
       meta: {
@@ -385,8 +390,8 @@ export class ObjectStore {
     return getRecordState(this.index.getObject(objectName), record);
   }
 
-  private requireActiveRecord(objectName: string, id: string): StoredObjectRecord {
-    const record = this.getActiveRecord(objectName, id);
+  private async requireActiveRecord(objectName: string, id: string): Promise<StoredObjectRecord> {
+    const record = await this.getActiveRecord(objectName, id);
 
     if (record === undefined) {
       throw new StorageError(`Record '${id}' for object '${objectName}' does not exist.`, {
@@ -398,25 +403,17 @@ export class ObjectStore {
     return record;
   }
 
-  private getActiveRecord(objectName: string, id: string): StoredObjectRecord | undefined {
-    const record = this.recordsForObject(objectName).get(id);
-    if (record === undefined || record.meta.deletedAt !== undefined) {
+  private async getActiveRecord(
+    objectName: string,
+    id: string,
+  ): Promise<StoredObjectRecord | undefined> {
+    this.index.getObject(objectName);
+    const record = await this.storage.read(objectName, id);
+    if (record === null || record.meta.deletedAt !== undefined) {
       return undefined;
     }
 
     return cloneJson(record);
-  }
-
-  private recordsForObject(objectName: string): Map<string, StoredObjectRecord> {
-    this.index.getObject(objectName);
-
-    let records = this.recordsByObject.get(objectName);
-    if (records === undefined) {
-      records = new Map<string, StoredObjectRecord>();
-      this.recordsByObject.set(objectName, records);
-    }
-
-    return records;
   }
 
   private recordOperation(
@@ -434,26 +431,17 @@ export class ObjectStore {
   }
 }
 
-function recordMatchesQuery(
-  record: StoredObjectRecord,
-  fields: string[],
-  text: string | undefined,
-): boolean {
-  if (text === undefined || text.trim().length === 0) {
-    return true;
+function createRecordGuid(object: ResolvedObject): string {
+  return `${object.name.toLowerCase()}-${randomId()}`;
+}
+
+function randomId(): string {
+  const randomUuid = globalThis.crypto?.randomUUID?.();
+  if (randomUuid !== undefined) {
+    return randomUuid;
   }
 
-  const needle = text.toLowerCase();
-
-  return fields.some((field) => {
-    const value = record.values[field];
-
-    if (value === undefined || value === null) {
-      return false;
-    }
-
-    return String(value).toLowerCase().includes(needle);
-  });
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function stateProperty(currentState: string | undefined): { currentState: string } | {} {

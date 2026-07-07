@@ -38,6 +38,10 @@ Before tasks that change runtime services, UI runtime integration, lifecycle exe
 - `implementation/runtime-services.md`
 - `implementation/policy-engine.md`
 
+Before tasks that change runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests, also read:
+
+- `implementation/storage-backend.md`
+
 Before tasks that change browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification, also read:
 
 - `implementation/browser-ui-runtime.md`
@@ -77,6 +81,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, or runtime model startup checks.
 - `implementation/adl-parser.md`: read before changing ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour.
 - `implementation/runtime-services.md`: read before changing runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
+- `implementation/storage-backend.md`: read before changing runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.

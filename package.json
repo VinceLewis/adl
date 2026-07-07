@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "20.17.6",
+    "fake-indexeddb": "^6.2.5",
     "happy-dom": "^20.10.6",
     "prettier": "3.3.3",
     "typescript": "5.5.4",

@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { indexedDB as fakeIndexedDB } from "fake-indexeddb";
 import { PolicyDeniedError } from "../src/index.js";
 import {
+  BROWSER_DEMO_DATABASE_NAME,
   browserDemoContext,
   createBrowserDemoModel,
   createBrowserDemoRuntime,
@@ -164,6 +166,35 @@ describe("browser UI runtime", () => {
       runtime.update("User", user.meta.guid, { SystemRole: "Admin" }, browserDemoContext),
     ).rejects.toBeInstanceOf(PolicyDeniedError);
   });
+
+  it("persists browser demo records across IndexedDB-backed reloads", async () => {
+    const restoreIndexedDb = installFakeIndexedDb();
+    await deleteIndexedDbDatabase(BROWSER_DEMO_DATABASE_NAME);
+
+    try {
+      const firstApp = await mountApp();
+      requireElement<HTMLButtonElement>(firstApp, "[data-list-action='new']").click();
+      await flushUi();
+
+      requireElement<HTMLInputElement>(
+        firstApp,
+        "adl-field-renderer[data-field-name='Name'] input",
+      ).value = "Reload Persisted";
+      requireElement<HTMLInputElement>(
+        firstApp,
+        "adl-field-renderer[data-field-name='Email'] input",
+      ).value = "reload@example.com";
+      requireElement<HTMLButtonElement>(firstApp, "button[data-action-name='save']").click();
+      await waitForText(firstApp, "Reload Persisted");
+
+      document.body.innerHTML = "";
+      const secondApp = await mountApp();
+      await waitForText(secondApp, "Reload Persisted");
+    } finally {
+      document.body.innerHTML = "";
+      restoreIndexedDb();
+    }
+  });
 });
 
 async function mountApp(model?: ResolvedApplicationModel): Promise<AdlAppElement> {
@@ -182,6 +213,17 @@ async function flushUi(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+async function waitForText(root: ParentNode, text: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await flushUi();
+    if (root.textContent?.includes(text) === true) {
+      return;
+    }
+  }
+
+  expect(root.textContent).toContain(text);
+}
+
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
   if (element === null) {
@@ -189,4 +231,36 @@ function requireElement<T extends Element>(root: ParentNode, selector: string): 
   }
 
   return element;
+}
+
+function installFakeIndexedDb(): () => void {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+  Object.defineProperty(globalThis, "indexedDB", {
+    configurable: true,
+    value: fakeIndexedDB,
+  });
+
+  return () => {
+    if (descriptor === undefined) {
+      Reflect.deleteProperty(globalThis, "indexedDB");
+      return;
+    }
+
+    Object.defineProperty(globalThis, "indexedDB", descriptor);
+  };
+}
+
+function deleteIndexedDbDatabase(databaseName: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = globalThis.indexedDB.deleteDatabase(databaseName);
+    request.onsuccess = () => {
+      resolve();
+    };
+    request.onerror = () => {
+      reject(request.error);
+    };
+    request.onblocked = () => {
+      reject(new Error(`Deleting IndexedDB database '${databaseName}' was blocked.`));
+    };
+  });
 }

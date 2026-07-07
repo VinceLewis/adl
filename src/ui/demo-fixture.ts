@@ -1,9 +1,16 @@
-import { ApplicationRuntime, resolveApplicationModel } from "../index.js";
+import {
+  ApplicationRuntime,
+  IndexedDbObjectStorageBackend,
+  resolveApplicationModel,
+} from "../index.js";
 import type {
+  ObjectStorageBackend,
   PartialApplicationModel,
   ResolvedApplicationModel,
   RuntimeContext,
 } from "../index.js";
+
+export const BROWSER_DEMO_DATABASE_NAME = "adl-browser-runtime-demo";
 
 export const browserDemoContext: RuntimeContext = {
   userId: "admin-ui",
@@ -247,8 +254,20 @@ export function createBrowserDemoModel(): ResolvedApplicationModel {
   return resolveApplicationModel(browserDemoPartialModel);
 }
 
-export function createBrowserDemoRuntime(): ApplicationRuntime {
-  return new ApplicationRuntime(createBrowserDemoModel());
+export function createBrowserDemoRuntime(storage?: ObjectStorageBackend): ApplicationRuntime {
+  return new ApplicationRuntime(createBrowserDemoModel(), {
+    ...(storage === undefined ? {} : { storage }),
+  });
+}
+
+export function createPersistentBrowserDemoRuntime(
+  model: ResolvedApplicationModel = createBrowserDemoModel(),
+): ApplicationRuntime {
+  return new ApplicationRuntime(model, {
+    storage: new IndexedDbObjectStorageBackend({
+      databaseName: BROWSER_DEMO_DATABASE_NAME,
+    }),
+  });
 }
 
 export async function seedBrowserDemoRuntime(
@@ -302,4 +321,28 @@ export async function seedBrowserDemoRuntime(
     context,
   );
   await runtime.transition("PurchaseOrder", submittedOrder.meta.guid, "submit", context);
+}
+
+export async function seedBrowserDemoRuntimeIfEmpty(
+  runtime: ApplicationRuntime,
+  model: ResolvedApplicationModel = createBrowserDemoModel(),
+  context: RuntimeContext = browserDemoContext,
+): Promise<boolean> {
+  for (const object of model.objects) {
+    const records = await runtime.search(
+      object.name,
+      {
+        includeDeleted: true,
+        limit: 1,
+      },
+      context,
+    );
+
+    if (records.length > 0) {
+      return false;
+    }
+  }
+
+  await seedBrowserDemoRuntime(runtime, context);
+  return true;
 }

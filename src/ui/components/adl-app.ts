@@ -10,7 +10,8 @@ import type { RuntimeContext, RuntimeValidationIssue } from "../../runtime/runti
 import {
   browserDemoContext,
   createBrowserDemoModel,
-  seedBrowserDemoRuntime,
+  createPersistentBrowserDemoRuntime,
+  seedBrowserDemoRuntimeIfEmpty,
 } from "../demo-fixture.js";
 import { infoMessage, messageFromRuntimeError, successMessage } from "../runtime-error-messages.js";
 import { applyResolvedTheme, findApplicationTheme } from "../theme/default-theme.js";
@@ -201,7 +202,9 @@ export class AdlAppElement extends HTMLElement {
 
   get runtime(): ApplicationRuntime {
     if (this._runtime === undefined) {
-      this._runtime = new ApplicationRuntime(this._model);
+      this._runtime = browserPersistenceAvailable()
+        ? createPersistentBrowserDemoRuntime(this._model)
+        : new ApplicationRuntime(this._model);
     }
 
     return this._runtime;
@@ -255,7 +258,7 @@ export class AdlAppElement extends HTMLElement {
 
     try {
       if (!this.seeded) {
-        await seedBrowserDemoRuntime(this.runtime, this._context);
+        await seedBrowserDemoRuntimeIfEmpty(this.runtime, this._model, this._context);
         this.seeded = true;
       }
       await this.refreshRecords();
@@ -431,4 +434,8 @@ function failNoObjects(): never {
 
 function failNoViews(objectName: string): never {
   throw new Error(`Object '${objectName}' does not contain any views.`);
+}
+
+function browserPersistenceAvailable(): boolean {
+  return globalThis.indexedDB !== undefined;
 }

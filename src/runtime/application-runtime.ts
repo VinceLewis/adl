@@ -9,6 +9,8 @@ import { HookRegistry } from "./hook-registry.js";
 import type { RuntimeHook } from "./hook-registry.js";
 import { LifecycleEngine } from "./lifecycle-engine.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
+import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
+import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import { ObjectStore } from "./object-store.js";
 import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
@@ -18,6 +20,7 @@ import { ValidationEngine } from "./validation-engine.js";
 
 export interface ApplicationRuntimeOptions {
   logger?: RuntimeLogger;
+  storage?: ObjectStorageBackend;
 }
 
 export class ApplicationRuntime {
@@ -48,6 +51,7 @@ export class ApplicationRuntime {
     this.auditService = new AuditService(model, this.index, this.logger);
     this.operationLog = new OperationLog(model, this.logger);
     this.hookRegistry = new HookRegistry(this.logger);
+    const storage = options.storage ?? new InMemoryObjectStorageBackend();
     this.objectStore = new ObjectStore(
       model,
       this.validationEngine,
@@ -55,6 +59,7 @@ export class ApplicationRuntime {
       this.auditService,
       this.operationLog,
       this.index,
+      storage,
       this.logger,
     );
     this.lifecycleEngine = new LifecycleEngine(
