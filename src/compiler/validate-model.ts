@@ -1,0 +1,1042 @@
+import { DEFAULT_LIFECYCLE_STATE_FIELD } from "../model/defaults.js";
+import type {
+  ConflictStrategy,
+  FieldType,
+  PolicyAction,
+  ResolvedApplicationModel,
+  ResolvedField,
+  ResolvedHookRefs,
+  ResolvedLifecycle,
+  ResolvedObject,
+  ResolvedPolicy,
+  ResolvedPolicyRule,
+  ResolvedSyncPolicy,
+  ResolvedTheme,
+  RuntimeChannel,
+  SyncMode,
+  SyncScope,
+  ViewKind,
+} from "../model/resolved-model.js";
+
+export type DiagnosticSeverity = "error" | "warning" | "info";
+
+export interface SourcePosition {
+  line: number;
+  column: number;
+  offset?: number;
+}
+
+export interface SourceRange {
+  start: SourcePosition;
+  end: SourcePosition;
+}
+
+export interface Diagnostic {
+  severity: DiagnosticSeverity;
+  code: string;
+  message: string;
+  path?: string;
+  sourceRange?: SourceRange;
+}
+
+export const MODEL_VALIDATION_CODES = {
+  APP_START_VIEW_UNKNOWN: "ADL_APP_START_VIEW_UNKNOWN",
+  APP_THEME_UNKNOWN: "ADL_APP_THEME_UNKNOWN",
+  AUTO_ID_NON_TEXT: "ADL_AUTO_ID_NON_TEXT",
+  AUTO_ID_SCOPE_FIELD_UNKNOWN: "ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN",
+  FIELD_DEFAULT_INCOMPATIBLE: "ADL_FIELD_DEFAULT_INCOMPATIBLE",
+  FIELD_DUPLICATE: "ADL_FIELD_DUPLICATE",
+  HOOK_REFERENCE_INVALID: "ADL_HOOK_REFERENCE_INVALID",
+  LIFECYCLE_ACTION_DUPLICATE: "ADL_LIFECYCLE_ACTION_DUPLICATE",
+  LIFECYCLE_ACTION_FROM_UNKNOWN: "ADL_LIFECYCLE_ACTION_FROM_UNKNOWN",
+  LIFECYCLE_ACTION_POLICY_MISMATCH: "ADL_LIFECYCLE_ACTION_POLICY_MISMATCH",
+  LIFECYCLE_ACTION_POLICY_UNKNOWN: "ADL_LIFECYCLE_ACTION_POLICY_UNKNOWN",
+  LIFECYCLE_ACTION_TO_UNKNOWN: "ADL_LIFECYCLE_ACTION_TO_UNKNOWN",
+  LIFECYCLE_INITIAL_STATE_UNKNOWN: "ADL_LIFECYCLE_INITIAL_STATE_UNKNOWN",
+  LIFECYCLE_STATE_DUPLICATE: "ADL_LIFECYCLE_STATE_DUPLICATE",
+  LIFECYCLE_STATE_FIELD_TYPE_INVALID: "ADL_LIFECYCLE_STATE_FIELD_TYPE_INVALID",
+  LIFECYCLE_STATE_FIELD_UNKNOWN: "ADL_LIFECYCLE_STATE_FIELD_UNKNOWN",
+  LOOKUP_DISPLAY_FIELD_UNKNOWN: "ADL_LOOKUP_DISPLAY_FIELD_UNKNOWN",
+  LOOKUP_TARGET_FIELD_UNKNOWN: "ADL_LOOKUP_TARGET_FIELD_UNKNOWN",
+  LOOKUP_TARGET_OBJECT_UNKNOWN: "ADL_LOOKUP_TARGET_OBJECT_UNKNOWN",
+  OBJECT_BUSINESS_KEY_UNKNOWN: "ADL_OBJECT_BUSINESS_KEY_UNKNOWN",
+  OBJECT_DISPLAY_FIELD_UNKNOWN: "ADL_OBJECT_DISPLAY_FIELD_UNKNOWN",
+  OBJECT_DUPLICATE: "ADL_OBJECT_DUPLICATE",
+  OBJECT_POLICY_MISMATCH: "ADL_OBJECT_POLICY_MISMATCH",
+  OBJECT_POLICY_UNKNOWN: "ADL_OBJECT_POLICY_UNKNOWN",
+  OBJECT_SYNC_CONFLICT_INVALID: "ADL_OBJECT_SYNC_CONFLICT_INVALID",
+  OBJECT_SYNC_MODE_INVALID: "ADL_OBJECT_SYNC_MODE_INVALID",
+  OBJECT_SYNC_SCOPE_INVALID: "ADL_OBJECT_SYNC_SCOPE_INVALID",
+  POLICY_ACTION_INVALID: "ADL_POLICY_ACTION_INVALID",
+  POLICY_DEFAULT_EFFECT_INVALID: "ADL_POLICY_DEFAULT_EFFECT_INVALID",
+  POLICY_DUPLICATE: "ADL_POLICY_DUPLICATE",
+  POLICY_FIELD_UNKNOWN: "ADL_POLICY_FIELD_UNKNOWN",
+  POLICY_LIFECYCLE_ACTION_UNKNOWN: "ADL_POLICY_LIFECYCLE_ACTION_UNKNOWN",
+  POLICY_OBJECT_UNKNOWN: "ADL_POLICY_OBJECT_UNKNOWN",
+  POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
+  POLICY_CHANNEL_INVALID: "ADL_POLICY_CHANNEL_INVALID",
+  SYNC_CONFLICT_INVALID: "ADL_SYNC_CONFLICT_INVALID",
+  SYNC_MODE_INVALID: "ADL_SYNC_MODE_INVALID",
+  SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
+  SYNC_SCOPE_INVALID: "ADL_SYNC_SCOPE_INVALID",
+  THEME_BASE_SELF_REFERENCE: "ADL_THEME_BASE_SELF_REFERENCE",
+  THEME_BASE_UNKNOWN: "ADL_THEME_BASE_UNKNOWN",
+  THEME_DUPLICATE: "ADL_THEME_DUPLICATE",
+  THEME_TOKEN_INVALID: "ADL_THEME_TOKEN_INVALID",
+  VIEW_FIELD_UNKNOWN: "ADL_VIEW_FIELD_UNKNOWN",
+  VIEW_KIND_INVALID: "ADL_VIEW_KIND_INVALID",
+  VIEW_OBJECT_UNKNOWN: "ADL_VIEW_OBJECT_UNKNOWN",
+  VIEW_SEARCH_FIELD_UNKNOWN: "ADL_VIEW_SEARCH_FIELD_UNKNOWN",
+  VIEW_SORT_FIELD_UNKNOWN: "ADL_VIEW_SORT_FIELD_UNKNOWN",
+} as const;
+
+export type ModelValidationCode =
+  (typeof MODEL_VALIDATION_CODES)[keyof typeof MODEL_VALIDATION_CODES];
+
+const FIELD_TYPES = new Set<FieldType>([
+  "text",
+  "number",
+  "date",
+  "datetime",
+  "time",
+  "boolean",
+  "attachment",
+]);
+
+const VIEW_KINDS = new Set<ViewKind>([
+  "list",
+  "detail",
+  "form",
+  "dashboard",
+  "masterDetail",
+  "grid",
+  "composite",
+]);
+
+const POLICY_ACTIONS = new Set<PolicyAction>([
+  "*",
+  "create",
+  "read",
+  "update",
+  "delete",
+  "search",
+  "transition",
+  "export",
+  "import",
+]);
+
+const RUNTIME_CHANNELS = new Set<RuntimeChannel>(["ui", "api", "sync", "import", "test"]);
+const SYNC_MODES = new Set<SyncMode>([
+  "localFirst",
+  "cacheReadonly",
+  "onlineRequired",
+  "localPrivate",
+]);
+const SYNC_SCOPES = new Set<SyncScope>([
+  "all",
+  "assignedToUser",
+  "ownedByUser",
+  "recent",
+  "custom",
+]);
+const CONFLICT_STRATEGIES = new Set<ConflictStrategy>([
+  "serverWins",
+  "clientWins",
+  "stateTransitionWins",
+  "manual",
+]);
+
+const THEME_RADIUS_VALUES = new Set(["none", "small", "medium", "large"]);
+const THEME_DENSITY_VALUES = new Set(["compact", "comfortable", "spacious"]);
+const THEME_NAV_VALUES = new Set(["top", "side", "bottom"]);
+const HOOK_REFERENCE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+
+interface NamedReference<T> {
+  item: T;
+  index: number;
+}
+
+interface ModelIndexes {
+  objectsByName: Map<string, NamedReference<ResolvedObject>>;
+  policiesByName: Map<string, NamedReference<ResolvedPolicy>>;
+  themesByName: Map<string, NamedReference<ResolvedTheme>>;
+  viewNames: Set<string>;
+}
+
+export function validateApplicationModel(model: ResolvedApplicationModel): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const indexes: ModelIndexes = {
+    objectsByName: indexByName(model.objects),
+    policiesByName: indexByName(model.policies),
+    themesByName: indexByName(model.themes),
+    viewNames: new Set(model.objects.flatMap((object) => object.views.map((view) => view.name))),
+  };
+
+  reportDuplicateNames(
+    model.objects,
+    "objects",
+    MODEL_VALIDATION_CODES.OBJECT_DUPLICATE,
+    diagnostics,
+    "Object names must be unique.",
+  );
+  reportDuplicateNames(
+    model.policies,
+    "policies",
+    MODEL_VALIDATION_CODES.POLICY_DUPLICATE,
+    diagnostics,
+    "Policy names must be unique.",
+  );
+  reportDuplicateNames(
+    model.themes,
+    "themes",
+    MODEL_VALIDATION_CODES.THEME_DUPLICATE,
+    diagnostics,
+    "Theme names must be unique.",
+  );
+
+  validateApplicationReferences(model, indexes, diagnostics);
+
+  for (let objectIndex = 0; objectIndex < model.objects.length; objectIndex += 1) {
+    const object = model.objects[objectIndex];
+    if (object === undefined) {
+      continue;
+    }
+    validateObject(object, objectIndex, indexes, diagnostics);
+  }
+
+  for (let policyIndex = 0; policyIndex < model.policies.length; policyIndex += 1) {
+    const policy = model.policies[policyIndex];
+    if (policy === undefined) {
+      continue;
+    }
+    validatePolicy(policy, policyIndex, indexes, diagnostics);
+  }
+
+  for (let themeIndex = 0; themeIndex < model.themes.length; themeIndex += 1) {
+    const theme = model.themes[themeIndex];
+    if (theme === undefined) {
+      continue;
+    }
+    validateTheme(theme, themeIndex, indexes, diagnostics);
+  }
+
+  for (let syncIndex = 0; syncIndex < model.sync.length; syncIndex += 1) {
+    const sync = model.sync[syncIndex];
+    if (sync === undefined) {
+      continue;
+    }
+    validateSyncPolicy(sync, `sync[${syncIndex}]`, indexes, diagnostics);
+  }
+
+  return diagnostics;
+}
+
+function validateApplicationReferences(
+  model: ResolvedApplicationModel,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (model.app.startView !== "" && !indexes.viewNames.has(model.app.startView)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.APP_START_VIEW_UNKNOWN,
+        `Application start view '${model.app.startView}' does not exist.`,
+        "app.startView",
+      ),
+    );
+  }
+
+  if (!indexes.themesByName.has(model.app.theme)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.APP_THEME_UNKNOWN,
+        `Application theme '${model.app.theme}' does not exist.`,
+        "app.theme",
+      ),
+    );
+  }
+}
+
+function validateObject(
+  object: ResolvedObject,
+  objectIndex: number,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const objectPath = `objects[${objectIndex}]`;
+  const fieldsByName = indexByName(object.fields);
+
+  reportDuplicateNames(
+    object.fields,
+    `${objectPath}.fields`,
+    MODEL_VALIDATION_CODES.FIELD_DUPLICATE,
+    diagnostics,
+    `Field names must be unique within object '${object.name}'.`,
+  );
+
+  if (object.businessKey !== undefined && !fieldsByName.has(object.businessKey)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_BUSINESS_KEY_UNKNOWN,
+        `Business key field '${object.businessKey}' does not exist on object '${object.name}'.`,
+        `${objectPath}.businessKey`,
+      ),
+    );
+  }
+
+  if (object.displayField !== undefined && !fieldsByName.has(object.displayField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_DISPLAY_FIELD_UNKNOWN,
+        `Display field '${object.displayField}' does not exist on object '${object.name}'.`,
+        `${objectPath}.displayField`,
+      ),
+    );
+  }
+
+  for (let fieldIndex = 0; fieldIndex < object.fields.length; fieldIndex += 1) {
+    const field = object.fields[fieldIndex];
+    if (field === undefined) {
+      continue;
+    }
+    validateField(field, fieldIndex, object, objectPath, indexes, diagnostics);
+  }
+
+  if (object.lifecycle !== undefined) {
+    validateLifecycle(object.lifecycle, object, objectPath, indexes, diagnostics);
+  }
+
+  validateObjectPolicyReferences(object, objectPath, indexes, diagnostics);
+  validateObjectSyncPolicy(object, objectPath, diagnostics);
+
+  for (let viewIndex = 0; viewIndex < object.views.length; viewIndex += 1) {
+    const view = object.views[viewIndex];
+    if (view === undefined) {
+      continue;
+    }
+    const viewPath = `${objectPath}.views[${viewIndex}]`;
+    validateView(
+      view.object,
+      view.kind,
+      view.fields,
+      view.searchFields,
+      view.sort,
+      viewPath,
+      indexes,
+      diagnostics,
+    );
+  }
+}
+
+function validateField(
+  field: ResolvedField,
+  fieldIndex: number,
+  object: ResolvedObject,
+  objectPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const fieldPath = `${objectPath}.fields[${fieldIndex}]`;
+  const fieldNames = new Set(object.fields.map((candidate) => candidate.name));
+
+  if (field.defaultValue !== undefined && !isDefaultCompatible(field, field.defaultValue)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.FIELD_DEFAULT_INCOMPATIBLE,
+        `Default value for field '${field.name}' is not compatible with ${field.type} field requirements.`,
+        `${fieldPath}.defaultValue`,
+      ),
+    );
+  }
+
+  if (field.autoId !== undefined) {
+    if (field.type !== "text") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.AUTO_ID_NON_TEXT,
+          `Auto ID field '${field.name}' on object '${object.name}' must be a text field.`,
+          `${fieldPath}.autoId`,
+        ),
+      );
+    }
+
+    if (field.autoId.scopeField !== undefined && !fieldNames.has(field.autoId.scopeField)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.AUTO_ID_SCOPE_FIELD_UNKNOWN,
+          `Auto ID scope field '${field.autoId.scopeField}' does not exist on object '${object.name}'.`,
+          `${fieldPath}.autoId.scopeField`,
+        ),
+      );
+    }
+  }
+
+  if (field.lookup !== undefined) {
+    const target = indexes.objectsByName.get(field.lookup.targetObject);
+
+    if (target === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.LOOKUP_TARGET_OBJECT_UNKNOWN,
+          `Lookup target object '${field.lookup.targetObject}' does not exist.`,
+          `${fieldPath}.lookup.targetObject`,
+        ),
+      );
+      return;
+    }
+
+    const targetFieldNames = new Set(target.item.fields.map((candidate) => candidate.name));
+    if (field.lookup.targetField !== undefined && !targetFieldNames.has(field.lookup.targetField)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.LOOKUP_TARGET_FIELD_UNKNOWN,
+          `Lookup target field '${field.lookup.targetField}' does not exist on object '${target.item.name}'.`,
+          `${fieldPath}.lookup.targetField`,
+        ),
+      );
+    }
+
+    if (!targetFieldNames.has(field.lookup.displayField)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.LOOKUP_DISPLAY_FIELD_UNKNOWN,
+          `Lookup display field '${field.lookup.displayField}' does not exist on object '${target.item.name}'.`,
+          `${fieldPath}.lookup.displayField`,
+        ),
+      );
+    }
+  }
+}
+
+function validateLifecycle(
+  lifecycle: ResolvedLifecycle,
+  object: ResolvedObject,
+  objectPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const lifecyclePath = `${objectPath}.lifecycle`;
+  const fieldsByName = indexByName(object.fields);
+  const metadataFieldsByName = indexByName(object.metadataFields);
+  const lifecycleStateField = fieldsByName.get(lifecycle.stateField)?.item;
+  const metadataStateField = metadataFieldsByName.get(lifecycle.stateField)?.item;
+  const usesAllowedMetadataStateField =
+    lifecycle.stateField === DEFAULT_LIFECYCLE_STATE_FIELD && metadataStateField !== undefined;
+
+  if (lifecycleStateField === undefined && !usesAllowedMetadataStateField) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.LIFECYCLE_STATE_FIELD_UNKNOWN,
+        `Lifecycle state field '${lifecycle.stateField}' does not exist on object '${object.name}'.`,
+        `${lifecyclePath}.stateField`,
+      ),
+    );
+  } else if (
+    (lifecycleStateField !== undefined && lifecycleStateField.type !== "text") ||
+    (usesAllowedMetadataStateField && metadataStateField?.type !== "text")
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.LIFECYCLE_STATE_FIELD_TYPE_INVALID,
+        `Lifecycle state field '${lifecycle.stateField}' on object '${object.name}' must be a text field.`,
+        `${lifecyclePath}.stateField`,
+      ),
+    );
+  }
+
+  reportDuplicateNames(
+    lifecycle.states,
+    `${lifecyclePath}.states`,
+    MODEL_VALIDATION_CODES.LIFECYCLE_STATE_DUPLICATE,
+    diagnostics,
+    `Lifecycle state names must be unique on object '${object.name}'.`,
+  );
+  reportDuplicateNames(
+    lifecycle.actions,
+    `${lifecyclePath}.actions`,
+    MODEL_VALIDATION_CODES.LIFECYCLE_ACTION_DUPLICATE,
+    diagnostics,
+    `Lifecycle action names must be unique on object '${object.name}'.`,
+  );
+
+  const statesByName = indexByName(lifecycle.states);
+
+  if (lifecycle.initialState !== undefined && !statesByName.has(lifecycle.initialState)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.LIFECYCLE_INITIAL_STATE_UNKNOWN,
+        `Initial lifecycle state '${lifecycle.initialState}' does not exist on object '${object.name}'.`,
+        `${lifecyclePath}.initialState`,
+      ),
+    );
+  }
+
+  for (let actionIndex = 0; actionIndex < lifecycle.actions.length; actionIndex += 1) {
+    const action = lifecycle.actions[actionIndex];
+    if (action === undefined) {
+      continue;
+    }
+    const actionPath = `${lifecyclePath}.actions[${actionIndex}]`;
+
+    for (let fromIndex = 0; fromIndex < action.from.length; fromIndex += 1) {
+      const fromState = action.from[fromIndex];
+      if (fromState === undefined) {
+        continue;
+      }
+      if (!statesByName.has(fromState)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.LIFECYCLE_ACTION_FROM_UNKNOWN,
+            `Lifecycle action '${action.name}' references unknown from-state '${fromState}'.`,
+            `${actionPath}.from[${fromIndex}]`,
+          ),
+        );
+      }
+    }
+
+    if (!statesByName.has(action.to)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.LIFECYCLE_ACTION_TO_UNKNOWN,
+          `Lifecycle action '${action.name}' references unknown to-state '${action.to}'.`,
+          `${actionPath}.to`,
+        ),
+      );
+    }
+
+    for (let policyRefIndex = 0; policyRefIndex < action.policyRefs.length; policyRefIndex += 1) {
+      const policyRef = action.policyRefs[policyRefIndex];
+      if (policyRef === undefined) {
+        continue;
+      }
+      const policy = indexes.policiesByName.get(policyRef);
+      if (policy === undefined) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.LIFECYCLE_ACTION_POLICY_UNKNOWN,
+            `Lifecycle action '${action.name}' references unknown policy '${policyRef}'.`,
+            `${actionPath}.policyRefs[${policyRefIndex}]`,
+          ),
+        );
+      } else if (policy.item.object !== object.name) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.LIFECYCLE_ACTION_POLICY_MISMATCH,
+            `Lifecycle action '${action.name}' references policy '${policyRef}', but that policy does not apply to object '${object.name}'.`,
+            `${actionPath}.policyRefs[${policyRefIndex}]`,
+          ),
+        );
+      }
+    }
+
+    validateHookRefs(action.hooks, `${actionPath}.hooks`, diagnostics);
+  }
+}
+
+function validateObjectPolicyReferences(
+  object: ResolvedObject,
+  objectPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  for (let policyIndex = 0; policyIndex < object.policies.length; policyIndex += 1) {
+    const policyName = object.policies[policyIndex];
+    if (policyName === undefined) {
+      continue;
+    }
+    const policy = indexes.policiesByName.get(policyName);
+
+    if (policy === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_POLICY_UNKNOWN,
+          `Object '${object.name}' references unknown policy '${policyName}'.`,
+          `${objectPath}.policies[${policyIndex}]`,
+        ),
+      );
+    } else if (policy.item.object !== object.name) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_POLICY_MISMATCH,
+          `Object '${object.name}' references policy '${policyName}', but that policy applies to object '${policy.item.object}'.`,
+          `${objectPath}.policies[${policyIndex}]`,
+        ),
+      );
+    }
+  }
+}
+
+function validateObjectSyncPolicy(
+  object: ResolvedObject,
+  objectPath: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (!SYNC_MODES.has(object.sync.mode)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_MODE_INVALID,
+        `Object '${object.name}' has invalid sync mode '${String(object.sync.mode)}'.`,
+        `${objectPath}.sync.mode`,
+      ),
+    );
+  }
+
+  if (!SYNC_SCOPES.has(object.sync.scope)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_SCOPE_INVALID,
+        `Object '${object.name}' has invalid sync scope '${String(object.sync.scope)}'.`,
+        `${objectPath}.sync.scope`,
+      ),
+    );
+  }
+
+  if (!CONFLICT_STRATEGIES.has(object.sync.conflict)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_CONFLICT_INVALID,
+        `Object '${object.name}' has invalid conflict strategy '${String(object.sync.conflict)}'.`,
+        `${objectPath}.sync.conflict`,
+      ),
+    );
+  }
+}
+
+function validatePolicy(
+  policy: ResolvedPolicy,
+  policyIndex: number,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const policyPath = `policies[${policyIndex}]`;
+  const object = indexes.objectsByName.get(policy.object)?.item;
+
+  if (policy.defaultEffect !== "deny") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_DEFAULT_EFFECT_INVALID,
+        `Policy '${policy.name}' has invalid default effect '${String(policy.defaultEffect)}'.`,
+        `${policyPath}.defaultEffect`,
+      ),
+    );
+  }
+
+  if (object === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_OBJECT_UNKNOWN,
+        `Policy '${policy.name}' references unknown object '${policy.object}'.`,
+        `${policyPath}.object`,
+      ),
+    );
+    return;
+  }
+
+  const fieldsByName = indexByName(object.fields);
+  const statesByName =
+    object.lifecycle === undefined
+      ? new Map<string, NamedReference<unknown>>()
+      : indexByName(object.lifecycle.states);
+  const actionsByName =
+    object.lifecycle === undefined
+      ? new Map<string, NamedReference<unknown>>()
+      : indexByName(object.lifecycle.actions);
+
+  for (let ruleIndex = 0; ruleIndex < policy.rules.length; ruleIndex += 1) {
+    const rule = policy.rules[ruleIndex];
+    if (rule === undefined) {
+      continue;
+    }
+    validatePolicyRule(
+      rule,
+      `${policyPath}.rules[${ruleIndex}]`,
+      object,
+      fieldsByName,
+      statesByName,
+      actionsByName,
+      diagnostics,
+    );
+  }
+}
+
+function validatePolicyRule(
+  rule: ResolvedPolicyRule,
+  rulePath: string,
+  object: ResolvedObject,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  statesByName: Map<string, NamedReference<unknown>>,
+  actionsByName: Map<string, NamedReference<unknown>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (!POLICY_ACTIONS.has(rule.action)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_ACTION_INVALID,
+        `Policy rule '${rule.name}' has invalid action '${String(rule.action)}'.`,
+        `${rulePath}.action`,
+      ),
+    );
+  }
+
+  for (let fieldIndex = 0; fieldIndex < rule.fields.length; fieldIndex += 1) {
+    const field = rule.fields[fieldIndex];
+    if (field === undefined) {
+      continue;
+    }
+    if (!fieldsByName.has(field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.POLICY_FIELD_UNKNOWN,
+          `Policy rule '${rule.name}' references unknown field '${field}' on object '${object.name}'.`,
+          `${rulePath}.fields[${fieldIndex}]`,
+        ),
+      );
+    }
+  }
+
+  for (let stateIndex = 0; stateIndex < rule.state.length; stateIndex += 1) {
+    const state = rule.state[stateIndex];
+    if (state === undefined) {
+      continue;
+    }
+    if (!statesByName.has(state)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.POLICY_STATE_UNKNOWN,
+          `Policy rule '${rule.name}' references unknown lifecycle state '${state}' on object '${object.name}'.`,
+          `${rulePath}.state[${stateIndex}]`,
+        ),
+      );
+    }
+  }
+
+  if (rule.lifecycleAction !== undefined && !actionsByName.has(rule.lifecycleAction)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_LIFECYCLE_ACTION_UNKNOWN,
+        `Policy rule '${rule.name}' references unknown lifecycle action '${rule.lifecycleAction}' on object '${object.name}'.`,
+        `${rulePath}.lifecycleAction`,
+      ),
+    );
+  }
+
+  for (let channelIndex = 0; channelIndex < rule.channels.length; channelIndex += 1) {
+    const channel = rule.channels[channelIndex];
+    if (channel === undefined) {
+      continue;
+    }
+    if (!RUNTIME_CHANNELS.has(channel)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.POLICY_CHANNEL_INVALID,
+          `Policy rule '${rule.name}' has invalid runtime channel '${String(channel)}'.`,
+          `${rulePath}.channels[${channelIndex}]`,
+        ),
+      );
+    }
+  }
+}
+
+function validateView(
+  viewObject: string,
+  kind: ViewKind,
+  fields: string[],
+  searchFields: string[],
+  sort: { field: string }[],
+  viewPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const targetObject = indexes.objectsByName.get(viewObject)?.item;
+
+  if (!VIEW_KINDS.has(kind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_KIND_INVALID,
+        `View has invalid kind '${String(kind)}'.`,
+        `${viewPath}.kind`,
+      ),
+    );
+  }
+
+  if (targetObject === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_OBJECT_UNKNOWN,
+        `View references unknown object '${viewObject}'.`,
+        `${viewPath}.object`,
+      ),
+    );
+    return;
+  }
+
+  const fieldNames = new Set(targetObject.fields.map((field) => field.name));
+
+  for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex += 1) {
+    const field = fields[fieldIndex];
+    if (field === undefined) {
+      continue;
+    }
+    if (!fieldNames.has(field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_FIELD_UNKNOWN,
+          `View references unknown field '${field}' on object '${targetObject.name}'.`,
+          `${viewPath}.fields[${fieldIndex}]`,
+        ),
+      );
+    }
+  }
+
+  for (let fieldIndex = 0; fieldIndex < searchFields.length; fieldIndex += 1) {
+    const field = searchFields[fieldIndex];
+    if (field === undefined) {
+      continue;
+    }
+    if (!fieldNames.has(field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_SEARCH_FIELD_UNKNOWN,
+          `View references unknown search field '${field}' on object '${targetObject.name}'.`,
+          `${viewPath}.searchFields[${fieldIndex}]`,
+        ),
+      );
+    }
+  }
+
+  for (let sortIndex = 0; sortIndex < sort.length; sortIndex += 1) {
+    const sortItem = sort[sortIndex];
+    if (sortItem === undefined) {
+      continue;
+    }
+    if (!fieldNames.has(sortItem.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_SORT_FIELD_UNKNOWN,
+          `View references unknown sort field '${sortItem.field}' on object '${targetObject.name}'.`,
+          `${viewPath}.sort[${sortIndex}].field`,
+        ),
+      );
+    }
+  }
+}
+
+function validateTheme(
+  theme: ResolvedTheme,
+  themeIndex: number,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const themePath = `themes[${themeIndex}]`;
+
+  if (theme.base !== undefined) {
+    if (theme.base === theme.name) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.THEME_BASE_SELF_REFERENCE,
+          `Theme '${theme.name}' cannot use itself as its base theme.`,
+          `${themePath}.base`,
+        ),
+      );
+    } else if (!indexes.themesByName.has(theme.base)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.THEME_BASE_UNKNOWN,
+          `Theme '${theme.name}' references unknown base theme '${theme.base}'.`,
+          `${themePath}.base`,
+        ),
+      );
+    }
+  }
+
+  if (!THEME_RADIUS_VALUES.has(theme.tokens.radius)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
+        `Theme '${theme.name}' has invalid radius token '${String(theme.tokens.radius)}'.`,
+        `${themePath}.tokens.radius`,
+      ),
+    );
+  }
+
+  if (!THEME_DENSITY_VALUES.has(theme.tokens.density)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
+        `Theme '${theme.name}' has invalid density token '${String(theme.tokens.density)}'.`,
+        `${themePath}.tokens.density`,
+      ),
+    );
+  }
+
+  if (!THEME_NAV_VALUES.has(theme.tokens.nav)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
+        `Theme '${theme.name}' has invalid navigation token '${String(theme.tokens.nav)}'.`,
+        `${themePath}.tokens.nav`,
+      ),
+    );
+  }
+}
+
+function validateSyncPolicy(
+  sync: ResolvedSyncPolicy,
+  syncPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!indexes.objectsByName.has(sync.object)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SYNC_OBJECT_UNKNOWN,
+        `Sync policy references unknown object '${sync.object}'.`,
+        `${syncPath}.object`,
+      ),
+    );
+  }
+
+  if (!SYNC_MODES.has(sync.mode)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SYNC_MODE_INVALID,
+        `Sync policy for object '${sync.object}' has invalid mode '${String(sync.mode)}'.`,
+        `${syncPath}.mode`,
+      ),
+    );
+  }
+
+  if (!SYNC_SCOPES.has(sync.scope)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SYNC_SCOPE_INVALID,
+        `Sync policy for object '${sync.object}' has invalid scope '${String(sync.scope)}'.`,
+        `${syncPath}.scope`,
+      ),
+    );
+  }
+
+  if (!CONFLICT_STRATEGIES.has(sync.conflict)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SYNC_CONFLICT_INVALID,
+        `Sync policy for object '${sync.object}' has invalid conflict strategy '${String(sync.conflict)}'.`,
+        `${syncPath}.conflict`,
+      ),
+    );
+  }
+}
+
+function validateHookRefs(
+  hooks: ResolvedHookRefs,
+  hookPath: string,
+  diagnostics: Diagnostic[],
+): void {
+  validateHookRefList(hooks.before, `${hookPath}.before`, diagnostics);
+  validateHookRefList(hooks.after, `${hookPath}.after`, diagnostics);
+  validateHookRefList(hooks.onError, `${hookPath}.onError`, diagnostics);
+}
+
+function validateHookRefList(
+  hookRefs: string[],
+  hookRefsPath: string,
+  diagnostics: Diagnostic[],
+): void {
+  for (let hookIndex = 0; hookIndex < hookRefs.length; hookIndex += 1) {
+    const hookRef = hookRefs[hookIndex];
+    if (hookRef === undefined) {
+      continue;
+    }
+    if (!HOOK_REFERENCE_PATTERN.test(hookRef)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.HOOK_REFERENCE_INVALID,
+          `Hook reference '${hookRef}' is not syntactically valid.`,
+          `${hookRefsPath}[${hookIndex}]`,
+        ),
+      );
+    }
+  }
+}
+
+function reportDuplicateNames(
+  items: { name: string }[],
+  path: string,
+  code: ModelValidationCode,
+  diagnostics: Diagnostic[],
+  message: string,
+): void {
+  const firstSeen = new Map<string, number>();
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (item === undefined) {
+      continue;
+    }
+
+    const firstIndex = firstSeen.get(item.name);
+    if (firstIndex === undefined) {
+      firstSeen.set(item.name, index);
+      continue;
+    }
+
+    diagnostics.push(
+      diagnostic(
+        code,
+        `${message} '${item.name}' also appears at ${path}[${firstIndex}].`,
+        `${path}[${index}].name`,
+      ),
+    );
+  }
+}
+
+function indexByName<T extends { name: string }>(items: T[]): Map<string, NamedReference<T>> {
+  const byName = new Map<string, NamedReference<T>>();
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (item === undefined || byName.has(item.name)) {
+      continue;
+    }
+    byName.set(item.name, { item, index });
+  }
+
+  return byName;
+}
+
+function isDefaultCompatible(field: ResolvedField, value: unknown): boolean {
+  if (!FIELD_TYPES.has(field.type)) {
+    return false;
+  }
+
+  if (value === null) {
+    return !field.required;
+  }
+
+  switch (field.type) {
+    case "text":
+    case "date":
+    case "datetime":
+    case "time":
+      return typeof value === "string";
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "attachment":
+      return typeof value === "string" || isJsonObject(value) || Array.isArray(value);
+  }
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function diagnostic(code: ModelValidationCode, message: string, path?: string): Diagnostic {
+  return {
+    severity: "error",
+    code,
+    message,
+    ...(path === undefined ? {} : { path }),
+  };
+}

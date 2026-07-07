@@ -22,6 +22,11 @@ Before tasks that design the ADL resolved model, parser, validator, lifecycle, p
 Before tasks that change resolved model defaults, model validation, policy evaluation, storage metadata, or runtime record handling, also read:
 
 - `architecture/resolved-model-defaults.md`
+- `implementation/model-validator.md`
+
+Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
+
+- `implementation/model-validator.md`
 
 Before tasks that change the phase plan, also read:
 
@@ -50,3 +55,4 @@ When adding a new learning document, update this index with when future agents s
 - `process/testing-expectations.md`: read before code implementation or verification work.
 - `minil/repository-audit.md`: read before comparing ADL with MINIL, reusing MINIL concepts, or designing parser/model/validator/runtime-test behaviour informed by MINIL.
 - `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.
+- `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, or runtime model startup checks.
