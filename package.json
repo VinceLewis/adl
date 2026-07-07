@@ -1,0 +1,19 @@
+{
+  "name": "@adl/resolved-model",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone ADL resolved model contract and resolver.",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\""
+  },
+  "devDependencies": {
+    "@types/node": "20.17.6",
+    "prettier": "3.3.3",
+    "typescript": "5.5.4",
+    "vitest": "4.1.10"
+  }
+}

@@ -19,6 +19,10 @@ Before tasks that design the ADL resolved model, parser, validator, lifecycle, p
 
 - `minil/repository-audit.md`
 
+Before tasks that change resolved model defaults, model validation, policy evaluation, storage metadata, or runtime record handling, also read:
+
+- `architecture/resolved-model-defaults.md`
+
 Before tasks that change the phase plan, also read:
 
 - `process/phase-execution.md`
@@ -45,3 +49,4 @@ When adding a new learning document, update this index with when future agents s
 - `process/phase-execution.md`: read before executing a phase or updating phase documents.
 - `process/testing-expectations.md`: read before code implementation or verification work.
 - `minil/repository-audit.md`: read before comparing ADL with MINIL, reusing MINIL concepts, or designing parser/model/validator/runtime-test behaviour informed by MINIL.
+- `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.

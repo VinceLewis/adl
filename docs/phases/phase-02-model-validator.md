@@ -10,6 +10,10 @@ Implement validation over `ResolvedApplicationModel`. The validator must not dep
 
 Do not implement runtime CRUD, UI, storage persistence, or parser work in this phase.
 
+Phase 1 represents platform metadata separately from business fields. Validator reference checks should use business fields for ordinary author-facing references, and should also recognise metadata fields where the runtime contract permits them, such as the default lifecycle `_state` field.
+
+Phase 1 also represents default deny as a policy with `defaultEffect: "deny"` and no deny-all rule. Do not treat an empty default policy rule list as invalid when the policy exists only to encode fallback deny behaviour.
+
 ## Expected Deliverables
 
 - `src/compiler/validate-model.ts`
@@ -53,7 +57,7 @@ Execute Phase 2 only. Implement structured resolved-model validation and tests. 
    - unique field names within each object
    - business key field exists
    - display field exists
-   - lifecycle state field exists
+   - lifecycle state field exists in business fields or allowed metadata fields
    - lifecycle action `from` and `to` states exist
    - policy object references exist
    - policy field references exist
@@ -68,7 +72,8 @@ Execute Phase 2 only. Implement structured resolved-model validation and tests. 
 6. Ensure validation returns a list of diagnostics and does not mutate the model.
 7. Add tests that prove multiple diagnostics are returned from a single invalid model.
 8. Add tests for at least one valid model produced by `resolveApplicationModel`.
-9. Run typecheck and tests.
-10. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
-11. Review what happened in this phase and update `docs/phases/phase-03-minimal-runtime.md` if the actual results require changed scope, constraints, deliverables, or tasks.
-12. Commit all repository changes for this phase and push the current branch.
+9. Add tests proving the Phase 1 default deny policy shape is valid.
+10. Run typecheck and tests.
+11. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
+12. Review what happened in this phase and update `docs/phases/phase-03-minimal-runtime.md` if the actual results require changed scope, constraints, deliverables, or tasks.
+13. Commit all repository changes for this phase and push the current branch.

@@ -1,0 +1,407 @@
+import {
+  ADL_MODEL_VERSION,
+  DEFAULT_LIFECYCLE_STATE_FIELD,
+  DEFAULT_OBJECT_SCHEMA_VERSION,
+  DEFAULT_THEME_NAME,
+  SYSTEM_ID_FIELD,
+  createDefaultAuditModel,
+  createDefaultDenyPolicy,
+  createDefaultModelDefaults,
+  createDefaultObjectAuditPolicy,
+  createDefaultObjectSyncPolicy,
+  createDefaultOperationLogModel,
+  createDefaultTheme,
+  createEveryonePrincipal,
+  createMetadataFields,
+  toStorageName,
+  toTableName,
+} from "../model/defaults.js";
+import type {
+  JsonValue,
+  PartialApplicationModel,
+  PartialAutoIdModel,
+  PartialFieldModel,
+  PartialHookRefsModel,
+  PartialLifecycleActionModel,
+  PartialLifecycleModel,
+  PartialLookupModel,
+  PartialObjectModel,
+  PartialObjectSyncPolicyModel,
+  PartialPolicyModel,
+  PartialPolicyRuleModel,
+  PartialPrincipalSelectorModel,
+  PartialStateModel,
+  PartialSyncPolicyModel,
+  PartialThemeModel,
+  PartialValidatorModel,
+  PartialViewModel,
+  ResolvedApplicationModel,
+  ResolvedAutoId,
+  ResolvedField,
+  ResolvedHookRefs,
+  ResolvedLifecycle,
+  ResolvedLifecycleAction,
+  ResolvedLookup,
+  ResolvedObject,
+  ResolvedObjectAuditPolicy,
+  ResolvedObjectSyncPolicy,
+  ResolvedPolicy,
+  ResolvedPolicyRule,
+  ResolvedPrincipalSelector,
+  ResolvedRole,
+  ResolvedSort,
+  ResolvedState,
+  ResolvedSyncPolicy,
+  ResolvedTheme,
+  ResolvedValidator,
+  ResolvedView,
+} from "../model/resolved-model.js";
+
+export function resolveApplicationModel(input: PartialApplicationModel): ResolvedApplicationModel {
+  const themes = resolveThemes(input.themes ?? []);
+  const topLevelSync = new Map((input.sync ?? []).map((policy) => [policy.object, policy]));
+  const partialPolicies = input.policies ?? [];
+  const objects = input.objects.map((object) =>
+    resolveObject(object, topLevelSync.get(object.name), partialPolicies),
+  );
+  const policies = resolvePolicies(objects, partialPolicies);
+  const objectNamesToPolicies = groupPolicyNamesByObject(policies);
+  const objectsWithPolicies = objects.map((object) => ({
+    ...object,
+    policies: uniqueStrings([
+      ...(objectNamesToPolicies.get(object.name) ?? []),
+      ...object.policies,
+    ]),
+  }));
+  const sync = objectsWithPolicies.map((object) => ({
+    object: object.name,
+    ...object.sync,
+  }));
+  const startView = input.app.startView ?? objectsWithPolicies[0]?.views[0]?.name ?? "";
+
+  return {
+    modelVersion: input.modelVersion ?? ADL_MODEL_VERSION,
+    app: {
+      name: input.app.name,
+      startView,
+      theme: input.app.theme ?? DEFAULT_THEME_NAME,
+    },
+    roles: resolveRoles(input.roles ?? []),
+    objects: objectsWithPolicies,
+    policies,
+    themes,
+    sync,
+    audit: createDefaultAuditModel(),
+    operationLog: createDefaultOperationLogModel(),
+    defaults: createDefaultModelDefaults(),
+  };
+}
+
+function resolveRoles(roles: ResolvedRole[] | PartialApplicationModel["roles"]): ResolvedRole[] {
+  return (roles ?? []).map((role) => ({
+    name: role.name,
+    ...(role.description === undefined ? {} : { description: role.description }),
+    inherits: [...(role.inherits ?? [])],
+  }));
+}
+
+function resolveObject(
+  input: PartialObjectModel,
+  topLevelSync: PartialSyncPolicyModel | undefined,
+  policies: PartialPolicyModel[],
+): ResolvedObject {
+  const fields = (input.fields ?? []).map(resolveField);
+  const lifecycle = input.lifecycle === undefined ? undefined : resolveLifecycle(input.lifecycle);
+  const sync = resolveObjectSync(input.sync ?? stripObjectFromSync(topLevelSync));
+  const views = resolveViews(input, fields);
+  const objectPolicies = policies
+    .filter((policy) => policy.object === input.name)
+    .map((policy) => policy.name);
+
+  return {
+    name: input.name,
+    schemaVersion: input.schemaVersion ?? DEFAULT_OBJECT_SCHEMA_VERSION,
+    tableName: input.tableName ?? toTableName(input.name),
+    systemIdField: input.systemIdField ?? SYSTEM_ID_FIELD,
+    ...(input.businessKey === undefined ? {} : { businessKey: input.businessKey }),
+    ...(input.displayField === undefined ? {} : { displayField: input.displayField }),
+    fields,
+    metadataFields: createMetadataFields(),
+    ...(lifecycle === undefined ? {} : { lifecycle }),
+    policies: [...(input.policies ?? []), ...objectPolicies],
+    views,
+    sync,
+    audit: resolveObjectAudit(input.audit),
+  };
+}
+
+function resolveField(input: PartialFieldModel): ResolvedField {
+  return {
+    name: input.name,
+    storageName: input.storageName ?? toStorageName(input.name),
+    type: input.type ?? "text",
+    required: input.required ?? false,
+    ...(input.defaultValue === undefined ? {} : { defaultValue: input.defaultValue }),
+    validators: (input.validators ?? []).map(resolveValidator),
+    readonly: input.readonly ?? false,
+    hidden: input.hidden ?? false,
+    ...(input.lookup === undefined ? {} : { lookup: resolveLookup(input.lookup) }),
+    ...(input.autoId === undefined ? {} : { autoId: resolveAutoId(input.autoId) }),
+    systemManaged: false,
+  };
+}
+
+function resolveValidator(input: PartialValidatorModel): ResolvedValidator {
+  return {
+    kind: input.kind,
+    ...(input.value === undefined ? {} : { value: input.value }),
+  };
+}
+
+function resolveLookup(input: PartialLookupModel): ResolvedLookup {
+  return {
+    targetObject: input.targetObject,
+    ...(input.targetField === undefined ? {} : { targetField: input.targetField }),
+    displayField: input.displayField,
+  };
+}
+
+function resolveAutoId(input: PartialAutoIdModel): ResolvedAutoId {
+  return {
+    ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
+    ...(input.pad === undefined ? {} : { pad: input.pad }),
+    ...(input.scopeField === undefined ? {} : { scopeField: input.scopeField }),
+  };
+}
+
+function resolveLifecycle(input: PartialLifecycleModel): ResolvedLifecycle {
+  const states = input.states.map(resolveState);
+  const initialState = input.initialState ?? states[0]?.name;
+
+  return {
+    name: input.name,
+    stateField: input.stateField ?? DEFAULT_LIFECYCLE_STATE_FIELD,
+    ...(initialState === undefined ? {} : { initialState }),
+    states,
+    actions: (input.actions ?? []).map(resolveLifecycleAction),
+  };
+}
+
+function resolveState(input: PartialStateModel): ResolvedState {
+  return {
+    name: input.name,
+    terminal: input.terminal ?? false,
+  };
+}
+
+function resolveLifecycleAction(input: PartialLifecycleActionModel): ResolvedLifecycleAction {
+  return {
+    name: input.name,
+    from: Array.isArray(input.from) ? [...input.from] : [input.from],
+    to: input.to,
+    ...(input.label === undefined ? {} : { label: input.label }),
+    policyRefs: [...(input.policyRefs ?? [])],
+    hooks: resolveHookRefs(input.hooks),
+  };
+}
+
+function resolveHookRefs(input: PartialHookRefsModel | undefined): ResolvedHookRefs {
+  return {
+    before: [...(input?.before ?? [])],
+    after: [...(input?.after ?? [])],
+    onError: [...(input?.onError ?? [])],
+  };
+}
+
+function resolveObjectSync(
+  input: PartialObjectSyncPolicyModel | undefined,
+): ResolvedObjectSyncPolicy {
+  const defaults = createDefaultObjectSyncPolicy();
+  return {
+    mode: input?.mode ?? defaults.mode,
+    scope: input?.scope ?? defaults.scope,
+    conflict: input?.conflict ?? defaults.conflict,
+  };
+}
+
+function resolveObjectAudit(
+  input: PartialObjectModel["audit"] | undefined,
+): ResolvedObjectAuditPolicy {
+  const defaults = createDefaultObjectAuditPolicy();
+  return {
+    enabled: input?.enabled ?? defaults.enabled,
+    operations: [...(input?.operations ?? defaults.operations)],
+  };
+}
+
+function resolveViews(input: PartialObjectModel, fields: ResolvedField[]): ResolvedView[] {
+  if (input.views !== undefined && input.views.length > 0) {
+    return input.views.map((view) => resolveView(view, input.name, fields));
+  }
+
+  return createDefaultViews(input, fields);
+}
+
+function createDefaultViews(input: PartialObjectModel, fields: ResolvedField[]): ResolvedView[] {
+  const fieldNames = fields.map((field) => field.name);
+  const searchFields = getDefaultSearchFields(input, fields);
+
+  return [
+    {
+      name: `${input.name}List`,
+      object: input.name,
+      kind: "list",
+      fields: fieldNames,
+      searchFields,
+      sort: [],
+      actions: ["create", "read", "update", "delete"],
+    },
+    {
+      name: `${input.name}Form`,
+      object: input.name,
+      kind: "form",
+      fields: fieldNames,
+      searchFields: [],
+      sort: [],
+      actions: ["save", "delete"],
+    },
+  ];
+}
+
+function getDefaultSearchFields(input: PartialObjectModel, fields: ResolvedField[]): string[] {
+  const fieldByName = new Map(fields.map((field) => [field.name, field]));
+  const preferred = [input.displayField, input.businessKey]
+    .filter((name): name is string => name !== undefined)
+    .filter((name) => fieldByName.get(name)?.type === "text");
+
+  if (preferred.length > 0) {
+    return [...new Set(preferred)];
+  }
+
+  const firstTextField = fields.find((field) => field.type === "text");
+  return firstTextField === undefined ? [] : [firstTextField.name];
+}
+
+function resolveView(
+  input: PartialViewModel,
+  objectName: string,
+  fields: ResolvedField[],
+): ResolvedView {
+  return {
+    name: input.name,
+    object: input.object ?? objectName,
+    kind: input.kind,
+    fields: [...(input.fields ?? fields.map((field) => field.name))],
+    searchFields: [...(input.searchFields ?? [])],
+    sort: [...(input.sort ?? [])].map(resolveSort),
+    actions: [...(input.actions ?? [])],
+  };
+}
+
+function resolveSort(input: ResolvedSort): ResolvedSort {
+  return {
+    field: input.field,
+    direction: input.direction,
+  };
+}
+
+function resolvePolicies(
+  objects: ResolvedObject[],
+  inputPolicies: PartialPolicyModel[],
+): ResolvedPolicy[] {
+  return [
+    ...objects.map((object) => createDefaultDenyPolicy(object.name)),
+    ...inputPolicies.map(resolvePolicy),
+  ];
+}
+
+function resolvePolicy(input: PartialPolicyModel): ResolvedPolicy {
+  return {
+    name: input.name,
+    object: input.object,
+    defaultEffect: "deny",
+    rules: (input.rules ?? []).map(resolvePolicyRule),
+  };
+}
+
+function resolvePolicyRule(input: PartialPolicyRuleModel): ResolvedPolicyRule {
+  return {
+    name: input.name,
+    effect: input.effect,
+    principal: resolvePrincipal(input.principal),
+    action: input.action,
+    state: asArray(input.state),
+    fields: [...(input.fields ?? [])],
+    ...(input.lifecycleAction === undefined ? {} : { lifecycleAction: input.lifecycleAction }),
+    ...(input.condition === undefined ? {} : { condition: input.condition }),
+    channels: [...(input.channels ?? ["ui", "api", "sync", "import", "test"])],
+  };
+}
+
+function resolvePrincipal(
+  input: PartialPrincipalSelectorModel | undefined,
+): ResolvedPrincipalSelector {
+  const defaults = createEveryonePrincipal();
+  return {
+    match: input?.match ?? defaults.match,
+    roles: [...(input?.roles ?? defaults.roles)],
+    groupRoles: [...(input?.groupRoles ?? defaults.groupRoles)],
+    users: [...(input?.users ?? defaults.users)],
+    owner: input?.owner ?? defaults.owner,
+  };
+}
+
+function resolveThemes(input: PartialThemeModel[]): ResolvedTheme[] {
+  const hasDefaultTheme = input.some((theme) => theme.name === DEFAULT_THEME_NAME);
+  const themes = hasDefaultTheme ? input : [createDefaultTheme(), ...input];
+  return themes.map(resolveTheme);
+}
+
+function resolveTheme(input: PartialThemeModel | ResolvedTheme): ResolvedTheme {
+  const defaultTokens = createDefaultTheme().tokens;
+
+  return {
+    name: input.name,
+    ...(input.base === undefined ? {} : { base: input.base }),
+    tokens: {
+      ...defaultTokens,
+      ...(input.tokens ?? {}),
+    },
+  };
+}
+
+function stripObjectFromSync(
+  input: PartialSyncPolicyModel | undefined,
+): PartialObjectSyncPolicyModel | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(input.mode === undefined ? {} : { mode: input.mode }),
+    ...(input.scope === undefined ? {} : { scope: input.scope }),
+    ...(input.conflict === undefined ? {} : { conflict: input.conflict }),
+  };
+}
+
+function groupPolicyNamesByObject(policies: ResolvedPolicy[]): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+
+  for (const policy of policies) {
+    grouped.set(policy.object, [...(grouped.get(policy.object) ?? []), policy.name]);
+  }
+
+  return grouped;
+}
+
+function asArray(input: string | string[] | undefined): string[] {
+  if (input === undefined) {
+    return [];
+  }
+
+  return Array.isArray(input) ? [...input] : [input];
+}
+
+function uniqueStrings(input: string[]): string[] {
+  return [...new Set(input)];
+}
