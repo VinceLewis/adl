@@ -13,11 +13,28 @@ export type RuntimeAction = Exclude<PolicyAction, "*">;
 export interface RuntimeContext {
   userId: string;
   roles: string[];
+  selectedContexts?: Record<string, string>;
+  contextRoles?: RuntimeContextRole[];
   groups?: Record<string, string[]>;
   now?: Date;
   channel: RuntimeChannel;
   online?: boolean;
   requestId?: string;
+}
+
+export interface RuntimeContextRole {
+  context: string;
+  contextId: string;
+  role: string;
+  membershipRecordId?: string;
+}
+
+export interface RuntimeAvailableContext {
+  context: string;
+  id: string;
+  label: string;
+  roles: string[];
+  roleEntries: RuntimeContextRole[];
 }
 
 export interface RuntimeLogger {
@@ -142,6 +159,12 @@ export class RuntimeValidationError extends RuntimeError {
   }
 }
 
+export class RuntimeContextError extends RuntimeError {
+  constructor(message: string, details?: unknown) {
+    super("ADL_RUNTIME_CONTEXT_ERROR", message, details);
+  }
+}
+
 export class LifecycleError extends RuntimeError {
   constructor(message: string, details?: unknown) {
     super("ADL_LIFECYCLE_ERROR", message, details);
@@ -194,6 +217,18 @@ export function safeContextLog(context: RuntimeContext): Record<string, unknown>
   return {
     userId: context.userId,
     roles: [...context.roles],
+    ...(context.selectedContexts === undefined
+      ? {}
+      : { selectedContexts: { ...context.selectedContexts } }),
+    ...(context.contextRoles === undefined
+      ? {}
+      : {
+          contextRoles: context.contextRoles.map((role) => ({
+            context: role.context,
+            contextId: role.contextId,
+            role: role.role,
+          })),
+        }),
     channel: context.channel,
     online: context.online ?? true,
     ...(context.requestId === undefined ? {} : { requestId: context.requestId }),

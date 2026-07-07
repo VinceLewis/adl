@@ -1,6 +1,7 @@
 import type {
   JsonValue,
   ResolvedApplicationModel,
+  ResolvedBusinessContext,
   ResolvedField,
   ResolvedObject,
   ResolvedPolicy,
@@ -12,11 +13,15 @@ export class RuntimeModelIndex {
   private readonly objectsByName: Map<string, ResolvedObject>;
   private readonly policiesByObject: Map<string, ResolvedPolicy[]>;
   private readonly rolesByName: Map<string, string[]>;
+  private readonly contextsByName: Map<string, ResolvedBusinessContext>;
+  private readonly contextsByObject: Map<string, ResolvedBusinessContext[]>;
 
   constructor(readonly model: ResolvedApplicationModel) {
     this.objectsByName = new Map(model.objects.map((object) => [object.name, object]));
     this.policiesByObject = groupPoliciesByObject(model.policies);
     this.rolesByName = new Map(model.roles.map((role) => [role.name, role.inherits]));
+    this.contextsByName = new Map((model.contexts ?? []).map((context) => [context.name, context]));
+    this.contextsByObject = groupContextsByObject(model.contexts ?? []);
   }
 
   getObject(objectName: string): ResolvedObject {
@@ -34,6 +39,24 @@ export class RuntimeModelIndex {
   getPoliciesForObject(objectName: string): ResolvedPolicy[] {
     this.getObject(objectName);
     return [...(this.policiesByObject.get(objectName) ?? [])];
+  }
+
+  getBusinessContext(contextName: string): ResolvedBusinessContext {
+    const context = this.contextsByName.get(contextName);
+
+    if (context === undefined) {
+      throw new RuntimeModelError(
+        `Business context '${contextName}' does not exist in the resolved model.`,
+        { contextName },
+      );
+    }
+
+    return context;
+  }
+
+  getBusinessContextsForObject(objectName: string): ResolvedBusinessContext[] {
+    this.getObject(objectName);
+    return [...(this.contextsByObject.get(objectName) ?? [])];
   }
 
   getBusinessField(object: ResolvedObject, fieldName: string): ResolvedField | undefined {
@@ -131,6 +154,18 @@ function groupPoliciesByObject(policies: ResolvedPolicy[]): Map<string, Resolved
 
   for (const policy of policies) {
     grouped.set(policy.object, [...(grouped.get(policy.object) ?? []), policy]);
+  }
+
+  return grouped;
+}
+
+function groupContextsByObject(
+  contexts: ResolvedBusinessContext[],
+): Map<string, ResolvedBusinessContext[]> {
+  const grouped = new Map<string, ResolvedBusinessContext[]>();
+
+  for (const context of contexts) {
+    grouped.set(context.object, [...(grouped.get(context.object) ?? []), context]);
   }
 
   return grouped;

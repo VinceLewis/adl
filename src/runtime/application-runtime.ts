@@ -7,6 +7,7 @@ import type {
 import { AuditService } from "./audit-service.js";
 import { HookRegistry } from "./hook-registry.js";
 import type { RuntimeHook } from "./hook-registry.js";
+import { RuntimeContextService } from "./context-service.js";
 import { LifecycleEngine } from "./lifecycle-engine.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
@@ -22,6 +23,7 @@ import {
 } from "./runtime-types.js";
 import type {
   RuntimeContext,
+  RuntimeAvailableContext,
   RuntimeLogger,
   RuntimeSearchInput,
   RuntimeStartupDiagnostic,
@@ -45,6 +47,7 @@ export class ApplicationRuntime {
   readonly syncPolicy: SyncPolicyService;
   readonly syncQueue: SyncQueue;
   readonly hookRegistry: HookRegistry;
+  readonly contextService: RuntimeContextService;
   readonly objectStore: ObjectStore;
   readonly lifecycleEngine: LifecycleEngine;
 
@@ -73,6 +76,9 @@ export class ApplicationRuntime {
     const storage = options.storage ?? new InMemoryObjectStorageBackend();
     this.startupPromise = this.runStartupCompatibilityChecks(storage);
     void this.startupPromise.catch(() => undefined);
+    this.contextService = new RuntimeContextService(model, this.index, storage, this.logger, () =>
+      this.whenReady(),
+    );
     this.objectStore = new ObjectStore(
       model,
       this.validationEngine,
@@ -104,6 +110,23 @@ export class ApplicationRuntime {
 
   getStartupDiagnostics(): RuntimeStartupDiagnostic[] {
     return this.startupDiagnostics.map((diagnostic) => ({ ...diagnostic }));
+  }
+
+  async listAvailableContexts(
+    contextName: string,
+    context: RuntimeContext,
+  ): Promise<RuntimeAvailableContext[]> {
+    await this.whenReady();
+    return this.contextService.listAvailableContexts(contextName, context);
+  }
+
+  async withSelectedContext(
+    contextName: string,
+    contextId: string,
+    context: RuntimeContext,
+  ): Promise<RuntimeContext> {
+    await this.whenReady();
+    return this.contextService.withSelectedContext(contextName, contextId, context);
   }
 
   async create(

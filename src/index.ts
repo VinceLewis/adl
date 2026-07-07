@@ -7,6 +7,7 @@ export * from "./parser/lexer.js";
 export * from "./parser/parser.js";
 export * from "./runtime/application-runtime.js";
 export * from "./runtime/audit-service.js";
+export * from "./runtime/context-service.js";
 export * from "./runtime/hook-registry.js";
 export * from "./runtime/indexeddb-object-storage.js";
 export * from "./runtime/lifecycle-engine.js";

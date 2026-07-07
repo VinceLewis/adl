@@ -5,6 +5,12 @@ import type {
   ResolvedObject,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import {
+  recordMatchesObjectScope,
+  requireObjectScopeForRecord,
+  requireObjectScopeForSearch,
+  requireObjectScopeForValues,
+} from "./context-scope.js";
 import { RuntimeModelIndex, getInitialLifecycleState, getRecordState } from "./model-helpers.js";
 import type { AuditService } from "./audit-service.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
@@ -52,6 +58,7 @@ export class ObjectStore {
     const preparedValues = this.validationEngine.prepareCreateValues(objectName, values);
     const currentState = getInitialLifecycleState(object);
 
+    requireObjectScopeForValues(this.index, objectName, preparedValues, context, "create");
     this.policyEngine.requireAllowed(
       {
         objectName,
@@ -94,6 +101,7 @@ export class ObjectStore {
       return null;
     }
 
+    requireObjectScopeForRecord(this.index, objectName, record, context, "read");
     this.policyEngine.requireAllowed(
       {
         objectName,
@@ -122,9 +130,11 @@ export class ObjectStore {
       context: safeContextLog(context),
     });
     const existing = await this.requireActiveRecord(objectName, id);
+    requireObjectScopeForRecord(this.index, objectName, existing, context, "update");
     const currentState = this.getState(objectName, existing);
     const nextValues = this.validationEngine.prepareUpdateValues(objectName, existing, patch);
 
+    requireObjectScopeForValues(this.index, objectName, nextValues, context, "update");
     this.policyEngine.requireAllowed(
       {
         objectName,
@@ -169,6 +179,7 @@ export class ObjectStore {
       context: safeContextLog(context),
     });
     const existing = await this.requireActiveRecord(objectName, id);
+    requireObjectScopeForRecord(this.index, objectName, existing, context, "delete");
     const currentState = this.getState(objectName, existing);
 
     this.policyEngine.requireAllowed(
@@ -223,6 +234,7 @@ export class ObjectStore {
       }
     }
 
+    requireObjectScopeForSearch(this.index, objectName, context);
     this.policyEngine.requireAllowed({ objectName, action: "search" }, context);
 
     const records = (
@@ -235,10 +247,13 @@ export class ObjectStore {
           : { includeDeleted: searchQuery.includeDeleted }),
       })
     ).filter((record) => this.canReadSearchResult(objectName, record, context));
+    const scopedRecords = records.filter((record) =>
+      recordMatchesObjectScope(this.index, objectName, record, context),
+    );
     const limited =
       searchQuery.limit === undefined || searchQuery.limit < 0
-        ? records
-        : records.slice(0, searchQuery.limit);
+        ? scopedRecords
+        : scopedRecords.slice(0, searchQuery.limit);
 
     const shaped = limited.map((record) =>
       this.policyEngine.applyReadPolicy(objectName, record, context),
@@ -268,6 +283,7 @@ export class ObjectStore {
       lifecycleAction: details.lifecycleAction,
     });
     const existing = await this.requireActiveRecord(objectName, id);
+    requireObjectScopeForRecord(this.index, objectName, existing, context, "transition");
     this.syncPolicy.requireLocalWriteAllowed(objectName, "transition", context);
     const updated = this.updatedRecord(existing, nextValues, context, details.toState);
 
@@ -376,6 +392,7 @@ export class ObjectStore {
           objectName,
           action,
           field,
+          patch: values,
           ...(record === undefined ? {} : { record }),
           ...(currentState === undefined ? {} : { currentState }),
         },

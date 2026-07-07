@@ -6,6 +6,7 @@ import type {
   ResolvedPolicyRule,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import { getPolicyRequestContextTargets, runtimeContextHasScopedRole } from "./context-scope.js";
 import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
 import { PolicyDeniedError, cloneJson, noopRuntimeLogger } from "./runtime-types.js";
 import type {
@@ -205,14 +206,15 @@ export class PolicyEngine {
       return false;
     }
 
-    return this.principalMatches(rule, request.record, context);
+    return this.principalMatches(rule, request, context);
   }
 
   private principalMatches(
     rule: ResolvedPolicyRule,
-    record: StoredObjectRecord | undefined,
+    request: PolicyRequest,
     context: RuntimeContext,
   ): boolean {
+    const record = request.record;
     const principal = rule.principal;
 
     switch (principal.match) {
@@ -227,15 +229,29 @@ export class PolicyEngine {
       case "specific":
         return (
           principal.users.includes(context.userId) ||
-          principal.roles.some((role) => this.contextHasRole(context, role)) ||
+          principal.roles.some(
+            (role) =>
+              this.contextHasGlobalRole(context, role) ||
+              this.requestHasContextRole(request, context, role),
+          ) ||
           principal.groupRoles.some((role) => this.contextHasGroupRole(context, role)) ||
           (principal.owner && isOwner(record, context.userId))
         );
     }
   }
 
-  private contextHasRole(context: RuntimeContext, role: string): boolean {
+  private contextHasGlobalRole(context: RuntimeContext, role: string): boolean {
     return this.index.expandRoles(context.roles).includes(role);
+  }
+
+  private requestHasContextRole(
+    request: PolicyRequest,
+    context: RuntimeContext,
+    role: string,
+  ): boolean {
+    return getPolicyRequestContextTargets(this.index, request, context).some((target) =>
+      runtimeContextHasScopedRole(this.index, context, target, role),
+    );
   }
 
   private contextHasGroupRole(context: RuntimeContext, role: string): boolean {

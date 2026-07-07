@@ -10,6 +10,8 @@ For the band-management reference app, this means a user with multiple bands can
 
 Implement generic UI/runtime integration for context selection and context-aware view rendering. Keep this model-driven and reusable; do not hand-code a band-specific navigation shell.
 
+Phase 13 added `RuntimeContextService`, `ApplicationRuntime.listAvailableContexts(...)`, and `ApplicationRuntime.withSelectedContext(...)`. Cross-context UI flows should derive available context roles through the runtime context service rather than inventing a UI-only context role cache.
+
 Do not implement a specialised calendar view. Dated event workflows should use date/datetime field inputs and list/detail/dashboard views unless a later phase proves a richer generic view is necessary.
 
 ## Expected Deliverables
@@ -45,7 +47,7 @@ Execute Phase 14 only. Add generic context selection and context-aware view navi
 3. Honour context selection policy declarations such as no persistence, session persistence, local persistence, route source, and runtime source where implemented.
 4. Add UI handling for zero, one, and many available contexts.
 5. Ensure scoped views call runtime methods with the selected context.
-6. Ensure all-available-context views call runtime methods with an explicit cross-context mode rather than leaking the selected context.
+6. Ensure all-available-context views call runtime methods with resolved available `contextRoles` and without setting `selectedContexts[contextName]` for that context, rather than leaking the selected context.
 7. Add browser demo fixture data for a small context example.
 8. Add tests where practical, and add browser verification notes if full UI automation is not yet available.
 9. Run typecheck, tests, and build.

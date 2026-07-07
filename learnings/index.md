@@ -29,6 +29,7 @@ Before tasks that change business context/scope modelling, context-scoped roles,
 
 - `architecture/business-contexts-and-backends.md`
 - `implementation/business-context-model.md`
+- `implementation/context-runtime.md`
 
 Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
 
@@ -41,6 +42,7 @@ Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, 
 Before tasks that change runtime services, UI runtime integration, lifecycle execution, audit, operation log handling, sync policy enforcement, or runtime tests, also read:
 
 - `implementation/runtime-services.md`
+- `implementation/context-runtime.md`
 - `implementation/policy-engine.md`
 - `implementation/sync-policy.md`
 
@@ -98,6 +100,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/storage-backend.md`: read before changing runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests.
 - `implementation/model-versioning-guard.md`: read before changing runtime startup compatibility checks, persisted application metadata, object schema version guards, or future migration handling.
 - `implementation/business-context-model.md`: read before changing business context, object scope, view context, or read-model resolution and validation.
+- `implementation/context-runtime.md`: read before changing runtime context resolution, context-scoped roles, scoped object authorization, context-aware UI calls, or tests that assert context policy behavior.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.

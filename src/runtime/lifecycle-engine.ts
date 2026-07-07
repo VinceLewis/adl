@@ -1,4 +1,5 @@
 import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/resolved-model.js";
+import { requireObjectScopeForRecord } from "./context-scope.js";
 import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
 import type { HookRegistry } from "./hook-registry.js";
 import type { ObjectStore } from "./object-store.js";
@@ -84,6 +85,7 @@ export class LifecycleEngine {
       );
     }
 
+    requireObjectScopeForRecord(this.index, objectName, record, context, "transition");
     this.policyEngine.requireAllowed(
       {
         objectName,

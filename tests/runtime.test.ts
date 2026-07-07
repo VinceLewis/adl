@@ -10,6 +10,7 @@ import {
   RUNTIME_STARTUP_COMPATIBILITY_CODES,
   RuntimeValidationError,
   RuntimeStartupError,
+  RuntimeContextError,
   SyncPolicyError,
   resolveApplicationModel,
 } from "../src/index.js";
@@ -20,6 +21,7 @@ import type {
   StoredObjectRecord,
   SyncMode,
 } from "../src/index.js";
+import { bandContextPartialModel } from "./fixtures/band-context-model.js";
 
 const fixedNow = new Date("2026-07-07T08:00:00.000Z");
 
@@ -401,6 +403,165 @@ describe("ApplicationRuntime", () => {
         },
       ],
     });
+  });
+
+  it("lists available contexts and resolves a valid selected context", async () => {
+    const seeded = await createSeededBandRuntime();
+
+    const available = await seeded.runtime.listAvailableContexts("Band", seeded.musicianContext);
+    expect(
+      available.map((context) => ({
+        id: context.id,
+        label: context.label,
+        roles: context.roles,
+      })),
+    ).toEqual([
+      {
+        id: seeded.firstBand.meta.guid,
+        label: "The Alphas",
+        roles: ["BandAdmin"],
+      },
+      {
+        id: seeded.secondBand.meta.guid,
+        label: "The Betas",
+        roles: ["BandMember"],
+      },
+    ]);
+
+    expect(seeded.firstBandContext.roles).toEqual([]);
+    expect(seeded.firstBandContext.selectedContexts).toEqual({
+      Band: seeded.firstBand.meta.guid,
+    });
+    expect(seeded.firstBandContext.contextRoles).toEqual([
+      expect.objectContaining({
+        context: "Band",
+        contextId: seeded.firstBand.meta.guid,
+        role: "BandAdmin",
+      }),
+    ]);
+  });
+
+  it("rejects an invalid selected context", async () => {
+    const seeded = await createSeededBandRuntime();
+
+    await expect(
+      seeded.runtime.withSelectedContext("Band", "missing-band", seeded.musicianContext),
+    ).rejects.toBeInstanceOf(RuntimeContextError);
+  });
+
+  it("keeps context Admin separate from global Admin", async () => {
+    const seeded = await createSeededBandRuntime();
+
+    const updated = await seeded.runtime.update(
+      "Gig",
+      seeded.firstGig.meta.guid,
+      { Venue: "Updated Hall" },
+      seeded.firstBandContext,
+    );
+    expect(updated.values.Venue).toBe("Updated Hall");
+
+    await expect(
+      seeded.runtime.update(
+        "Gig",
+        seeded.secondGig.meta.guid,
+        { Venue: "Member should not update" },
+        seeded.secondBandContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    const decision = seeded.runtime.policyEngine.evaluate(
+      {
+        objectName: "Gig",
+        action: "update",
+        record: seeded.secondGig,
+        currentState: "Draft",
+      },
+      seeded.secondBandContext,
+    );
+
+    expect(seeded.secondBandContext.roles).toEqual([]);
+    expect(decision.effect).toBe("deny");
+  });
+
+  it("filters scoped reads and searches by runtime context", async () => {
+    const seeded = await createSeededBandRuntime();
+
+    await expect(
+      seeded.runtime.read("Gig", seeded.secondGig.meta.guid, seeded.firstBandContext),
+    ).rejects.toMatchObject({
+      decision: {
+        reasons: [
+          expect.objectContaining({
+            policyName: "GigContextScope",
+            ruleName: "requireRuntimeContextScope",
+          }),
+        ],
+      },
+    });
+
+    const firstBandSearch = await seeded.runtime.search("Gig", undefined, seeded.firstBandContext);
+    expect(firstBandSearch.map((record) => record.meta.guid)).toEqual([seeded.firstGig.meta.guid]);
+
+    const allContextRoles = await seeded.runtime.contextService.resolveContextRoles(
+      "Band",
+      seeded.musicianContext,
+    );
+    const allAvailableContext: RuntimeContext = {
+      ...seeded.musicianContext,
+      contextRoles: allContextRoles,
+    };
+    const allAvailableSearch = await seeded.runtime.search("Gig", undefined, allAvailableContext);
+
+    expect(allAvailableSearch.map((record) => record.meta.guid)).toEqual([
+      seeded.firstGig.meta.guid,
+      seeded.secondGig.meta.guid,
+    ]);
+  });
+
+  it("denies writes and transitions outside the selected object scope", async () => {
+    const seeded = await createSeededBandRuntime();
+
+    await expect(
+      seeded.runtime.create(
+        "Gig",
+        {
+          Band: seeded.secondBand.meta.guid,
+          Date: "2026-09-01",
+          Venue: "Wrong context venue",
+        },
+        seeded.firstBandContext,
+      ),
+    ).rejects.toMatchObject({
+      decision: {
+        reasons: [
+          expect.objectContaining({
+            policyName: "GigContextScope",
+            ruleName: "requireRuntimeContextScope",
+          }),
+        ],
+      },
+    });
+
+    await expect(
+      seeded.runtime.delete("Gig", seeded.secondGig.meta.guid, seeded.firstBandContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    await expect(
+      seeded.runtime.transition(
+        "Gig",
+        seeded.secondGig.meta.guid,
+        "publish",
+        seeded.firstBandContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    const published = await seeded.runtime.transition(
+      "Gig",
+      seeded.firstGig.meta.guid,
+      "publish",
+      seeded.firstBandContext,
+    );
+    expect(published.values.Status).toBe("Published");
   });
 
   it("enforces validation and field-level readonly policy", async () => {
@@ -954,6 +1115,222 @@ function createRuntime(): ApplicationRuntime {
 
 function createSyncModeRuntime(mode: SyncMode): ApplicationRuntime {
   return new ApplicationRuntime(resolveApplicationModel(createSyncModePartialModel(mode)));
+}
+
+async function createSeededBandRuntime(): Promise<{
+  runtime: ApplicationRuntime;
+  musicianContext: RuntimeContext;
+  firstBandContext: RuntimeContext;
+  secondBandContext: RuntimeContext;
+  firstBand: StoredObjectRecord;
+  secondBand: StoredObjectRecord;
+  firstGig: StoredObjectRecord;
+  secondGig: StoredObjectRecord;
+}> {
+  const runtime = new ApplicationRuntime(resolveApplicationModel(createBandRuntimePartialModel()));
+  const systemContext: RuntimeContext = {
+    userId: "system-admin",
+    roles: ["SystemAdmin"],
+    channel: "api",
+    now: fixedNow,
+  };
+
+  const musician = await runtime.create(
+    "User",
+    { Name: "Casey Morgan", Email: "casey@example.com" },
+    systemContext,
+  );
+  const firstBand = await runtime.create("Band", { Name: "The Alphas" }, systemContext);
+  const secondBand = await runtime.create("Band", { Name: "The Betas" }, systemContext);
+
+  await runtime.create(
+    "BandMember",
+    { User: musician.meta.guid, Band: firstBand.meta.guid, Role: "BandAdmin" },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  await runtime.create(
+    "BandMember",
+    { User: musician.meta.guid, Band: secondBand.meta.guid, Role: "BandMember" },
+    contextForBand(systemContext, secondBand.meta.guid),
+  );
+
+  const firstGig = await runtime.create(
+    "Gig",
+    {
+      Band: firstBand.meta.guid,
+      Date: "2026-08-01",
+      Venue: "Alpha Hall",
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  const secondGig = await runtime.create(
+    "Gig",
+    {
+      Band: secondBand.meta.guid,
+      Date: "2026-08-02",
+      Venue: "Beta Hall",
+    },
+    contextForBand(systemContext, secondBand.meta.guid),
+  );
+
+  const musicianContext: RuntimeContext = {
+    userId: musician.meta.guid,
+    roles: [],
+    channel: "api",
+    now: fixedNow,
+  };
+
+  return {
+    runtime,
+    musicianContext,
+    firstBandContext: await runtime.withSelectedContext(
+      "Band",
+      firstBand.meta.guid,
+      musicianContext,
+    ),
+    secondBandContext: await runtime.withSelectedContext(
+      "Band",
+      secondBand.meta.guid,
+      musicianContext,
+    ),
+    firstBand,
+    secondBand,
+    firstGig,
+    secondGig,
+  };
+}
+
+function contextForBand(context: RuntimeContext, bandId: string): RuntimeContext {
+  return {
+    ...context,
+    selectedContexts: {
+      ...(context.selectedContexts ?? {}),
+      Band: bandId,
+    },
+  };
+}
+
+function createBandRuntimePartialModel(): PartialApplicationModel {
+  return {
+    ...bandContextPartialModel,
+    roles: [
+      { name: "SystemAdmin" },
+      { name: "BandMember" },
+      { name: "BandAdmin", inherits: ["BandMember"] },
+    ],
+    objects: bandContextPartialModel.objects.map((object) =>
+      object.name === "Gig"
+        ? {
+            ...object,
+            fields: [...(object.fields ?? []), { name: "Status", type: "text", required: true }],
+            lifecycle: {
+              name: "GigLifecycle",
+              stateField: "Status",
+              initialState: "Draft",
+              states: [{ name: "Draft" }, { name: "Published" }],
+              actions: [
+                {
+                  name: "publish",
+                  from: "Draft",
+                  to: "Published",
+                  policyRefs: ["GigPolicy"],
+                },
+              ],
+            },
+          }
+        : object,
+    ),
+    policies: [
+      {
+        name: "UserBandRuntimePolicy",
+        object: "User",
+        rules: [
+          {
+            name: "allowSystemAdminAllUserOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["SystemAdmin"] },
+            action: "*",
+          },
+        ],
+      },
+      {
+        name: "BandRuntimePolicy",
+        object: "Band",
+        rules: [
+          {
+            name: "allowSystemAdminAllBandOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["SystemAdmin"] },
+            action: "*",
+          },
+        ],
+      },
+      {
+        name: "BandMemberRuntimePolicy",
+        object: "BandMember",
+        rules: [
+          {
+            name: "allowSystemAdminAllBandMemberOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["SystemAdmin"] },
+            action: "*",
+          },
+        ],
+      },
+      {
+        name: "GigPolicy",
+        object: "Gig",
+        rules: [
+          {
+            name: "allowSystemAdminAllGigOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["SystemAdmin"] },
+            action: "*",
+          },
+          {
+            name: "allowBandMemberReadGig",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandMember"] },
+            action: "read",
+          },
+          {
+            name: "allowBandMemberSearchGig",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandMember"] },
+            action: "search",
+          },
+          {
+            name: "allowBandAdminCreateDraftGig",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandAdmin"] },
+            action: "create",
+            state: "Draft",
+          },
+          {
+            name: "allowBandAdminUpdateDraftGig",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandAdmin"] },
+            action: "update",
+            state: "Draft",
+          },
+          {
+            name: "allowBandAdminDeleteGig",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandAdmin"] },
+            action: "delete",
+          },
+          {
+            name: "allowBandAdminPublishGig",
+            effect: "allow",
+            principal: { match: "specific", roles: ["BandAdmin"] },
+            action: "transition",
+            state: "Draft",
+            lifecycleAction: "publish",
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function createSyncModePartialModel(mode: SyncMode): PartialApplicationModel {
