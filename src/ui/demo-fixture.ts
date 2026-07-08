@@ -3,6 +3,11 @@ import {
   IndexedDbObjectStorageBackend,
   resolveApplicationModel,
 } from "../index.js";
+import {
+  createBandReferenceModel,
+  seedBandReferenceRuntime,
+  seedBandReferenceRuntimeIfEmpty,
+} from "../reference/band-app.js";
 import type {
   ObjectStorageBackend,
   PartialApplicationModel,
@@ -11,6 +16,7 @@ import type {
 } from "../index.js";
 
 export const BROWSER_DEMO_DATABASE_NAME = "adl-browser-runtime-demo";
+export const BAND_REFERENCE_DATABASE_NAME = "adl-band-reference-demo";
 
 export const browserDemoContext: RuntimeContext = {
   userId: "admin-ui",
@@ -458,6 +464,18 @@ export function createPersistentBrowserDemoRuntime(
     }),
   });
 }
+
+export function createPersistentBandReferenceRuntime(
+  model: ResolvedApplicationModel = createBandReferenceModel(),
+): ApplicationRuntime {
+  return new ApplicationRuntime(model, {
+    storage: new IndexedDbObjectStorageBackend({
+      databaseName: BAND_REFERENCE_DATABASE_NAME,
+    }),
+  });
+}
+
+export { createBandReferenceModel, seedBandReferenceRuntime, seedBandReferenceRuntimeIfEmpty };
 
 export async function seedBrowserDemoRuntime(
   runtime: ApplicationRuntime,
