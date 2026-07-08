@@ -9,6 +9,7 @@ import type {
   StoredObjectRecord,
 } from "../model/resolved-model.js";
 import {
+  contextWithoutSelectedBusinessContext,
   getAllowedContextIds,
   getSelectedContextId,
   recordMatchesObjectScope,
@@ -406,20 +407,6 @@ export class ReadModelService {
       ),
     };
   }
-}
-
-function contextWithoutSelectedBusinessContext(
-  context: RuntimeContext,
-  contextName: string,
-): RuntimeContext {
-  const selectedContexts = { ...(context.selectedContexts ?? {}) };
-  delete selectedContexts[contextName];
-
-  return {
-    ...context,
-    selectedContexts,
-    contextRoles: (context.contextRoles ?? []).filter((role) => role.context !== contextName),
-  };
 }
 
 function sortRows(rows: RuntimeReadModelRow[], sort: ResolvedSort[]): RuntimeReadModelRow[] {

@@ -19,6 +19,7 @@ Do not modify `/home/vince/projects/personal/giggle-new`. Do not require Postgre
 - Context declarations for selected band and all available bands
 - Context-scoped roles for Admin and Member
 - Cross-band home dashboard/read model as an event list
+- Explicit sync scopes for user-level, selected-band, all-available-band, cache-readonly, and local-private datasets where the model needs them
 - Local browser demo using existing ADL runtime components
 - Tests for model validity and key runtime behaviours
 - Gap report for behaviours still requiring hooks or future ADL features
@@ -31,6 +32,7 @@ Do not modify `/home/vince/projects/personal/giggle-new`. Do not require Postgre
 - Admin-only band operations are denied to non-admin members at runtime.
 - Availability can be modelled as user-scoped data projected into band views.
 - The home dashboard can show upcoming events across all available bands as a list.
+- Offline dataset evaluation identifies the records needed for the selected-band views and the cross-band home dashboard without including online-required objects.
 - Ordered set-list items are represented without bespoke application code where possible.
 - The app works against local storage only.
 - Any unavoidable custom hook is named, tested, and documented as a future ADL design candidate.
@@ -60,13 +62,19 @@ Execute Phase 17 only. Build a model-driven band-management ADL reference applic
 3. Declare `Band` as a business context.
 4. Declare membership and context-scoped roles.
 5. Scope band-owned objects by `Band`.
-6. Model cross-band home dashboard/read model as a date-sorted event list.
-7. Model availability as user-owned data projected into band views where practical.
-8. Model ordered set-list items with position constraints or document the missing constraint/action support.
-9. Add model validation tests and runtime tests for context-scoped authorization.
-10. Add or update browser demo routing/fixtures for the band app.
-11. Document gaps such as batch commands, transactional workflows, ordered relation helpers, invitation accept semantics, and future remote sync needs.
-12. Run typecheck, tests, and build.
-13. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
-14. Review what happened and create a follow-up phase document only for concrete missing ADL platform work discovered while building the reference app.
-15. Commit all repository changes for this phase and push the current branch.
+6. Declare object sync scopes using Phase 16 dataset semantics:
+   - user/profile data as `currentUser`
+   - selected-band operational data as `currentContext`
+   - home-dashboard sources as `allAvailableContexts`
+   - reference/cache objects as `cacheReadonly` where appropriate
+   - device-only preferences as `localPrivate`
+7. Model cross-band home dashboard/read model as a date-sorted event list.
+8. Model availability as user-owned data projected into band views where practical.
+9. Model ordered set-list items with position constraints or document the missing constraint/action support.
+10. Add model validation tests and runtime tests for context-scoped authorization and `evaluateOfflineDataset` / `searchLocalDataset` behavior.
+11. Add or update browser demo routing/fixtures for the band app.
+12. Document gaps such as batch commands, transactional workflows, ordered relation helpers, invitation accept semantics, and future remote sync needs.
+13. Run typecheck, tests, and build.
+14. Update `learnings/` if this phase produced reusable project knowledge, and update `learnings/index.md` with when future agents should read it.
+15. Review what happened and create a follow-up phase document only for concrete missing ADL platform work discovered while building the reference app.
+16. Commit all repository changes for this phase and push the current branch.

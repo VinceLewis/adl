@@ -35,6 +35,20 @@ export function getAllowedContextIds(context: RuntimeContext, contextName: strin
   );
 }
 
+export function contextWithoutSelectedBusinessContext(
+  context: RuntimeContext,
+  contextName: string,
+): RuntimeContext {
+  const selectedContexts = { ...(context.selectedContexts ?? {}) };
+  delete selectedContexts[contextName];
+
+  return {
+    ...context,
+    selectedContexts,
+    contextRoles: (context.contextRoles ?? []).filter((role) => role.context !== contextName),
+  };
+}
+
 export function runtimeContextHasScopedRole(
   index: RuntimeModelIndex,
   context: RuntimeContext,

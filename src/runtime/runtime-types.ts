@@ -4,10 +4,13 @@ import type {
   JsonValue,
   PolicyAction,
   PolicyEffect,
+  ReadModelSourceScope,
   ResolvedReadModel,
   ResolvedSort,
   RuntimeChannel,
   StoredObjectRecord,
+  SyncMode,
+  SyncScope,
 } from "../model/resolved-model.js";
 
 export type RuntimeAction = Exclude<PolicyAction, "*">;
@@ -76,6 +79,31 @@ export interface RuntimeReadModelRow {
 export interface RuntimeReadModelResult {
   readModel: ResolvedReadModel;
   rows: RuntimeReadModelRow[];
+}
+
+export type RuntimeOfflineDatasetReason =
+  | {
+      kind: "objectSync";
+      mode: SyncMode;
+      scope: SyncScope;
+    }
+  | {
+      kind: "readModelSource";
+      readModel: string;
+      source: string;
+      sourceScope: ReadModelSourceScope;
+      mode: SyncMode;
+    };
+
+export interface RuntimeOfflineDatasetRecord {
+  objectName: string;
+  recordId: string;
+  reasons: RuntimeOfflineDatasetReason[];
+}
+
+export interface RuntimeOfflineDataset {
+  records: RuntimeOfflineDatasetRecord[];
+  contextRoles: RuntimeContextRole[];
 }
 
 export interface RuntimeValidationIssue {

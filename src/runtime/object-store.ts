@@ -215,6 +215,7 @@ export class ObjectStore {
     objectName: string,
     query: RuntimeSearchInput,
     context: RuntimeContext,
+    recordFilter: (record: StoredObjectRecord) => boolean = () => true,
   ): Promise<StoredObjectRecord[]> {
     await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.search", { objectName, context: safeContextLog(context) });
@@ -246,7 +247,9 @@ export class ObjectStore {
           ? {}
           : { includeDeleted: searchQuery.includeDeleted }),
       })
-    ).filter((record) => this.canReadSearchResult(objectName, record, context));
+    )
+      .filter(recordFilter)
+      .filter((record) => this.canReadSearchResult(objectName, record, context));
     const scopedRecords = records.filter((record) =>
       recordMatchesObjectScope(this.index, objectName, record, context),
     );

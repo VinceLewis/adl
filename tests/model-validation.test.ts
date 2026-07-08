@@ -149,12 +149,18 @@ describe("validateApplicationModel", () => {
         MODEL_VALIDATION_CODES.OBJECT_DUPLICATE,
         MODEL_VALIDATION_CODES.OBJECT_POLICY_UNKNOWN,
         MODEL_VALIDATION_CODES.OBJECT_SYNC_MODE_INVALID,
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_DAYS_INVALID,
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_LIMIT_INVALID,
         MODEL_VALIDATION_CODES.POLICY_FIELD_UNKNOWN,
         MODEL_VALIDATION_CODES.POLICY_LIFECYCLE_ACTION_UNKNOWN,
         MODEL_VALIDATION_CODES.POLICY_OBJECT_UNKNOWN,
         MODEL_VALIDATION_CODES.POLICY_STATE_UNKNOWN,
         MODEL_VALIDATION_CODES.SYNC_MODE_INVALID,
         MODEL_VALIDATION_CODES.SYNC_OBJECT_UNKNOWN,
+        MODEL_VALIDATION_CODES.SYNC_WINDOW_DAYS_INVALID,
+        MODEL_VALIDATION_CODES.SYNC_WINDOW_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.SYNC_WINDOW_LIMIT_INVALID,
         MODEL_VALIDATION_CODES.THEME_BASE_UNKNOWN,
         MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
         MODEL_VALIDATION_CODES.VIEW_FIELD_UNKNOWN,
@@ -422,7 +428,13 @@ function createInvalidResolvedModel(): ResolvedApplicationModel {
   formView.sort.push({ field: "MissingSortField", direction: "asc" });
 
   (patient.sync as unknown as { mode: string }).mode = "occasionally";
-  (invalid.sync[0] as unknown as { mode: string }).mode = "sometimes";
+  patient.sync.window = { field: "MissingSyncWindowField", days: 0, limit: -1 };
+  const topLevelSync = invalid.sync[0];
+  if (topLevelSync === undefined) {
+    throw new Error("Expected valid top-level sync policy.");
+  }
+  (topLevelSync as unknown as { mode: string }).mode = "sometimes";
+  topLevelSync.window = { field: "MissingTopLevelSyncWindowField", days: -2, limit: 0 };
   invalid.sync.push({
     object: "MissingSyncObject",
     mode: "badMode",

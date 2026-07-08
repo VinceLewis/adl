@@ -10,6 +10,7 @@ import type { RuntimeHook } from "./hook-registry.js";
 import { RuntimeContextService } from "./context-service.js";
 import { LifecycleEngine } from "./lifecycle-engine.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
+import { OfflineDatasetService } from "./offline-dataset-service.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import { ObjectStore } from "./object-store.js";
@@ -26,6 +27,7 @@ import type {
   RuntimeContext,
   RuntimeAvailableContext,
   RuntimeLogger,
+  RuntimeOfflineDataset,
   RuntimeReadModelQuery,
   RuntimeReadModelResult,
   RuntimeSearchInput,
@@ -51,6 +53,7 @@ export class ApplicationRuntime {
   readonly syncQueue: SyncQueue;
   readonly hookRegistry: HookRegistry;
   readonly contextService: RuntimeContextService;
+  readonly offlineDatasetService: OfflineDatasetService;
   readonly readModelService: ReadModelService;
   readonly objectStore: ObjectStore;
   readonly lifecycleEngine: LifecycleEngine;
@@ -82,6 +85,14 @@ export class ApplicationRuntime {
     void this.startupPromise.catch(() => undefined);
     this.contextService = new RuntimeContextService(model, this.index, storage, this.logger, () =>
       this.whenReady(),
+    );
+    this.offlineDatasetService = new OfflineDatasetService(
+      model,
+      this.contextService,
+      this.index,
+      storage,
+      this.logger,
+      () => this.whenReady(),
     );
     this.readModelService = new ReadModelService(
       model,
@@ -231,6 +242,67 @@ export class ApplicationRuntime {
     });
     const result = await this.objectStore.search(objectName, query, context);
     this.logger.debug("EXIT ApplicationRuntime.search", {
+      objectName,
+      count: result.length,
+    });
+    return result;
+  }
+
+  async evaluateOfflineDataset(context: RuntimeContext): Promise<RuntimeOfflineDataset> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.evaluateOfflineDataset", {
+      context: safeContextLog(context),
+    });
+    const result = await this.offlineDatasetService.evaluate(context);
+    this.logger.debug("EXIT ApplicationRuntime.evaluateOfflineDataset", {
+      count: result.records.length,
+    });
+    return result;
+  }
+
+  async isRecordInOfflineDataset(
+    objectName: string,
+    recordId: string,
+    context: RuntimeContext,
+  ): Promise<boolean> {
+    await this.whenReady();
+    return this.offlineDatasetService.isRecordInDataset(objectName, recordId, context);
+  }
+
+  async searchLocalDataset(
+    objectName: string,
+    query: RuntimeSearchInput,
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord[]> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.searchLocalDataset", {
+      objectName,
+      context: safeContextLog(context),
+    });
+    const dataset = await this.offlineDatasetService.evaluate(context);
+    const includedRecordIds = new Set(
+      dataset.records
+        .filter((record) => record.objectName === objectName)
+        .map((record) => record.recordId),
+    );
+
+    if (includedRecordIds.size === 0) {
+      this.logger.debug("EXIT ApplicationRuntime.searchLocalDataset", {
+        objectName,
+        count: 0,
+      });
+      return [];
+    }
+
+    const datasetContext = this.offlineDatasetService.contextForDatasetRead(
+      objectName,
+      context,
+      dataset,
+    );
+    const result = await this.objectStore.search(objectName, query, datasetContext, (record) =>
+      includedRecordIds.has(record.meta.guid),
+    );
+    this.logger.debug("EXIT ApplicationRuntime.searchLocalDataset", {
       objectName,
       count: result.length,
     });

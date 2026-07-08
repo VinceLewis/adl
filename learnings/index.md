@@ -32,6 +32,7 @@ Before tasks that change business context/scope modelling, context-scoped roles,
 - `implementation/context-runtime.md`
 - `implementation/context-ui-navigation.md`
 - `implementation/read-model-runtime.md`
+- `implementation/offline-dataset-runtime.md`
 
 Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
 
@@ -47,6 +48,7 @@ Before tasks that change runtime services, UI runtime integration, lifecycle exe
 - `implementation/context-runtime.md`
 - `implementation/policy-engine.md`
 - `implementation/sync-policy.md`
+- `implementation/offline-dataset-runtime.md`
 
 Before tasks that change runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests, also read:
 
@@ -107,6 +109,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/context-runtime.md`: read before changing runtime context resolution, context-scoped roles, scoped object authorization, context-aware UI calls, or tests that assert context policy behavior.
 - `implementation/context-ui-navigation.md`: read before changing context selectors, view navigation, context-aware dashboard rendering, or browser UI calls for context-scoped objects.
 - `implementation/read-model-runtime.md`: read before changing read-model execution, read-model-backed dashboards, read-model source scopes, or offline dataset work that depends on read-model inputs.
+- `implementation/offline-dataset-runtime.md`: read before changing context-aware offline dataset selection, dataset-limited local reads, or future remote sync planning.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.

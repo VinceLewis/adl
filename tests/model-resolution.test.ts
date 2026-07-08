@@ -11,7 +11,12 @@ import {
   resolveApplicationModel,
   toStorageName,
 } from "../src/index.js";
-import type { PartialApplicationModel, ResolvedApplicationModel } from "../src/index.js";
+import type {
+  PartialApplicationModel,
+  PartialSyncWindowModel,
+  ResolvedApplicationModel,
+  SyncScope,
+} from "../src/index.js";
 import { bandContextPartialModel } from "./fixtures/band-context-model.js";
 
 const minimalModel = {
@@ -209,6 +214,43 @@ describe("resolveApplicationModel", () => {
     ]);
   });
 
+  it("resolves context-aware sync scopes and inspectable recent windows", () => {
+    const resolved = resolveApplicationModel({
+      app: {
+        name: "SyncScopes",
+      },
+      objects: [
+        createSyncScopeObject("CurrentUserRecord", "currentUser"),
+        createSyncScopeObject("CurrentContextRecord", "currentContext"),
+        createSyncScopeObject("AllContextRecord", "allAvailableContexts"),
+        createSyncScopeObject("DefaultRecentRecord", "recent"),
+        createSyncScopeObject("WindowedRecentRecord", "recent", {
+          field: "UpdatedAt",
+          days: 7,
+          limit: 20,
+        }),
+      ],
+    });
+
+    expect(resolved.objects.map((object) => [object.name, object.sync.scope])).toEqual([
+      ["CurrentUserRecord", "currentUser"],
+      ["CurrentContextRecord", "currentContext"],
+      ["AllContextRecord", "allAvailableContexts"],
+      ["DefaultRecentRecord", "recent"],
+      ["WindowedRecentRecord", "recent"],
+    ]);
+    expect(
+      resolved.objects.find((object) => object.name === "DefaultRecentRecord")?.sync,
+    ).toMatchObject({
+      window: { field: "_updatedAt", days: 30 },
+    });
+    expect(
+      resolved.objects.find((object) => object.name === "WindowedRecentRecord")?.sync,
+    ).toMatchObject({
+      window: { field: "UpdatedAt", days: 7, limit: 20 },
+    });
+  });
+
   it("resolves business contexts, object scopes, view contexts, and read models", () => {
     const resolved = resolveApplicationModel(bandContextPartialModel);
     const bandContext = resolved.contexts?.find((context) => context.name === "Band");
@@ -310,5 +352,24 @@ function createSyncModeObject(
     displayField: "Name",
     fields: [{ name: "Name", type: "text", required: true }],
     sync: { mode },
+  };
+}
+
+function createSyncScopeObject(
+  name: string,
+  scope: SyncScope,
+  window?: PartialSyncWindowModel,
+): PartialApplicationModel["objects"][number] {
+  return {
+    name,
+    displayField: "Name",
+    fields: [
+      { name: "Name", type: "text", required: true },
+      { name: "UpdatedAt", type: "datetime" },
+    ],
+    sync: {
+      scope,
+      ...(window === undefined ? {} : { window }),
+    },
   };
 }

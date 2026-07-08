@@ -16,10 +16,12 @@ import {
 } from "../src/index.js";
 import type {
   PartialApplicationModel,
+  ReadModelSourceScope,
   ResolvedObject,
   RuntimeContext,
   StoredObjectRecord,
   SyncMode,
+  SyncScope,
 } from "../src/index.js";
 import { bandContextPartialModel } from "./fixtures/band-context-model.js";
 
@@ -629,6 +631,135 @@ describe("ApplicationRuntime", () => {
     });
   });
 
+  it("limits local dataset reads to current-context records", async () => {
+    const seeded = await createSeededBandRuntime(
+      createBandDatasetPartialModel({
+        gigSyncScope: "currentContext",
+        readModelSourceScope: "currentContext",
+      }),
+    );
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(seeded.firstBandContext);
+    const gigRecords = dataset.records.filter((record) => record.objectName === "Gig");
+    const search = await seeded.runtime.searchLocalDataset(
+      "Gig",
+      undefined,
+      seeded.firstBandContext,
+    );
+
+    expect(gigRecords.map((record) => record.recordId)).toEqual([seeded.firstGig.meta.guid]);
+    expect(search.map((record) => record.meta.guid)).toEqual([seeded.firstGig.meta.guid]);
+    await expect(
+      seeded.runtime.isRecordInOfflineDataset(
+        "Gig",
+        seeded.secondGig.meta.guid,
+        seeded.firstBandContext,
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it("includes all-available-context records required by read-model sources", async () => {
+    const seeded = await createSeededBandRuntime(
+      createBandDatasetPartialModel({
+        gigSyncScope: "currentContext",
+        readModelSourceScope: "allAvailableContexts",
+      }),
+    );
+    const selectedBaseContext: RuntimeContext = {
+      ...seeded.musicianContext,
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    };
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(selectedBaseContext);
+    const gigRecords = dataset.records.filter((record) => record.objectName === "Gig");
+    const secondGig = gigRecords.find((record) => record.recordId === seeded.secondGig.meta.guid);
+    const search = await seeded.runtime.searchLocalDataset("Gig", undefined, selectedBaseContext);
+
+    expect(new Set(gigRecords.map((record) => record.recordId))).toEqual(
+      new Set([seeded.firstGig.meta.guid, seeded.secondGig.meta.guid]),
+    );
+    expect(secondGig?.reasons).toContainEqual({
+      kind: "readModelSource",
+      readModel: "UpcomingGigsByBand",
+      source: "gig",
+      sourceScope: "allAvailableContexts",
+      mode: "localFirst",
+    });
+    expect(search.map((record) => record.meta.guid)).toEqual([
+      seeded.firstGig.meta.guid,
+      seeded.secondGig.meta.guid,
+    ]);
+  });
+
+  it("evaluates current-user dataset records independently of read authorization", async () => {
+    const runtime = new ApplicationRuntime(
+      resolveApplicationModel({
+        ...runtimePartialModel,
+        objects: runtimePartialModel.objects.map((object) =>
+          object.name === "User"
+            ? {
+                ...object,
+                sync: { mode: "localFirst", scope: "currentUser" },
+              }
+            : object,
+        ),
+        readModels: [
+          {
+            name: "CurrentUserDirectoryEntry",
+            sources: [{ name: "user", object: "User", scope: "currentUser" }],
+            fields: [
+              { name: "Name", source: "user", field: "Name" },
+              { name: "Email", source: "user", field: "Email" },
+              { name: "Phone", source: "user", field: "Phone" },
+            ],
+          },
+        ],
+      }),
+    );
+    await runtime.create(
+      "User",
+      { Name: "Ada Lovelace", Email: "ada@example.com", Phone: "123" },
+      adminContext,
+    );
+    const grace = await runtime.create(
+      "User",
+      { Name: "Grace Hopper", Email: "grace@example.com", Phone: "456" },
+      adminContext,
+    );
+
+    const dataset = await runtime.evaluateOfflineDataset({
+      ...viewerContext,
+      userId: grace.meta.guid,
+    });
+    const search = await runtime.searchLocalDataset("User", undefined, {
+      ...viewerContext,
+      userId: grace.meta.guid,
+    });
+
+    expect(dataset.records.filter((record) => record.objectName === "User")).toEqual([
+      {
+        objectName: "User",
+        recordId: grace.meta.guid,
+        reasons: [
+          { kind: "objectSync", mode: "localFirst", scope: "currentUser" },
+          {
+            kind: "readModelSource",
+            readModel: "CurrentUserDirectoryEntry",
+            source: "user",
+            sourceScope: "currentUser",
+            mode: "localFirst",
+          },
+        ],
+      },
+    ]);
+    expect(search).toHaveLength(1);
+    expect(search[0]?.values).toEqual({
+      Name: "Grace Hopper",
+      Email: MASKED_POLICY_FIELD_VALUE,
+      Active: true,
+    });
+  });
+
   it("denies writes and transitions outside the selected object scope", async () => {
     const seeded = await createSeededBandRuntime();
 
@@ -1039,6 +1170,49 @@ describe("ApplicationRuntime", () => {
     expect(runtime.syncQueue.getEntries()).toEqual([]);
   });
 
+  it("includes cache-readonly cached records in local dataset reads", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const model = resolveApplicationModel(createSyncModePartialModel("cacheReadonly"));
+    const syncObject = requireResolvedObject(model.objects[0]);
+    const cachedRecord = createStoredSyncRecord(syncObject);
+    await storage.create("SyncItem", cachedRecord);
+    const runtime = new ApplicationRuntime(model, { storage });
+
+    const dataset = await runtime.evaluateOfflineDataset(adminContext);
+    const search = await runtime.searchLocalDataset("SyncItem", undefined, adminContext);
+
+    expect(dataset.records).toEqual([
+      {
+        objectName: "SyncItem",
+        recordId: cachedRecord.meta.guid,
+        reasons: [{ kind: "objectSync", mode: "cacheReadonly", scope: "all" }],
+      },
+    ]);
+    expect(search).toEqual([cachedRecord]);
+    await expect(
+      runtime.create("SyncItem", { Name: "Still blocked" }, adminContext),
+    ).rejects.toBeInstanceOf(SyncPolicyError);
+  });
+
+  it("excludes online-required records from offline datasets while preserving read and write gates", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const model = resolveApplicationModel(createSyncModePartialModel("onlineRequired"));
+    const syncObject = requireResolvedObject(model.objects[0]);
+    const cachedRecord = createStoredSyncRecord(syncObject);
+    await storage.create("SyncItem", cachedRecord);
+    const runtime = new ApplicationRuntime(model, { storage });
+
+    await expect(runtime.read("SyncItem", cachedRecord.meta.guid, adminContext)).resolves.toEqual(
+      cachedRecord,
+    );
+    await expect(runtime.searchLocalDataset("SyncItem", undefined, adminContext)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      runtime.create("SyncItem", { Name: "Offline item" }, offlineAdminContext),
+    ).rejects.toBeInstanceOf(SyncPolicyError);
+  });
+
   it("stores application model metadata and opens compatible persisted records", async () => {
     const storage = new InMemoryObjectStorageBackend();
     const model = resolveApplicationModel(createSyncModePartialModel("cacheReadonly"));
@@ -1447,6 +1621,55 @@ function createBandRuntimePartialModel(): PartialApplicationModel {
         ],
       },
     ],
+  };
+}
+
+function createBandDatasetPartialModel(options: {
+  gigSyncScope: SyncScope;
+  readModelSourceScope: ReadModelSourceScope;
+}): PartialApplicationModel {
+  const partial = createBandRuntimePartialModel();
+
+  return {
+    ...partial,
+    objects: partial.objects.map((object) => {
+      if (object.name === "User") {
+        return {
+          ...object,
+          sync: { mode: "localFirst", scope: "currentUser" },
+        };
+      }
+
+      if (object.name === "Band") {
+        return {
+          ...object,
+          sync: { mode: "localFirst", scope: "allAvailableContexts" },
+        };
+      }
+
+      if (object.name === "BandMember") {
+        return {
+          ...object,
+          sync: { mode: "localFirst", scope: "allAvailableContexts" },
+        };
+      }
+
+      if (object.name === "Gig") {
+        return {
+          ...object,
+          sync: { mode: "localFirst", scope: options.gigSyncScope },
+        };
+      }
+
+      return object;
+    }),
+    readModels: (partial.readModels ?? []).map((readModel) => ({
+      ...readModel,
+      sources: readModel.sources.map((source) => ({
+        ...source,
+        scope: options.readModelSourceScope,
+      })),
+    })),
   };
 }
 

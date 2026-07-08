@@ -41,6 +41,7 @@ import type {
   PartialReadModelSourceModel,
   PartialStateModel,
   PartialSyncPolicyModel,
+  PartialSyncWindowModel,
   PartialThemeModel,
   PartialValidatorModel,
   PartialViewModel,
@@ -70,6 +71,7 @@ import type {
   ResolvedSort,
   ResolvedState,
   ResolvedSyncPolicy,
+  ResolvedSyncWindow,
   ResolvedTheme,
   ResolvedThemeTokens,
   ResolvedValidator,
@@ -292,11 +294,29 @@ function resolveObjectSync(
   input: PartialObjectSyncPolicyModel | undefined,
 ): ResolvedObjectSyncPolicy {
   const defaults = createDefaultObjectSyncPolicy();
+  const scope = input?.scope ?? defaults.scope;
+  const window = resolveSyncWindow(input?.window, scope);
   return {
     mode: input?.mode ?? defaults.mode,
-    scope: input?.scope ?? defaults.scope,
+    scope,
+    ...(window === undefined ? {} : { window }),
     conflict: input?.conflict ?? defaults.conflict,
   };
+}
+
+function resolveSyncWindow(
+  input: PartialSyncWindowModel | undefined,
+  scope: ResolvedObjectSyncPolicy["scope"],
+): ResolvedSyncWindow | undefined {
+  if (input !== undefined) {
+    return {
+      field: input.field ?? "_updatedAt",
+      ...(input.days === undefined ? {} : { days: input.days }),
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+    };
+  }
+
+  return scope === "recent" ? { field: "_updatedAt", days: 30 } : undefined;
 }
 
 function resolveObjectAudit(
@@ -578,6 +598,7 @@ function stripObjectFromSync(
   return {
     ...(input.mode === undefined ? {} : { mode: input.mode }),
     ...(input.scope === undefined ? {} : { scope: input.scope }),
+    ...(input.window === undefined ? {} : { window: input.window }),
     ...(input.conflict === undefined ? {} : { conflict: input.conflict }),
   };
 }

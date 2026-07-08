@@ -123,6 +123,42 @@ describe("compileAdl", () => {
     });
   });
 
+  it("normalizes context-aware sync scope spellings", () => {
+    const result = compileAdl(`APP DatasetScopes
+END.APP
+
+OBJECT BandEvent
+  FIELD Band TEXT
+  SYNC LOCAL_FIRST SCOPE ALL_AVAILABLE_CONTEXTS
+END.OBJECT
+
+OBJECT UserPreference
+  FIELD Name TEXT
+  SYNC LOCAL_PRIVATE SCOPE CurrentUser
+END.OBJECT
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.model.objects.map((object) => [object.name, object.sync])).toEqual([
+      [
+        "BandEvent",
+        {
+          mode: "localFirst",
+          scope: "allAvailableContexts",
+          conflict: "manual",
+        },
+      ],
+      [
+        "UserPreference",
+        {
+          mode: "localPrivate",
+          scope: "currentUser",
+          conflict: "manual",
+        },
+      ],
+    ]);
+  });
+
   it("enforces parser-generated inline lifecycle action policies at runtime", async () => {
     const result = compileAdl(`APP TicketDesk
   START_VIEW TicketList

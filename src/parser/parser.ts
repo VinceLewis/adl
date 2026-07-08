@@ -1519,10 +1519,16 @@ function normaliseSyncScope(value: string): string {
   switch (normaliseKeyword(value)) {
     case "all":
       return "all";
+    case "currentuser":
+      return "currentUser";
     case "assignedtouser":
       return "assignedToUser";
     case "ownedbyuser":
       return "ownedByUser";
+    case "currentcontext":
+      return "currentContext";
+    case "allavailablecontexts":
+      return "allAvailableContexts";
     case "recent":
       return "recent";
     case "custom":

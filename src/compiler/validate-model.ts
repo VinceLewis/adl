@@ -19,6 +19,7 @@ import type {
   ResolvedPolicyRule,
   ResolvedReadModel,
   ResolvedSyncPolicy,
+  ResolvedSyncWindow,
   ResolvedTheme,
   ResolvedThemeTokens,
   ResolvedView,
@@ -92,6 +93,9 @@ export const MODEL_VALIDATION_CODES = {
   OBJECT_SYNC_CONFLICT_INVALID: "ADL_OBJECT_SYNC_CONFLICT_INVALID",
   OBJECT_SYNC_MODE_INVALID: "ADL_OBJECT_SYNC_MODE_INVALID",
   OBJECT_SYNC_SCOPE_INVALID: "ADL_OBJECT_SYNC_SCOPE_INVALID",
+  OBJECT_SYNC_WINDOW_DAYS_INVALID: "ADL_OBJECT_SYNC_WINDOW_DAYS_INVALID",
+  OBJECT_SYNC_WINDOW_FIELD_UNKNOWN: "ADL_OBJECT_SYNC_WINDOW_FIELD_UNKNOWN",
+  OBJECT_SYNC_WINDOW_LIMIT_INVALID: "ADL_OBJECT_SYNC_WINDOW_LIMIT_INVALID",
   POLICY_ACTION_INVALID: "ADL_POLICY_ACTION_INVALID",
   POLICY_DEFAULT_EFFECT_INVALID: "ADL_POLICY_DEFAULT_EFFECT_INVALID",
   POLICY_DUPLICATE: "ADL_POLICY_DUPLICATE",
@@ -116,6 +120,9 @@ export const MODEL_VALIDATION_CODES = {
   SYNC_MODE_INVALID: "ADL_SYNC_MODE_INVALID",
   SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
   SYNC_SCOPE_INVALID: "ADL_SYNC_SCOPE_INVALID",
+  SYNC_WINDOW_DAYS_INVALID: "ADL_SYNC_WINDOW_DAYS_INVALID",
+  SYNC_WINDOW_FIELD_UNKNOWN: "ADL_SYNC_WINDOW_FIELD_UNKNOWN",
+  SYNC_WINDOW_LIMIT_INVALID: "ADL_SYNC_WINDOW_LIMIT_INVALID",
   THEME_BASE_SELF_REFERENCE: "ADL_THEME_BASE_SELF_REFERENCE",
   THEME_BASE_CYCLE: "ADL_THEME_BASE_CYCLE",
   THEME_BASE_UNKNOWN: "ADL_THEME_BASE_UNKNOWN",
@@ -191,8 +198,11 @@ const SYNC_MODES = new Set<SyncMode>([
 ]);
 const SYNC_SCOPES = new Set<SyncScope>([
   "all",
+  "currentUser",
   "assignedToUser",
   "ownedByUser",
+  "currentContext",
+  "allAvailableContexts",
   "recent",
   "custom",
 ]);
@@ -915,6 +925,14 @@ function validateObjectSyncPolicy(
       ),
     );
   }
+
+  if (object.sync.window !== undefined) {
+    validateSyncWindow(object.sync.window, object, `${objectPath}.sync.window`, diagnostics, {
+      field: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_FIELD_UNKNOWN,
+      days: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_DAYS_INVALID,
+      limit: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_LIMIT_INVALID,
+    });
+  }
 }
 
 function validatePolicy(
@@ -1512,6 +1530,62 @@ function validateSyncPolicy(
       ),
     );
   }
+
+  const object = indexes.objectsByName.get(sync.object)?.item;
+  if (sync.window !== undefined && object !== undefined) {
+    validateSyncWindow(sync.window, object, `${syncPath}.window`, diagnostics, {
+      field: MODEL_VALIDATION_CODES.SYNC_WINDOW_FIELD_UNKNOWN,
+      days: MODEL_VALIDATION_CODES.SYNC_WINDOW_DAYS_INVALID,
+      limit: MODEL_VALIDATION_CODES.SYNC_WINDOW_LIMIT_INVALID,
+    });
+  }
+}
+
+function validateSyncWindow(
+  window: ResolvedSyncWindow,
+  object: ResolvedObject,
+  windowPath: string,
+  diagnostics: Diagnostic[],
+  codes: {
+    field: ModelValidationCode;
+    days: ModelValidationCode;
+    limit: ModelValidationCode;
+  },
+): void {
+  const knownFields = new Set([
+    ...object.fields.map((field) => field.name),
+    ...object.metadataFields.map((field) => field.name),
+  ]);
+
+  if (!knownFields.has(window.field)) {
+    diagnostics.push(
+      diagnostic(
+        codes.field,
+        `Sync window field '${window.field}' does not exist on object '${object.name}'.`,
+        `${windowPath}.field`,
+      ),
+    );
+  }
+
+  if (window.days !== undefined && !isPositiveInteger(window.days)) {
+    diagnostics.push(
+      diagnostic(
+        codes.days,
+        `Sync window days for object '${object.name}' must be a positive integer.`,
+        `${windowPath}.days`,
+      ),
+    );
+  }
+
+  if (window.limit !== undefined && !isPositiveInteger(window.limit)) {
+    diagnostics.push(
+      diagnostic(
+        codes.limit,
+        `Sync window limit for object '${object.name}' must be a positive integer.`,
+        `${windowPath}.limit`,
+      ),
+    );
+  }
 }
 
 function validateHookRefs(
@@ -1617,6 +1691,10 @@ function isDefaultCompatible(field: ResolvedField, value: unknown): boolean {
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPositiveInteger(value: number): boolean {
+  return Number.isInteger(value) && value > 0;
 }
 
 function diagnostic(code: ModelValidationCode, message: string, path?: string): Diagnostic {

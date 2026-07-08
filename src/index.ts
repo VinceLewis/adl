@@ -13,6 +13,7 @@ export * from "./runtime/indexeddb-object-storage.js";
 export * from "./runtime/lifecycle-engine.js";
 export * from "./runtime/object-storage-backend.js";
 export * from "./runtime/object-store.js";
+export * from "./runtime/offline-dataset-service.js";
 export * from "./runtime/operation-log.js";
 export * from "./runtime/policy-engine.js";
 export * from "./runtime/read-model-service.js";

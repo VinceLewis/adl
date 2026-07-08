@@ -40,7 +40,15 @@ export type PrincipalMatch = "everyone" | "authenticated" | "anonymous" | "owner
 
 export type RuntimeChannel = "ui" | "api" | "sync" | "import" | "test";
 export type SyncMode = "localFirst" | "cacheReadonly" | "onlineRequired" | "localPrivate";
-export type SyncScope = "all" | "assignedToUser" | "ownedByUser" | "recent" | "custom";
+export type SyncScope =
+  | "all"
+  | "currentUser"
+  | "assignedToUser"
+  | "ownedByUser"
+  | "currentContext"
+  | "allAvailableContexts"
+  | "recent"
+  | "custom";
 export type ConflictStrategy = "serverWins" | "clientWins" | "stateTransitionWins" | "manual";
 export type SyncStatus = "local" | "pending" | "synced" | "conflict" | "rejected";
 export type LocalOperationKind = "create" | "update" | "delete" | "transition";
@@ -313,10 +321,17 @@ export interface ResolvedSyncPolicy {
   object: string;
   mode: SyncMode;
   scope: SyncScope;
+  window?: ResolvedSyncWindow;
   conflict: ConflictStrategy;
 }
 
 export type ResolvedObjectSyncPolicy = Omit<ResolvedSyncPolicy, "object">;
+
+export interface ResolvedSyncWindow {
+  field: string;
+  days?: number;
+  limit?: number;
+}
 
 export interface ResolvedObjectAuditPolicy {
   enabled: boolean;
@@ -591,10 +606,17 @@ export interface PartialSyncPolicyModel {
   object: string;
   mode?: SyncMode;
   scope?: SyncScope;
+  window?: PartialSyncWindowModel;
   conflict?: ConflictStrategy;
 }
 
 export type PartialObjectSyncPolicyModel = Omit<PartialSyncPolicyModel, "object">;
+
+export interface PartialSyncWindowModel {
+  field?: string;
+  days?: number;
+  limit?: number;
+}
 
 export interface PartialObjectAuditPolicyModel {
   enabled?: boolean;
