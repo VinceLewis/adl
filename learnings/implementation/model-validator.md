@@ -11,6 +11,13 @@ Read this before changing resolved model validation, compile-time validation int
 - Phase 1 default-deny policies are valid when they have `defaultEffect: "deny"` and an empty `rules` array. Do not add a deny-all rule to make them appear more explicit.
 - Hook references are only syntax-checked at model validation time. Runtime hook registration and missing-hook handling belong to later runtime phases.
 
+## Key decisions from Phase 18
+
+- The validator checks structured policy conditions, object constraints, and command declarations as resolved-model features.
+- Policy and command condition field operands resolve against business fields on the target object. Runtime-only metadata fields are still not valid author-facing field operands.
+- Unique and ordered constraints validate referenced fields at startup. Ordered constraints require a numeric position field and a positive integer `minPosition`.
+- Command validation checks command/input/step name uniqueness, target objects, written fields, input references, runtime expression properties, and earlier-step references. Step expressions may only reference earlier steps to keep command execution deterministic.
+
 ## Practical guidance
 
 - Add new validator rules with stable diagnostic codes and focused tests. Avoid changing existing code strings unless downstream tooling has a migration path.

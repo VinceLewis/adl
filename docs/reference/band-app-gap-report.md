@@ -30,14 +30,18 @@ It runs against the existing local runtime and IndexedDB storage. It does not re
 
 ## Documented Gaps
 
-No custom runtime hooks were added in Phase 17. The following behaviors remain platform design candidates:
+Phase 18 promoted several Phase 17 gaps into generic model/runtime capabilities:
 
-- Invitation acceptance needs a transactional command that updates `BandInvitation` and creates `BandMember` atomically.
-- Pending invitations for non-members need a context grant separate from membership; a band-scoped invitation is not naturally available before membership exists.
-- Availability projection from user-owned records into selected-band member views needs reverse joins or multi-hop read-model sources through `BandMember`.
-- Availability self-service writes need field equality conditions such as `Availability.User == runtime.userId`; the current policy engine does not evaluate conditions.
-- Creating a band should be able to create the creator's `BandMember` row as an atomic command.
-- Ordered set-list behavior needs model-native scoped uniqueness and reorder helpers, such as unique `(SetList, Position)` and compaction after removal.
-- Scoped uniqueness is not yet modelled for cases like song title per band, set-list name per band, invitation email per band, or streaming platform per song.
+- Availability self-service policies now use model-declared field equality conditions, such as `Availability.User == runtime.userId`, enforced by the runtime policy engine.
+- `AcceptBandInvitation` is represented as a generic command transaction that updates `BandInvitation` and creates `BandMember` without an app-specific hook.
+- Scoped uniqueness is modelled with backend-neutral object constraints for cases such as song title per band, set-list name per band, invitation email per band, member per band, and streaming platform per song.
+- Ordered set-list positions are modelled with a generic ordered object constraint that enforces positive integer positions and prevents duplicate positions within a set list.
+
+The following behaviors remain platform design candidates:
+
+- Pending invitations for non-members still need a context grant separate from membership; the command currently requires the caller to supply the invitation's band context.
+- Availability projection from user-owned records into selected-band member views still needs reverse joins or multi-hop read-model sources through `BandMember`.
+- Band creation can now be described as a command pattern, but creating the new context and its initial membership in one command needs a command-created context grant or equivalent scoped-write model.
+- Ordered set-list behavior still needs generic reorder helpers and compaction after removal.
 - Batch commands are not modelled for mass song import, batch set-list item creation, or drag-reorder updates.
 - Remote sync remains backend-neutral; a future server must provide context-scoped datasets, conflict handling, email dispatch, and authoritative policy re-checks.

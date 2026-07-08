@@ -15,6 +15,15 @@ Read this before changing runtime services, UI runtime integration, lifecycle ex
 - `OperationLog` records lifecycle transitions with `operation: "transition"` and includes `lifecycleAction`, `fromState`, and `toState`. Do not collapse transitions into update operations.
 - `HookRegistry` is no-op-capable: missing hook registrations are skipped, while registered hook failures throw `HookError`.
 
+## Key decisions from Phase 18
+
+- `ApplicationRuntime.executeCommand(...)` is the public entry point for model-declared commands. Commands are resolved model constructs, not app-specific handlers.
+- Command steps currently support transactional `create` and `update` writes with model-declared value expressions from command input, runtime values, and earlier step records.
+- Command preconditions use the same structured condition evaluator as policy conditions. Failed command preconditions throw `PolicyDeniedError` before any planned writes are committed.
+- `ObjectStore` now plans create/update writes before committing them. Direct CRUD calls and command transactions share validation, context-scope checks, policy checks, sync checks, constraints, audit recording, operation-log recording, and read-policy shaping.
+- Object constraints are enforced before storage writes. If a later command step would violate uniqueness or ordered-position constraints, earlier planned steps are not persisted.
+- Command steps can use `authority: "command"` when the command's own preconditions are the authorization boundary for a write that should not be exposed as a direct object policy grant. Validation, sync checks, scope checks, constraints, audit, and operation logs still run.
+
 ## Policy and validation notes
 
 - `PolicyEngine` is deny-by-default and explicit deny wins.

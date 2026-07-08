@@ -5,6 +5,8 @@ import type {
   StoredObjectRecord,
 } from "../model/resolved-model.js";
 import { AuditService } from "./audit-service.js";
+import { CommandService } from "./command-service.js";
+import type { RuntimeCommandResult } from "./command-service.js";
 import { HookRegistry } from "./hook-registry.js";
 import type { RuntimeHook } from "./hook-registry.js";
 import { RuntimeContextService } from "./context-service.js";
@@ -57,6 +59,7 @@ export class ApplicationRuntime {
   readonly readModelService: ReadModelService;
   readonly objectStore: ObjectStore;
   readonly lifecycleEngine: LifecycleEngine;
+  readonly commandService: CommandService;
 
   private readonly logger: RuntimeLogger;
   private readonly startupPromise: Promise<void>;
@@ -125,6 +128,9 @@ export class ApplicationRuntime {
       this.hookRegistry,
       this.index,
       this.logger,
+    );
+    this.commandService = new CommandService(model, this.objectStore, this.index, this.logger, () =>
+      this.whenReady(),
     );
   }
 
@@ -345,6 +351,24 @@ export class ApplicationRuntime {
       objectName,
       recordId: result.meta.guid,
       actionName,
+    });
+    return result;
+  }
+
+  async executeCommand(
+    commandName: string,
+    input: Record<string, JsonValue>,
+    context: RuntimeContext,
+  ): Promise<RuntimeCommandResult> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.executeCommand", {
+      commandName,
+      context: safeContextLog(context),
+    });
+    const result = await this.commandService.execute(commandName, input, context);
+    this.logger.debug("EXIT ApplicationRuntime.executeCommand", {
+      commandName,
+      count: result.steps.length,
     });
     return result;
   }

@@ -1,4 +1,5 @@
 import type {
+  CommandStepAuthority,
   JsonValue,
   LocalOperationKind,
   ResolvedApplicationModel,
@@ -19,16 +20,41 @@ import type { OperationLog, OperationLogDetails } from "./operation-log.js";
 import type { PolicyEngine } from "./policy-engine.js";
 import {
   StorageError,
+  RuntimeValidationError,
   cloneJson,
   getContextNowIso,
   noopRuntimeLogger,
   normaliseSearchQuery,
   safeContextLog,
 } from "./runtime-types.js";
-import type { RuntimeContext, RuntimeLogger, RuntimeSearchInput } from "./runtime-types.js";
+import type {
+  RuntimeContext,
+  RuntimeLogger,
+  RuntimeSearchInput,
+  RuntimeValidationIssue,
+} from "./runtime-types.js";
 import type { SyncPolicyService } from "./sync-policy-service.js";
 import type { SyncQueue } from "./sync-queue.js";
 import type { ValidationEngine } from "./validation-engine.js";
+
+export type ObjectStoreWriteAuthority = CommandStepAuthority;
+
+export type PlannedObjectWrite = PlannedCreateObjectWrite | PlannedUpdateObjectWrite;
+
+export interface PlannedCreateObjectWrite {
+  operation: "create";
+  objectName: string;
+  record: StoredObjectRecord;
+  patch: Record<string, JsonValue>;
+}
+
+export interface PlannedUpdateObjectWrite {
+  operation: "update";
+  objectName: string;
+  existing: StoredObjectRecord;
+  record: StoredObjectRecord;
+  patch: Record<string, JsonValue>;
+}
 
 export class ObjectStore {
   private nextRevisionId = 1;
@@ -52,35 +78,62 @@ export class ObjectStore {
     values: Record<string, JsonValue>,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
-    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.create", { objectName, context: safeContextLog(context) });
+    const write = await this.planCreateForTransaction(objectName, values, context);
+    const [created] = await this.commitPlannedTransaction([write], context);
+    if (created === undefined) {
+      throw new StorageError(`Create for object '${objectName}' did not produce a record.`, {
+        objectName,
+      });
+    }
+    this.logger.debug("EXIT ObjectStore.create", {
+      objectName,
+      recordId: created.meta.guid,
+    });
+    return created;
+  }
+
+  async planCreateForTransaction(
+    objectName: string,
+    values: Record<string, JsonValue>,
+    context: RuntimeContext,
+    authority: ObjectStoreWriteAuthority = "caller",
+  ): Promise<PlannedCreateObjectWrite> {
+    await this.startupGuard();
     const object = this.index.getObject(objectName);
     const preparedValues = this.validationEngine.prepareCreateValues(objectName, values);
     const currentState = getInitialLifecycleState(object);
 
     requireObjectScopeForValues(this.index, objectName, preparedValues, context, "create");
-    this.policyEngine.requireAllowed(
-      {
+    if (authority === "caller") {
+      this.policyEngine.requireAllowed(
+        {
+          objectName,
+          action: "create",
+          patch: preparedValues,
+          ...(currentState === undefined ? {} : { currentState }),
+        },
+        context,
+      );
+      this.requireFieldPolicy(
+        "create",
         objectName,
-        action: "create",
-        patch: preparedValues,
-        ...(currentState === undefined ? {} : { currentState }),
-      },
-      context,
-    );
-    this.requireFieldPolicy("create", objectName, preparedValues, context, undefined, currentState);
+        preparedValues,
+        context,
+        undefined,
+        currentState,
+      );
+    }
     this.syncPolicy.requireLocalWriteAllowed(objectName, "create", context);
 
     const record = this.buildNewRecord(object, preparedValues, context, currentState);
-    await this.storage.create(objectName, record);
-    this.auditService.record("create", objectName, record, context, undefined, record.values);
-    this.recordOperation("create", objectName, record, context, { patch: record.values });
-    this.logger.debug("EXIT ObjectStore.create", {
-      objectName,
-      recordId: record.meta.guid,
-    });
 
-    return this.policyEngine.applyReadPolicy(objectName, record, context);
+    return {
+      operation: "create",
+      objectName,
+      record,
+      patch: preparedValues,
+    };
   }
 
   async read(
@@ -123,48 +176,64 @@ export class ObjectStore {
     patch: Record<string, JsonValue>,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
-    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.update", {
       objectName,
       recordId: id,
       context: safeContextLog(context),
     });
+    const write = await this.planUpdateForTransaction(objectName, id, patch, context);
+    const [updated] = await this.commitPlannedTransaction([write], context);
+    if (updated === undefined) {
+      throw new StorageError(
+        `Update for record '${id}' on object '${objectName}' did not produce a record.`,
+        {
+          objectName,
+          id,
+        },
+      );
+    }
+    this.logger.debug("EXIT ObjectStore.update", { objectName, recordId: id });
+    return updated;
+  }
+
+  async planUpdateForTransaction(
+    objectName: string,
+    id: string,
+    patch: Record<string, JsonValue>,
+    context: RuntimeContext,
+    authority: ObjectStoreWriteAuthority = "caller",
+  ): Promise<PlannedUpdateObjectWrite> {
+    await this.startupGuard();
     const existing = await this.requireActiveRecord(objectName, id);
     requireObjectScopeForRecord(this.index, objectName, existing, context, "update");
     const currentState = this.getState(objectName, existing);
     const nextValues = this.validationEngine.prepareUpdateValues(objectName, existing, patch);
 
     requireObjectScopeForValues(this.index, objectName, nextValues, context, "update");
-    this.policyEngine.requireAllowed(
-      {
-        objectName,
-        action: "update",
-        record: existing,
-        patch,
-        ...(currentState === undefined ? {} : { currentState }),
-      },
-      context,
-    );
-    this.requireFieldPolicy("update", objectName, patch, context, existing, currentState);
+    if (authority === "caller") {
+      this.policyEngine.requireAllowed(
+        {
+          objectName,
+          action: "update",
+          record: existing,
+          patch,
+          ...(currentState === undefined ? {} : { currentState }),
+        },
+        context,
+      );
+      this.requireFieldPolicy("update", objectName, patch, context, existing, currentState);
+    }
     this.syncPolicy.requireLocalWriteAllowed(objectName, "update", context);
 
     const updated = this.updatedRecord(existing, nextValues, context, currentState);
-    await this.storage.update(objectName, updated);
-    this.auditService.record(
-      "update",
-      objectName,
-      updated,
-      context,
-      existing.values,
-      updated.values,
-    );
-    this.recordOperation("update", objectName, updated, context, {
-      baseRevision: existing.meta.revision,
-      patch,
-    });
-    this.logger.debug("EXIT ObjectStore.update", { objectName, recordId: id });
 
-    return this.policyEngine.applyReadPolicy(objectName, updated, context);
+    return {
+      operation: "update",
+      objectName,
+      existing,
+      record: updated,
+      patch,
+    };
   }
 
   async delete(
@@ -264,6 +333,51 @@ export class ObjectStore {
 
     this.logger.debug("EXIT ObjectStore.search", { objectName, count: shaped.length });
     return shaped;
+  }
+
+  async commitPlannedTransaction(
+    writes: PlannedObjectWrite[],
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord[]> {
+    await this.startupGuard();
+    await this.requireConstraintsForWrites(writes);
+
+    const committed: StoredObjectRecord[] = [];
+    for (const write of writes) {
+      if (write.operation === "create") {
+        await this.storage.create(write.objectName, write.record);
+        this.auditService.record(
+          "create",
+          write.objectName,
+          write.record,
+          context,
+          undefined,
+          write.record.values,
+        );
+        this.recordOperation("create", write.objectName, write.record, context, {
+          patch: write.record.values,
+        });
+        committed.push(this.policyEngine.applyReadPolicy(write.objectName, write.record, context));
+        continue;
+      }
+
+      await this.storage.update(write.objectName, write.record);
+      this.auditService.record(
+        "update",
+        write.objectName,
+        write.record,
+        context,
+        write.existing.values,
+        write.record.values,
+      );
+      this.recordOperation("update", write.objectName, write.record, context, {
+        baseRevision: write.existing.meta.revision,
+        patch: write.patch,
+      });
+      committed.push(this.policyEngine.applyReadPolicy(write.objectName, write.record, context));
+    }
+
+    return committed;
   }
 
   async getRecordForRuntime(objectName: string, id: string): Promise<StoredObjectRecord | null> {
@@ -422,6 +536,109 @@ export class ObjectStore {
     );
   }
 
+  private async requireConstraintsForWrites(writes: PlannedObjectWrite[]): Promise<void> {
+    const issues: RuntimeValidationIssue[] = [];
+    const affectedObjectNames = [...new Set(writes.map((write) => write.objectName))];
+
+    for (const objectName of affectedObjectNames) {
+      const object = this.index.getObject(objectName);
+      const objectWrites = writes.filter((write) => write.objectName === objectName);
+      if (object.constraints.length === 0 || objectWrites.length === 0) {
+        continue;
+      }
+
+      const finalRecords = await this.getFinalConstraintRecords(object, objectWrites);
+      for (const write of objectWrites) {
+        for (const constraint of object.constraints) {
+          if (constraint.kind === "unique") {
+            const fields = [...constraint.scopeFields, ...constraint.fields];
+            if (hasMissingConstraintValue(write.record, fields)) {
+              continue;
+            }
+            const duplicate = finalRecords.find(
+              (candidate) =>
+                candidate.meta.guid !== write.record.meta.guid &&
+                fields.every((field) =>
+                  jsonValuesEqual(candidate.values[field], write.record.values[field]),
+                ),
+            );
+            if (duplicate !== undefined) {
+              const field = constraint.fields[0] ?? fields[0] ?? "constraint";
+              issues.push({
+                code: "ADL_RUNTIME_CONSTRAINT_UNIQUE",
+                message: `Constraint '${constraint.name}' requires fields ${fields.join(", ")} to be unique on object '${object.name}'.`,
+                path: `values.${field}`,
+                field,
+              });
+            }
+            continue;
+          }
+
+          const position = write.record.values[constraint.positionField];
+          if (
+            typeof position !== "number" ||
+            !Number.isInteger(position) ||
+            position < constraint.minPosition
+          ) {
+            issues.push({
+              code: "ADL_RUNTIME_CONSTRAINT_ORDERED_POSITION",
+              message: `Constraint '${constraint.name}' requires '${constraint.positionField}' to be an integer greater than or equal to ${constraint.minPosition}.`,
+              path: `values.${constraint.positionField}`,
+              field: constraint.positionField,
+            });
+            continue;
+          }
+
+          const scopeFields = [...constraint.scopeFields, constraint.parentField];
+          if (hasMissingConstraintValue(write.record, scopeFields)) {
+            continue;
+          }
+
+          const duplicate = finalRecords.find(
+            (candidate) =>
+              candidate.meta.guid !== write.record.meta.guid &&
+              scopeFields.every((field) =>
+                jsonValuesEqual(candidate.values[field], write.record.values[field]),
+              ) &&
+              jsonValuesEqual(candidate.values[constraint.positionField], position),
+          );
+          if (duplicate !== undefined) {
+            issues.push({
+              code: "ADL_RUNTIME_CONSTRAINT_ORDERED_DUPLICATE",
+              message: `Constraint '${constraint.name}' requires '${constraint.positionField}' to be unique within '${constraint.parentField}'.`,
+              path: `values.${constraint.positionField}`,
+              field: constraint.positionField,
+            });
+          }
+        }
+      }
+    }
+
+    if (issues.length > 0) {
+      throw new RuntimeValidationError("Object constraints failed.", issues);
+    }
+  }
+
+  private async getFinalConstraintRecords(
+    object: ResolvedObject,
+    writes: PlannedObjectWrite[],
+  ): Promise<StoredObjectRecord[]> {
+    const recordsById = new Map(
+      (
+        await this.storage.search({
+          object,
+          fields: [],
+        })
+      ).map((record) => [record.meta.guid, record]),
+    );
+
+    for (const write of writes) {
+      recordsById.set(write.record.meta.guid, cloneJson(write.record));
+    }
+
+    return [...recordsById.values()];
+  }
+
   private getState(objectName: string, record: StoredObjectRecord): string | undefined {
     return getRecordState(this.index.getObject(objectName), record);
   }
@@ -489,4 +706,19 @@ function randomId(): string {
 
 function stateProperty(currentState: string | undefined): { currentState: string } | {} {
   return currentState === undefined ? {} : { currentState };
+}
+
+function hasMissingConstraintValue(record: StoredObjectRecord, fields: string[]): boolean {
+  return fields.some((field) => {
+    const value = record.values[field];
+    return value === undefined || value === null || value === "";
+  });
+}
+
+function jsonValuesEqual(left: JsonValue | undefined, right: JsonValue | undefined): boolean {
+  if (left === undefined || right === undefined) {
+    return false;
+  }
+
+  return JSON.stringify(left) === JSON.stringify(right);
 }

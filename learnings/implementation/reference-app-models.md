@@ -12,8 +12,16 @@ Read this before adding or changing ADL reference applications, especially multi
 - `onlineRequired` objects are excluded from offline datasets. The band reference app models invitations as online-required because email dispatch and invitation acceptance need future remote/transaction support.
 - Ordered set-list items are currently represented with a positive numeric `Position` field. Uniqueness, compaction, and batch reordering remain future generic platform work.
 
+## Key decisions from Phase 18
+
+- The band reference app now uses structured field equality policy conditions for user-owned `Availability` writes. Tests should assert direct runtime denials when `Availability.User` differs from `RuntimeContext.userId`.
+- Invitation acceptance is represented by the generic `AcceptBandInvitation` command. It updates the invitation and creates membership through the runtime command service rather than a fixture-specific hook.
+- The command-created `BandMember` write uses command authority, so direct non-admin membership creation remains denied while the command can complete after its invitation preconditions pass.
+- The band fixture uses backend-neutral object constraints for scoped uniqueness and ordered positions: member per band, invitation email per band, availability date per user, song title per band, set-list name per band, streaming platform per song, and set-list item position per set list.
+- Ordered set-list constraints now enforce positive integer positions and duplicate-position denial. Reorder/compaction behavior remains future generic command/helper work.
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.
 - Prefer one domain object with a type field when the current read-model runtime cannot express a union of several source objects.
-- When modeling user-owned records, remember that current policy conditions cannot express field equality such as `record.User == runtime.userId`; tests should not imply that guarantee exists until the platform supports it.
+- When modeling user-owned records, prefer structured policy conditions over owner-convention checks when the business owner is a field such as `User`.

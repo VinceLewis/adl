@@ -8,8 +8,10 @@ import {
 } from "../src/index.js";
 import type { RuntimeContext } from "../src/index.js";
 import {
+  bandReferenceSystemContext,
   createBandReferenceModel,
   createBandReferenceRuntime,
+  contextForBand,
   seedBandReferenceRuntime,
 } from "../src/reference/band-app.js";
 import { AdlAppElement } from "../src/ui/components/adl-app.js";
@@ -46,6 +48,25 @@ describe("band reference app model", () => {
           }),
         }),
       ]),
+    );
+    expect(model.commands?.map((command) => command.name)).toContain("AcceptBandInvitation");
+    expect(
+      model.objects.find((object) => object.name === "SetListItem")?.constraints,
+    ).toContainEqual(
+      expect.objectContaining({
+        name: "orderedSetListItems",
+        kind: "ordered",
+        parentField: "SetList",
+        positionField: "Position",
+      }),
+    );
+    expect(model.objects.find((object) => object.name === "Song")?.constraints).toContainEqual(
+      expect.objectContaining({
+        name: "uniqueSongTitleInBand",
+        kind: "unique",
+        scopeFields: ["Band"],
+        fields: ["Title"],
+      }),
     );
     expect(syncByObject.get("User")).toMatchObject({ mode: "localFirst", scope: "currentUser" });
     expect(syncByObject.get("Event")).toMatchObject({
@@ -246,7 +267,151 @@ describe("band reference app runtime", () => {
     ]);
   });
 
-  it("represents ordered set-list items with a validated position field", async () => {
+  it("requires availability self-service writes to target the runtime user", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const guestContext: RuntimeContext = {
+      ...seeded.musicianContext,
+      userId: seeded.guest.meta.guid,
+    };
+
+    await expect(
+      seeded.runtime.create(
+        "Availability",
+        {
+          User: seeded.guest.meta.guid,
+          Date: "2026-08-04",
+          Status: "Available",
+        },
+        guestContext,
+      ),
+    ).resolves.toMatchObject({
+      values: {
+        User: seeded.guest.meta.guid,
+      },
+    });
+
+    await expect(
+      seeded.runtime.create(
+        "Availability",
+        {
+          User: seeded.guest.meta.guid,
+          Date: "2026-08-05",
+          Status: "Available",
+        },
+        seeded.musicianContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    await expect(
+      seeded.runtime.update(
+        "Availability",
+        seeded.availability.meta.guid,
+        { User: seeded.guest.meta.guid },
+        seeded.musicianContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    await expect(
+      seeded.runtime.read("Availability", seeded.availability.meta.guid, guestContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+  });
+
+  it("accepts invitations with a generic transaction command", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const inviteeContext: RuntimeContext = {
+      userId: seeded.guest.meta.guid,
+      roles: [],
+      channel: "api",
+      now: new Date("2026-07-08T10:00:00.000Z"),
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    };
+
+    await expect(
+      seeded.runtime.create(
+        "BandMember",
+        {
+          User: seeded.guest.meta.guid,
+          Band: seeded.firstBand.meta.guid,
+          Role: "BandMember",
+        },
+        inviteeContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    const result = await seeded.runtime.executeCommand(
+      "AcceptBandInvitation",
+      { Invitation: seeded.invitation.meta.guid },
+      inviteeContext,
+    );
+
+    expect(result.steps.map((step) => [step.step, step.objectName])).toEqual([
+      ["acceptInvitation", "BandInvitation"],
+      ["createMembership", "BandMember"],
+    ]);
+    expect(result.steps[0]?.record.values).toMatchObject({
+      Status: "Accepted",
+      RespondedAt: "2026-07-08",
+    });
+    expect(result.steps[1]?.record.values).toMatchObject({
+      User: seeded.guest.meta.guid,
+      Band: seeded.firstBand.meta.guid,
+      Role: "BandMember",
+      JoinedAt: "2026-07-08",
+    });
+  });
+
+  it("keeps invitation acceptance atomic when membership creation violates uniqueness", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const inviteeContext: RuntimeContext = {
+      userId: seeded.guest.meta.guid,
+      roles: [],
+      channel: "api",
+      now: new Date("2026-07-08T10:00:00.000Z"),
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    };
+
+    await seeded.runtime.executeCommand(
+      "AcceptBandInvitation",
+      { Invitation: seeded.invitation.meta.guid },
+      inviteeContext,
+    );
+    const secondInvitation = await seeded.runtime.create(
+      "BandInvitation",
+      {
+        Band: seeded.firstBand.meta.guid,
+        Inviter: seeded.musician.meta.guid,
+        Invitee: seeded.guest.meta.guid,
+        InviteeEmail: "riley.alt@example.com",
+        SentAt: "2026-07-08",
+      },
+      contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid),
+    );
+
+    await expect(
+      seeded.runtime.executeCommand(
+        "AcceptBandInvitation",
+        { Invitation: secondInvitation.meta.guid },
+        inviteeContext,
+      ),
+    ).rejects.toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_CONSTRAINT_UNIQUE",
+          field: "User",
+        }),
+      ],
+    });
+
+    await expect(
+      seeded.runtime.objectStore.getRecordForRuntime("BandInvitation", secondInvitation.meta.guid),
+    ).resolves.toMatchObject({
+      values: {
+        Status: "Pending",
+      },
+    });
+  });
+
+  it("enforces scoped uniqueness and ordered set-list positions", async () => {
     const seeded = await createSeededBandReferenceRuntime();
 
     await expect(
@@ -275,7 +440,41 @@ describe("band reference app runtime", () => {
           Band: seeded.firstBand.meta.guid,
           SetList: seeded.firstSetList.meta.guid,
           Song: seeded.firstSong.meta.guid,
-          Position: 0,
+          Position: 2,
+        },
+        seeded.firstBandContext,
+      ),
+    ).rejects.toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_CONSTRAINT_ORDERED_DUPLICATE",
+          field: "Position",
+        }),
+      ],
+    });
+    await expect(
+      seeded.runtime.create(
+        "Song",
+        {
+          Band: seeded.firstBand.meta.guid,
+          Title: "Neon Map",
+        },
+        seeded.firstBandContext,
+      ),
+    ).rejects.toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_CONSTRAINT_UNIQUE",
+          field: "Title",
+        }),
+      ],
+    });
+    await expect(
+      seeded.runtime.create(
+        "SetList",
+        {
+          Band: seeded.firstBand.meta.guid,
+          Name: "August headline",
         },
         seeded.firstBandContext,
       ),

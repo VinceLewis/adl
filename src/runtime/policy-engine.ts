@@ -6,6 +6,7 @@ import type {
   ResolvedPolicyRule,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import { evaluateRuntimeCondition } from "./condition-evaluator.js";
 import { getPolicyRequestContextTargets, runtimeContextHasScopedRole } from "./context-scope.js";
 import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
 import { PolicyDeniedError, cloneJson, noopRuntimeLogger } from "./runtime-types.js";
@@ -202,7 +203,13 @@ export class PolicyEngine {
       return false;
     }
 
-    if (rule.condition !== undefined) {
+    if (
+      rule.condition !== undefined &&
+      !evaluateRuntimeCondition(rule.condition, {
+        values: getCandidateValues(request),
+        context,
+      })
+    ) {
       return false;
     }
 
@@ -281,6 +288,13 @@ function isOwner(record: StoredObjectRecord | undefined, userId: string): boolea
     record.values.ownerId === userId ||
     record.values.CreatedBy === userId
   );
+}
+
+function getCandidateValues(request: PolicyRequest): Record<string, JsonValue> {
+  return {
+    ...(request.record?.values ?? {}),
+    ...(request.patch ?? {}),
+  };
 }
 
 function findMostRestrictivePresentationRule(matches: MatchingRule[]): MatchingRule | undefined {

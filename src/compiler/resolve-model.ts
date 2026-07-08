@@ -19,10 +19,12 @@ import {
   toTableName,
 } from "../model/defaults.js";
 import type {
-  JsonValue,
   PartialApplicationModel,
   PartialAutoIdModel,
   PartialBusinessContextModel,
+  PartialCommandInputModel,
+  PartialCommandModel,
+  PartialCommandStepModel,
   PartialContextMembershipModel,
   PartialContextSelectionPolicyModel,
   PartialFieldModel,
@@ -30,6 +32,7 @@ import type {
   PartialLifecycleActionModel,
   PartialLifecycleModel,
   PartialLookupModel,
+  PartialObjectConstraintModel,
   PartialObjectModel,
   PartialObjectScopeModel,
   PartialObjectSyncPolicyModel,
@@ -50,6 +53,9 @@ import type {
   ResolvedApplicationModel,
   ResolvedAutoId,
   ResolvedBusinessContext,
+  ResolvedCommand,
+  ResolvedCommandInput,
+  ResolvedCommandStep,
   ResolvedContextMembership,
   ResolvedContextSelectionPolicy,
   ResolvedField,
@@ -59,8 +65,10 @@ import type {
   ResolvedLookup,
   ResolvedObject,
   ResolvedObjectAuditPolicy,
+  ResolvedObjectConstraint,
   ResolvedObjectScope,
   ResolvedObjectSyncPolicy,
+  ResolvedPolicyCondition,
   ResolvedPolicy,
   ResolvedPolicyRule,
   ResolvedPrincipalSelector,
@@ -101,6 +109,10 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
     input.readModels === undefined
       ? undefined
       : resolveReadModels(input.readModels, objectsWithPolicies);
+  const commands =
+    input.commands === undefined || input.commands.length === 0
+      ? undefined
+      : resolveCommands(input.commands);
   const sync = objectsWithPolicies.map((object) => ({
     object: object.name,
     ...object.sync,
@@ -118,6 +130,7 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
     ...(contexts === undefined ? {} : { contexts }),
     objects: objectsWithPolicies,
     ...(readModels === undefined ? {} : { readModels }),
+    ...(commands === undefined ? {} : { commands }),
     policies,
     themes,
     sync,
@@ -197,6 +210,7 @@ function resolveObject(
     fields,
     metadataFields: createMetadataFields(),
     ...(input.scope === undefined ? {} : { scope: resolveObjectScope(input.scope) }),
+    constraints: (input.constraints ?? []).map(resolveObjectConstraint),
     ...(lifecycle === undefined ? {} : { lifecycle }),
     policies: [...(input.policies ?? []), ...objectPolicies],
     views,
@@ -248,6 +262,26 @@ function resolveAutoId(input: PartialAutoIdModel): ResolvedAutoId {
     ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
     ...(input.pad === undefined ? {} : { pad: input.pad }),
     ...(input.scopeField === undefined ? {} : { scopeField: input.scopeField }),
+  };
+}
+
+function resolveObjectConstraint(input: PartialObjectConstraintModel): ResolvedObjectConstraint {
+  if (input.kind === "ordered") {
+    return {
+      name: input.name,
+      kind: "ordered",
+      parentField: input.parentField,
+      positionField: input.positionField,
+      scopeFields: [...(input.scopeFields ?? [])],
+      minPosition: input.minPosition ?? 1,
+    };
+  }
+
+  return {
+    name: input.name,
+    kind: "unique",
+    fields: [...input.fields],
+    scopeFields: [...(input.scopeFields ?? [])],
   };
 }
 
@@ -484,6 +518,51 @@ function resolveReadModelField(
   };
 }
 
+function resolveCommands(input: PartialCommandModel[]): ResolvedCommand[] {
+  return input.map(resolveCommand);
+}
+
+function resolveCommand(input: PartialCommandModel): ResolvedCommand {
+  return {
+    name: input.name,
+    ...(input.label === undefined ? {} : { label: input.label }),
+    inputs: (input.inputs ?? []).map(resolveCommandInput),
+    steps: (input.steps ?? []).map(resolveCommandStep),
+  };
+}
+
+function resolveCommandInput(input: PartialCommandInputModel): ResolvedCommandInput {
+  return {
+    name: input.name,
+    type: input.type ?? "text",
+    required: input.required ?? true,
+    ...(input.defaultValue === undefined ? {} : { defaultValue: input.defaultValue }),
+  };
+}
+
+function resolveCommandStep(input: PartialCommandStepModel): ResolvedCommandStep {
+  if (input.action === "update") {
+    return {
+      name: input.name,
+      action: "update",
+      object: input.object,
+      authority: input.authority ?? "caller",
+      recordId: cloneCommandValueExpression(input.recordId),
+      patch: cloneCommandValueExpressionMap(input.patch ?? {}),
+      preconditions: (input.preconditions ?? []).map(resolvePolicyCondition),
+    };
+  }
+
+  return {
+    name: input.name,
+    action: "create",
+    object: input.object,
+    authority: input.authority ?? "caller",
+    values: cloneCommandValueExpressionMap(input.values ?? {}),
+    preconditions: (input.preconditions ?? []).map(resolvePolicyCondition),
+  };
+}
+
 function resolvePolicies(
   objects: ResolvedObject[],
   inputPolicies: PartialPolicyModel[],
@@ -512,9 +591,37 @@ function resolvePolicyRule(input: PartialPolicyRuleModel): ResolvedPolicyRule {
     state: asArray(input.state),
     fields: [...(input.fields ?? [])],
     ...(input.lifecycleAction === undefined ? {} : { lifecycleAction: input.lifecycleAction }),
-    ...(input.condition === undefined ? {} : { condition: input.condition }),
+    ...(input.condition === undefined
+      ? {}
+      : { condition: resolvePolicyCondition(input.condition) }),
     channels: [...(input.channels ?? ["ui", "api", "sync", "import", "test"])],
   };
+}
+
+function resolvePolicyCondition(input: ResolvedPolicyCondition): ResolvedPolicyCondition {
+  switch (input.kind) {
+    case "equals":
+      return {
+        kind: "equals",
+        left: cloneJsonValue(input.left),
+        right: cloneJsonValue(input.right),
+      };
+    case "all":
+      return {
+        kind: "all",
+        conditions: input.conditions.map(resolvePolicyCondition),
+      };
+    case "any":
+      return {
+        kind: "any",
+        conditions: input.conditions.map(resolvePolicyCondition),
+      };
+    case "not":
+      return {
+        kind: "not",
+        condition: resolvePolicyCondition(input.condition),
+      };
+  }
 }
 
 function resolvePrincipal(
@@ -623,4 +730,16 @@ function asArray(input: string | string[] | undefined): string[] {
 
 function uniqueStrings(input: string[]): string[] {
   return [...new Set(input)];
+}
+
+function cloneCommandValueExpressionMap<T extends Record<string, unknown>>(input: T): T {
+  return cloneJsonValue(input);
+}
+
+function cloneCommandValueExpression<T>(input: T): T {
+  return cloneJsonValue(input);
+}
+
+function cloneJsonValue<T>(input: T): T {
+  return JSON.parse(JSON.stringify(input)) as T;
 }

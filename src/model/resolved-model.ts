@@ -66,6 +66,13 @@ export type ReadModelSourceScope =
   | "currentContext"
   | "allAvailableContexts"
   | "currentUser";
+export type ObjectConstraintKind = "unique" | "ordered";
+export type PolicyConditionKind = "equals" | "all" | "any" | "not";
+export type PolicyConditionRuntimeProperty = "userId";
+export type CommandStepAction = "create" | "update";
+export type CommandStepAuthority = "caller" | "command";
+export type CommandRuntimeProperty = "userId" | "nowIso" | "today";
+export type CommandStepMetaProperty = "guid" | "createdAt" | "updatedAt";
 
 export interface ResolvedApplicationModel {
   modelVersion: string;
@@ -75,6 +82,7 @@ export interface ResolvedApplicationModel {
   contexts?: ResolvedBusinessContext[];
   objects: ResolvedObject[];
   readModels?: ResolvedReadModel[];
+  commands?: ResolvedCommand[];
   policies: ResolvedPolicy[];
   themes: ResolvedTheme[];
   sync: ResolvedSyncPolicy[];
@@ -139,6 +147,7 @@ export interface ResolvedObject {
   fields: ResolvedField[];
   metadataFields: ResolvedMetadataField[];
   scope?: ResolvedObjectScope;
+  constraints: ResolvedObjectConstraint[];
   lifecycle?: ResolvedLifecycle;
   policies: string[];
   views: ResolvedView[];
@@ -193,6 +202,26 @@ export interface ResolvedAutoId {
   scopeField?: string;
 }
 
+export type ResolvedObjectConstraint =
+  | ResolvedUniqueObjectConstraint
+  | ResolvedOrderedObjectConstraint;
+
+export interface ResolvedUniqueObjectConstraint {
+  name: string;
+  kind: "unique";
+  fields: string[];
+  scopeFields: string[];
+}
+
+export interface ResolvedOrderedObjectConstraint {
+  name: string;
+  kind: "ordered";
+  parentField: string;
+  positionField: string;
+  scopeFields: string[];
+  minPosition: number;
+}
+
 export interface ResolvedLifecycle {
   name: string;
   stateField: string;
@@ -236,9 +265,41 @@ export interface ResolvedPolicyRule {
   state: string[];
   fields: string[];
   lifecycleAction?: string;
-  condition?: string;
+  condition?: ResolvedPolicyCondition;
   channels: RuntimeChannel[];
 }
+
+export type ResolvedPolicyCondition =
+  | ResolvedEqualsPolicyCondition
+  | ResolvedAllPolicyCondition
+  | ResolvedAnyPolicyCondition
+  | ResolvedNotPolicyCondition;
+
+export interface ResolvedEqualsPolicyCondition {
+  kind: "equals";
+  left: ResolvedPolicyConditionOperand;
+  right: ResolvedPolicyConditionOperand;
+}
+
+export interface ResolvedAllPolicyCondition {
+  kind: "all";
+  conditions: ResolvedPolicyCondition[];
+}
+
+export interface ResolvedAnyPolicyCondition {
+  kind: "any";
+  conditions: ResolvedPolicyCondition[];
+}
+
+export interface ResolvedNotPolicyCondition {
+  kind: "not";
+  condition: ResolvedPolicyCondition;
+}
+
+export type ResolvedPolicyConditionOperand =
+  | { kind: "field"; field: string }
+  | { kind: "runtime"; property: PolicyConditionRuntimeProperty }
+  | { kind: "literal"; value: JsonValue };
 
 export interface ResolvedPrincipalSelector {
   match: PrincipalMatch;
@@ -290,6 +351,48 @@ export interface ResolvedReadModelField {
   source?: string;
   field?: string;
 }
+
+export interface ResolvedCommand {
+  name: string;
+  label?: string;
+  inputs: ResolvedCommandInput[];
+  steps: ResolvedCommandStep[];
+}
+
+export interface ResolvedCommandInput {
+  name: string;
+  type: FieldType;
+  required: boolean;
+  defaultValue?: JsonValue;
+}
+
+export type ResolvedCommandStep = ResolvedCommandCreateStep | ResolvedCommandUpdateStep;
+
+export interface ResolvedCommandCreateStep {
+  name: string;
+  action: "create";
+  object: string;
+  authority: CommandStepAuthority;
+  values: Record<string, ResolvedCommandValueExpression>;
+  preconditions: ResolvedPolicyCondition[];
+}
+
+export interface ResolvedCommandUpdateStep {
+  name: string;
+  action: "update";
+  object: string;
+  authority: CommandStepAuthority;
+  recordId: ResolvedCommandValueExpression;
+  patch: Record<string, ResolvedCommandValueExpression>;
+  preconditions: ResolvedPolicyCondition[];
+}
+
+export type ResolvedCommandValueExpression =
+  | { kind: "literal"; value: JsonValue }
+  | { kind: "input"; name: string }
+  | { kind: "runtime"; property: CommandRuntimeProperty }
+  | { kind: "stepField"; step: string; field: string }
+  | { kind: "stepMeta"; step: string; property: CommandStepMetaProperty };
 
 export interface ResolvedTheme {
   name: string;
@@ -412,6 +515,7 @@ export interface PartialApplicationModel {
   contexts?: PartialBusinessContextModel[];
   objects: PartialObjectModel[];
   readModels?: PartialReadModelModel[];
+  commands?: PartialCommandModel[];
   policies?: PartialPolicyModel[];
   themes?: PartialThemeModel[];
   sync?: PartialSyncPolicyModel[];
@@ -461,6 +565,7 @@ export interface PartialObjectModel {
   displayField?: string;
   fields?: PartialFieldModel[];
   scope?: PartialObjectScopeModel;
+  constraints?: PartialObjectConstraintModel[];
   lifecycle?: PartialLifecycleModel;
   policies?: string[];
   views?: PartialViewModel[];
@@ -501,6 +606,26 @@ export interface PartialAutoIdModel {
   prefix?: string;
   pad?: number;
   scopeField?: string;
+}
+
+export type PartialObjectConstraintModel =
+  | PartialUniqueObjectConstraintModel
+  | PartialOrderedObjectConstraintModel;
+
+export interface PartialUniqueObjectConstraintModel {
+  name: string;
+  kind: "unique";
+  fields: string[];
+  scopeFields?: string[];
+}
+
+export interface PartialOrderedObjectConstraintModel {
+  name: string;
+  kind: "ordered";
+  parentField: string;
+  positionField: string;
+  scopeFields?: string[];
+  minPosition?: number;
 }
 
 export interface PartialLifecycleModel {
@@ -546,9 +671,11 @@ export interface PartialPolicyRuleModel {
   state?: string | string[];
   fields?: string[];
   lifecycleAction?: string;
-  condition?: string;
+  condition?: PartialPolicyConditionModel;
   channels?: RuntimeChannel[];
 }
+
+export type PartialPolicyConditionModel = ResolvedPolicyCondition;
 
 export interface PartialPrincipalSelectorModel {
   match?: PrincipalMatch;
@@ -594,6 +721,41 @@ export interface PartialReadModelFieldModel {
   type?: FieldType;
   source?: string;
   field?: string;
+}
+
+export interface PartialCommandModel {
+  name: string;
+  label?: string;
+  inputs?: PartialCommandInputModel[];
+  steps?: PartialCommandStepModel[];
+}
+
+export interface PartialCommandInputModel {
+  name: string;
+  type?: FieldType;
+  required?: boolean;
+  defaultValue?: JsonValue;
+}
+
+export type PartialCommandStepModel = PartialCommandCreateStepModel | PartialCommandUpdateStepModel;
+
+export interface PartialCommandCreateStepModel {
+  name: string;
+  action: "create";
+  object: string;
+  authority?: CommandStepAuthority;
+  values?: Record<string, ResolvedCommandValueExpression>;
+  preconditions?: PartialPolicyConditionModel[];
+}
+
+export interface PartialCommandUpdateStepModel {
+  name: string;
+  action: "update";
+  object: string;
+  authority?: CommandStepAuthority;
+  recordId: ResolvedCommandValueExpression;
+  patch?: Record<string, ResolvedCommandValueExpression>;
+  preconditions?: PartialPolicyConditionModel[];
 }
 
 export interface PartialThemeModel {

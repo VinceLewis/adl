@@ -2,6 +2,7 @@ import type {
   JsonValue,
   ResolvedApplicationModel,
   ResolvedBusinessContext,
+  ResolvedCommand,
   ResolvedField,
   ResolvedObject,
   ResolvedPolicy,
@@ -12,6 +13,7 @@ import { RuntimeModelError, cloneJson } from "./runtime-types.js";
 
 export class RuntimeModelIndex {
   private readonly objectsByName: Map<string, ResolvedObject>;
+  private readonly commandsByName: Map<string, ResolvedCommand>;
   private readonly policiesByObject: Map<string, ResolvedPolicy[]>;
   private readonly readModelsByName: Map<string, ResolvedReadModel>;
   private readonly rolesByName: Map<string, string[]>;
@@ -20,6 +22,7 @@ export class RuntimeModelIndex {
 
   constructor(readonly model: ResolvedApplicationModel) {
     this.objectsByName = new Map(model.objects.map((object) => [object.name, object]));
+    this.commandsByName = new Map((model.commands ?? []).map((command) => [command.name, command]));
     this.policiesByObject = groupPoliciesByObject(model.policies);
     this.readModelsByName = new Map(
       (model.readModels ?? []).map((readModel) => [readModel.name, readModel]),
@@ -57,6 +60,21 @@ export class RuntimeModelIndex {
     }
 
     return readModel;
+  }
+
+  getCommand(commandName: string): ResolvedCommand {
+    const command = this.commandsByName.get(commandName);
+
+    if (command === undefined) {
+      throw new RuntimeModelError(
+        `Command '${commandName}' does not exist in the resolved model.`,
+        {
+          commandName,
+        },
+      );
+    }
+
+    return command;
   }
 
   getBusinessContext(contextName: string): ResolvedBusinessContext {

@@ -1,21 +1,32 @@
 import { DEFAULT_LIFECYCLE_STATE_FIELD } from "../model/defaults.js";
 import type {
   ConflictStrategy,
+  CommandRuntimeProperty,
+  CommandStepAuthority,
+  CommandStepMetaProperty,
   ContextSelectionMode,
   ContextSelectionPersistence,
   ContextSelectionSource,
   FieldType,
   PolicyAction,
+  PolicyConditionRuntimeProperty,
   ReadModelSourceScope,
   ResolvedApplicationModel,
   ResolvedBusinessContext,
+  ResolvedCommand,
+  ResolvedCommandInput,
+  ResolvedCommandStep,
+  ResolvedCommandValueExpression,
   ResolvedContextMembership,
   ResolvedField,
   ResolvedHookRefs,
   ResolvedLifecycle,
   ResolvedObject,
+  ResolvedObjectConstraint,
   ResolvedObjectScope,
   ResolvedPolicy,
+  ResolvedPolicyCondition,
+  ResolvedPolicyConditionOperand,
   ResolvedPolicyRule,
   ResolvedReadModel,
   ResolvedSyncPolicy,
@@ -83,7 +94,30 @@ export const MODEL_VALIDATION_CODES = {
   LOOKUP_TARGET_FIELD_UNKNOWN: "ADL_LOOKUP_TARGET_FIELD_UNKNOWN",
   LOOKUP_TARGET_OBJECT_UNKNOWN: "ADL_LOOKUP_TARGET_OBJECT_UNKNOWN",
   OBJECT_BUSINESS_KEY_UNKNOWN: "ADL_OBJECT_BUSINESS_KEY_UNKNOWN",
+  COMMAND_AUTHORITY_INVALID: "ADL_COMMAND_AUTHORITY_INVALID",
+  COMMAND_DUPLICATE: "ADL_COMMAND_DUPLICATE",
+  COMMAND_INPUT_DEFAULT_INCOMPATIBLE: "ADL_COMMAND_INPUT_DEFAULT_INCOMPATIBLE",
+  COMMAND_INPUT_DUPLICATE: "ADL_COMMAND_INPUT_DUPLICATE",
+  COMMAND_INPUT_TYPE_INVALID: "ADL_COMMAND_INPUT_TYPE_INVALID",
+  COMMAND_PRECONDITION_FIELD_UNKNOWN: "ADL_COMMAND_PRECONDITION_FIELD_UNKNOWN",
+  COMMAND_PRECONDITION_INVALID: "ADL_COMMAND_PRECONDITION_INVALID",
+  COMMAND_PRECONDITION_RUNTIME_PROPERTY_INVALID:
+    "ADL_COMMAND_PRECONDITION_RUNTIME_PROPERTY_INVALID",
+  COMMAND_STEP_ACTION_INVALID: "ADL_COMMAND_STEP_ACTION_INVALID",
+  COMMAND_STEP_DUPLICATE: "ADL_COMMAND_STEP_DUPLICATE",
+  COMMAND_STEP_FIELD_UNKNOWN: "ADL_COMMAND_STEP_FIELD_UNKNOWN",
+  COMMAND_STEP_INPUT_UNKNOWN: "ADL_COMMAND_STEP_INPUT_UNKNOWN",
+  COMMAND_STEP_META_PROPERTY_INVALID: "ADL_COMMAND_STEP_META_PROPERTY_INVALID",
+  COMMAND_STEP_OBJECT_UNKNOWN: "ADL_COMMAND_STEP_OBJECT_UNKNOWN",
+  COMMAND_STEP_REFERENCE_UNKNOWN: "ADL_COMMAND_STEP_REFERENCE_UNKNOWN",
+  COMMAND_STEP_RUNTIME_PROPERTY_INVALID: "ADL_COMMAND_STEP_RUNTIME_PROPERTY_INVALID",
   OBJECT_DISPLAY_FIELD_UNKNOWN: "ADL_OBJECT_DISPLAY_FIELD_UNKNOWN",
+  OBJECT_CONSTRAINT_DUPLICATE: "ADL_OBJECT_CONSTRAINT_DUPLICATE",
+  OBJECT_CONSTRAINT_FIELD_UNKNOWN: "ADL_OBJECT_CONSTRAINT_FIELD_UNKNOWN",
+  OBJECT_CONSTRAINT_KIND_INVALID: "ADL_OBJECT_CONSTRAINT_KIND_INVALID",
+  OBJECT_CONSTRAINT_MIN_POSITION_INVALID: "ADL_OBJECT_CONSTRAINT_MIN_POSITION_INVALID",
+  OBJECT_CONSTRAINT_POSITION_FIELD_TYPE_INVALID:
+    "ADL_OBJECT_CONSTRAINT_POSITION_FIELD_TYPE_INVALID",
   OBJECT_DUPLICATE: "ADL_OBJECT_DUPLICATE",
   OBJECT_POLICY_MISMATCH: "ADL_OBJECT_POLICY_MISMATCH",
   OBJECT_POLICY_UNKNOWN: "ADL_OBJECT_POLICY_UNKNOWN",
@@ -100,6 +134,9 @@ export const MODEL_VALIDATION_CODES = {
   POLICY_DEFAULT_EFFECT_INVALID: "ADL_POLICY_DEFAULT_EFFECT_INVALID",
   POLICY_DUPLICATE: "ADL_POLICY_DUPLICATE",
   POLICY_FIELD_UNKNOWN: "ADL_POLICY_FIELD_UNKNOWN",
+  POLICY_CONDITION_FIELD_UNKNOWN: "ADL_POLICY_CONDITION_FIELD_UNKNOWN",
+  POLICY_CONDITION_INVALID: "ADL_POLICY_CONDITION_INVALID",
+  POLICY_CONDITION_RUNTIME_PROPERTY_INVALID: "ADL_POLICY_CONDITION_RUNTIME_PROPERTY_INVALID",
   POLICY_LIFECYCLE_ACTION_UNKNOWN: "ADL_POLICY_LIFECYCLE_ACTION_UNKNOWN",
   POLICY_OBJECT_UNKNOWN: "ADL_POLICY_OBJECT_UNKNOWN",
   POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
@@ -190,6 +227,14 @@ const POLICY_ACTIONS = new Set<PolicyAction>([
 ]);
 
 const RUNTIME_CHANNELS = new Set<RuntimeChannel>(["ui", "api", "sync", "import", "test"]);
+const POLICY_CONDITION_RUNTIME_PROPERTIES = new Set<PolicyConditionRuntimeProperty>(["userId"]);
+const COMMAND_RUNTIME_PROPERTIES = new Set<CommandRuntimeProperty>(["userId", "nowIso", "today"]);
+const COMMAND_STEP_AUTHORITIES = new Set<CommandStepAuthority>(["caller", "command"]);
+const COMMAND_STEP_META_PROPERTIES = new Set<CommandStepMetaProperty>([
+  "guid",
+  "createdAt",
+  "updatedAt",
+]);
 const SYNC_MODES = new Set<SyncMode>([
   "localFirst",
   "cacheReadonly",
@@ -241,6 +286,7 @@ interface NamedReference<T> {
 
 interface ModelIndexes {
   contextsByName: Map<string, NamedReference<ResolvedBusinessContext>>;
+  commandsByName: Map<string, NamedReference<ResolvedCommand>>;
   objectsByName: Map<string, NamedReference<ResolvedObject>>;
   policiesByName: Map<string, NamedReference<ResolvedPolicy>>;
   readModelsByName: Map<string, NamedReference<ResolvedReadModel>>;
@@ -252,6 +298,7 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
   const diagnostics: Diagnostic[] = [];
   const indexes: ModelIndexes = {
     contextsByName: indexByName(model.contexts ?? []),
+    commandsByName: indexByName(model.commands ?? []),
     objectsByName: indexByName(model.objects),
     policiesByName: indexByName(model.policies),
     readModelsByName: indexByName(model.readModels ?? []),
@@ -286,6 +333,13 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
     MODEL_VALIDATION_CODES.READ_MODEL_DUPLICATE,
     diagnostics,
     "Read model names must be unique.",
+  );
+  reportDuplicateNames(
+    model.commands ?? [],
+    "commands",
+    MODEL_VALIDATION_CODES.COMMAND_DUPLICATE,
+    diagnostics,
+    "Command names must be unique.",
   );
   reportDuplicateNames(
     model.themes,
@@ -331,6 +385,14 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
       continue;
     }
     validateReadModel(readModel, readModelIndex, indexes, diagnostics);
+  }
+
+  for (let commandIndex = 0; commandIndex < (model.commands ?? []).length; commandIndex += 1) {
+    const command = model.commands?.[commandIndex];
+    if (command === undefined) {
+      continue;
+    }
+    validateCommand(command, commandIndex, indexes, diagnostics);
   }
 
   for (let themeIndex = 0; themeIndex < model.themes.length; themeIndex += 1) {
@@ -628,6 +690,28 @@ function validateObject(
     validateObjectScope(object.scope, object, objectPath, fieldsByName, indexes, diagnostics);
   }
 
+  reportDuplicateNames(
+    object.constraints,
+    `${objectPath}.constraints`,
+    MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_DUPLICATE,
+    diagnostics,
+    `Constraint names must be unique within object '${object.name}'.`,
+  );
+
+  for (let constraintIndex = 0; constraintIndex < object.constraints.length; constraintIndex += 1) {
+    const constraint = object.constraints[constraintIndex];
+    if (constraint === undefined) {
+      continue;
+    }
+    validateObjectConstraint(
+      constraint,
+      `${objectPath}.constraints[${constraintIndex}]`,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+  }
+
   for (let fieldIndex = 0; fieldIndex < object.fields.length; fieldIndex += 1) {
     const field = object.fields[fieldIndex];
     if (field === undefined) {
@@ -651,6 +735,149 @@ function validateObject(
     const viewPath = `${objectPath}.views[${viewIndex}]`;
     validateView(view, viewPath, indexes, diagnostics);
   }
+}
+
+function validateObjectConstraint(
+  constraint: ResolvedObjectConstraint,
+  constraintPath: string,
+  object: ResolvedObject,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (constraint.kind === "unique") {
+    if (constraint.fields.length === 0) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_FIELD_UNKNOWN,
+          `Unique constraint '${constraint.name}' on object '${object.name}' must reference at least one field.`,
+          `${constraintPath}.fields`,
+        ),
+      );
+    }
+
+    validateConstraintFieldList(
+      constraint.fields,
+      `${constraintPath}.fields`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+    validateConstraintFieldList(
+      constraint.scopeFields,
+      `${constraintPath}.scopeFields`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+    return;
+  }
+
+  if (constraint.kind === "ordered") {
+    const parentField = validateConstraintField(
+      constraint.parentField,
+      `${constraintPath}.parentField`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+    const positionField = validateConstraintField(
+      constraint.positionField,
+      `${constraintPath}.positionField`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+
+    void parentField;
+
+    if (positionField !== undefined && positionField.type !== "number") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_POSITION_FIELD_TYPE_INVALID,
+          `Ordered constraint '${constraint.name}' on object '${object.name}' position field '${constraint.positionField}' must be a number field.`,
+          `${constraintPath}.positionField`,
+        ),
+      );
+    }
+
+    if (!isPositiveInteger(constraint.minPosition)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_MIN_POSITION_INVALID,
+          `Ordered constraint '${constraint.name}' on object '${object.name}' minPosition must be a positive integer.`,
+          `${constraintPath}.minPosition`,
+        ),
+      );
+    }
+
+    validateConstraintFieldList(
+      constraint.scopeFields,
+      `${constraintPath}.scopeFields`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+    return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_KIND_INVALID,
+      `Object '${object.name}' has invalid constraint kind '${String((constraint as { kind?: unknown }).kind)}'.`,
+      `${constraintPath}.kind`,
+    ),
+  );
+}
+
+function validateConstraintFieldList(
+  fieldNames: string[],
+  fieldListPath: string,
+  constraint: ResolvedObjectConstraint,
+  object: ResolvedObject,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  diagnostics: Diagnostic[],
+): void {
+  for (let fieldIndex = 0; fieldIndex < fieldNames.length; fieldIndex += 1) {
+    const fieldName = fieldNames[fieldIndex];
+    if (fieldName === undefined) {
+      continue;
+    }
+    validateConstraintField(
+      fieldName,
+      `${fieldListPath}[${fieldIndex}]`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+  }
+}
+
+function validateConstraintField(
+  fieldName: string,
+  fieldPath: string,
+  constraint: ResolvedObjectConstraint,
+  object: ResolvedObject,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  diagnostics: Diagnostic[],
+): ResolvedField | undefined {
+  const field = fieldsByName.get(fieldName)?.item;
+  if (field === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_FIELD_UNKNOWN,
+        `Constraint '${constraint.name}' references unknown field '${fieldName}' on object '${object.name}'.`,
+        fieldPath,
+      ),
+    );
+  }
+
+  return field;
 }
 
 function validateField(
@@ -1053,6 +1280,20 @@ function validatePolicyRule(
     );
   }
 
+  if (rule.condition !== undefined) {
+    validatePolicyCondition(
+      rule.condition,
+      `${rulePath}.condition`,
+      fieldsByName,
+      {
+        invalid: MODEL_VALIDATION_CODES.POLICY_CONDITION_INVALID,
+        field: MODEL_VALIDATION_CODES.POLICY_CONDITION_FIELD_UNKNOWN,
+        runtime: MODEL_VALIDATION_CODES.POLICY_CONDITION_RUNTIME_PROPERTY_INVALID,
+      },
+      diagnostics,
+    );
+  }
+
   for (let channelIndex = 0; channelIndex < rule.channels.length; channelIndex += 1) {
     const channel = rule.channels[channelIndex];
     if (channel === undefined) {
@@ -1068,6 +1309,131 @@ function validatePolicyRule(
       );
     }
   }
+}
+
+function validatePolicyCondition(
+  condition: ResolvedPolicyCondition,
+  conditionPath: string,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  codes: {
+    invalid: ModelValidationCode;
+    field: ModelValidationCode;
+    runtime: ModelValidationCode;
+  },
+  diagnostics: Diagnostic[],
+): void {
+  switch (condition.kind) {
+    case "equals":
+      validatePolicyConditionOperand(
+        condition.left,
+        `${conditionPath}.left`,
+        fieldsByName,
+        codes,
+        diagnostics,
+      );
+      validatePolicyConditionOperand(
+        condition.right,
+        `${conditionPath}.right`,
+        fieldsByName,
+        codes,
+        diagnostics,
+      );
+      return;
+    case "all":
+    case "any":
+      if (condition.conditions.length === 0) {
+        diagnostics.push(
+          diagnostic(
+            codes.invalid,
+            `Policy condition '${condition.kind}' must contain at least one nested condition.`,
+            `${conditionPath}.conditions`,
+          ),
+        );
+      }
+
+      for (
+        let conditionIndex = 0;
+        conditionIndex < condition.conditions.length;
+        conditionIndex += 1
+      ) {
+        const nested = condition.conditions[conditionIndex];
+        if (nested === undefined) {
+          continue;
+        }
+        validatePolicyCondition(
+          nested,
+          `${conditionPath}.conditions[${conditionIndex}]`,
+          fieldsByName,
+          codes,
+          diagnostics,
+        );
+      }
+      return;
+    case "not":
+      validatePolicyCondition(
+        condition.condition,
+        `${conditionPath}.condition`,
+        fieldsByName,
+        codes,
+        diagnostics,
+      );
+      return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      codes.invalid,
+      `Policy condition has invalid kind '${String((condition as { kind?: unknown }).kind)}'.`,
+      `${conditionPath}.kind`,
+    ),
+  );
+}
+
+function validatePolicyConditionOperand(
+  operand: ResolvedPolicyConditionOperand,
+  operandPath: string,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  codes: {
+    invalid: ModelValidationCode;
+    field: ModelValidationCode;
+    runtime: ModelValidationCode;
+  },
+  diagnostics: Diagnostic[],
+): void {
+  switch (operand.kind) {
+    case "field":
+      if (!fieldsByName.has(operand.field)) {
+        diagnostics.push(
+          diagnostic(
+            codes.field,
+            `Policy condition references unknown field '${operand.field}'.`,
+            `${operandPath}.field`,
+          ),
+        );
+      }
+      return;
+    case "runtime":
+      if (!POLICY_CONDITION_RUNTIME_PROPERTIES.has(operand.property)) {
+        diagnostics.push(
+          diagnostic(
+            codes.runtime,
+            `Policy condition references unsupported runtime property '${String(operand.property)}'.`,
+            `${operandPath}.property`,
+          ),
+        );
+      }
+      return;
+    case "literal":
+      return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      codes.invalid,
+      `Policy condition operand has invalid kind '${String((operand as { kind?: unknown }).kind)}'.`,
+      `${operandPath}.kind`,
+    ),
+  );
 }
 
 function validateView(
@@ -1340,6 +1706,281 @@ function validateReadModel(
       );
     }
   }
+}
+
+function validateCommand(
+  command: ResolvedCommand,
+  commandIndex: number,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const commandPath = `commands[${commandIndex}]`;
+  const inputsByName = indexByName(command.inputs);
+  const previousStepsByName = new Map<string, ResolvedCommandStep>();
+
+  reportDuplicateNames(
+    command.inputs,
+    `${commandPath}.inputs`,
+    MODEL_VALIDATION_CODES.COMMAND_INPUT_DUPLICATE,
+    diagnostics,
+    `Input names must be unique within command '${command.name}'.`,
+  );
+  reportDuplicateNames(
+    command.steps,
+    `${commandPath}.steps`,
+    MODEL_VALIDATION_CODES.COMMAND_STEP_DUPLICATE,
+    diagnostics,
+    `Step names must be unique within command '${command.name}'.`,
+  );
+
+  for (let inputIndex = 0; inputIndex < command.inputs.length; inputIndex += 1) {
+    const input = command.inputs[inputIndex];
+    if (input === undefined) {
+      continue;
+    }
+    validateCommandInput(input, `${commandPath}.inputs[${inputIndex}]`, command, diagnostics);
+  }
+
+  for (let stepIndex = 0; stepIndex < command.steps.length; stepIndex += 1) {
+    const step = command.steps[stepIndex];
+    if (step === undefined) {
+      continue;
+    }
+    validateCommandStep(
+      step,
+      `${commandPath}.steps[${stepIndex}]`,
+      command,
+      inputsByName,
+      previousStepsByName,
+      indexes,
+      diagnostics,
+    );
+    previousStepsByName.set(step.name, step);
+  }
+}
+
+function validateCommandInput(
+  input: ResolvedCommandInput,
+  inputPath: string,
+  command: ResolvedCommand,
+  diagnostics: Diagnostic[],
+): void {
+  if (!FIELD_TYPES.has(input.type)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_TYPE_INVALID,
+        `Command '${command.name}' input '${input.name}' has invalid type '${String(input.type)}'.`,
+        `${inputPath}.type`,
+      ),
+    );
+  }
+
+  if (
+    input.defaultValue !== undefined &&
+    !isValueCompatibleWithFieldType(input.type, input.defaultValue)
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_DEFAULT_INCOMPATIBLE,
+        `Default value for command '${command.name}' input '${input.name}' is not compatible with ${input.type}.`,
+        `${inputPath}.defaultValue`,
+      ),
+    );
+  }
+}
+
+function validateCommandStep(
+  step: ResolvedCommandStep,
+  stepPath: string,
+  command: ResolvedCommand,
+  inputsByName: Map<string, NamedReference<ResolvedCommandInput>>,
+  previousStepsByName: Map<string, ResolvedCommandStep>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const rawStep = step as { name?: string; action?: unknown };
+  if (step.action !== "create" && step.action !== "update") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_STEP_ACTION_INVALID,
+        `Command '${command.name}' step '${rawStep.name ?? "<unnamed>"}' has invalid action '${String(rawStep.action)}'.`,
+        `${stepPath}.action`,
+      ),
+    );
+    return;
+  }
+
+  if (!COMMAND_STEP_AUTHORITIES.has(step.authority)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_AUTHORITY_INVALID,
+        `Command '${command.name}' step '${step.name}' has invalid authority '${String(step.authority)}'.`,
+        `${stepPath}.authority`,
+      ),
+    );
+  }
+
+  const object = indexes.objectsByName.get(step.object)?.item;
+  if (object === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_STEP_OBJECT_UNKNOWN,
+        `Command '${command.name}' step '${step.name}' references unknown object '${step.object}'.`,
+        `${stepPath}.object`,
+      ),
+    );
+    return;
+  }
+
+  const fieldsByName = indexByName(object.fields);
+  const values = step.action === "create" ? step.values : step.patch;
+  const valuesProperty = step.action === "create" ? "values" : "patch";
+
+  for (const [fieldName, expression] of Object.entries(values)) {
+    if (!fieldsByName.has(fieldName)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.COMMAND_STEP_FIELD_UNKNOWN,
+          `Command '${command.name}' step '${step.name}' references unknown field '${fieldName}' on object '${object.name}'.`,
+          `${stepPath}.${valuesProperty}.${fieldName}`,
+        ),
+      );
+    }
+
+    validateCommandValueExpression(
+      expression,
+      `${stepPath}.${valuesProperty}.${fieldName}`,
+      command,
+      inputsByName,
+      previousStepsByName,
+      indexes,
+      diagnostics,
+    );
+  }
+
+  if (step.action === "update") {
+    validateCommandValueExpression(
+      step.recordId,
+      `${stepPath}.recordId`,
+      command,
+      inputsByName,
+      previousStepsByName,
+      indexes,
+      diagnostics,
+    );
+  }
+
+  for (
+    let preconditionIndex = 0;
+    preconditionIndex < step.preconditions.length;
+    preconditionIndex += 1
+  ) {
+    const precondition = step.preconditions[preconditionIndex];
+    if (precondition === undefined) {
+      continue;
+    }
+    validatePolicyCondition(
+      precondition,
+      `${stepPath}.preconditions[${preconditionIndex}]`,
+      fieldsByName,
+      {
+        invalid: MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_INVALID,
+        field: MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_FIELD_UNKNOWN,
+        runtime: MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_RUNTIME_PROPERTY_INVALID,
+      },
+      diagnostics,
+    );
+  }
+}
+
+function validateCommandValueExpression(
+  expression: ResolvedCommandValueExpression,
+  expressionPath: string,
+  command: ResolvedCommand,
+  inputsByName: Map<string, NamedReference<ResolvedCommandInput>>,
+  previousStepsByName: Map<string, ResolvedCommandStep>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  switch (expression.kind) {
+    case "literal":
+      return;
+    case "input":
+      if (!inputsByName.has(expression.name)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_INPUT_UNKNOWN,
+            `Command '${command.name}' expression references unknown input '${expression.name}'.`,
+            `${expressionPath}.name`,
+          ),
+        );
+      }
+      return;
+    case "runtime":
+      if (!COMMAND_RUNTIME_PROPERTIES.has(expression.property)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_RUNTIME_PROPERTY_INVALID,
+            `Command '${command.name}' expression references unsupported runtime property '${String(expression.property)}'.`,
+            `${expressionPath}.property`,
+          ),
+        );
+      }
+      return;
+    case "stepField": {
+      const step = previousStepsByName.get(expression.step);
+      if (step === undefined) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_REFERENCE_UNKNOWN,
+            `Command '${command.name}' expression references unknown or later step '${expression.step}'.`,
+            `${expressionPath}.step`,
+          ),
+        );
+        return;
+      }
+
+      const object = indexes.objectsByName.get(step.object)?.item;
+      if (object !== undefined && !object.fields.some((field) => field.name === expression.field)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_FIELD_UNKNOWN,
+            `Command '${command.name}' expression references unknown field '${expression.field}' on step '${expression.step}'.`,
+            `${expressionPath}.field`,
+          ),
+        );
+      }
+      return;
+    }
+    case "stepMeta":
+      if (!previousStepsByName.has(expression.step)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_REFERENCE_UNKNOWN,
+            `Command '${command.name}' expression references unknown or later step '${expression.step}'.`,
+            `${expressionPath}.step`,
+          ),
+        );
+      }
+      if (!COMMAND_STEP_META_PROPERTIES.has(expression.property)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_META_PROPERTY_INVALID,
+            `Command '${command.name}' expression references unsupported step metadata property '${String(expression.property)}'.`,
+            `${expressionPath}.property`,
+          ),
+        );
+      }
+      return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_INVALID,
+      `Command '${command.name}' expression has invalid kind '${String((expression as { kind?: unknown }).kind)}'.`,
+      `${expressionPath}.kind`,
+    ),
+  );
 }
 
 function validateReadModelContext(
@@ -1674,7 +2315,19 @@ function isDefaultCompatible(field: ResolvedField, value: unknown): boolean {
     return !field.required;
   }
 
-  switch (field.type) {
+  return isValueCompatibleWithFieldType(field.type, value);
+}
+
+function isValueCompatibleWithFieldType(type: FieldType, value: unknown): boolean {
+  if (!FIELD_TYPES.has(type)) {
+    return false;
+  }
+
+  if (value === null) {
+    return true;
+  }
+
+  switch (type) {
     case "text":
     case "date":
     case "datetime":

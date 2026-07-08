@@ -3,9 +3,12 @@ import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js"
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import type {
+  JsonValue,
   PartialApplicationModel,
+  PartialPolicyConditionModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
+  ResolvedCommandValueExpression,
   ResolvedApplicationModel,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
@@ -102,6 +105,14 @@ export const bandReferencePartialModel = {
     {
       name: "BandMember",
       scope: { context: "Band", field: "Band" },
+      constraints: [
+        {
+          name: "uniqueBandMemberUser",
+          kind: "unique",
+          scopeFields: ["Band"],
+          fields: ["User"],
+        },
+      ],
       fields: [
         {
           name: "User",
@@ -138,6 +149,14 @@ export const bandReferencePartialModel = {
     {
       name: "BandInvitation",
       scope: { context: "Band", field: "Band" },
+      constraints: [
+        {
+          name: "uniqueBandInvitationEmail",
+          kind: "unique",
+          scopeFields: ["Band"],
+          fields: ["InviteeEmail"],
+        },
+      ],
       fields: [
         {
           name: "Band",
@@ -288,6 +307,14 @@ export const bandReferencePartialModel = {
     {
       name: "Availability",
       displayField: "Date",
+      constraints: [
+        {
+          name: "uniqueUserAvailabilityDate",
+          kind: "unique",
+          scopeFields: ["User"],
+          fields: ["Date"],
+        },
+      ],
       fields: [
         {
           name: "User",
@@ -320,6 +347,14 @@ export const bandReferencePartialModel = {
       name: "Song",
       displayField: "Title",
       scope: { context: "Band", field: "Band" },
+      constraints: [
+        {
+          name: "uniqueSongTitleInBand",
+          kind: "unique",
+          scopeFields: ["Band"],
+          fields: ["Title"],
+        },
+      ],
       fields: [
         {
           name: "Band",
@@ -348,6 +383,14 @@ export const bandReferencePartialModel = {
       name: "SetList",
       displayField: "Name",
       scope: { context: "Band", field: "Band" },
+      constraints: [
+        {
+          name: "uniqueSetListNameInBand",
+          kind: "unique",
+          scopeFields: ["Band"],
+          fields: ["Name"],
+        },
+      ],
       fields: [
         {
           name: "Band",
@@ -378,6 +421,15 @@ export const bandReferencePartialModel = {
     {
       name: "SetListItem",
       scope: { context: "Band", field: "Band" },
+      constraints: [
+        {
+          name: "orderedSetListItems",
+          kind: "ordered",
+          scopeFields: ["Band"],
+          parentField: "SetList",
+          positionField: "Position",
+        },
+      ],
       fields: [
         {
           name: "Band",
@@ -430,6 +482,14 @@ export const bandReferencePartialModel = {
     {
       name: "StreamingLink",
       scope: { context: "Band", field: "Band" },
+      constraints: [
+        {
+          name: "uniqueStreamingPlatformForSong",
+          kind: "unique",
+          scopeFields: ["Song"],
+          fields: ["Platform"],
+        },
+      ],
       fields: [
         {
           name: "Band",
@@ -504,6 +564,41 @@ export const bandReferencePartialModel = {
           fields: ["SelectedBand", "LastOpenedView", "OfflineHomeLimit"],
           searchFields: ["LastOpenedView"],
           actions: ["create", "read", "update", "delete"],
+        },
+      ],
+    },
+  ],
+  commands: [
+    {
+      name: "AcceptBandInvitation",
+      label: "Accept invitation",
+      inputs: [{ name: "Invitation", type: "text", required: true }],
+      steps: [
+        {
+          name: "acceptInvitation",
+          action: "update",
+          object: "BandInvitation",
+          recordId: commandInput("Invitation"),
+          patch: {
+            Status: commandLiteral("Accepted"),
+            RespondedAt: commandRuntime("today"),
+          },
+          preconditions: [
+            fieldEqualsRuntimeUser("Invitee"),
+            fieldEqualsLiteral("Status", "Pending"),
+          ],
+        },
+        {
+          name: "createMembership",
+          action: "create",
+          object: "BandMember",
+          authority: "command",
+          values: {
+            User: commandRuntime("userId"),
+            Band: commandStepField("acceptInvitation", "Band"),
+            Role: commandStepField("acceptInvitation", "Role"),
+            JoinedAt: commandRuntime("today"),
+          },
         },
       ],
     },
@@ -636,6 +731,13 @@ export const bandReferencePartialModel = {
           action: "read",
         },
         {
+          name: "allowAuthenticatedReadOwnMembership",
+          effect: "allow",
+          principal: { match: "authenticated" },
+          action: "read",
+          condition: fieldEqualsRuntimeUser("User"),
+        },
+        {
           name: "allowBandAdminCreateMembers",
           effect: "allow",
           principal: { match: "specific", roles: ["BandAdmin"] },
@@ -672,6 +774,13 @@ export const bandReferencePartialModel = {
           action: "read",
         },
         {
+          name: "allowInviteeReadOwnInvitation",
+          effect: "allow",
+          principal: { match: "authenticated" },
+          action: "read",
+          condition: fieldEqualsRuntimeUser("Invitee"),
+        },
+        {
           name: "allowBandAdminSearchInvitations",
           effect: "allow",
           principal: { match: "specific", roles: ["BandAdmin"] },
@@ -682,6 +791,27 @@ export const bandReferencePartialModel = {
           effect: "allow",
           principal: { match: "specific", roles: ["BandAdmin"] },
           action: "update",
+        },
+        {
+          name: "allowInviteeAcceptInvitation",
+          effect: "allow",
+          principal: { match: "authenticated" },
+          action: "update",
+          condition: allConditions([
+            fieldEqualsRuntimeUser("Invitee"),
+            fieldEqualsLiteral("Status", "Accepted"),
+          ]),
+        },
+        {
+          name: "denyInviteeIdentityInvitationUpdates",
+          effect: "deny",
+          principal: { match: "authenticated" },
+          action: "update",
+          fields: ["Band", "Inviter", "Invitee", "InviteeEmail", "Role"],
+          condition: allConditions([
+            fieldEqualsRuntimeUser("Invitee"),
+            fieldEqualsLiteral("Status", "Accepted"),
+          ]),
         },
         {
           name: "allowBandAdminDeleteInvitations",
@@ -760,24 +890,28 @@ export const bandReferencePartialModel = {
           effect: "allow",
           principal: { match: "authenticated" },
           action: "create",
+          condition: fieldEqualsRuntimeUser("User"),
         },
         {
           name: "allowAvailabilityOwnerRead",
           effect: "allow",
-          principal: { match: "owner" },
+          principal: { match: "authenticated" },
           action: "read",
+          condition: fieldEqualsRuntimeUser("User"),
         },
         {
           name: "allowAvailabilityOwnerUpdate",
           effect: "allow",
-          principal: { match: "owner" },
+          principal: { match: "authenticated" },
           action: "update",
+          condition: fieldEqualsRuntimeUser("User"),
         },
         {
           name: "allowAvailabilityOwnerDelete",
           effect: "allow",
-          principal: { match: "owner" },
+          principal: { match: "authenticated" },
           action: "delete",
+          condition: fieldEqualsRuntimeUser("User"),
         },
       ],
     },
@@ -860,6 +994,7 @@ export interface BandReferenceSeed {
   firstBandContext: RuntimeContext;
   secondBandContext: RuntimeContext;
   musician: StoredObjectRecord;
+  guest: StoredObjectRecord;
   firstBand: StoredObjectRecord;
   secondBand: StoredObjectRecord;
   firstEvent: StoredObjectRecord;
@@ -1083,6 +1218,7 @@ export async function seedBandReferenceRuntime(
     firstBandContext,
     secondBandContext,
     musician,
+    guest,
     firstBand,
     secondBand,
     firstEvent,
@@ -1195,6 +1331,58 @@ function createBandCollectionRules(object: string, label: string): PartialPolicy
         ? { ...rule, name: `allowBandAdminCreate${label}WithPosition` }
         : rule,
   );
+}
+
+function fieldEqualsRuntimeUser(field: string): PartialPolicyConditionModel {
+  return {
+    kind: "equals",
+    left: { kind: "field", field },
+    right: { kind: "runtime", property: "userId" },
+  };
+}
+
+function fieldEqualsLiteral(field: string, value: JsonValue): PartialPolicyConditionModel {
+  return {
+    kind: "equals",
+    left: { kind: "field", field },
+    right: { kind: "literal", value },
+  };
+}
+
+function allConditions(conditions: PartialPolicyConditionModel[]): PartialPolicyConditionModel {
+  return {
+    kind: "all",
+    conditions,
+  };
+}
+
+function commandLiteral(value: JsonValue): ResolvedCommandValueExpression {
+  return {
+    kind: "literal",
+    value,
+  };
+}
+
+function commandInput(name: string): ResolvedCommandValueExpression {
+  return {
+    kind: "input",
+    name,
+  };
+}
+
+function commandRuntime(property: "userId" | "nowIso" | "today"): ResolvedCommandValueExpression {
+  return {
+    kind: "runtime",
+    property,
+  };
+}
+
+function commandStepField(step: string, field: string): ResolvedCommandValueExpression {
+  return {
+    kind: "stepField",
+    step,
+    field,
+  };
 }
 
 function getSeedNow(context: RuntimeContext): Date {
