@@ -23,5 +23,11 @@ Code phases should add or update tests that prove the behavior introduced by the
 - Phase 15: read-model query behavior and dashboard rendering
 - Phase 16: context-aware offline dataset selection
 - Phase 17: band-app reference model, runtime authorization, and browser demo behavior
+- Phase 18: generic platform gaps from the band reference app, including policy conditions, commands, scoped uniqueness, and ordered constraints
+- Phase 19: documentation consistency only; verify architecture docs and ADRs exist, reference the July design notes, and no runtime code changed
+- Phase 20: expression evaluator behavior, type checking diagnostics, decimal/date semantics, parser round trip, policy/validation integration, and initial expression conformance cases
+- Phase 21: object validation, decision tables, lifecycle guards, command preconditions, compile-time diagnostics, and direct runtime enforcement
+- Phase 22: computed-field evaluation, computed-field write denial, dependency-cycle diagnostics, read-model expression fields, and direct runtime enforcement
+- Phase 23: data-driven conformance corpus, conformance harness, spec consistency, inspect/explain tooling, and regression tests for any defects fixed
 
 Run the strongest relevant commands available at that point, usually some combination of tests, typecheck, lint, format check, and build. If the project does not yet have one of those commands, do not invent unrelated tooling just to satisfy the word "test"; record the gap and proceed with the best available verification.

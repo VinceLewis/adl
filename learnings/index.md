@@ -29,11 +29,16 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
 
 - `architecture/business-contexts-and-backends.md`
+- `architecture/target-architecture.md`
 - `implementation/business-context-model.md`
 - `implementation/context-runtime.md`
 - `implementation/context-ui-navigation.md`
 - `implementation/read-model-runtime.md`
 - `implementation/offline-dataset-runtime.md`
+
+Before tasks that change runtime stack choices, server authority, sync transport, auth provider direction, packaging, or architecture phase sequencing, also read:
+
+- `architecture/target-architecture.md`
 
 Before tasks that integrate compile-time validation, runtime model startup checks, or parser-to-model validation, also read:
 
@@ -105,6 +110,7 @@ When adding a new learning document, update this index with when future agents s
 - `minil/repository-audit.md`: read before comparing ADL with MINIL, reusing MINIL concepts, or designing parser/model/validator/runtime-test behaviour informed by MINIL.
 - `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.
 - `architecture/business-contexts-and-backends.md`: read before changing business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions.
+- `architecture/target-architecture.md`: read before changing runtime stack choices, server authority, sync transport, auth provider direction, packaging, or architecture phase sequencing.
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, object constraints, command declarations, or runtime model startup checks.
 - `implementation/adl-parser.md`: read before changing ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour.
 - `implementation/runtime-services.md`: read before changing runtime services, model-declared commands, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
