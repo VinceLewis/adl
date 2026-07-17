@@ -1,5 +1,10 @@
-import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/resolved-model.js";
+import type {
+  ResolvedApplicationModel,
+  ResolvedLifecycleGuard,
+  StoredObjectRecord,
+} from "../model/resolved-model.js";
 import { requireObjectScopeForRecord } from "./context-scope.js";
+import { evaluateExpressionAsBoolean } from "./expression-evaluator.js";
 import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
 import type { HookRegistry } from "./hook-registry.js";
 import type { ObjectStore } from "./object-store.js";
@@ -97,6 +102,7 @@ export class LifecycleEngine {
       },
       context,
     );
+    this.requireGuards(objectName, action.name, action.guards, record.values, context);
     this.syncPolicy.requireLocalWriteAllowed(objectName, "transition", context);
 
     try {
@@ -152,6 +158,31 @@ export class LifecycleEngine {
         toState: action.to,
       });
       throw error;
+    }
+  }
+
+  private requireGuards(
+    objectName: string,
+    actionName: string,
+    guards: ResolvedLifecycleGuard[],
+    values: StoredObjectRecord["values"],
+    context: RuntimeContext,
+  ): void {
+    for (const guard of guards) {
+      const result = evaluateExpressionAsBoolean(guard.expression, { values, context });
+      if (!result.ok) {
+        throw new LifecycleError(
+          `Lifecycle action '${actionName}' guard '${guard.name}' could not be evaluated: ${result.error.message}`,
+          { objectName, actionName, guardName: guard.name },
+        );
+      }
+      if (result.value.value !== true) {
+        throw new LifecycleError(guard.message, {
+          objectName,
+          actionName,
+          guardName: guard.name,
+        });
+      }
     }
   }
 }

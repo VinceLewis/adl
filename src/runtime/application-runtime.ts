@@ -10,6 +10,8 @@ import type { RuntimeCommandResult } from "./command-service.js";
 import { HookRegistry } from "./hook-registry.js";
 import type { RuntimeHook } from "./hook-registry.js";
 import { RuntimeContextService } from "./context-service.js";
+import { DecisionTableService } from "./decision-table-service.js";
+import type { DecisionTableEvaluationResult } from "./decision-table-service.js";
 import { LifecycleEngine } from "./lifecycle-engine.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { OfflineDatasetService } from "./offline-dataset-service.js";
@@ -55,6 +57,7 @@ export class ApplicationRuntime {
   readonly syncQueue: SyncQueue;
   readonly hookRegistry: HookRegistry;
   readonly contextService: RuntimeContextService;
+  readonly decisionTableService: DecisionTableService;
   readonly offlineDatasetService: OfflineDatasetService;
   readonly readModelService: ReadModelService;
   readonly objectStore: ObjectStore;
@@ -89,6 +92,7 @@ export class ApplicationRuntime {
     this.contextService = new RuntimeContextService(model, this.index, storage, this.logger, () =>
       this.whenReady(),
     );
+    this.decisionTableService = new DecisionTableService(model, this.index, this.logger);
     this.offlineDatasetService = new OfflineDatasetService(
       model,
       this.contextService,
@@ -329,6 +333,24 @@ export class ApplicationRuntime {
     this.logger.debug("EXIT ApplicationRuntime.executeReadModel", {
       readModelName,
       count: result.rows.length,
+    });
+    return result;
+  }
+
+  async evaluateDecisionTable(
+    tableName: string,
+    values: Record<string, JsonValue>,
+    context: RuntimeContext,
+  ): Promise<DecisionTableEvaluationResult> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.evaluateDecisionTable", {
+      tableName,
+      context: safeContextLog(context),
+    });
+    const result = this.decisionTableService.evaluate(tableName, values, context);
+    this.logger.debug("EXIT ApplicationRuntime.evaluateDecisionTable", {
+      tableName,
+      rowName: result.rowName,
     });
     return result;
   }

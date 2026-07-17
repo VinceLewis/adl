@@ -240,6 +240,25 @@ export class ValidationEngine {
         `${path}.${object.lifecycle?.stateField}`,
       );
     }
+
+    for (const validation of object.validations) {
+      const result = evaluateExpressionAsBoolean(validation.expression, { values, context });
+      if (!result.ok) {
+        issues.push({
+          code: "ADL_RUNTIME_OBJECT_VALIDATION",
+          message: `Object validation '${validation.name}' could not be evaluated: ${result.error.message}`,
+          path,
+        });
+        continue;
+      }
+      if (result.value.value !== true) {
+        issues.push({
+          code: "ADL_RUNTIME_OBJECT_VALIDATION",
+          message: validation.message,
+          path,
+        });
+      }
+    }
   }
 
   private validateLifecycleStateValue(

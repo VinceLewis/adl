@@ -24,16 +24,22 @@ import type {
   PartialBusinessContextModel,
   PartialCommandInputModel,
   PartialCommandModel,
+  PartialCommandPreconditionModel,
   PartialCommandStepModel,
   PartialContextMembershipModel,
   PartialContextSelectionPolicyModel,
+  PartialDecisionTableInputModel,
+  PartialDecisionTableModel,
+  PartialDecisionTableRowModel,
   PartialFieldModel,
   PartialHookRefsModel,
+  PartialLifecycleGuardModel,
   PartialLifecycleActionModel,
   PartialLifecycleModel,
   PartialLookupModel,
   PartialObjectConstraintModel,
   PartialObjectModel,
+  PartialObjectValidationModel,
   PartialObjectScopeModel,
   PartialObjectSyncPolicyModel,
   PartialPolicyModel,
@@ -55,17 +61,23 @@ import type {
   ResolvedBusinessContext,
   ResolvedCommand,
   ResolvedCommandInput,
+  ResolvedCommandPrecondition,
   ResolvedCommandStep,
   ResolvedContextMembership,
   ResolvedContextSelectionPolicy,
+  ResolvedDecisionTable,
+  ResolvedDecisionTableInput,
+  ResolvedDecisionTableRow,
   ResolvedField,
   ResolvedHookRefs,
+  ResolvedLifecycleGuard,
   ResolvedLifecycle,
   ResolvedLifecycleAction,
   ResolvedLookup,
   ResolvedObject,
   ResolvedObjectAuditPolicy,
   ResolvedObjectConstraint,
+  ResolvedObjectValidation,
   ResolvedObjectScope,
   ResolvedObjectSyncPolicy,
   ResolvedExpression,
@@ -111,6 +123,10 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
     input.readModels === undefined
       ? undefined
       : resolveReadModels(input.readModels, objectsWithPolicies);
+  const decisionTables =
+    input.decisionTables === undefined || input.decisionTables.length === 0
+      ? undefined
+      : resolveDecisionTables(input.decisionTables);
   const commands =
     input.commands === undefined || input.commands.length === 0
       ? undefined
@@ -132,6 +148,7 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
     ...(contexts === undefined ? {} : { contexts }),
     objects: objectsWithPolicies,
     ...(readModels === undefined ? {} : { readModels }),
+    ...(decisionTables === undefined ? {} : { decisionTables }),
     ...(commands === undefined ? {} : { commands }),
     policies,
     themes,
@@ -213,11 +230,20 @@ function resolveObject(
     metadataFields: createMetadataFields(),
     ...(input.scope === undefined ? {} : { scope: resolveObjectScope(input.scope) }),
     constraints: (input.constraints ?? []).map(resolveObjectConstraint),
+    validations: (input.validations ?? []).map(resolveObjectValidation),
     ...(lifecycle === undefined ? {} : { lifecycle }),
     policies: [...(input.policies ?? []), ...objectPolicies],
     views,
     sync,
     audit: resolveObjectAudit(input.audit),
+  };
+}
+
+function resolveObjectValidation(input: PartialObjectValidationModel): ResolvedObjectValidation {
+  return {
+    name: input.name,
+    expression: resolveExpression(input.expression),
+    message: input.message ?? `Object validation '${input.name}' failed.`,
   };
 }
 
@@ -321,8 +347,17 @@ function resolveLifecycleAction(input: PartialLifecycleActionModel): ResolvedLif
     from: Array.isArray(input.from) ? [...input.from] : [input.from],
     to: input.to,
     ...(input.label === undefined ? {} : { label: input.label }),
+    guards: (input.guards ?? []).map(resolveLifecycleGuard),
     policyRefs: [...(input.policyRefs ?? [])],
     hooks: resolveHookRefs(input.hooks),
+  };
+}
+
+function resolveLifecycleGuard(input: PartialLifecycleGuardModel): ResolvedLifecycleGuard {
+  return {
+    name: input.name,
+    expression: resolveExpression(input.expression),
+    message: input.message ?? `Lifecycle guard '${input.name}' failed.`,
   };
 }
 
@@ -528,6 +563,40 @@ function resolveReadModelField(
   };
 }
 
+function resolveDecisionTables(input: PartialDecisionTableModel[]): ResolvedDecisionTable[] {
+  return input.map(resolveDecisionTable);
+}
+
+function resolveDecisionTable(input: PartialDecisionTableModel): ResolvedDecisionTable {
+  return {
+    name: input.name,
+    object: input.object,
+    match: input.match ?? "first",
+    inputs: (input.inputs ?? []).map(resolveDecisionTableInput),
+    rows: (input.rows ?? []).map(resolveDecisionTableRow),
+    ...(input.defaultOutputs === undefined
+      ? {}
+      : { defaultOutputs: cloneJsonValue(input.defaultOutputs) }),
+  };
+}
+
+function resolveDecisionTableInput(
+  input: PartialDecisionTableInputModel,
+): ResolvedDecisionTableInput {
+  return {
+    name: input.name,
+    expression: resolveExpression(input.expression),
+  };
+}
+
+function resolveDecisionTableRow(input: PartialDecisionTableRowModel): ResolvedDecisionTableRow {
+  return {
+    name: input.name,
+    condition: resolveExpression(input.condition),
+    outputs: cloneJsonValue(input.outputs ?? {}),
+  };
+}
+
 function resolveCommands(input: PartialCommandModel[]): ResolvedCommand[] {
   return input.map(resolveCommand);
 }
@@ -536,8 +605,19 @@ function resolveCommand(input: PartialCommandModel): ResolvedCommand {
   return {
     name: input.name,
     ...(input.label === undefined ? {} : { label: input.label }),
+    preconditions: (input.preconditions ?? []).map(resolveCommandPrecondition),
     inputs: (input.inputs ?? []).map(resolveCommandInput),
     steps: (input.steps ?? []).map(resolveCommandStep),
+  };
+}
+
+function resolveCommandPrecondition(
+  input: PartialCommandPreconditionModel,
+): ResolvedCommandPrecondition {
+  return {
+    name: input.name,
+    expression: resolveExpression(input.expression),
+    message: input.message ?? `Command precondition '${input.name}' failed.`,
   };
 }
 

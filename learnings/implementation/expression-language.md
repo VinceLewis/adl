@@ -40,6 +40,28 @@ expressions.
 - The `in` operator is reserved in the type model but intentionally rejected by
   validation/evaluation until list expression semantics are introduced.
 
+## Key decisions from Phase 21
+
+- Object-level validations, lifecycle guards, decision-table predicates, and
+  command-level `REQUIRE` preconditions all reuse `ResolvedExpression`; no new
+  expression operators were needed.
+- Object validations live on `ResolvedObject.validations` and are enforced by
+  `ValidationEngine` on create, update, and lifecycle transition target values.
+- Lifecycle action guards live on `ResolvedLifecycleAction.guards` and are
+  enforced by `LifecycleEngine` after state/policy checks and before writes.
+- Command-level preconditions live on `ResolvedCommand.preconditions` and are
+  evaluated once against prepared command input before any command step reads or
+  transaction planning.
+- Decision tables are top-level object-scoped model data. Table inputs are
+  expressions over the source object; row conditions are expressions over named
+  input values; runtime evaluation supports first-match and single-match
+  semantics with explicit default outputs.
+- Compile-time decision-table analysis intentionally recognizes a small subset:
+  literal boolean rows, `AND`, equality against literals, and numeric ranges
+  over table input names. Other valid runtime predicates receive an
+  `ADL_DECISION_TABLE_ROW_CONDITION_UNANALYZABLE` warning rather than fake
+  exhaustiveness.
+
 ## Practical guidance
 
 - Add expression consumers by validating expressions at model startup and then

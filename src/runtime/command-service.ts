@@ -4,6 +4,7 @@ import type {
   ResolvedApplicationModel,
   ResolvedCommand,
   ResolvedCommandInput,
+  ResolvedCommandPrecondition,
   ResolvedCommandStep,
   ResolvedCommandValueExpression,
   StoredObjectRecord,
@@ -60,6 +61,7 @@ export class CommandService {
     });
     const command = this.index.getCommand(commandName);
     const values = this.prepareInput(command, input);
+    this.requireCommandPreconditions(command, values, context);
     const plannedWrites: PlannedObjectWrite[] = [];
     const stepRecords = new Map<string, StoredObjectRecord>();
 
@@ -205,6 +207,25 @@ export class CommandService {
     );
   }
 
+  private requireCommandPreconditions(
+    command: ResolvedCommand,
+    values: Record<string, JsonValue>,
+    context: RuntimeContext,
+  ): void {
+    const failed = command.preconditions.find(
+      (precondition) => !evaluateRuntimeCondition(precondition.expression, { values, context }),
+    );
+
+    if (failed === undefined) {
+      return;
+    }
+
+    throw new PolicyDeniedError(
+      `Command '${command.name}' was denied.`,
+      commandPreconditionDecision(command, failed),
+    );
+  }
+
   private evaluateExpressionMap(
     expressions: Record<string, ResolvedCommandValueExpression>,
     input: Record<string, JsonValue>,
@@ -287,6 +308,23 @@ function commandInputTypeIssue(
     message: `Command '${command.name}' input '${input.name}' expects a ${input.type} value, received '${String(value)}'.`,
     path: `input.${input.name}`,
     field: input.name,
+  };
+}
+
+function commandPreconditionDecision(
+  command: ResolvedCommand,
+  precondition: ResolvedCommandPrecondition,
+): PolicyDecision {
+  return {
+    effect: "deny",
+    reasons: [
+      {
+        policyName: `Command:${command.name}`,
+        ruleName: precondition.name,
+        effect: "deny",
+        message: precondition.message,
+      },
+    ],
   };
 }
 

@@ -289,6 +289,127 @@ END.POLICY
     });
   });
 
+  it("compiles Phase 21 declarative logic into direct runtime enforcement", async () => {
+    const result = compileAdl(`APP DeclarativeLogic
+END.APP
+
+ROLE Requester
+ROLE Approver
+
+OBJECT PurchaseOrder
+  FIELD Owner TEXT REQUIRED
+  FIELD Value NUMBER REQUIRED
+  FIELD ApprovalComment TEXT
+  FIELD Reviewed BOOLEAN DEFAULT FALSE
+  FIELD Status TEXT REQUIRED DEFAULT Draft
+  VALIDATE ApprovalCommentRequired WHEN Value <= 10000 OR ApprovalComment != NULL MESSAGE 'Approval comment is required above 10000.'
+
+  LIFECYCLE PurchaseOrderLifecycle FIELD Status INITIAL Draft
+    STATE Draft
+    STATE Approved
+    ACTION approve FROM Draft TO Approved WHEN Reviewed == TRUE MESSAGE 'Purchase order must be reviewed before approval.'
+      ALLOW ROLE Approver
+    END.ACTION
+  END.LIFECYCLE
+END.OBJECT
+
+DECISION_TABLE ApprovalTier ON PurchaseOrder MATCH SINGLE
+  INPUT amount = Value
+  ROW standard WHEN amount <= 10000 OUTPUT tier 'standard'
+  ROW senior WHEN amount > 10000 OUTPUT tier 'senior'
+  DEFAULT OUTPUT tier 'unknown'
+END.DECISION_TABLE
+
+COMMAND CreatePurchaseOrder LABEL 'Create purchase order'
+  INPUT Owner TEXT REQUIRED
+  INPUT Value NUMBER REQUIRED
+  REQUIRE Value > 0 MESSAGE 'Command value must be positive.'
+  STEP createOrder CREATE PurchaseOrder AUTHORITY command
+    VALUE Owner INPUT Owner
+    VALUE Value INPUT Value
+    VALUE Reviewed LITERAL TRUE
+    VALUE Status LITERAL Draft
+  END.STEP
+END.COMMAND
+
+POLICY PurchaseOrderPolicy ON PurchaseOrder
+  ALLOW CREATE ROLE Requester
+  ALLOW READ ROLE Requester Approver
+  ALLOW UPDATE ROLE Requester Approver
+  ALLOW TRANSITION ROLE Approver ACTION approve STATE Draft
+END.POLICY
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.model.objects[0]?.validations[0]).toMatchObject({
+      name: "ApprovalCommentRequired",
+    });
+    expect(result.model.decisionTables?.[0]).toMatchObject({
+      name: "ApprovalTier",
+      match: "single",
+    });
+    expect(result.model.commands?.[0]?.preconditions[0]).toMatchObject({
+      name: "CreatePurchaseOrderRequirement1",
+    });
+
+    const runtime = new ApplicationRuntime(result.model);
+    const requester = {
+      userId: "requester-1",
+      roles: ["Requester"],
+      channel: "api",
+      now: new Date("2026-07-17T12:30:00.000Z"),
+    } satisfies RuntimeContext;
+    const approver = {
+      userId: "approver-1",
+      roles: ["Approver"],
+      channel: "api",
+      now: new Date("2026-07-17T12:30:00.000Z"),
+    } satisfies RuntimeContext;
+
+    await expect(
+      runtime.create("PurchaseOrder", { Owner: "requester-1", Value: 12000 }, requester),
+    ).rejects.toMatchObject({
+      name: RuntimeValidationError.name,
+      issues: [expect.objectContaining({ message: "Approval comment is required above 10000." })],
+    });
+
+    const created = await runtime.create(
+      "PurchaseOrder",
+      { Owner: "requester-1", Value: 12000, ApprovalComment: "Budget approved" },
+      requester,
+    );
+    const tier = await runtime.evaluateDecisionTable("ApprovalTier", created.values, requester);
+    expect(tier).toMatchObject({
+      rowName: "senior",
+      outputs: { tier: "senior" },
+      inputValues: { amount: 12000 },
+    });
+
+    await expect(
+      runtime.transition("PurchaseOrder", created.meta.guid, "approve", approver),
+    ).rejects.toMatchObject({
+      code: "ADL_LIFECYCLE_ERROR",
+      message: "Purchase order must be reviewed before approval.",
+    });
+
+    await runtime.update("PurchaseOrder", created.meta.guid, { Reviewed: true }, requester);
+    const approved = await runtime.transition(
+      "PurchaseOrder",
+      created.meta.guid,
+      "approve",
+      approver,
+    );
+    expect(approved.values.Status).toBe("Approved");
+
+    await expect(
+      runtime.executeCommand("CreatePurchaseOrder", { Owner: "requester-1", Value: -1 }, requester),
+    ).rejects.toMatchObject({
+      decision: {
+        reasons: [expect.objectContaining({ message: "Command value must be positive." })],
+      },
+    });
+  });
+
   it("returns structured validation diagnostics for parsed but invalid models", () => {
     const result = compileAdl(`APP Broken
   START_VIEW BrokenList

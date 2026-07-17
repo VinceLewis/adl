@@ -269,6 +269,79 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  it("reports decision-table default, overlap, and unreachable diagnostics", () => {
+    const resolved = resolveApplicationModel({
+      app: { name: "DecisionDiagnostics" },
+      objects: [
+        {
+          name: "Invoice",
+          fields: [
+            { name: "Amount", type: "number" },
+            { name: "Status", type: "text" },
+          ],
+        },
+      ],
+      decisionTables: [
+        {
+          name: "InvoiceTier",
+          object: "Invoice",
+          match: "single",
+          inputs: [{ name: "amount", expression: { kind: "field", field: "Amount" } }],
+          rows: [
+            {
+              name: "large",
+              condition: {
+                kind: "binary",
+                operator: ">",
+                left: { kind: "field", field: "amount" },
+                right: { kind: "literal", value: 100 },
+              },
+              outputs: { tier: "large" },
+            },
+            {
+              name: "alsoLarge",
+              condition: {
+                kind: "binary",
+                operator: ">",
+                left: { kind: "field", field: "amount" },
+                right: { kind: "literal", value: 50 },
+              },
+              outputs: { tier: "alsoLarge" },
+            },
+            {
+              name: "impossible",
+              condition: {
+                kind: "binary",
+                operator: "and",
+                left: {
+                  kind: "binary",
+                  operator: ">",
+                  left: { kind: "field", field: "amount" },
+                  right: { kind: "literal", value: 100 },
+                },
+                right: {
+                  kind: "binary",
+                  operator: "<",
+                  left: { kind: "field", field: "amount" },
+                  right: { kind: "literal", value: 10 },
+                },
+              },
+              outputs: { tier: "never" },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.DECISION_TABLE_DEFAULT_MISSING,
+        MODEL_VALIDATION_CODES.DECISION_TABLE_ROW_OVERLAP,
+        MODEL_VALIDATION_CODES.DECISION_TABLE_ROW_UNREACHABLE,
+      ]),
+    );
+  });
+
   it("reports invalid business context and read-model declarations", () => {
     const invalid = cloneResolved(resolveApplicationModel(bandContextPartialModel));
     const bandContext = invalid.contexts?.find((context) => context.name === "Band");

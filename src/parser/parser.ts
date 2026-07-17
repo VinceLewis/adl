@@ -2,9 +2,13 @@ import type {
   ConflictStrategy,
   FieldType,
   JsonValue,
+  CommandRuntimeProperty,
+  CommandStepAuthority,
+  CommandStepMetaProperty,
   PolicyAction,
   PolicyEffect,
   ExpressionRuntimeProperty,
+  ResolvedCommandValueExpression,
   ResolvedExpression,
   RuntimeChannel,
   SyncMode,
@@ -22,11 +26,20 @@ import type {
   AppDeclarationAst,
   AutoIdDeclarationAst,
   BlockName,
+  CommandDeclarationAst,
+  CommandInputDeclarationAst,
+  CommandPreconditionDeclarationAst,
+  CommandStepDeclarationAst,
+  DecisionTableDeclarationAst,
+  DecisionTableInputDeclarationAst,
+  DecisionTableRowDeclarationAst,
   EndMarkerNode,
   FieldDeclarationAst,
   HookRefsAst,
+  LifecycleGuardDeclarationAst,
   LifecycleDeclarationAst,
   LookupDeclarationAst,
+  ObjectValidationDeclarationAst,
   ObjectDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
@@ -112,6 +125,8 @@ class AdlParser {
     const app = this.parseApp();
     const roles: RoleDeclarationAst[] = [];
     const objects: ObjectDeclarationAst[] = [];
+    const decisionTables: DecisionTableDeclarationAst[] = [];
+    const commands: CommandDeclarationAst[] = [];
     const policies: PolicyDeclarationAst[] = [];
     const themes: ThemeDeclarationAst[] = [];
     const sync: SyncDeclarationAst[] = [];
@@ -127,6 +142,10 @@ class AdlParser {
         roles.push(this.parseRole());
       } else if (this.checkWord("OBJECT")) {
         objects.push(this.parseObject());
+      } else if (this.checkWord("DECISION_TABLE") || this.checkDottedWord("DECISION", "TABLE")) {
+        decisionTables.push(this.parseDecisionTable());
+      } else if (this.checkWord("COMMAND")) {
+        commands.push(this.parseCommand());
       } else if (this.checkWord("POLICY")) {
         policies.push(this.parsePolicy());
       } else if (this.checkWord("THEME")) {
@@ -134,7 +153,9 @@ class AdlParser {
       } else if (this.checkWord("SYNC")) {
         sync.push(this.parseSync(false));
       } else {
-        this.failUnexpected("a top-level ROLE, OBJECT, POLICY, THEME, SYNC, or end of file");
+        this.failUnexpected(
+          "a top-level ROLE, OBJECT, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, or end of file",
+        );
       }
     }
 
@@ -143,6 +164,8 @@ class AdlParser {
       app,
       roles,
       objects,
+      decisionTables,
+      commands,
       policies,
       themes,
       sync,
@@ -222,6 +245,7 @@ class AdlParser {
     let lifecycle: LifecycleDeclarationAst | undefined;
     let sync: SyncDeclarationAst | undefined;
     const fields: FieldDeclarationAst[] = [];
+    const validations: ObjectValidationDeclarationAst[] = [];
     const views: ViewDeclarationAst[] = [];
     const policyRefs: string[] = [];
     this.consumeLineEnd("OBJECT declaration");
@@ -241,6 +265,7 @@ class AdlParser {
           ...(businessKey === undefined ? {} : { businessKey }),
           ...(displayField === undefined ? {} : { displayField }),
           fields,
+          validations,
           ...(lifecycle === undefined ? {} : { lifecycle }),
           views,
           ...(sync === undefined ? {} : { sync }),
@@ -258,6 +283,8 @@ class AdlParser {
         this.consumeLineEnd("OBJECT DISPLAY directive");
       } else if (this.checkWord("FIELD")) {
         fields.push(this.parseField());
+      } else if (this.checkWord("VALIDATE") || this.checkWord("VALIDATION")) {
+        validations.push(this.parseObjectValidation());
       } else if (this.checkWord("LIFECYCLE")) {
         lifecycle = this.parseLifecycle();
       } else if (this.checkWord("VIEW")) {
@@ -381,6 +408,30 @@ class AdlParser {
     };
   }
 
+  private parseObjectValidation(): ObjectValidationDeclarationAst {
+    const startToken = this.current();
+    if (!this.matchWord("VALIDATE")) {
+      this.expectWord("VALIDATION", "object validation declaration");
+    }
+    const name = this.consumeName("object validation name");
+    if (this.matchWord("WHEN")) {
+      // WHEN is optional noise after the validation name.
+    }
+    const expression = this.parseExpressionUntil(new Set(["MESSAGE"]));
+    let message: string | undefined;
+    if (this.matchWord("MESSAGE")) {
+      message = String(this.consumeLiteral("object validation message"));
+    }
+    this.consumeLineEnd("object validation declaration");
+    return {
+      kind: "ObjectValidationDeclaration",
+      name,
+      expression,
+      ...(message === undefined ? {} : { message }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
   private parseLookup(): LookupDeclarationAst {
     const startToken = this.expectWord("LOOKUP", "LOOKUP field modifier");
     const targetObject = this.consumeName("lookup target object");
@@ -492,6 +543,7 @@ class AdlParser {
     let label: string | undefined;
     const policyRefs: string[] = [];
     const allowRules: ActionAllowDeclarationAst[] = [];
+    const guards: LifecycleGuardDeclarationAst[] = [];
     const hooks: HookRefsAst = { before: [], after: [], onError: [] };
 
     while (!this.isLineEnd()) {
@@ -499,8 +551,10 @@ class AdlParser {
         label = this.consumeName("action label");
       } else if (this.matchWord("POLICY") || this.matchWord("POLICIES")) {
         policyRefs.push(...this.consumeNameListUntilLine("action policy reference list"));
+      } else if (this.matchWord("WHEN")) {
+        guards.push(this.parseLifecycleGuardFromCurrent(startToken, `${name}Guard`, true));
       } else {
-        this.failUnexpected("ACTION header option LABEL, POLICY, or end of line");
+        this.failUnexpected("ACTION header option LABEL, POLICY, WHEN, or end of line");
       }
     }
     this.consumeLineEnd("ACTION declaration");
@@ -520,6 +574,7 @@ class AdlParser {
           from,
           to,
           ...(label === undefined ? {} : { label }),
+          guards,
           policyRefs,
           allowRules,
           hooks,
@@ -530,6 +585,8 @@ class AdlParser {
 
       if (this.checkWord("ALLOW")) {
         allowRules.push(this.parseActionAllow());
+      } else if (this.matchWord("WHEN")) {
+        guards.push(this.parseLifecycleGuardFromCurrent(this.previous(), `${name}Guard`, false));
       } else if (this.matchWord("POLICY") || this.matchWord("POLICIES")) {
         policyRefs.push(...this.consumeNameListUntilLine("action policy reference list"));
         this.consumeLineEnd("ACTION POLICY directive");
@@ -544,7 +601,7 @@ class AdlParser {
         this.consumeLineEnd("ACTION ON_ERROR directive");
       } else {
         this.failUnexpected(
-          "ACTION directive ALLOW, POLICY, BEFORE, AFTER, ON_ERROR, or END.ACTION",
+          "ACTION directive ALLOW, WHEN, POLICY, BEFORE, AFTER, ON_ERROR, or END.ACTION",
         );
       }
     }
@@ -572,6 +629,34 @@ class AdlParser {
       kind: "ActionAllowDeclaration",
       roles,
       states,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseLifecycleGuardFromCurrent(
+    startToken: Token,
+    fallbackName: string,
+    inHeader: boolean,
+  ): LifecycleGuardDeclarationAst {
+    const stopWords = inHeader
+      ? new Set(["MESSAGE", "LABEL", "POLICY", "POLICIES"])
+      : new Set(["MESSAGE"]);
+    const expression = this.parseExpressionUntil(stopWords);
+    let message: string | undefined;
+
+    if (this.matchWord("MESSAGE")) {
+      message = String(this.consumeLiteral("lifecycle guard message"));
+    }
+
+    if (!inHeader) {
+      this.consumeLineEnd("ACTION WHEN directive");
+    }
+
+    return {
+      kind: "LifecycleGuardDeclaration",
+      name: fallbackName,
+      expression,
+      ...(message === undefined ? {} : { message }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -865,6 +950,352 @@ class AdlParser {
       ...(conflict === undefined ? {} : { conflict }),
       range: this.rangeFrom(startToken),
     };
+  }
+
+  private parseDecisionTable(): DecisionTableDeclarationAst {
+    const startToken = this.checkWord("DECISION_TABLE")
+      ? this.expectWord("DECISION_TABLE", "DECISION_TABLE declaration")
+      : this.expectDottedWord("DECISION", "TABLE", "DECISION.TABLE declaration");
+    const name = this.consumeName("decision table name");
+    this.expectWord("ON", "DECISION_TABLE ON clause");
+    const object = this.consumeName("decision table object name");
+    let match: "first" | "single" = "first";
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("MATCH")) {
+        match = this.parseDecisionTableMatch();
+      } else {
+        this.failUnexpected("DECISION_TABLE header option MATCH or end of line");
+      }
+    }
+    this.consumeLineEnd("DECISION_TABLE declaration");
+
+    const inputs: DecisionTableInputDeclarationAst[] = [];
+    const rows: DecisionTableRowDeclarationAst[] = [];
+    let defaultOutputs: Record<string, JsonValue> | undefined;
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.DECISION_TABLE", this.current());
+      }
+
+      if (this.checkEnd("DECISION_TABLE")) {
+        const end = this.parseEnd("DECISION_TABLE");
+        return {
+          kind: "DecisionTableDeclaration",
+          name,
+          object,
+          match,
+          inputs,
+          rows,
+          ...(defaultOutputs === undefined ? {} : { defaultOutputs }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.checkWord("INPUT")) {
+        inputs.push(this.parseDecisionTableInput());
+      } else if (this.checkWord("ROW")) {
+        rows.push(this.parseDecisionTableRow());
+      } else if (this.matchWord("DEFAULT")) {
+        if (this.matchWord("OUTPUT")) {
+          // OUTPUT is optional noise after DEFAULT.
+        }
+        defaultOutputs = this.consumeOutputMapUntilLine("decision table default output");
+        this.consumeLineEnd("DECISION_TABLE DEFAULT directive");
+      } else {
+        this.failUnexpected("DECISION_TABLE directive INPUT, ROW, DEFAULT, or END.DECISION_TABLE");
+      }
+    }
+  }
+
+  private parseDecisionTableMatch(): "first" | "single" {
+    const raw = normaliseKeyword(this.consumeName("decision table match policy"));
+    if (raw === "first" || raw === "firstmatch") {
+      return "first";
+    }
+    if (raw === "single" || raw === "singlematch") {
+      return "single";
+    }
+    this.failExpected("decision table match policy FIRST or SINGLE", this.previous());
+  }
+
+  private parseDecisionTableInput(): DecisionTableInputDeclarationAst {
+    const startToken = this.expectWord("INPUT", "DECISION_TABLE INPUT directive");
+    const name = this.consumeName("decision table input name");
+    if (this.matchSymbol("=") || this.matchWord("FROM")) {
+      // Both forms are accepted for readability.
+    }
+    const expression = this.parseExpressionUntil(new Set());
+    this.consumeLineEnd("DECISION_TABLE INPUT directive");
+    return {
+      kind: "DecisionTableInputDeclaration",
+      name,
+      expression,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseDecisionTableRow(): DecisionTableRowDeclarationAst {
+    const startToken = this.expectWord("ROW", "DECISION_TABLE ROW directive");
+    const name = this.consumeName("decision table row name");
+    if (this.matchWord("WHEN")) {
+      // WHEN is optional noise after the row name.
+    }
+    const condition = this.parseExpressionUntil(new Set(["OUTPUT"]));
+    this.expectWord("OUTPUT", "DECISION_TABLE ROW OUTPUT clause");
+    const outputs = this.consumeOutputMapUntilLine("decision table row output");
+    this.consumeLineEnd("DECISION_TABLE ROW directive");
+    return {
+      kind: "DecisionTableRowDeclaration",
+      name,
+      condition,
+      outputs,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseCommand(): CommandDeclarationAst {
+    const startToken = this.expectWord("COMMAND", "COMMAND declaration");
+    const name = this.consumeName("command name");
+    let label: string | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LABEL")) {
+        label = this.consumeName("command label");
+      } else {
+        this.failUnexpected("COMMAND header option LABEL or end of line");
+      }
+    }
+    this.consumeLineEnd("COMMAND declaration");
+
+    const inputs: CommandInputDeclarationAst[] = [];
+    const preconditions: CommandPreconditionDeclarationAst[] = [];
+    const steps: CommandStepDeclarationAst[] = [];
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.COMMAND", this.current());
+      }
+
+      if (this.checkEnd("COMMAND")) {
+        const end = this.parseEnd("COMMAND");
+        return {
+          kind: "CommandDeclaration",
+          name,
+          ...(label === undefined ? {} : { label }),
+          inputs,
+          preconditions,
+          steps,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.checkWord("INPUT")) {
+        inputs.push(this.parseCommandInput());
+      } else if (this.matchWord("REQUIRE")) {
+        preconditions.push(
+          this.parseCommandPreconditionFromCurrent(
+            this.previous(),
+            `${name}Requirement${preconditions.length + 1}`,
+          ),
+        );
+      } else if (this.checkWord("STEP")) {
+        steps.push(this.parseCommandStep());
+      } else {
+        this.failUnexpected("COMMAND directive INPUT, REQUIRE, STEP, or END.COMMAND");
+      }
+    }
+  }
+
+  private parseCommandInput(): CommandInputDeclarationAst {
+    const startToken = this.expectWord("INPUT", "COMMAND INPUT directive");
+    const name = this.consumeName("command input name");
+    const { type } = this.parseFieldType();
+    let required = true;
+    let defaultValue: JsonValue | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("REQUIRED")) {
+        required = true;
+      } else if (this.matchWord("OPTIONAL")) {
+        required = false;
+      } else if (this.matchWord("DEFAULT")) {
+        defaultValue = this.consumeModifierValue("COMMAND INPUT DEFAULT value");
+      } else {
+        this.failUnexpected("COMMAND INPUT modifier REQUIRED, OPTIONAL, DEFAULT, or end of line");
+      }
+    }
+    this.consumeLineEnd("COMMAND INPUT directive");
+    return {
+      kind: "CommandInputDeclaration",
+      name,
+      type,
+      required,
+      ...(defaultValue === undefined ? {} : { defaultValue }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseCommandPreconditionFromCurrent(
+    startToken: Token,
+    name: string,
+  ): CommandPreconditionDeclarationAst {
+    const expression = this.parseExpressionUntil(new Set(["MESSAGE"]));
+    let message: string | undefined;
+    if (this.matchWord("MESSAGE")) {
+      message = String(this.consumeLiteral("command requirement message"));
+    }
+    this.consumeLineEnd("COMMAND REQUIRE directive");
+    return {
+      kind: "CommandPreconditionDeclaration",
+      name,
+      expression,
+      ...(message === undefined ? {} : { message }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseCommandStep(): CommandStepDeclarationAst {
+    const startToken = this.expectWord("STEP", "COMMAND STEP declaration");
+    const name = this.consumeName("command step name");
+    const action = this.parseCommandStepAction();
+    const object = this.consumeName("command step object name");
+    let authority: CommandStepAuthority | undefined;
+    let recordId: ResolvedCommandValueExpression | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("AUTHORITY")) {
+        authority = this.parseCommandStepAuthority();
+      } else if (this.matchWord("ID") || this.matchWord("RECORD")) {
+        recordId = this.parseCommandValueExpression();
+      } else {
+        this.failUnexpected("COMMAND STEP header option AUTHORITY, ID, or end of line");
+      }
+    }
+    this.consumeLineEnd("COMMAND STEP declaration");
+
+    const values: Record<string, ResolvedCommandValueExpression> = {};
+    const preconditions: ResolvedExpression[] = [];
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.STEP", this.current());
+      }
+
+      if (this.checkEnd("STEP")) {
+        const end = this.parseEnd("STEP");
+        return {
+          kind: "CommandStepDeclaration",
+          name,
+          action,
+          object,
+          ...(authority === undefined ? {} : { authority }),
+          ...(recordId === undefined ? {} : { recordId }),
+          values,
+          preconditions,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("VALUE") || this.matchWord("SET") || this.matchWord("PATCH")) {
+        const field = this.consumeName("command step field name");
+        if (this.matchSymbol("=")) {
+          // Optional readability separator.
+        }
+        values[field] = this.parseCommandValueExpression();
+        this.consumeLineEnd("COMMAND STEP value directive");
+      } else if (this.matchWord("REQUIRE")) {
+        preconditions.push(this.parseExpressionUntil(new Set()));
+        this.consumeLineEnd("COMMAND STEP REQUIRE directive");
+      } else {
+        this.failUnexpected("COMMAND STEP directive VALUE, SET, PATCH, REQUIRE, or END.STEP");
+      }
+    }
+  }
+
+  private parseCommandStepAction(): "create" | "update" {
+    const raw = normaliseKeyword(this.consumeName("command step action"));
+    if (raw === "create") {
+      return "create";
+    }
+    if (raw === "update") {
+      return "update";
+    }
+    this.failExpected("command step action CREATE or UPDATE", this.previous());
+  }
+
+  private parseCommandStepAuthority(): CommandStepAuthority {
+    const raw = normaliseKeyword(this.consumeName("command step authority"));
+    if (raw === "caller") {
+      return "caller";
+    }
+    if (raw === "command") {
+      return "command";
+    }
+    this.failExpected("command step authority CALLER or COMMAND", this.previous());
+  }
+
+  private parseCommandValueExpression(): ResolvedCommandValueExpression {
+    if (this.matchWord("INPUT")) {
+      return { kind: "input", name: this.consumeName("command input reference") };
+    }
+    if (this.matchWord("RUNTIME")) {
+      return {
+        kind: "runtime",
+        property: this.consumeName("command runtime property") as CommandRuntimeProperty,
+      };
+    }
+    if (this.matchWord("STEP")) {
+      const step = this.consumeName("command step reference");
+      if (this.matchWord("FIELD")) {
+        return { kind: "stepField", step, field: this.consumeName("command step field") };
+      }
+      if (this.matchWord("META")) {
+        return {
+          kind: "stepMeta",
+          step,
+          property: this.consumeName("command step metadata property") as CommandStepMetaProperty,
+        };
+      }
+      this.failExpected("FIELD or META after command STEP value expression", this.current());
+    }
+    if (this.matchWord("LITERAL")) {
+      return { kind: "literal", value: this.consumeLiteral("command literal value") };
+    }
+    return { kind: "literal", value: this.consumeLiteral("command literal value") };
+  }
+
+  private consumeOutputMapUntilLine(context: string): Record<string, JsonValue> {
+    const outputs: Record<string, JsonValue> = {};
+
+    while (!this.isLineEnd()) {
+      this.skipComma();
+      if (this.isLineEnd()) {
+        break;
+      }
+      const name = this.consumeName(`${context} name`);
+      if (this.matchSymbol("=")) {
+        // Optional readability separator.
+      }
+      outputs[name] = this.consumeLiteral(`${context} value`);
+      this.skipComma();
+    }
+
+    if (Object.keys(outputs).length === 0) {
+      this.failExpected(context, this.current());
+    }
+
+    return outputs;
   }
 
   private parseFieldType(): { type: FieldType; validators: ValidatorDeclarationAst[] } {
@@ -1583,13 +2014,7 @@ class AdlParser {
   }
 
   private matchDottedWord(first: string, second: string): boolean {
-    if (
-      !this.checkWord(first) ||
-      this.peek(1).kind !== "symbol" ||
-      this.peek(1).lexeme !== "." ||
-      this.peek(2).kind !== "identifier" ||
-      this.peek(2).upper !== second
-    ) {
+    if (!this.checkDottedWord(first, second)) {
       return false;
     }
 
@@ -1597,6 +2022,24 @@ class AdlParser {
     this.advance();
     this.advance();
     return true;
+  }
+
+  private expectDottedWord(first: string, second: string, context: string): Token {
+    const token = this.current();
+    if (this.matchDottedWord(first, second)) {
+      return token;
+    }
+    this.failExpected(context, token);
+  }
+
+  private checkDottedWord(first: string, second: string): boolean {
+    return (
+      this.checkWord(first) &&
+      this.peek(1).kind === "symbol" &&
+      this.peek(1).lexeme === "." &&
+      this.peek(2).kind === "identifier" &&
+      this.peek(2).upper === second
+    );
   }
 
   private expectSymbol(symbol: string, context: string): Token {

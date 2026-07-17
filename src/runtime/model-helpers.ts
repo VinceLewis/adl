@@ -3,6 +3,7 @@ import type {
   ResolvedApplicationModel,
   ResolvedBusinessContext,
   ResolvedCommand,
+  ResolvedDecisionTable,
   ResolvedField,
   ResolvedObject,
   ResolvedPolicy,
@@ -14,6 +15,7 @@ import { RuntimeModelError, cloneJson } from "./runtime-types.js";
 export class RuntimeModelIndex {
   private readonly objectsByName: Map<string, ResolvedObject>;
   private readonly commandsByName: Map<string, ResolvedCommand>;
+  private readonly decisionTablesByName: Map<string, ResolvedDecisionTable>;
   private readonly policiesByObject: Map<string, ResolvedPolicy[]>;
   private readonly readModelsByName: Map<string, ResolvedReadModel>;
   private readonly rolesByName: Map<string, string[]>;
@@ -23,6 +25,9 @@ export class RuntimeModelIndex {
   constructor(readonly model: ResolvedApplicationModel) {
     this.objectsByName = new Map(model.objects.map((object) => [object.name, object]));
     this.commandsByName = new Map((model.commands ?? []).map((command) => [command.name, command]));
+    this.decisionTablesByName = new Map(
+      (model.decisionTables ?? []).map((table) => [table.name, table]),
+    );
     this.policiesByObject = groupPoliciesByObject(model.policies);
     this.readModelsByName = new Map(
       (model.readModels ?? []).map((readModel) => [readModel.name, readModel]),
@@ -75,6 +80,19 @@ export class RuntimeModelIndex {
     }
 
     return command;
+  }
+
+  getDecisionTable(tableName: string): ResolvedDecisionTable {
+    const table = this.decisionTablesByName.get(tableName);
+
+    if (table === undefined) {
+      throw new RuntimeModelError(
+        `Decision table '${tableName}' does not exist in the resolved model.`,
+        { tableName },
+      );
+    }
+
+    return table;
   }
 
   getBusinessContext(contextName: string): ResolvedBusinessContext {

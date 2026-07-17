@@ -50,6 +50,11 @@ describe("band reference app model", () => {
       ]),
     );
     expect(model.commands?.map((command) => command.name)).toContain("AcceptBandInvitation");
+    expect(model.objects.find((object) => object.name === "BandInvitation")?.validations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "respondedAtRequiredAfterResponse" }),
+      ]),
+    );
     expect(
       model.objects.find((object) => object.name === "SetListItem")?.constraints,
     ).toContainEqual(

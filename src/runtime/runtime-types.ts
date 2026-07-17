@@ -223,6 +223,12 @@ export class LifecycleError extends RuntimeError {
   }
 }
 
+export class DecisionTableError extends RuntimeError {
+  constructor(message: string, details?: unknown) {
+    super("ADL_DECISION_TABLE_ERROR", message, details);
+  }
+}
+
 export class StorageError extends RuntimeError {
   constructor(message: string, details?: unknown) {
     super("ADL_STORAGE_ERROR", message, details);

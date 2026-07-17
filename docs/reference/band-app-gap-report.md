@@ -36,6 +36,7 @@ Phase 18 promoted several Phase 17 gaps into generic model/runtime capabilities:
 - `AcceptBandInvitation` is represented as a generic command transaction that updates `BandInvitation` and creates `BandMember` without an app-specific hook.
 - Scoped uniqueness is modelled with backend-neutral object constraints for cases such as song title per band, set-list name per band, invitation email per band, member per band, and streaming platform per song.
 - Ordered set-list positions are modelled with a generic ordered object constraint that enforces positive integer positions and prevents duplicate positions within a set list.
+- `BandInvitation` now uses a generic object-level validation to require `RespondedAt` whenever an invitation has been accepted or declined.
 
 The following behaviors remain platform design candidates:
 

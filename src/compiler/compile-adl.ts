@@ -5,6 +5,9 @@ import type { Diagnostic } from "./validate-model.js";
 import type {
   ActionDeclarationAst,
   AdlDocumentAst,
+  CommandDeclarationAst,
+  CommandStepDeclarationAst,
+  DecisionTableDeclarationAst,
   FieldDeclarationAst,
   ObjectDeclarationAst,
   PolicyDeclarationAst,
@@ -16,6 +19,9 @@ import type {
 } from "../parser/ast.js";
 import type {
   PartialApplicationModel,
+  PartialCommandModel,
+  PartialCommandStepModel,
+  PartialDecisionTableModel,
   PartialFieldModel,
   PartialLifecycleModel,
   PartialLifecycleActionModel,
@@ -67,6 +73,8 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       inherits: [...role.inherits],
     })),
     objects,
+    decisionTables: ast.decisionTables.map(decisionTableToPartial),
+    commands: ast.commands.map(commandToPartial),
     policies: [...ast.policies.map(policyToPartial), ...generatedPolicies],
     themes: ast.themes.map(themeToPartial),
     sync: ast.sync.map(syncToPartial),
@@ -82,6 +90,11 @@ function objectToPartial(
     ...(object.businessKey === undefined ? {} : { businessKey: object.businessKey }),
     ...(object.displayField === undefined ? {} : { displayField: object.displayField }),
     fields: object.fields.map(fieldToPartial),
+    validations: object.validations.map((validation) => ({
+      name: validation.name,
+      expression: validation.expression,
+      ...(validation.message === undefined ? {} : { message: validation.message }),
+    })),
     ...(object.lifecycle === undefined
       ? {}
       : { lifecycle: lifecycleToPartial(object, generatedPolicies) }),
@@ -176,6 +189,11 @@ function actionToPartial(
     from: action.from.length === 1 ? (action.from[0] ?? "") : [...action.from],
     to: action.to,
     ...(action.label === undefined ? {} : { label: action.label }),
+    guards: action.guards.map((guard, index) => ({
+      name: guard.name === `${action.name}Guard` ? `${action.name}Guard${index + 1}` : guard.name,
+      expression: guard.expression,
+      ...(guard.message === undefined ? {} : { message: guard.message }),
+    })),
     policyRefs,
     hooks: {
       before: [...action.hooks.before],
@@ -212,6 +230,66 @@ function createInlineActionPolicy(
   });
 
   return policyName;
+}
+
+function decisionTableToPartial(table: DecisionTableDeclarationAst): PartialDecisionTableModel {
+  return {
+    name: table.name,
+    object: table.object,
+    match: table.match,
+    inputs: table.inputs.map((input) => ({
+      name: input.name,
+      expression: input.expression,
+    })),
+    rows: table.rows.map((row) => ({
+      name: row.name,
+      condition: row.condition,
+      outputs: { ...row.outputs },
+    })),
+    ...(table.defaultOutputs === undefined ? {} : { defaultOutputs: { ...table.defaultOutputs } }),
+  };
+}
+
+function commandToPartial(command: CommandDeclarationAst): PartialCommandModel {
+  return {
+    name: command.name,
+    ...(command.label === undefined ? {} : { label: command.label }),
+    inputs: command.inputs.map((input) => ({
+      name: input.name,
+      type: input.type,
+      required: input.required,
+      ...(input.defaultValue === undefined ? {} : { defaultValue: input.defaultValue }),
+    })),
+    preconditions: command.preconditions.map((precondition) => ({
+      name: precondition.name,
+      expression: precondition.expression,
+      ...(precondition.message === undefined ? {} : { message: precondition.message }),
+    })),
+    steps: command.steps.map(commandStepToPartial),
+  };
+}
+
+function commandStepToPartial(step: CommandStepDeclarationAst): PartialCommandStepModel {
+  if (step.action === "update") {
+    return {
+      name: step.name,
+      action: "update",
+      object: step.object,
+      ...(step.authority === undefined ? {} : { authority: step.authority }),
+      recordId: step.recordId ?? { kind: "literal", value: null },
+      patch: { ...step.values },
+      preconditions: [...step.preconditions],
+    };
+  }
+
+  return {
+    name: step.name,
+    action: "create",
+    object: step.object,
+    ...(step.authority === undefined ? {} : { authority: step.authority }),
+    values: { ...step.values },
+    preconditions: [...step.preconditions],
+  };
 }
 
 function viewToPartial(view: ViewDeclarationAst): PartialViewModel {

@@ -78,6 +78,65 @@ END.POLICY
     });
   });
 
+  it("parses object validations, decision tables, lifecycle guards, and commands", () => {
+    const ast = parseAdl(`APP Phase21
+END.APP
+
+OBJECT PurchaseOrder
+  FIELD Owner TEXT REQUIRED
+  FIELD Value NUMBER REQUIRED
+  FIELD Status TEXT DEFAULT Draft
+  FIELD Reviewed BOOLEAN DEFAULT FALSE
+  VALIDATE ApprovalCommentRequired WHEN Value <= 10000 OR Reviewed == TRUE MESSAGE 'Review required.'
+
+  LIFECYCLE PurchaseOrderLifecycle FIELD Status INITIAL Draft
+    STATE Draft
+    STATE Approved
+    ACTION approve FROM Draft TO Approved WHEN Reviewed == TRUE MESSAGE 'Review first.'
+      ALLOW ROLE Approver
+    END.ACTION
+  END.LIFECYCLE
+END.OBJECT
+
+DECISION_TABLE ApprovalTier ON PurchaseOrder MATCH SINGLE
+  INPUT amount = Value
+  ROW standard WHEN amount <= 10000 OUTPUT tier 'standard'
+  ROW senior WHEN amount > 10000 OUTPUT tier 'senior'
+  DEFAULT OUTPUT tier 'unknown'
+END.DECISION_TABLE
+
+COMMAND CreatePurchaseOrder LABEL 'Create purchase order'
+  INPUT Owner TEXT REQUIRED
+  INPUT Value NUMBER REQUIRED
+  REQUIRE Value > 0 MESSAGE 'Value must be positive.'
+  STEP createOrder CREATE PurchaseOrder AUTHORITY command
+    VALUE Owner INPUT Owner
+    VALUE Value INPUT Value
+    VALUE Status LITERAL Draft
+    VALUE Reviewed LITERAL TRUE
+  END.STEP
+END.COMMAND
+`);
+
+    expect(ast.objects[0]?.validations[0]).toMatchObject({
+      name: "ApprovalCommentRequired",
+      message: "Review required.",
+    });
+    expect(ast.objects[0]?.lifecycle?.actions[0]?.guards[0]).toMatchObject({
+      message: "Review first.",
+    });
+    expect(ast.decisionTables[0]).toMatchObject({
+      name: "ApprovalTier",
+      object: "PurchaseOrder",
+      match: "single",
+    });
+    expect(ast.commands[0]).toMatchObject({
+      name: "CreatePurchaseOrder",
+      preconditions: [expect.objectContaining({ message: "Value must be positive." })],
+      steps: [expect.objectContaining({ name: "createOrder", action: "create" })],
+    });
+  });
+
   it("reports missing block terminators with a source location", () => {
     expect(() =>
       parseAdl(`APP Broken

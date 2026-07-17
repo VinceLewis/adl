@@ -88,6 +88,7 @@ export type ReadModelSourceScope =
 export type ObjectConstraintKind = "unique" | "ordered";
 export type PolicyConditionKind = "equals" | "all" | "any" | "not";
 export type PolicyConditionRuntimeProperty = "userId";
+export type DecisionTableMatchPolicy = "first" | "single";
 export type CommandStepAction = "create" | "update";
 export type CommandStepAuthority = "caller" | "command";
 export type CommandRuntimeProperty = "userId" | "nowIso" | "today";
@@ -101,6 +102,7 @@ export interface ResolvedApplicationModel {
   contexts?: ResolvedBusinessContext[];
   objects: ResolvedObject[];
   readModels?: ResolvedReadModel[];
+  decisionTables?: ResolvedDecisionTable[];
   commands?: ResolvedCommand[];
   policies: ResolvedPolicy[];
   themes: ResolvedTheme[];
@@ -167,6 +169,7 @@ export interface ResolvedObject {
   metadataFields: ResolvedMetadataField[];
   scope?: ResolvedObjectScope;
   constraints: ResolvedObjectConstraint[];
+  validations: ResolvedObjectValidation[];
   lifecycle?: ResolvedLifecycle;
   policies: string[];
   views: ResolvedView[];
@@ -287,6 +290,12 @@ export interface ResolvedOrderedObjectConstraint {
   minPosition: number;
 }
 
+export interface ResolvedObjectValidation {
+  name: string;
+  expression: ResolvedExpression;
+  message: string;
+}
+
 export interface ResolvedLifecycle {
   name: string;
   stateField: string;
@@ -305,8 +314,15 @@ export interface ResolvedLifecycleAction {
   from: string[];
   to: string;
   label?: string;
+  guards: ResolvedLifecycleGuard[];
   policyRefs: string[];
   hooks: ResolvedHookRefs;
+}
+
+export interface ResolvedLifecycleGuard {
+  name: string;
+  expression: ResolvedExpression;
+  message: string;
 }
 
 export interface ResolvedHookRefs {
@@ -417,11 +433,38 @@ export interface ResolvedReadModelField {
   field?: string;
 }
 
+export interface ResolvedDecisionTable {
+  name: string;
+  object: string;
+  match: DecisionTableMatchPolicy;
+  inputs: ResolvedDecisionTableInput[];
+  rows: ResolvedDecisionTableRow[];
+  defaultOutputs?: Record<string, JsonValue>;
+}
+
+export interface ResolvedDecisionTableInput {
+  name: string;
+  expression: ResolvedExpression;
+}
+
+export interface ResolvedDecisionTableRow {
+  name: string;
+  condition: ResolvedExpression;
+  outputs: Record<string, JsonValue>;
+}
+
 export interface ResolvedCommand {
   name: string;
   label?: string;
+  preconditions: ResolvedCommandPrecondition[];
   inputs: ResolvedCommandInput[];
   steps: ResolvedCommandStep[];
+}
+
+export interface ResolvedCommandPrecondition {
+  name: string;
+  expression: ResolvedExpression;
+  message: string;
 }
 
 export interface ResolvedCommandInput {
@@ -580,6 +623,7 @@ export interface PartialApplicationModel {
   contexts?: PartialBusinessContextModel[];
   objects: PartialObjectModel[];
   readModels?: PartialReadModelModel[];
+  decisionTables?: PartialDecisionTableModel[];
   commands?: PartialCommandModel[];
   policies?: PartialPolicyModel[];
   themes?: PartialThemeModel[];
@@ -631,6 +675,7 @@ export interface PartialObjectModel {
   fields?: PartialFieldModel[];
   scope?: PartialObjectScopeModel;
   constraints?: PartialObjectConstraintModel[];
+  validations?: PartialObjectValidationModel[];
   lifecycle?: PartialLifecycleModel;
   policies?: string[];
   views?: PartialViewModel[];
@@ -701,6 +746,12 @@ export interface PartialOrderedObjectConstraintModel {
   minPosition?: number;
 }
 
+export interface PartialObjectValidationModel {
+  name: string;
+  expression: PartialPolicyConditionModel;
+  message?: string;
+}
+
 export interface PartialLifecycleModel {
   name: string;
   stateField?: string;
@@ -719,8 +770,15 @@ export interface PartialLifecycleActionModel {
   from: string | string[];
   to: string;
   label?: string;
+  guards?: PartialLifecycleGuardModel[];
   policyRefs?: string[];
   hooks?: PartialHookRefsModel;
+}
+
+export interface PartialLifecycleGuardModel {
+  name: string;
+  expression: PartialPolicyConditionModel;
+  message?: string;
 }
 
 export interface PartialHookRefsModel {
@@ -796,11 +854,38 @@ export interface PartialReadModelFieldModel {
   field?: string;
 }
 
+export interface PartialDecisionTableModel {
+  name: string;
+  object: string;
+  match?: DecisionTableMatchPolicy;
+  inputs?: PartialDecisionTableInputModel[];
+  rows?: PartialDecisionTableRowModel[];
+  defaultOutputs?: Record<string, JsonValue>;
+}
+
+export interface PartialDecisionTableInputModel {
+  name: string;
+  expression: PartialPolicyConditionModel;
+}
+
+export interface PartialDecisionTableRowModel {
+  name: string;
+  condition: PartialPolicyConditionModel;
+  outputs?: Record<string, JsonValue>;
+}
+
 export interface PartialCommandModel {
   name: string;
   label?: string;
+  preconditions?: PartialCommandPreconditionModel[];
   inputs?: PartialCommandInputModel[];
   steps?: PartialCommandStepModel[];
+}
+
+export interface PartialCommandPreconditionModel {
+  name: string;
+  expression: PartialPolicyConditionModel;
+  message?: string;
 }
 
 export interface PartialCommandInputModel {

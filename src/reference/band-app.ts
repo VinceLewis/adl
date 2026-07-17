@@ -193,6 +193,28 @@ export const bandReferencePartialModel = {
         { name: "SentAt", type: "date" },
         { name: "RespondedAt", type: "date" },
       ],
+      validations: [
+        {
+          name: "respondedAtRequiredAfterResponse",
+          expression: {
+            kind: "binary",
+            operator: "or",
+            left: {
+              kind: "binary",
+              operator: "==",
+              left: { kind: "field", field: "Status" },
+              right: { kind: "literal", value: "Pending" },
+            },
+            right: {
+              kind: "binary",
+              operator: "!=",
+              left: { kind: "field", field: "RespondedAt" },
+              right: { kind: "literal", value: null },
+            },
+          },
+          message: "RespondedAt is required when an invitation is accepted or declined.",
+        },
+      ],
       sync: { mode: "onlineRequired", scope: "currentContext" },
       views: [
         {

@@ -5,6 +5,7 @@ import type {
   PolicyAction,
   PolicyEffect,
   ResolvedExpression,
+  ResolvedCommandValueExpression,
   RuntimeChannel,
   SyncMode,
   SyncScope,
@@ -26,7 +27,17 @@ export interface SourceRange {
   end: SourcePosition;
 }
 
-export type BlockName = "APP" | "OBJECT" | "LIFECYCLE" | "ACTION" | "VIEW" | "POLICY" | "THEME";
+export type BlockName =
+  | "APP"
+  | "OBJECT"
+  | "LIFECYCLE"
+  | "ACTION"
+  | "VIEW"
+  | "POLICY"
+  | "THEME"
+  | "DECISION_TABLE"
+  | "COMMAND"
+  | "STEP";
 
 export interface EndMarkerNode {
   kind: "EndMarker";
@@ -39,6 +50,8 @@ export interface AdlDocumentAst {
   app: AppDeclarationAst;
   roles: RoleDeclarationAst[];
   objects: ObjectDeclarationAst[];
+  decisionTables: DecisionTableDeclarationAst[];
+  commands: CommandDeclarationAst[];
   policies: PolicyDeclarationAst[];
   themes: ThemeDeclarationAst[];
   sync: SyncDeclarationAst[];
@@ -68,11 +81,20 @@ export interface ObjectDeclarationAst {
   businessKey?: string;
   displayField?: string;
   fields: FieldDeclarationAst[];
+  validations: ObjectValidationDeclarationAst[];
   lifecycle?: LifecycleDeclarationAst;
   views: ViewDeclarationAst[];
   sync?: SyncDeclarationAst;
   policyRefs: string[];
   end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface ObjectValidationDeclarationAst {
+  kind: "ObjectValidationDeclaration";
+  name: string;
+  expression: ResolvedExpression;
+  message?: string;
   range: SourceRange;
 }
 
@@ -139,10 +161,19 @@ export interface ActionDeclarationAst {
   from: string[];
   to: string;
   label?: string;
+  guards: LifecycleGuardDeclarationAst[];
   policyRefs: string[];
   allowRules: ActionAllowDeclarationAst[];
   hooks: HookRefsAst;
   end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface LifecycleGuardDeclarationAst {
+  kind: "LifecycleGuardDeclaration";
+  name: string;
+  expression: ResolvedExpression;
+  message?: string;
   range: SourceRange;
 }
 
@@ -250,5 +281,73 @@ export interface SyncDeclarationAst {
   mode: SyncMode;
   scope?: SyncScope;
   conflict?: ConflictStrategy;
+  range: SourceRange;
+}
+
+export interface DecisionTableDeclarationAst {
+  kind: "DecisionTableDeclaration";
+  name: string;
+  object: string;
+  match: "first" | "single";
+  inputs: DecisionTableInputDeclarationAst[];
+  rows: DecisionTableRowDeclarationAst[];
+  defaultOutputs?: Record<string, JsonValue>;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface DecisionTableInputDeclarationAst {
+  kind: "DecisionTableInputDeclaration";
+  name: string;
+  expression: ResolvedExpression;
+  range: SourceRange;
+}
+
+export interface DecisionTableRowDeclarationAst {
+  kind: "DecisionTableRowDeclaration";
+  name: string;
+  condition: ResolvedExpression;
+  outputs: Record<string, JsonValue>;
+  range: SourceRange;
+}
+
+export interface CommandDeclarationAst {
+  kind: "CommandDeclaration";
+  name: string;
+  label?: string;
+  inputs: CommandInputDeclarationAst[];
+  preconditions: CommandPreconditionDeclarationAst[];
+  steps: CommandStepDeclarationAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface CommandInputDeclarationAst {
+  kind: "CommandInputDeclaration";
+  name: string;
+  type: FieldType;
+  required: boolean;
+  defaultValue?: JsonValue;
+  range: SourceRange;
+}
+
+export interface CommandPreconditionDeclarationAst {
+  kind: "CommandPreconditionDeclaration";
+  name: string;
+  expression: ResolvedExpression;
+  message?: string;
+  range: SourceRange;
+}
+
+export interface CommandStepDeclarationAst {
+  kind: "CommandStepDeclaration";
+  name: string;
+  action: "create" | "update";
+  object: string;
+  authority?: "caller" | "command";
+  recordId?: ResolvedCommandValueExpression;
+  values: Record<string, ResolvedCommandValueExpression>;
+  preconditions: ResolvedExpression[];
+  end: EndMarkerNode;
   range: SourceRange;
 }
