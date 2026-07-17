@@ -26,6 +26,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 - `implementation/policy-engine.md`
 - `implementation/runtime-services.md`
 - `implementation/expression-language.md`
+- `implementation/computed-fields-and-read-model-expressions.md`
 
 Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
 
@@ -35,6 +36,7 @@ Before tasks that change business context/scope modelling, context-scoped roles,
 - `implementation/context-runtime.md`
 - `implementation/context-ui-navigation.md`
 - `implementation/read-model-runtime.md`
+- `implementation/computed-fields-and-read-model-expressions.md`
 - `implementation/offline-dataset-runtime.md`
 
 Before tasks that change runtime stack choices, server authority, sync transport, auth provider direction, packaging, or architecture phase sequencing, also read:
@@ -123,6 +125,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/context-runtime.md`: read before changing runtime context resolution, context-scoped roles, scoped object authorization, context-aware UI calls, or tests that assert context policy behavior.
 - `implementation/context-ui-navigation.md`: read before changing context selectors, view navigation, context-aware dashboard rendering, or browser UI calls for context-scoped objects.
 - `implementation/read-model-runtime.md`: read before changing read-model execution, read-model-backed dashboards, read-model source scopes, or offline dataset work that depends on read-model inputs.
+- `implementation/computed-fields-and-read-model-expressions.md`: read before changing computed fields, read shaping, write validation, read-model projection expressions, or conformance coverage for derived values.
 - `implementation/offline-dataset-runtime.md`: read before changing context-aware offline dataset selection, dataset-limited local reads, or future remote sync planning.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, policy conditions, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.

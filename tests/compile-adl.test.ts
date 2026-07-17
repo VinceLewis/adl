@@ -289,6 +289,53 @@ END.POLICY
     });
   });
 
+  it("compiles computed fields and read-model expression fields", async () => {
+    const result = compileAdl(`APP ComputedOrders
+END.APP
+
+ROLE Admin
+
+OBJECT LineItem
+  FIELD UnitPrice NUMBER REQUIRED
+  FIELD Quantity NUMBER REQUIRED
+  FIELD Discount NUMBER DEFAULT 0
+  COMPUTED FIELD Gross NUMBER = UnitPrice * Quantity
+  COMPUTED FIELD Net NUMBER = Gross - Discount
+END.OBJECT
+
+READ_MODEL LineItemSummary
+  SOURCE line OBJECT LineItem
+  FIELD Quantity FROM line.Quantity
+  FIELD Net FROM line.Net
+  FIELD NetWithTax NUMBER = Net * 1.2
+END.READ_MODEL
+
+POLICY LineItemPolicy ON LineItem
+  ALLOW ALL ROLE Admin
+END.POLICY
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.model.objects[0]?.computedFields).toEqual([
+      expect.objectContaining({
+        name: "Gross",
+        strategy: "readTime",
+        dependencies: ["Quantity", "UnitPrice"],
+        evaluationOrder: 0,
+      }),
+      expect.objectContaining({
+        name: "Net",
+        strategy: "readTime",
+        dependencies: ["Discount", "Gross"],
+        evaluationOrder: 1,
+      }),
+    ]);
+    expect(result.model.readModels?.[0]?.fields[2]).toMatchObject({
+      name: "NetWithTax",
+      expression: { kind: "binary", operator: "*" },
+    });
+  });
+
   it("compiles Phase 21 declarative logic into direct runtime enforcement", async () => {
     const result = compileAdl(`APP DeclarativeLogic
 END.APP

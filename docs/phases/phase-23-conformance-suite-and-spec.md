@@ -25,7 +25,8 @@ Design and produce:
   (model + input + `RuntimeContext` + expected result), independent of the
   TypeScript implementation, plus a harness that runs the current TypeScript
   runtime against the corpus. Cover: model resolution and defaults, validation,
-  expressions and decimal money, computed fields, decision tables, policy decisions (allow/deny/
+  expressions and decimal money, computed fields, read-model expression fields,
+  decision tables, policy decisions (allow/deny/
   readonly/mask/hidden with reasons), lifecycle transitions and guards, commands
   and preconditions, context and context-scoped roles, read models, sync modes,
   offline datasets, and schema-version compatibility.
@@ -87,15 +88,15 @@ behaviour except to fix defects the conformance corpus exposes.
 ## Suggested Codex Prompt
 
 ```text
-Use ADL_Codex_Implementation_Brief_v2.md, docs/adr/0004-conformance-suite-is-the-cross-runtime-contract.md, learnings/implementation/expression-language.md, and docs/phases/phase-23-conformance-suite-and-spec.md as the source of truth. Treat docs/claude-review.md and docs/gpt-review.md as background review inputs, not source-of-truth documents.
+Use ADL_Codex_Implementation_Brief_v2.md, docs/adr/0004-conformance-suite-is-the-cross-runtime-contract.md, learnings/implementation/expression-language.md, learnings/implementation/computed-fields-and-read-model-expressions.md, and docs/phases/phase-23-conformance-suite-and-spec.md as the source of truth. Treat docs/claude-review.md and docs/gpt-review.md as background review inputs, not source-of-truth documents.
 
-Execute Phase 23 only. Create a runtime-agnostic, data-driven conformance suite covering resolution, validation, expressions, computed fields, decision tables, policy, lifecycle, commands, context, read models, sync modes, and offline datasets, with a harness running the TypeScript runtime against it. Expand the expression conformance seeds from Phase 20 into the full corpus. Write the three-layer specification under docs/spec/ (language, resolved-model, runtime-semantics) describing only implemented behaviour. Add inspection/explain tooling for the resolved model and policy decisions. Do not add new runtime features; fix only defects the corpus exposes. Keep TypeScript as the semantic reference runtime; do not build a Dart, Flutter, or Wasm runtime. Before final review, update learnings/ and learnings/index.md if required. Commit and push.
+Execute Phase 23 only. Create a runtime-agnostic, data-driven conformance suite covering resolution, validation, expressions, computed fields, read-model expression fields, decision tables, policy, lifecycle, commands, context, read models, sync modes, and offline datasets, with a harness running the TypeScript runtime against it. Expand the expression conformance seeds from Phase 20 into the full corpus. Write the three-layer specification under docs/spec/ (language, resolved-model, runtime-semantics) describing only implemented behaviour. Add inspection/explain tooling for the resolved model and policy decisions. Do not add new runtime features; fix only defects the corpus exposes. Keep TypeScript as the semantic reference runtime; do not build a Dart, Flutter, or Wasm runtime. Before final review, update learnings/ and learnings/index.md if required. Commit and push.
 ```
 
 ## Tasks
 
 1. Inventory current behaviour across resolution, validation, expressions,
-   computed fields, decision tables, policy, lifecycle, commands, context, read models, sync
+   computed fields, read-model expression fields, decision tables, policy, lifecycle, commands, context, read models, sync
    modes, and offline datasets.
 2. Design the conformance case data format (model + input + context + expected
    result + stable id + spec reference).

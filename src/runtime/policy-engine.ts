@@ -143,7 +143,7 @@ export class PolicyEngine {
       };
     }
 
-    for (const field of object.fields) {
+    for (const field of [...object.fields, ...object.computedFields]) {
       const decision = this.evaluate(
         {
           objectName,

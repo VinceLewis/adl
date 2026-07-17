@@ -166,6 +166,7 @@ export interface ResolvedObject {
   businessKey?: string;
   displayField?: string;
   fields: ResolvedField[];
+  computedFields: ResolvedComputedField[];
   metadataFields: ResolvedMetadataField[];
   scope?: ResolvedObjectScope;
   constraints: ResolvedObjectConstraint[];
@@ -194,6 +195,21 @@ export interface ResolvedField {
   lookup?: ResolvedLookup;
   autoId?: ResolvedAutoId;
   systemManaged: boolean;
+}
+
+export type ComputedFieldStrategy = "readTime";
+
+export interface ResolvedComputedField {
+  name: string;
+  storageName: string;
+  type: FieldType;
+  expression: ResolvedExpression;
+  strategy: ComputedFieldStrategy;
+  dependencies: string[];
+  evaluationOrder: number;
+  readonly: true;
+  hidden: false;
+  systemManaged: true;
 }
 
 export interface ResolvedMetadataField {
@@ -431,6 +447,7 @@ export interface ResolvedReadModelField {
   type?: FieldType;
   source?: string;
   field?: string;
+  expression?: ResolvedExpression;
 }
 
 export interface ResolvedDecisionTable {
@@ -673,6 +690,7 @@ export interface PartialObjectModel {
   businessKey?: string;
   displayField?: string;
   fields?: PartialFieldModel[];
+  computedFields?: PartialComputedFieldModel[];
   scope?: PartialObjectScopeModel;
   constraints?: PartialObjectConstraintModel[];
   validations?: PartialObjectValidationModel[];
@@ -681,6 +699,14 @@ export interface PartialObjectModel {
   views?: PartialViewModel[];
   sync?: PartialObjectSyncPolicyModel;
   audit?: PartialObjectAuditPolicyModel;
+}
+
+export interface PartialComputedFieldModel {
+  name: string;
+  storageName?: string;
+  type: FieldType;
+  expression: ResolvedExpression;
+  strategy?: ComputedFieldStrategy;
 }
 
 export interface PartialObjectScopeModel {
@@ -852,6 +878,7 @@ export interface PartialReadModelFieldModel {
   type?: FieldType;
   source?: string;
   field?: string;
+  expression?: PartialPolicyConditionModel;
 }
 
 export interface PartialDecisionTableModel {

@@ -4,10 +4,12 @@ import type {
   ResolvedApplicationModel,
   ResolvedObject,
   ResolvedReadModel,
+  ResolvedReadModelField,
   ResolvedReadModelSource,
   ResolvedSort,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import { applyComputedFieldsToRecord } from "./computed-fields.js";
 import {
   contextWithoutSelectedBusinessContext,
   getAllowedContextIds,
@@ -19,6 +21,7 @@ import type { RuntimeContextService } from "./context-service.js";
 import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import type { PolicyEngine } from "./policy-engine.js";
+import { evaluateExpression } from "./expression-evaluator.js";
 import { cloneJson, noopRuntimeLogger, safeContextLog } from "./runtime-types.js";
 import type {
   RuntimeContext,
@@ -370,12 +373,24 @@ export class ReadModelService {
     const shapedRecords = new Map(
       [...sourceRecords].map(([sourceName, record]) => [
         sourceName,
-        this.policyEngine.applyReadPolicy(record.meta.object, record, context),
+        this.policyEngine.applyReadPolicy(
+          record.meta.object,
+          applyComputedFieldsToRecord(this.index.getObject(record.meta.object), record, context),
+          context,
+        ),
       ]),
     );
     const values: Record<string, JsonValue> = {};
 
     for (const field of readModel.fields) {
+      if (field.expression !== undefined) {
+        const value = evaluateReadModelExpressionField(field, values, context);
+        if (value !== undefined) {
+          values[field.name] = value;
+        }
+        continue;
+      }
+
       if (field.source === undefined || field.field === undefined) {
         continue;
       }
@@ -407,6 +422,19 @@ export class ReadModelService {
       ),
     };
   }
+}
+
+function evaluateReadModelExpressionField(
+  field: ResolvedReadModelField,
+  values: Record<string, JsonValue>,
+  context: RuntimeContext,
+): JsonValue | undefined {
+  if (field.expression === undefined) {
+    return undefined;
+  }
+
+  const result = evaluateExpression(field.expression, { values, context });
+  return result.ok ? result.value.value : null;
 }
 
 function sortRows(rows: RuntimeReadModelRow[], sort: ResolvedSort[]): RuntimeReadModelRow[] {

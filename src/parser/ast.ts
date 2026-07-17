@@ -4,6 +4,7 @@ import type {
   JsonValue,
   PolicyAction,
   PolicyEffect,
+  ReadModelSourceScope,
   ResolvedExpression,
   ResolvedCommandValueExpression,
   RuntimeChannel,
@@ -37,7 +38,8 @@ export type BlockName =
   | "THEME"
   | "DECISION_TABLE"
   | "COMMAND"
-  | "STEP";
+  | "STEP"
+  | "READ_MODEL";
 
 export interface EndMarkerNode {
   kind: "EndMarker";
@@ -50,6 +52,7 @@ export interface AdlDocumentAst {
   app: AppDeclarationAst;
   roles: RoleDeclarationAst[];
   objects: ObjectDeclarationAst[];
+  readModels: ReadModelDeclarationAst[];
   decisionTables: DecisionTableDeclarationAst[];
   commands: CommandDeclarationAst[];
   policies: PolicyDeclarationAst[];
@@ -81,6 +84,7 @@ export interface ObjectDeclarationAst {
   businessKey?: string;
   displayField?: string;
   fields: FieldDeclarationAst[];
+  computedFields: ComputedFieldDeclarationAst[];
   validations: ObjectValidationDeclarationAst[];
   lifecycle?: LifecycleDeclarationAst;
   views: ViewDeclarationAst[];
@@ -109,6 +113,14 @@ export interface FieldDeclarationAst {
   hidden: boolean;
   lookup?: LookupDeclarationAst;
   autoId?: AutoIdDeclarationAst;
+  range: SourceRange;
+}
+
+export interface ComputedFieldDeclarationAst {
+  kind: "ComputedFieldDeclaration";
+  name: string;
+  type: FieldType;
+  expression: ResolvedExpression;
   range: SourceRange;
 }
 
@@ -206,6 +218,34 @@ export interface SortDeclarationAst {
   kind: "SortDeclaration";
   field: string;
   direction: "asc" | "desc";
+  range: SourceRange;
+}
+
+export interface ReadModelDeclarationAst {
+  kind: "ReadModelDeclaration";
+  name: string;
+  sources: ReadModelSourceDeclarationAst[];
+  fields: ReadModelFieldDeclarationAst[];
+  sort: SortDeclarationAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface ReadModelSourceDeclarationAst {
+  kind: "ReadModelSourceDeclaration";
+  name: string;
+  object: string;
+  scope?: ReadModelSourceScope;
+  range: SourceRange;
+}
+
+export interface ReadModelFieldDeclarationAst {
+  kind: "ReadModelFieldDeclaration";
+  name: string;
+  type?: FieldType;
+  source?: string;
+  field?: string;
+  expression?: ResolvedExpression;
   range: SourceRange;
 }
 

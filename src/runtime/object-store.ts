@@ -12,6 +12,7 @@ import {
   requireObjectScopeForSearch,
   requireObjectScopeForValues,
 } from "./context-scope.js";
+import { applyComputedFieldsToRecord } from "./computed-fields.js";
 import { RuntimeModelIndex, getInitialLifecycleState, getRecordState } from "./model-helpers.js";
 import type { AuditService } from "./audit-service.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
@@ -154,6 +155,7 @@ export class ObjectStore {
       return null;
     }
 
+    const object = this.index.getObject(objectName);
     requireObjectScopeForRecord(this.index, objectName, record, context, "read");
     this.policyEngine.requireAllowed(
       {
@@ -167,7 +169,11 @@ export class ObjectStore {
     this.auditService.record("read", objectName, record, context, record.values, record.values);
     this.logger.debug("EXIT ObjectStore.read", { objectName, recordId: id, found: true });
 
-    return this.policyEngine.applyReadPolicy(objectName, record, context);
+    return this.policyEngine.applyReadPolicy(
+      objectName,
+      applyComputedFieldsToRecord(object, record, context),
+      context,
+    );
   }
 
   async update(
@@ -282,7 +288,7 @@ export class ObjectStore {
     });
     this.logger.debug("EXIT ObjectStore.delete", { objectName, recordId: id });
 
-    return this.policyEngine.applyReadPolicy(objectName, deleted, context);
+    return this.applyComputedReadPolicy(objectName, deleted, context);
   }
 
   async search(
@@ -298,7 +304,7 @@ export class ObjectStore {
     const fields = searchQuery.fields ?? object.fields.map((field) => field.name);
 
     for (const fieldName of fields) {
-      if (!this.index.hasBusinessField(object, fieldName)) {
+      if (!this.index.hasBusinessField(object, fieldName) && !hasComputedField(object, fieldName)) {
         throw new StorageError(
           `Search field '${fieldName}' does not exist on object '${objectName}'.`,
           {
@@ -308,6 +314,9 @@ export class ObjectStore {
         );
       }
     }
+    const storageFields = fields.filter((fieldName) =>
+      this.index.hasBusinessField(object, fieldName),
+    );
 
     requireObjectScopeForSearch(this.index, objectName, context);
     this.policyEngine.requireAllowed({ objectName, action: "search" }, context);
@@ -315,7 +324,7 @@ export class ObjectStore {
     const records = (
       await this.storage.search({
         object,
-        fields,
+        fields: storageFields,
         ...(searchQuery.text === undefined ? {} : { text: searchQuery.text }),
         ...(searchQuery.includeDeleted === undefined
           ? {}
@@ -333,7 +342,11 @@ export class ObjectStore {
         : scopedRecords.slice(0, searchQuery.limit);
 
     const shaped = limited.map((record) =>
-      this.policyEngine.applyReadPolicy(objectName, record, context),
+      this.policyEngine.applyReadPolicy(
+        objectName,
+        applyComputedFieldsToRecord(object, record, context),
+        context,
+      ),
     );
 
     this.logger.debug("EXIT ObjectStore.search", { objectName, count: shaped.length });
@@ -362,7 +375,7 @@ export class ObjectStore {
         this.recordOperation("create", write.objectName, write.record, context, {
           patch: write.record.values,
         });
-        committed.push(this.policyEngine.applyReadPolicy(write.objectName, write.record, context));
+        committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
         continue;
       }
 
@@ -379,7 +392,7 @@ export class ObjectStore {
         baseRevision: write.existing.meta.revision,
         patch: write.patch,
       });
-      committed.push(this.policyEngine.applyReadPolicy(write.objectName, write.record, context));
+      committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
     }
 
     return committed;
@@ -436,6 +449,19 @@ export class ObjectStore {
     });
 
     return cloneJson(updated);
+  }
+
+  private applyComputedReadPolicy(
+    objectName: string,
+    record: StoredObjectRecord,
+    context: RuntimeContext,
+  ): StoredObjectRecord {
+    const object = this.index.getObject(objectName);
+    return this.policyEngine.applyReadPolicy(
+      objectName,
+      applyComputedFieldsToRecord(object, record, context),
+      context,
+    );
   }
 
   private buildNewRecord(
@@ -711,6 +737,10 @@ function randomId(): string {
 
 function stateProperty(currentState: string | undefined): { currentState: string } | {} {
   return currentState === undefined ? {} : { currentState };
+}
+
+function hasComputedField(object: ResolvedObject, fieldName: string): boolean {
+  return object.computedFields.some((field) => field.name === fieldName);
 }
 
 function hasMissingConstraintValue(record: StoredObjectRecord, fields: string[]): boolean {

@@ -31,6 +31,7 @@ import type {
   PartialDecisionTableInputModel,
   PartialDecisionTableModel,
   PartialDecisionTableRowModel,
+  PartialComputedFieldModel,
   PartialFieldModel,
   PartialHookRefsModel,
   PartialLifecycleGuardModel,
@@ -63,6 +64,7 @@ import type {
   ResolvedCommandInput,
   ResolvedCommandPrecondition,
   ResolvedCommandStep,
+  ResolvedComputedField,
   ResolvedContextMembership,
   ResolvedContextSelectionPolicy,
   ResolvedDecisionTable,
@@ -212,9 +214,10 @@ function resolveObject(
   policies: PartialPolicyModel[],
 ): ResolvedObject {
   const fields = (input.fields ?? []).map(resolveField);
+  const computedFields = resolveComputedFields(input.computedFields ?? []);
   const lifecycle = input.lifecycle === undefined ? undefined : resolveLifecycle(input.lifecycle);
   const sync = resolveObjectSync(input.sync ?? stripObjectFromSync(topLevelSync));
-  const views = resolveViews(input, fields);
+  const views = resolveViews(input, fields, computedFields);
   const objectPolicies = policies
     .filter((policy) => policy.object === input.name)
     .map((policy) => policy.name);
@@ -227,6 +230,7 @@ function resolveObject(
     ...(input.businessKey === undefined ? {} : { businessKey: input.businessKey }),
     ...(input.displayField === undefined ? {} : { displayField: input.displayField }),
     fields,
+    computedFields,
     metadataFields: createMetadataFields(),
     ...(input.scope === undefined ? {} : { scope: resolveObjectScope(input.scope) }),
     constraints: (input.constraints ?? []).map(resolveObjectConstraint),
@@ -237,6 +241,26 @@ function resolveObject(
     sync,
     audit: resolveObjectAudit(input.audit),
   };
+}
+
+function resolveComputedFields(input: PartialComputedFieldModel[]): ResolvedComputedField[] {
+  const dependenciesByName = new Map(
+    input.map((field) => [field.name, collectExpressionFieldReferences(field.expression)]),
+  );
+  const orderByName = computeComputedFieldEvaluationOrder(input, dependenciesByName);
+
+  return input.map((field, index) => ({
+    name: field.name,
+    storageName: field.storageName ?? toStorageName(field.name),
+    type: field.type,
+    expression: resolveExpression(field.expression),
+    strategy: field.strategy ?? "readTime",
+    dependencies: [...(dependenciesByName.get(field.name) ?? [])],
+    evaluationOrder: orderByName.get(field.name) ?? index,
+    readonly: true,
+    hidden: false,
+    systemManaged: true,
+  }));
 }
 
 function resolveObjectValidation(input: PartialObjectValidationModel): ResolvedObjectValidation {
@@ -408,16 +432,27 @@ function resolveObjectAudit(
   };
 }
 
-function resolveViews(input: PartialObjectModel, fields: ResolvedField[]): ResolvedView[] {
+function resolveViews(
+  input: PartialObjectModel,
+  fields: ResolvedField[],
+  computedFields: ResolvedComputedField[],
+): ResolvedView[] {
   if (input.views !== undefined && input.views.length > 0) {
-    return input.views.map((view) => resolveView(view, input.name, fields));
+    return input.views.map((view) => resolveView(view, input.name, fields, computedFields));
   }
 
-  return createDefaultViews(input, fields);
+  return createDefaultViews(input, fields, computedFields);
 }
 
-function createDefaultViews(input: PartialObjectModel, fields: ResolvedField[]): ResolvedView[] {
-  const fieldNames = fields.map((field) => field.name);
+function createDefaultViews(
+  input: PartialObjectModel,
+  fields: ResolvedField[],
+  computedFields: ResolvedComputedField[],
+): ResolvedView[] {
+  const fieldNames = [
+    ...fields.map((field) => field.name),
+    ...orderedComputedFieldNames(computedFields),
+  ];
   const searchFields = getDefaultSearchFields(input, fields);
 
   return [
@@ -460,6 +495,7 @@ function resolveView(
   input: PartialViewModel,
   objectName: string,
   fields: ResolvedField[],
+  computedFields: ResolvedComputedField[],
 ): ResolvedView {
   return {
     name: input.name,
@@ -467,11 +503,23 @@ function resolveView(
     kind: input.kind,
     ...(input.context === undefined ? {} : { context: resolveViewContext(input.context) }),
     ...(input.readModel === undefined ? {} : { readModel: input.readModel }),
-    fields: [...(input.fields ?? fields.map((field) => field.name))],
+    fields: [
+      ...(input.fields ?? [
+        ...fields.map((field) => field.name),
+        ...orderedComputedFieldNames(computedFields),
+      ]),
+    ],
     searchFields: [...(input.searchFields ?? [])],
     sort: [...(input.sort ?? [])].map(resolveSort),
     actions: [...(input.actions ?? [])],
   };
+}
+
+function orderedComputedFieldNames(fields: ResolvedComputedField[]): string[] {
+  return fields
+    .slice()
+    .sort((left, right) => left.evaluationOrder - right.evaluationOrder)
+    .map((field) => field.name);
 }
 
 function resolveViewContext(input: PartialViewContextModel): ResolvedViewContext {
@@ -546,20 +594,26 @@ function resolveReadModelField(
   sourcesByName: Map<string, ResolvedReadModelSource>,
   objectsByName: Map<string, ResolvedObject>,
 ): ResolvedReadModelField {
-  const sourceName = input.source ?? (sources.length === 1 ? sources[0]?.name : undefined);
+  const sourceName =
+    input.expression === undefined
+      ? (input.source ?? (sources.length === 1 ? sources[0]?.name : undefined))
+      : input.source;
   const source = sourceName === undefined ? undefined : sourcesByName.get(sourceName);
   const sourceObject = source === undefined ? undefined : objectsByName.get(source.object);
   const sourceField =
     input.field === undefined
       ? undefined
-      : sourceObject?.fields.find((field) => field.name === input.field);
-  const fieldType = input.type ?? sourceField?.type;
+      : [...(sourceObject?.fields ?? []), ...(sourceObject?.computedFields ?? [])].find(
+          (field) => field.name === input.field,
+        );
+  const fieldType = input.type ?? (input.expression === undefined ? sourceField?.type : undefined);
 
   return {
     name: input.name,
     ...(fieldType === undefined ? {} : { type: fieldType }),
     ...(sourceName === undefined ? {} : { source: sourceName }),
     ...(input.field === undefined ? {} : { field: input.field }),
+    ...(input.expression === undefined ? {} : { expression: resolveExpression(input.expression) }),
   };
 }
 
@@ -684,6 +738,62 @@ function resolvePolicyRule(input: PartialPolicyRuleModel): ResolvedPolicyRule {
     ...(input.condition === undefined ? {} : { condition: resolveExpression(input.condition) }),
     channels: [...(input.channels ?? ["ui", "api", "sync", "import", "test"])],
   };
+}
+
+function collectExpressionFieldReferences(expression: ResolvedExpression): string[] {
+  const references = new Set<string>();
+  visitExpressionFields(expression, references);
+  return [...references].sort();
+}
+
+function visitExpressionFields(expression: ResolvedExpression, references: Set<string>): void {
+  switch (expression.kind) {
+    case "field":
+      references.add(expression.field);
+      return;
+    case "unary":
+      visitExpressionFields(expression.operand, references);
+      return;
+    case "binary":
+      visitExpressionFields(expression.left, references);
+      visitExpressionFields(expression.right, references);
+      return;
+    case "literal":
+    case "runtime":
+      return;
+  }
+}
+
+function computeComputedFieldEvaluationOrder(
+  fields: PartialComputedFieldModel[],
+  dependenciesByName: Map<string, string[]>,
+): Map<string, number> {
+  const computedNames = new Set(fields.map((field) => field.name));
+  const order: string[] = [];
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const visit = (fieldName: string): void => {
+    if (visited.has(fieldName) || visiting.has(fieldName)) {
+      return;
+    }
+
+    visiting.add(fieldName);
+    for (const dependency of dependenciesByName.get(fieldName) ?? []) {
+      if (computedNames.has(dependency)) {
+        visit(dependency);
+      }
+    }
+    visiting.delete(fieldName);
+    visited.add(fieldName);
+    order.push(fieldName);
+  };
+
+  for (const field of fields) {
+    visit(field.name);
+  }
+
+  return new Map(order.map((fieldName, index) => [fieldName, index]));
 }
 
 function resolveExpression(

@@ -30,6 +30,7 @@ import type {
   CommandInputDeclarationAst,
   CommandPreconditionDeclarationAst,
   CommandStepDeclarationAst,
+  ComputedFieldDeclarationAst,
   DecisionTableDeclarationAst,
   DecisionTableInputDeclarationAst,
   DecisionTableRowDeclarationAst,
@@ -44,6 +45,9 @@ import type {
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
   PrincipalSelectorAst,
+  ReadModelDeclarationAst,
+  ReadModelFieldDeclarationAst,
+  ReadModelSourceDeclarationAst,
   RoleDeclarationAst,
   SortDeclarationAst,
   SourcePosition,
@@ -125,6 +129,7 @@ class AdlParser {
     const app = this.parseApp();
     const roles: RoleDeclarationAst[] = [];
     const objects: ObjectDeclarationAst[] = [];
+    const readModels: ReadModelDeclarationAst[] = [];
     const decisionTables: DecisionTableDeclarationAst[] = [];
     const commands: CommandDeclarationAst[] = [];
     const policies: PolicyDeclarationAst[] = [];
@@ -142,6 +147,8 @@ class AdlParser {
         roles.push(this.parseRole());
       } else if (this.checkWord("OBJECT")) {
         objects.push(this.parseObject());
+      } else if (this.checkWord("READ_MODEL") || this.checkDottedWord("READ", "MODEL")) {
+        readModels.push(this.parseReadModel());
       } else if (this.checkWord("DECISION_TABLE") || this.checkDottedWord("DECISION", "TABLE")) {
         decisionTables.push(this.parseDecisionTable());
       } else if (this.checkWord("COMMAND")) {
@@ -154,7 +161,7 @@ class AdlParser {
         sync.push(this.parseSync(false));
       } else {
         this.failUnexpected(
-          "a top-level ROLE, OBJECT, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, or end of file",
+          "a top-level ROLE, OBJECT, READ_MODEL, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, or end of file",
         );
       }
     }
@@ -164,6 +171,7 @@ class AdlParser {
       app,
       roles,
       objects,
+      readModels,
       decisionTables,
       commands,
       policies,
@@ -245,6 +253,7 @@ class AdlParser {
     let lifecycle: LifecycleDeclarationAst | undefined;
     let sync: SyncDeclarationAst | undefined;
     const fields: FieldDeclarationAst[] = [];
+    const computedFields: ComputedFieldDeclarationAst[] = [];
     const validations: ObjectValidationDeclarationAst[] = [];
     const views: ViewDeclarationAst[] = [];
     const policyRefs: string[] = [];
@@ -265,6 +274,7 @@ class AdlParser {
           ...(businessKey === undefined ? {} : { businessKey }),
           ...(displayField === undefined ? {} : { displayField }),
           fields,
+          computedFields,
           validations,
           ...(lifecycle === undefined ? {} : { lifecycle }),
           views,
@@ -283,6 +293,8 @@ class AdlParser {
         this.consumeLineEnd("OBJECT DISPLAY directive");
       } else if (this.checkWord("FIELD")) {
         fields.push(this.parseField());
+      } else if (this.checkWord("COMPUTED")) {
+        computedFields.push(this.parseComputedField());
       } else if (this.checkWord("VALIDATE") || this.checkWord("VALIDATION")) {
         validations.push(this.parseObjectValidation());
       } else if (this.checkWord("LIFECYCLE")) {
@@ -296,10 +308,32 @@ class AdlParser {
         this.consumeLineEnd("OBJECT POLICY directive");
       } else {
         this.failUnexpected(
-          "OBJECT directive KEY, DISPLAY, FIELD, LIFECYCLE, VIEW, SYNC, POLICY, or END.OBJECT",
+          "OBJECT directive KEY, DISPLAY, FIELD, COMPUTED, LIFECYCLE, VIEW, SYNC, POLICY, or END.OBJECT",
         );
       }
     }
+  }
+
+  private parseComputedField(): ComputedFieldDeclarationAst {
+    const startToken = this.expectWord("COMPUTED", "COMPUTED field declaration");
+    if (this.matchWord("FIELD")) {
+      // Optional readability word.
+    }
+    const name = this.consumeName("computed field name");
+    const { type } = this.parseFieldType();
+    if (!this.matchSymbol("=") && !this.matchWord("AS")) {
+      this.failExpected("= or AS before computed field expression", this.current());
+    }
+    const expression = this.parseExpressionUntil(new Set());
+    this.consumeLineEnd("COMPUTED field declaration");
+
+    return {
+      kind: "ComputedFieldDeclaration",
+      name,
+      type,
+      expression,
+      range: this.rangeFrom(startToken),
+    };
   }
 
   private parseField(): FieldDeclarationAst {
@@ -708,6 +742,142 @@ class AdlParser {
       } else {
         this.failUnexpected("VIEW directive FIELDS, SEARCH, ACTIONS, SORT, or END.VIEW");
       }
+    }
+  }
+
+  private parseReadModel(): ReadModelDeclarationAst {
+    const startToken = this.checkWord("READ_MODEL")
+      ? this.expectWord("READ_MODEL", "READ_MODEL declaration")
+      : this.expectDottedWord("READ", "MODEL", "READ.MODEL declaration");
+    const name = this.consumeName("read model name");
+    const sources: ReadModelSourceDeclarationAst[] = [];
+    const fields: ReadModelFieldDeclarationAst[] = [];
+    const sort: SortDeclarationAst[] = [];
+    this.consumeLineEnd("READ_MODEL declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.READ_MODEL", this.current());
+      }
+
+      if (this.checkEnd("READ_MODEL")) {
+        const end = this.parseEnd("READ_MODEL");
+        return {
+          kind: "ReadModelDeclaration",
+          name,
+          sources,
+          fields,
+          sort,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.checkWord("SOURCE")) {
+        sources.push(this.parseReadModelSource());
+      } else if (this.checkWord("FIELD")) {
+        fields.push(this.parseReadModelField());
+      } else if (this.matchWord("SORT")) {
+        sort.push(...this.parseSortList());
+        this.consumeLineEnd("READ_MODEL SORT directive");
+      } else {
+        this.failUnexpected("READ_MODEL directive SOURCE, FIELD, SORT, or END.READ_MODEL");
+      }
+    }
+  }
+
+  private parseReadModelSource(): ReadModelSourceDeclarationAst {
+    const startToken = this.expectWord("SOURCE", "READ_MODEL SOURCE declaration");
+    const firstName = this.consumeName("read model source name or object");
+    let name = firstName;
+    let object = firstName;
+    let scope: ReadModelSourceDeclarationAst["scope"];
+
+    if (this.matchWord("OBJECT")) {
+      object = this.consumeName("read model source object");
+    } else if (!this.isLineEnd() && !this.checkWord("SCOPE")) {
+      object = this.consumeName("read model source object");
+    }
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("SCOPE")) {
+        scope = this.parseReadModelSourceScope();
+      } else if (this.matchWord("AS")) {
+        name = this.consumeName("read model source alias");
+      } else {
+        this.failUnexpected("READ_MODEL SOURCE option SCOPE, AS, or end of line");
+      }
+    }
+
+    this.consumeLineEnd("READ_MODEL SOURCE declaration");
+    return {
+      kind: "ReadModelSourceDeclaration",
+      name,
+      object,
+      ...(scope === undefined ? {} : { scope }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseReadModelField(): ReadModelFieldDeclarationAst {
+    const startToken = this.expectWord("FIELD", "READ_MODEL FIELD declaration");
+    const name = this.consumeName("read model field name");
+    let type: FieldType | undefined;
+
+    if (!this.checkWord("FROM") && !this.checkSymbol("=") && !this.checkWord("AS")) {
+      type = this.parseFieldType().type;
+    }
+
+    if (this.matchWord("FROM")) {
+      const sourcePath = this.consumeQualifiedName("read model source field");
+      const [source, ...fieldParts] = sourcePath.split(".");
+      if (source === undefined || fieldParts.length === 0) {
+        this.failExpected("source.field", this.previous());
+      }
+      this.consumeLineEnd("READ_MODEL FIELD declaration");
+      return {
+        kind: "ReadModelFieldDeclaration",
+        name,
+        ...(type === undefined ? {} : { type }),
+        source,
+        field: fieldParts.join("."),
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    if (!this.matchSymbol("=") && !this.matchWord("AS")) {
+      this.failExpected("FROM, =, or AS in READ_MODEL FIELD declaration", this.current());
+    }
+    const expression = this.parseExpressionUntil(new Set());
+    this.consumeLineEnd("READ_MODEL FIELD declaration");
+    return {
+      kind: "ReadModelFieldDeclaration",
+      name,
+      ...(type === undefined ? {} : { type }),
+      expression,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseReadModelSourceScope(): ReadModelSourceDeclarationAst["scope"] {
+    const token = this.consumeWordToken("read model source scope");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "all":
+        return "all";
+      case "currentcontext":
+        return "currentContext";
+      case "allavailablecontexts":
+        return "allAvailableContexts";
+      case "currentuser":
+        return "currentUser";
+      default:
+        this.failExpected(
+          "read model source scope ALL, CURRENT_CONTEXT, ALL_AVAILABLE_CONTEXTS, or CURRENT_USER",
+          token,
+        );
     }
   }
 

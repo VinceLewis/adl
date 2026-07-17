@@ -13,6 +13,7 @@ import type {
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
   PrincipalSelectorAst,
+  ReadModelDeclarationAst,
   SyncDeclarationAst,
   ThemeDeclarationAst,
   ViewDeclarationAst,
@@ -29,6 +30,7 @@ import type {
   PartialPolicyModel,
   PartialPolicyRuleModel,
   PartialPrincipalSelectorModel,
+  PartialReadModelModel,
   PartialSyncPolicyModel,
   PartialThemeModel,
   PartialViewModel,
@@ -73,6 +75,7 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       inherits: [...role.inherits],
     })),
     objects,
+    readModels: ast.readModels.map(readModelToPartial),
     decisionTables: ast.decisionTables.map(decisionTableToPartial),
     commands: ast.commands.map(commandToPartial),
     policies: [...ast.policies.map(policyToPartial), ...generatedPolicies],
@@ -90,6 +93,11 @@ function objectToPartial(
     ...(object.businessKey === undefined ? {} : { businessKey: object.businessKey }),
     ...(object.displayField === undefined ? {} : { displayField: object.displayField }),
     fields: object.fields.map(fieldToPartial),
+    computedFields: object.computedFields.map((field) => ({
+      name: field.name,
+      type: field.type,
+      expression: field.expression,
+    })),
     validations: object.validations.map((validation) => ({
       name: validation.name,
       expression: validation.expression,
@@ -146,6 +154,28 @@ function fieldToPartial(field: FieldDeclarationAst): PartialFieldModel {
               : { scopeField: field.autoId.scopeField }),
           },
         }),
+  };
+}
+
+function readModelToPartial(readModel: ReadModelDeclarationAst): PartialReadModelModel {
+  return {
+    name: readModel.name,
+    sources: readModel.sources.map((source) => ({
+      name: source.name,
+      object: source.object,
+      ...(source.scope === undefined ? {} : { scope: source.scope }),
+    })),
+    fields: readModel.fields.map((field) => ({
+      name: field.name,
+      ...(field.type === undefined ? {} : { type: field.type }),
+      ...(field.source === undefined ? {} : { source: field.source }),
+      ...(field.field === undefined ? {} : { field: field.field }),
+      ...(field.expression === undefined ? {} : { expression: field.expression }),
+    })),
+    sort: readModel.sort.map((sort) => ({
+      field: sort.field,
+      direction: sort.direction,
+    })),
   };
 }
 

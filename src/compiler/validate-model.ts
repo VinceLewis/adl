@@ -4,6 +4,7 @@ import type {
   CommandRuntimeProperty,
   CommandStepAuthority,
   CommandStepMetaProperty,
+  ComputedFieldStrategy,
   ContextSelectionMode,
   ContextSelectionPersistence,
   ContextSelectionSource,
@@ -17,6 +18,7 @@ import type {
   ResolvedApplicationModel,
   ResolvedBusinessContext,
   ResolvedCommand,
+  ResolvedComputedField,
   ResolvedCommandInput,
   ResolvedCommandPrecondition,
   ResolvedCommandStep,
@@ -87,6 +89,15 @@ export const MODEL_VALIDATION_CODES = {
   CONTEXT_SELECTION_SOURCE_INVALID: "ADL_CONTEXT_SELECTION_SOURCE_INVALID",
   FIELD_DEFAULT_INCOMPATIBLE: "ADL_FIELD_DEFAULT_INCOMPATIBLE",
   FIELD_DUPLICATE: "ADL_FIELD_DUPLICATE",
+  COMPUTED_FIELD_CYCLE: "ADL_COMPUTED_FIELD_CYCLE",
+  COMPUTED_FIELD_DUPLICATE: "ADL_COMPUTED_FIELD_DUPLICATE",
+  COMPUTED_FIELD_EXPRESSION_FIELD_UNKNOWN: "ADL_COMPUTED_FIELD_EXPRESSION_FIELD_UNKNOWN",
+  COMPUTED_FIELD_EXPRESSION_INVALID: "ADL_COMPUTED_FIELD_EXPRESSION_INVALID",
+  COMPUTED_FIELD_EXPRESSION_TYPE: "ADL_COMPUTED_FIELD_EXPRESSION_TYPE",
+  COMPUTED_FIELD_NAME_CONFLICT: "ADL_COMPUTED_FIELD_NAME_CONFLICT",
+  COMPUTED_FIELD_RUNTIME_PROPERTY_INVALID: "ADL_COMPUTED_FIELD_RUNTIME_PROPERTY_INVALID",
+  COMPUTED_FIELD_STRATEGY_INVALID: "ADL_COMPUTED_FIELD_STRATEGY_INVALID",
+  COMPUTED_FIELD_TYPE_INVALID: "ADL_COMPUTED_FIELD_TYPE_INVALID",
   FIELD_VALIDATOR_EXPRESSION_INVALID: "ADL_FIELD_VALIDATOR_EXPRESSION_INVALID",
   FIELD_VALIDATOR_EXPRESSION_TYPE: "ADL_FIELD_VALIDATOR_EXPRESSION_TYPE",
   FIELD_VALIDATOR_RUNTIME_PROPERTY_INVALID: "ADL_FIELD_VALIDATOR_RUNTIME_PROPERTY_INVALID",
@@ -186,6 +197,12 @@ export const MODEL_VALIDATION_CODES = {
   READ_MODEL_DUPLICATE: "ADL_READ_MODEL_DUPLICATE",
   READ_MODEL_FIELD_DUPLICATE: "ADL_READ_MODEL_FIELD_DUPLICATE",
   READ_MODEL_FIELD_SOURCE_UNKNOWN: "ADL_READ_MODEL_FIELD_SOURCE_UNKNOWN",
+  READ_MODEL_FIELD_EXPRESSION_FIELD_UNKNOWN: "ADL_READ_MODEL_FIELD_EXPRESSION_FIELD_UNKNOWN",
+  READ_MODEL_FIELD_EXPRESSION_INVALID: "ADL_READ_MODEL_FIELD_EXPRESSION_INVALID",
+  READ_MODEL_FIELD_EXPRESSION_RUNTIME_PROPERTY_INVALID:
+    "ADL_READ_MODEL_FIELD_EXPRESSION_RUNTIME_PROPERTY_INVALID",
+  READ_MODEL_FIELD_EXPRESSION_TYPE: "ADL_READ_MODEL_FIELD_EXPRESSION_TYPE",
+  READ_MODEL_FIELD_SHAPE_INVALID: "ADL_READ_MODEL_FIELD_SHAPE_INVALID",
   READ_MODEL_FIELD_TYPE_INVALID: "ADL_READ_MODEL_FIELD_TYPE_INVALID",
   READ_MODEL_FIELD_UNKNOWN: "ADL_READ_MODEL_FIELD_UNKNOWN",
   READ_MODEL_SOURCE_DUPLICATE: "ADL_READ_MODEL_SOURCE_DUPLICATE",
@@ -252,6 +269,7 @@ const READ_MODEL_SOURCE_SCOPES = new Set<ReadModelSourceScope>([
   "allAvailableContexts",
   "currentUser",
 ]);
+const COMPUTED_FIELD_STRATEGIES = new Set<ComputedFieldStrategy>(["readTime"]);
 
 const POLICY_ACTIONS = new Set<PolicyAction>([
   "*",
@@ -348,6 +366,8 @@ interface NamedReference<T> {
   item: T;
   index: number;
 }
+
+type ExpressionFieldReference = Pick<ResolvedField | ResolvedComputedField, "type">;
 
 interface ModelIndexes {
   contextsByName: Map<string, NamedReference<ResolvedBusinessContext>>;
@@ -739,6 +759,8 @@ function validateObject(
 ): void {
   const objectPath = `objects[${objectIndex}]`;
   const fieldsByName = indexByName(object.fields);
+  const computedFieldsByName = indexByName(object.computedFields);
+  const expressionFieldsByName = indexObjectExpressionFields(object);
 
   reportDuplicateNames(
     object.fields,
@@ -747,6 +769,29 @@ function validateObject(
     diagnostics,
     `Field names must be unique within object '${object.name}'.`,
   );
+  reportDuplicateNames(
+    object.computedFields,
+    `${objectPath}.computedFields`,
+    MODEL_VALIDATION_CODES.COMPUTED_FIELD_DUPLICATE,
+    diagnostics,
+    `Computed field names must be unique within object '${object.name}'.`,
+  );
+
+  for (let fieldIndex = 0; fieldIndex < object.computedFields.length; fieldIndex += 1) {
+    const computedField = object.computedFields[fieldIndex];
+    if (computedField === undefined) {
+      continue;
+    }
+    if (fieldsByName.has(computedField.name)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.COMPUTED_FIELD_NAME_CONFLICT,
+          `Computed field '${computedField.name}' conflicts with a stored field on object '${object.name}'.`,
+          `${objectPath}.computedFields[${fieldIndex}].name`,
+        ),
+      );
+    }
+  }
 
   if (object.businessKey !== undefined && !fieldsByName.has(object.businessKey)) {
     diagnostics.push(
@@ -808,6 +853,26 @@ function validateObject(
     }
     validateField(field, fieldIndex, object, objectPath, indexes, diagnostics);
   }
+
+  for (
+    let computedFieldIndex = 0;
+    computedFieldIndex < object.computedFields.length;
+    computedFieldIndex += 1
+  ) {
+    const computedField = object.computedFields[computedFieldIndex];
+    if (computedField === undefined) {
+      continue;
+    }
+    validateComputedField(
+      computedField,
+      computedFieldIndex,
+      object,
+      objectPath,
+      expressionFieldsByName,
+      diagnostics,
+    );
+  }
+  validateComputedFieldCycles(object, objectPath, computedFieldsByName, diagnostics);
 
   for (let validationIndex = 0; validationIndex < object.validations.length; validationIndex += 1) {
     const validation = object.validations[validationIndex];
@@ -1122,6 +1187,113 @@ function validateField(
         ),
       );
     }
+  }
+}
+
+function validateComputedField(
+  field: ResolvedComputedField,
+  fieldIndex: number,
+  object: ResolvedObject,
+  objectPath: string,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  diagnostics: Diagnostic[],
+): void {
+  const fieldPath = `${objectPath}.computedFields[${fieldIndex}]`;
+
+  if (!FIELD_TYPES.has(field.type)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMPUTED_FIELD_TYPE_INVALID,
+        `Computed field '${field.name}' on object '${object.name}' has invalid type '${String(field.type)}'.`,
+        `${fieldPath}.type`,
+      ),
+    );
+  }
+
+  if (!COMPUTED_FIELD_STRATEGIES.has(field.strategy)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMPUTED_FIELD_STRATEGY_INVALID,
+        `Computed field '${field.name}' on object '${object.name}' has invalid strategy '${String(field.strategy)}'.`,
+        `${fieldPath}.strategy`,
+      ),
+    );
+  }
+
+  const expressionType = validateExpression(
+    field.expression,
+    `${fieldPath}.expression`,
+    fieldsByName,
+    {
+      invalid: MODEL_VALIDATION_CODES.COMPUTED_FIELD_EXPRESSION_INVALID,
+      field: MODEL_VALIDATION_CODES.COMPUTED_FIELD_EXPRESSION_FIELD_UNKNOWN,
+      runtime: MODEL_VALIDATION_CODES.COMPUTED_FIELD_RUNTIME_PROPERTY_INVALID,
+      type: MODEL_VALIDATION_CODES.COMPUTED_FIELD_EXPRESSION_TYPE,
+    },
+    diagnostics,
+  );
+
+  if (
+    expressionType !== "unknown" &&
+    expressionType !== "null" &&
+    expressionTypeToFieldType(expressionType) !== field.type
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMPUTED_FIELD_EXPRESSION_TYPE,
+        `Computed field '${field.name}' on object '${object.name}' declares ${field.type} but expression resolves to ${expressionType}.`,
+        `${fieldPath}.expression`,
+      ),
+    );
+  }
+}
+
+function validateComputedFieldCycles(
+  object: ResolvedObject,
+  objectPath: string,
+  computedFieldsByName: Map<string, NamedReference<ResolvedComputedField>>,
+  diagnostics: Diagnostic[],
+): void {
+  const visiting: string[] = [];
+  const visited = new Set<string>();
+  const reported = new Set<string>();
+
+  const visit = (field: ResolvedComputedField): void => {
+    if (visited.has(field.name)) {
+      return;
+    }
+
+    const existingIndex = visiting.indexOf(field.name);
+    if (existingIndex >= 0) {
+      const cycle = [...visiting.slice(existingIndex), field.name];
+      const key = cycle.join(" -> ");
+      if (!reported.has(key)) {
+        reported.add(key);
+        const fieldIndex = computedFieldsByName.get(field.name)?.index ?? 0;
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMPUTED_FIELD_CYCLE,
+            `Computed field cycle detected on object '${object.name}': ${cycle.join(" -> ")}.`,
+            `${objectPath}.computedFields[${fieldIndex}].expression`,
+          ),
+        );
+      }
+      return;
+    }
+
+    visiting.push(field.name);
+    for (const dependency of field.dependencies) {
+      const dependencyField = computedFieldsByName.get(dependency)?.item;
+      if (dependencyField !== undefined) {
+        visit(dependencyField);
+      }
+    }
+    visiting.pop();
+    visited.add(field.name);
+  };
+
+  for (const field of object.computedFields) {
+    visit(field);
   }
 }
 
@@ -1536,7 +1708,7 @@ type ExpressionStaticType = ExpressionValueType | "unknown";
 function validateExpression(
   expression: ResolvedExpression,
   expressionPath: string,
-  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
   codes: {
     invalid: ModelValidationCode;
     field: ModelValidationCode;
@@ -1678,7 +1850,7 @@ function validateExpression(
 function validateBinaryExpression(
   expression: Extract<ResolvedExpression, { kind: "binary" }>,
   expressionPath: string,
-  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
   codes: {
     invalid: ModelValidationCode;
     field: ModelValidationCode;
@@ -1871,7 +2043,10 @@ function validateView(
 
   const fieldNames =
     readModel === undefined
-      ? new Set(targetObject.fields.map((field) => field.name))
+      ? new Set([
+          ...targetObject.fields.map((field) => field.name),
+          ...targetObject.computedFields.map((field) => field.name),
+        ])
       : new Set(readModel.fields.map((field) => field.name));
   const fieldOwner =
     readModel === undefined ? `object '${targetObject.name}'` : `read model '${readModel.name}'`;
@@ -2036,6 +2211,7 @@ function validateReadModel(
     }
   }
 
+  const projectedFieldsByName = new Map<string, NamedReference<ExpressionFieldReference>>();
   for (let fieldIndex = 0; fieldIndex < readModel.fields.length; fieldIndex += 1) {
     const field = readModel.fields[fieldIndex];
     if (field === undefined) {
@@ -2053,6 +2229,52 @@ function validateReadModel(
       );
     }
 
+    if (field.expression !== undefined) {
+      if (field.source !== undefined || field.field !== undefined) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.READ_MODEL_FIELD_SHAPE_INVALID,
+            `Read model '${readModel.name}' expression field '${field.name}' cannot also project a source field.`,
+            fieldPath,
+          ),
+        );
+      }
+
+      const expressionType = validateExpression(
+        field.expression,
+        `${fieldPath}.expression`,
+        projectedFieldsByName,
+        {
+          invalid: MODEL_VALIDATION_CODES.READ_MODEL_FIELD_EXPRESSION_INVALID,
+          field: MODEL_VALIDATION_CODES.READ_MODEL_FIELD_EXPRESSION_FIELD_UNKNOWN,
+          runtime: MODEL_VALIDATION_CODES.READ_MODEL_FIELD_EXPRESSION_RUNTIME_PROPERTY_INVALID,
+          type: MODEL_VALIDATION_CODES.READ_MODEL_FIELD_EXPRESSION_TYPE,
+        },
+        diagnostics,
+      );
+
+      if (
+        field.type !== undefined &&
+        expressionType !== "unknown" &&
+        expressionType !== "null" &&
+        expressionTypeToFieldType(expressionType) !== field.type
+      ) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.READ_MODEL_FIELD_EXPRESSION_TYPE,
+            `Read model '${readModel.name}' expression field '${field.name}' declares ${field.type} but expression resolves to ${expressionType}.`,
+            `${fieldPath}.expression`,
+          ),
+        );
+      }
+
+      projectedFieldsByName.set(field.name, {
+        item: expressionTypeField(field.name, field.type ?? expressionType),
+        index: fieldIndex,
+      });
+      continue;
+    }
+
     if (field.field !== undefined && field.source === undefined) {
       diagnostics.push(
         diagnostic(
@@ -2065,6 +2287,10 @@ function validateReadModel(
     }
 
     if (field.source === undefined) {
+      projectedFieldsByName.set(field.name, {
+        item: expressionTypeField(field.name, field.type ?? "text"),
+        index: fieldIndex,
+      });
       continue;
     }
 
@@ -2082,11 +2308,16 @@ function validateReadModel(
 
     const sourceObject = indexes.objectsByName.get(source.object)?.item;
     if (sourceObject === undefined || field.field === undefined) {
+      projectedFieldsByName.set(field.name, {
+        item: expressionTypeField(field.name, field.type ?? "text"),
+        index: fieldIndex,
+      });
       continue;
     }
 
-    const sourceFieldNames = new Set(sourceObject.fields.map((candidate) => candidate.name));
-    if (!sourceFieldNames.has(field.field)) {
+    const sourceFieldsByName = indexObjectExpressionFields(sourceObject);
+    const sourceField = sourceFieldsByName.get(field.field)?.item;
+    if (sourceField === undefined) {
       diagnostics.push(
         diagnostic(
           MODEL_VALIDATION_CODES.READ_MODEL_FIELD_UNKNOWN,
@@ -2095,6 +2326,11 @@ function validateReadModel(
         ),
       );
     }
+
+    projectedFieldsByName.set(field.name, {
+      item: expressionTypeField(field.name, field.type ?? sourceField?.type ?? "text"),
+      index: fieldIndex,
+    });
   }
 }
 
@@ -3304,6 +3540,21 @@ function indexByName<T extends { name: string }>(items: T[]): Map<string, NamedR
   return byName;
 }
 
+function indexObjectExpressionFields(
+  object: ResolvedObject,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  const fields = new Map<string, NamedReference<ExpressionFieldReference>>();
+
+  for (const [name, reference] of indexByName(object.fields)) {
+    fields.set(name, reference);
+  }
+  for (const [name, reference] of indexByName(object.computedFields)) {
+    fields.set(name, reference);
+  }
+
+  return fields;
+}
+
 function commandInputFieldsByName(
   inputs: ResolvedCommandInput[],
 ): Map<string, NamedReference<ResolvedField>> {
@@ -3330,6 +3581,21 @@ function expressionTypeField(name: string, type: ExpressionStaticType | FieldTyp
     hidden: false,
     systemManaged: false,
   };
+}
+
+function expressionTypeToFieldType(type: ExpressionStaticType): FieldType | undefined {
+  switch (type) {
+    case "text":
+    case "number":
+    case "date":
+    case "datetime":
+    case "time":
+    case "boolean":
+      return type;
+    case "null":
+    case "unknown":
+      return undefined;
+  }
 }
 
 function isDefaultCompatible(field: ResolvedField, value: unknown): boolean {

@@ -107,6 +107,16 @@ export class ValidationEngine {
     for (const [fieldName, value] of Object.entries(source)) {
       const field = this.index.getBusinessField(object, fieldName);
 
+      if (object.computedFields.some((candidate) => candidate.name === fieldName)) {
+        issues.push({
+          code: "ADL_RUNTIME_COMPUTED_FIELD_WRITE",
+          message: `Computed field '${fieldName}' on object '${object.name}' cannot be written directly.`,
+          path: `${path}.${fieldName}`,
+          field: fieldName,
+        });
+        continue;
+      }
+
       if (field === undefined) {
         issues.push({
           code: "ADL_RUNTIME_FIELD_UNKNOWN",
