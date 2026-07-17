@@ -20,6 +20,17 @@ Read this before adding or changing ADL reference applications, especially multi
 - The band fixture uses backend-neutral object constraints for scoped uniqueness and ordered positions: member per band, invitation email per band, availability date per user, song title per band, set-list name per band, streaming platform per song, and set-list item position per set list.
 - Ordered set-list constraints now enforce positive integer positions and duplicate-position denial. Reorder/compaction behavior remains future generic command/helper work.
 
+## Key decisions after the Giggle Band ADL conversion
+
+- The band reference app is now a folder app under
+  `src/reference/giggle-band/`. `app.yaml` lists the ADL source files and
+  `domain.adl` currently holds the authored model. `src/reference/band-app.ts`
+  remains the browser/runtime integration module and seed fixture, but the
+  application definition is no longer a handwritten TypeScript partial model.
+- Parser/compiler coverage for contexts, object scopes, constraints,
+  view/read-model contexts, and read-model-backed views should be maintained
+  with the Giggle Band compile test in `tests/compile-adl.test.ts`.
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.

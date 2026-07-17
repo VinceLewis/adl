@@ -85,11 +85,18 @@ describe("browser UI runtime", () => {
       "adl-field-renderer[data-field-name='Name'] input",
     );
     name.value = "Incomplete User";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    const email = requireElement<HTMLInputElement>(
+      app,
+      "adl-field-renderer[data-field-name='Email'] input",
+    );
+    email.value = "not-an-email";
+    email.dispatchEvent(new Event("input", { bubbles: true }));
     requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
     await flushUi();
 
     expect(app.textContent).toContain("Record for object 'User' is invalid.");
-    expect(app.textContent).toContain("Field 'Email' is required on object 'User'.");
+    expect(app.textContent).toContain("Field 'Email' must contain an email address.");
   });
 
   it("filters lifecycle actions by policy and current state", async () => {
@@ -316,14 +323,18 @@ describe("browser UI runtime", () => {
       requireElement<HTMLButtonElement>(firstApp, "[data-list-action='new']").click();
       await flushUi();
 
-      requireElement<HTMLInputElement>(
+      const name = requireElement<HTMLInputElement>(
         firstApp,
         "adl-field-renderer[data-field-name='Name'] input",
-      ).value = "Reload Persisted";
-      requireElement<HTMLInputElement>(
+      );
+      name.value = "Reload Persisted";
+      name.dispatchEvent(new Event("input", { bubbles: true }));
+      const email = requireElement<HTMLInputElement>(
         firstApp,
         "adl-field-renderer[data-field-name='Email'] input",
-      ).value = "reload@example.com";
+      );
+      email.value = "reload@example.com";
+      email.dispatchEvent(new Event("input", { bubbles: true }));
       requireElement<HTMLButtonElement>(firstApp, "button[data-action-name='save']").click();
       await waitForText(firstApp, "Reload Persisted");
 

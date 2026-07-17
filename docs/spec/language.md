@@ -12,8 +12,10 @@ uppercase keywords and explicit `END.*` block terminators.
 
 - `APP Name` declares the application. `START_VIEW` may name the initial view.
 - `ROLE Name` declares an application role.
+- `CONTEXT Name` declares a business context, optional selection behavior, and
+  optional membership object mapping.
 - `OBJECT Name` declares fields, computed fields, object validations,
-  lifecycles, and views.
+  scopes, constraints, lifecycles, and views.
 - `POLICY Name ON Object` declares policy rules for one object.
 - `THEME Name BASE BuiltInTheme` declares token overrides.
 - `READ_MODEL Name` declares backend-neutral read-model sources, output fields,
@@ -33,6 +35,17 @@ Objects contain business fields. Field syntax supports text, number, date,
 datetime, time, boolean, and attachment types. A field may be `REQUIRED`, have a
 literal `DEFAULT`, validators, lookup metadata, and author-facing display or key
 roles through the resolved model.
+
+Objects can declare business context scope and backend-neutral constraints:
+
+```adl
+SCOPE Band FIELD Band
+CONSTRAINT uniqueSongTitleInBand UNIQUE SCOPE Band FIELDS Title
+CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position
+```
+
+The compiler maps these declarations to the resolved model; runtime services
+enforce scope and constraints.
 
 Computed fields are declared inside objects:
 
@@ -78,6 +91,20 @@ Read models declare named object sources and output fields. A field can project
 from a source field or evaluate an expression over already-projected row values.
 Read models are backend-neutral; they do not embed SQL or materialization
 strategy.
+
+Views and read models can declare context requirements:
+
+```adl
+VIEW BandEventList LIST
+  CONTEXT REQUIRED Band
+  FIELDS Date Title Status
+END.VIEW
+
+READ_MODEL HomeUpcomingEvents
+  CONTEXT ALL Band
+  SOURCE event OBJECT Event SCOPE allAvailableContexts
+END.READ_MODEL
+```
 
 ## Commands
 

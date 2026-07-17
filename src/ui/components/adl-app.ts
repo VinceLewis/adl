@@ -24,7 +24,13 @@ import {
 } from "../demo-fixture.js";
 import { infoMessage, messageFromRuntimeError, successMessage } from "../runtime-error-messages.js";
 import { applyResolvedTheme, findApplicationTheme } from "../theme/default-theme.js";
-import type { SaveRecordDetail, TransitionRecordDetail, UiMessage, UiMode } from "../types.js";
+import type {
+  DraftRecordDetail,
+  SaveRecordDetail,
+  TransitionRecordDetail,
+  UiMessage,
+  UiMode,
+} from "../types.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
 import { AdlDashboardViewElement } from "./adl-dashboard-view.js";
 import { AdlFormViewElement } from "./adl-form-view.js";
@@ -50,6 +56,7 @@ export class AdlAppElement extends HTMLElement {
   private readModelRows: RuntimeReadModelRow[] = [];
   private selectedRecord: StoredObjectRecord | undefined;
   private mode: UiMode = "edit";
+  private draftValues: SaveRecordDetail["values"] = {};
   private messages: UiMessage[] = [];
   private fieldIssues: RuntimeValidationIssue[] = [];
   private useBrowserOnlineState = this._context.online === undefined;
@@ -83,6 +90,7 @@ export class AdlAppElement extends HTMLElement {
       if (record !== null) {
         this.mode = "edit";
         this.selectedRecord = record;
+        this.draftValues = {};
         this.fieldIssues = [];
         this.render();
       }
@@ -92,9 +100,23 @@ export class AdlAppElement extends HTMLElement {
   private readonly handleNew = (): void => {
     this.mode = "create";
     this.selectedRecord = undefined;
+    this.draftValues = {};
     this.fieldIssues = [];
     this.messages = [];
     this.render();
+  };
+
+  private readonly handleDraft = (event: Event): void => {
+    const detail = (event as CustomEvent<DraftRecordDetail>).detail;
+    if (detail === undefined) {
+      return;
+    }
+
+    if (detail.mode === "edit" && detail.record?.meta.guid !== this.selectedRecord?.meta.guid) {
+      return;
+    }
+
+    this.draftValues = { ...detail.values };
   };
 
   private readonly handleSave = (event: Event): void => {
@@ -105,6 +127,7 @@ export class AdlAppElement extends HTMLElement {
 
     void this.runCommand(async () => {
       const context = this.requireActiveRuntimeContext();
+      this.draftValues = { ...detail.values };
       if (detail.mode === "create") {
         const created = await this.runtime.create(
           this.activeObject.name,
@@ -112,6 +135,7 @@ export class AdlAppElement extends HTMLElement {
           context,
         );
         this.messages = [successMessage(`${this.activeObject.name} created.`)];
+        this.draftValues = {};
         this.fieldIssues = [];
         await this.refreshRecords(created.meta.guid);
         this.render();
@@ -124,6 +148,7 @@ export class AdlAppElement extends HTMLElement {
 
       if (Object.keys(detail.values).length === 0) {
         this.messages = [infoMessage("No changes to save.")];
+        this.draftValues = {};
         this.render();
         return;
       }
@@ -135,6 +160,7 @@ export class AdlAppElement extends HTMLElement {
         context,
       );
       this.messages = [successMessage(`${this.activeObject.name} saved.`)];
+      this.draftValues = {};
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
       this.render();
@@ -153,6 +179,7 @@ export class AdlAppElement extends HTMLElement {
       this.messages = [successMessage(`${this.activeObject.name} deleted.`)];
       this.selectedRecord = undefined;
       this.mode = "create";
+      this.draftValues = {};
       await this.refreshRecords();
       this.render();
     });
@@ -161,6 +188,7 @@ export class AdlAppElement extends HTMLElement {
   private readonly handleCancel = (): void => {
     this.fieldIssues = [];
     this.messages = [];
+    this.draftValues = {};
     if (this.records[0] !== undefined) {
       this.mode = "edit";
       this.selectedRecord = this.records[0];
@@ -179,13 +207,24 @@ export class AdlAppElement extends HTMLElement {
 
     void this.runCommand(async () => {
       const context = this.requireActiveRuntimeContext();
+      this.draftValues = { ...detail.values };
+      const record =
+        Object.keys(detail.values).length === 0
+          ? detail.record
+          : await this.runtime.update(
+              this.activeObject.name,
+              detail.record.meta.guid,
+              detail.values,
+              context,
+            );
       const updated = await this.runtime.transition(
         this.activeObject.name,
-        detail.record.meta.guid,
+        record.meta.guid,
         detail.actionName,
         context,
       );
       this.messages = [successMessage(`${titleCaseIdentifier(detail.actionName)} completed.`)];
+      this.draftValues = {};
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
       this.render();
@@ -202,6 +241,7 @@ export class AdlAppElement extends HTMLElement {
     this.searchText = "";
     this.selectedRecord = undefined;
     this.mode = "edit";
+    this.draftValues = {};
     this.messages = [];
     this.fieldIssues = [];
     void this.runCommand(async () => {
@@ -220,6 +260,7 @@ export class AdlAppElement extends HTMLElement {
     this.searchText = "";
     this.selectedRecord = undefined;
     this.mode = "edit";
+    this.draftValues = {};
     this.messages = [];
     this.fieldIssues = [];
     void this.runCommand(async () => {
@@ -298,6 +339,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-search", this.handleSearch);
     this.addEventListener("adl-select-record", this.handleSelect);
     this.addEventListener("adl-new-record", this.handleNew);
+    this.addEventListener("adl-draft-record", this.handleDraft);
     this.addEventListener("adl-save-record", this.handleSave);
     this.addEventListener("adl-delete-record", this.handleDelete);
     this.addEventListener("adl-cancel-record", this.handleCancel);
@@ -312,6 +354,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-search", this.handleSearch);
     this.removeEventListener("adl-select-record", this.handleSelect);
     this.removeEventListener("adl-new-record", this.handleNew);
+    this.removeEventListener("adl-draft-record", this.handleDraft);
     this.removeEventListener("adl-save-record", this.handleSave);
     this.removeEventListener("adl-delete-record", this.handleDelete);
     this.removeEventListener("adl-cancel-record", this.handleCancel);
@@ -379,6 +422,7 @@ export class AdlAppElement extends HTMLElement {
       {
         text: this.searchText,
         ...(view.searchFields.length > 0 ? { fields: view.searchFields } : {}),
+        ...(view.sort.length > 0 ? { sort: view.sort } : {}),
       },
       viewContext.context,
     );
@@ -506,6 +550,7 @@ export class AdlAppElement extends HTMLElement {
       form.context = this.activeRuntimeContext;
       form.record = this.selectedRecord;
       form.mode = this.mode;
+      form.draftValues = this.draftValues;
       form.fieldIssues = this.fieldIssues;
     }
 

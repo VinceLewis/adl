@@ -5,10 +5,12 @@ import type { Diagnostic } from "./validate-model.js";
 import type {
   ActionDeclarationAst,
   AdlDocumentAst,
+  BusinessContextDeclarationAst,
   CommandDeclarationAst,
   CommandStepDeclarationAst,
   DecisionTableDeclarationAst,
   FieldDeclarationAst,
+  ObjectConstraintDeclarationAst,
   ObjectDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
@@ -20,6 +22,7 @@ import type {
 } from "../parser/ast.js";
 import type {
   PartialApplicationModel,
+  PartialBusinessContextModel,
   PartialCommandModel,
   PartialCommandStepModel,
   PartialDecisionTableModel,
@@ -27,6 +30,7 @@ import type {
   PartialLifecycleModel,
   PartialLifecycleActionModel,
   PartialObjectModel,
+  PartialObjectConstraintModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
   PartialPrincipalSelectorModel,
@@ -34,6 +38,7 @@ import type {
   PartialSyncPolicyModel,
   PartialThemeModel,
   PartialViewModel,
+  PartialViewContextModel,
   ResolvedApplicationModel,
   ResolvedThemeTokens,
 } from "../model/resolved-model.js";
@@ -74,6 +79,7 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       ...(role.description === undefined ? {} : { description: role.description }),
       inherits: [...role.inherits],
     })),
+    contexts: ast.contexts.map(contextToPartial),
     objects,
     readModels: ast.readModels.map(readModelToPartial),
     decisionTables: ast.decisionTables.map(decisionTableToPartial),
@@ -98,6 +104,10 @@ function objectToPartial(
       type: field.type,
       expression: field.expression,
     })),
+    ...(object.scope === undefined
+      ? {}
+      : { scope: { context: object.scope.context, field: object.scope.field } }),
+    constraints: object.constraints.map(objectConstraintToPartial),
     validations: object.validations.map((validation) => ({
       name: validation.name,
       expression: validation.expression,
@@ -109,6 +119,63 @@ function objectToPartial(
     policies: [...object.policyRefs],
     views: object.views.map(viewToPartial),
     ...(object.sync === undefined ? {} : { sync: objectSyncToPartial(object.sync) }),
+  };
+}
+
+function contextToPartial(context: BusinessContextDeclarationAst): PartialBusinessContextModel {
+  return {
+    name: context.name,
+    ...(context.object === undefined ? {} : { object: context.object }),
+    ...(context.selection === undefined
+      ? {}
+      : {
+          selection: {
+            ...(context.selection.mode === undefined ? {} : { mode: context.selection.mode }),
+            ...(context.selection.autoSelect === undefined
+              ? {}
+              : { autoSelect: context.selection.autoSelect }),
+            ...(context.selection.persistence === undefined
+              ? {}
+              : { persistence: context.selection.persistence }),
+            ...(context.selection.source === undefined ? {} : { source: context.selection.source }),
+            ...(context.selection.routeParam === undefined
+              ? {}
+              : { routeParam: context.selection.routeParam }),
+          },
+        }),
+    ...(context.membership === undefined
+      ? {}
+      : {
+          membership: {
+            object: context.membership.object,
+            userField: context.membership.userField,
+            contextField: context.membership.contextField,
+            roleField: context.membership.roleField,
+            roles: [...context.membership.roles],
+          },
+        }),
+  };
+}
+
+function objectConstraintToPartial(
+  constraint: ObjectConstraintDeclarationAst,
+): PartialObjectConstraintModel {
+  if (constraint.kind === "UniqueObjectConstraintDeclaration") {
+    return {
+      name: constraint.name,
+      kind: "unique",
+      fields: [...constraint.fields],
+      scopeFields: [...constraint.scopeFields],
+    };
+  }
+
+  return {
+    name: constraint.name,
+    kind: "ordered",
+    parentField: constraint.parentField,
+    positionField: constraint.positionField,
+    scopeFields: [...constraint.scopeFields],
+    ...(constraint.minPosition === undefined ? {} : { minPosition: constraint.minPosition }),
   };
 }
 
@@ -160,6 +227,9 @@ function fieldToPartial(field: FieldDeclarationAst): PartialFieldModel {
 function readModelToPartial(readModel: ReadModelDeclarationAst): PartialReadModelModel {
   return {
     name: readModel.name,
+    ...(readModel.context === undefined
+      ? {}
+      : { context: viewContextToPartial(readModel.context) }),
     sources: readModel.sources.map((source) => ({
       name: source.name,
       object: source.object,
@@ -326,6 +396,8 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
   return {
     name: view.name,
     kind: view.viewKind,
+    ...(view.context === undefined ? {} : { context: viewContextToPartial(view.context) }),
+    ...(view.readModel === undefined ? {} : { readModel: view.readModel }),
     fields: [...view.fields],
     searchFields: [...view.searchFields],
     sort: view.sort.map((sort) => ({
@@ -333,6 +405,15 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
       direction: sort.direction,
     })),
     actions: [...view.actions],
+  };
+}
+
+function viewContextToPartial(
+  context: NonNullable<ViewDeclarationAst["context"]>,
+): PartialViewContextModel {
+  return {
+    mode: context.mode,
+    ...(context.context === undefined ? {} : { context: context.context }),
   };
 }
 

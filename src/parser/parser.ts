@@ -5,6 +5,9 @@ import type {
   CommandRuntimeProperty,
   CommandStepAuthority,
   CommandStepMetaProperty,
+  ContextSelectionMode,
+  ContextSelectionPersistence,
+  ContextSelectionSource,
   PolicyAction,
   PolicyEffect,
   ExpressionRuntimeProperty,
@@ -18,6 +21,7 @@ import type {
   ThemeRadius,
   ValidatorKind,
   ViewKind,
+  ViewContextMode,
 } from "../model/resolved-model.js";
 import type {
   ActionAllowDeclarationAst,
@@ -26,6 +30,7 @@ import type {
   AppDeclarationAst,
   AutoIdDeclarationAst,
   BlockName,
+  BusinessContextDeclarationAst,
   CommandDeclarationAst,
   CommandInputDeclarationAst,
   CommandPreconditionDeclarationAst,
@@ -40,8 +45,10 @@ import type {
   LifecycleGuardDeclarationAst,
   LifecycleDeclarationAst,
   LookupDeclarationAst,
+  ObjectConstraintDeclarationAst,
   ObjectValidationDeclarationAst,
   ObjectDeclarationAst,
+  ObjectScopeDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
   PrincipalSelectorAst,
@@ -59,6 +66,7 @@ import type {
   ThemeTokenName,
   ValidatorDeclarationAst,
   ViewDeclarationAst,
+  ViewContextDeclarationAst,
 } from "./ast.js";
 import { lexAdl } from "./lexer.js";
 import type { Token } from "./lexer.js";
@@ -128,6 +136,7 @@ class AdlParser {
     const start = this.current().range.start;
     const app = this.parseApp();
     const roles: RoleDeclarationAst[] = [];
+    const contexts: BusinessContextDeclarationAst[] = [];
     const objects: ObjectDeclarationAst[] = [];
     const readModels: ReadModelDeclarationAst[] = [];
     const decisionTables: DecisionTableDeclarationAst[] = [];
@@ -145,6 +154,8 @@ class AdlParser {
 
       if (this.checkWord("ROLE")) {
         roles.push(this.parseRole());
+      } else if (this.checkWord("CONTEXT")) {
+        contexts.push(this.parseBusinessContext());
       } else if (this.checkWord("OBJECT")) {
         objects.push(this.parseObject());
       } else if (this.checkWord("READ_MODEL") || this.checkDottedWord("READ", "MODEL")) {
@@ -170,6 +181,7 @@ class AdlParser {
       kind: "AdlDocument",
       app,
       roles,
+      contexts,
       objects,
       readModels,
       decisionTables,
@@ -245,6 +257,103 @@ class AdlParser {
     };
   }
 
+  private parseBusinessContext(): BusinessContextDeclarationAst {
+    const startToken = this.expectWord("CONTEXT", "CONTEXT declaration");
+    const name = this.consumeName("context name");
+    let object: string | undefined;
+    let selection: BusinessContextDeclarationAst["selection"];
+    let membership: BusinessContextDeclarationAst["membership"];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("OBJECT")) {
+        object = this.consumeName("context object name");
+      } else if (this.matchWord("SELECTION")) {
+        selection = {
+          ...(selection ?? {}),
+          mode: this.parseContextSelectionMode(),
+        };
+      } else if (this.matchWord("AUTO_SELECT")) {
+        selection = {
+          ...(selection ?? {}),
+          autoSelect: this.consumeBooleanValue("context AUTO_SELECT value"),
+        };
+      } else if (this.matchWord("PERSISTENCE")) {
+        selection = {
+          ...(selection ?? {}),
+          persistence: this.parseContextSelectionPersistence(),
+        };
+      } else if (this.matchWord("SOURCE")) {
+        selection = {
+          ...(selection ?? {}),
+          source: this.parseContextSelectionSource(),
+        };
+      } else if (this.matchWord("ROUTE_PARAM")) {
+        selection = {
+          ...(selection ?? {}),
+          routeParam: this.consumeName("context route parameter"),
+        };
+      } else if (this.matchWord("MEMBERSHIP")) {
+        membership = this.parseContextMembership();
+      } else {
+        this.failUnexpected(
+          "CONTEXT option OBJECT, SELECTION, AUTO_SELECT, PERSISTENCE, SOURCE, ROUTE_PARAM, MEMBERSHIP, or end of line",
+        );
+      }
+    }
+
+    this.consumeLineEnd("CONTEXT declaration");
+    return {
+      kind: "BusinessContextDeclaration",
+      name,
+      ...(object === undefined ? {} : { object }),
+      ...(selection === undefined ? {} : { selection }),
+      ...(membership === undefined ? {} : { membership }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseContextMembership(): BusinessContextDeclarationAst["membership"] {
+    const object = this.consumeName("context membership object");
+    let userField: string | undefined;
+    let contextField: string | undefined;
+    let roleField: string | undefined;
+    let roles: string[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("USER")) {
+        userField = this.consumeName("context membership user field");
+      } else if (this.matchWord("CONTEXT_FIELD") || this.matchWord("CONTEXT")) {
+        contextField = this.consumeName("context membership context field");
+      } else if (this.matchWord("ROLE_FIELD") || this.matchWord("ROLE")) {
+        roleField = this.consumeName("context membership role field");
+      } else if (this.matchWord("ROLES")) {
+        roles = this.consumeNameListUntilLine("context membership roles");
+      } else {
+        this.failUnexpected(
+          "CONTEXT MEMBERSHIP option USER, CONTEXT_FIELD, ROLE_FIELD, ROLES, or end of line",
+        );
+      }
+    }
+
+    if (userField === undefined) {
+      this.failExpected("USER field in CONTEXT MEMBERSHIP", this.previous());
+    }
+    if (contextField === undefined) {
+      this.failExpected("CONTEXT_FIELD in CONTEXT MEMBERSHIP", this.previous());
+    }
+    if (roleField === undefined) {
+      this.failExpected("ROLE_FIELD in CONTEXT MEMBERSHIP", this.previous());
+    }
+
+    return {
+      object,
+      userField,
+      contextField,
+      roleField,
+      roles,
+    };
+  }
+
   private parseObject(): ObjectDeclarationAst {
     const startToken = this.expectWord("OBJECT", "OBJECT declaration");
     const name = this.consumeName("object name");
@@ -252,8 +361,10 @@ class AdlParser {
     let displayField: string | undefined;
     let lifecycle: LifecycleDeclarationAst | undefined;
     let sync: SyncDeclarationAst | undefined;
+    let scope: ObjectScopeDeclarationAst | undefined;
     const fields: FieldDeclarationAst[] = [];
     const computedFields: ComputedFieldDeclarationAst[] = [];
+    const constraints: ObjectConstraintDeclarationAst[] = [];
     const validations: ObjectValidationDeclarationAst[] = [];
     const views: ViewDeclarationAst[] = [];
     const policyRefs: string[] = [];
@@ -275,6 +386,8 @@ class AdlParser {
           ...(displayField === undefined ? {} : { displayField }),
           fields,
           computedFields,
+          ...(scope === undefined ? {} : { scope }),
+          constraints,
           validations,
           ...(lifecycle === undefined ? {} : { lifecycle }),
           views,
@@ -295,6 +408,10 @@ class AdlParser {
         fields.push(this.parseField());
       } else if (this.checkWord("COMPUTED")) {
         computedFields.push(this.parseComputedField());
+      } else if (this.checkWord("SCOPE")) {
+        scope = this.parseObjectScope();
+      } else if (this.checkWord("CONSTRAINT")) {
+        constraints.push(this.parseObjectConstraint());
       } else if (this.checkWord("VALIDATE") || this.checkWord("VALIDATION")) {
         validations.push(this.parseObjectValidation());
       } else if (this.checkWord("LIFECYCLE")) {
@@ -334,6 +451,111 @@ class AdlParser {
       expression,
       range: this.rangeFrom(startToken),
     };
+  }
+
+  private parseObjectScope(): ObjectScopeDeclarationAst {
+    const startToken = this.expectWord("SCOPE", "OBJECT SCOPE declaration");
+    const context = this.consumeName("object scope context");
+    let field: string | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("FIELD")) {
+        field = this.consumeName("object scope field");
+      } else {
+        this.failUnexpected("OBJECT SCOPE option FIELD or end of line");
+      }
+    }
+
+    if (field === undefined) {
+      this.failExpected("FIELD in OBJECT SCOPE declaration", this.previous());
+    }
+
+    this.consumeLineEnd("OBJECT SCOPE declaration");
+    return {
+      kind: "ObjectScopeDeclaration",
+      context,
+      field,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseObjectConstraint(): ObjectConstraintDeclarationAst {
+    const startToken = this.expectWord("CONSTRAINT", "OBJECT CONSTRAINT declaration");
+    const name = this.consumeName("object constraint name");
+    const constraintKind = normaliseKeyword(this.consumeName("object constraint kind"));
+
+    if (constraintKind === "unique") {
+      let scopeFields: string[] = [];
+      let fields: string[] = [];
+
+      while (!this.isLineEnd()) {
+        if (this.matchWord("SCOPE")) {
+          scopeFields = this.consumeNameListUntilWords(
+            "unique constraint scope fields",
+            new Set(["FIELDS"]),
+          );
+        } else if (this.matchWord("FIELDS") || this.matchWord("FIELD")) {
+          fields = this.consumeNameListUntilLine("unique constraint fields");
+        } else {
+          this.failUnexpected("UNIQUE CONSTRAINT option SCOPE, FIELDS, or end of line");
+        }
+      }
+
+      this.consumeLineEnd("OBJECT CONSTRAINT declaration");
+      return {
+        kind: "UniqueObjectConstraintDeclaration",
+        name,
+        fields,
+        scopeFields,
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    if (constraintKind === "ordered") {
+      let parentField: string | undefined;
+      let positionField: string | undefined;
+      let scopeFields: string[] = [];
+      let minPosition: number | undefined;
+
+      while (!this.isLineEnd()) {
+        if (this.matchWord("SCOPE")) {
+          scopeFields = this.consumeNameListUntilWords(
+            "ordered constraint scope fields",
+            new Set(["PARENT", "POSITION", "MIN"]),
+          );
+        } else if (this.matchWord("PARENT")) {
+          parentField = this.consumeName("ordered constraint parent field");
+        } else if (this.matchWord("POSITION")) {
+          positionField = this.consumeName("ordered constraint position field");
+        } else if (this.matchWord("MIN")) {
+          minPosition = this.consumeIntegerModifierValue("ordered constraint min position");
+        } else {
+          this.failUnexpected(
+            "ORDERED CONSTRAINT option SCOPE, PARENT, POSITION, MIN, or end of line",
+          );
+        }
+      }
+
+      if (parentField === undefined) {
+        this.failExpected("PARENT field in ORDERED constraint", this.previous());
+      }
+      if (positionField === undefined) {
+        this.failExpected("POSITION field in ORDERED constraint", this.previous());
+      }
+
+      this.consumeLineEnd("OBJECT CONSTRAINT declaration");
+      return {
+        kind: "OrderedObjectConstraintDeclaration",
+        name,
+        parentField,
+        positionField,
+        scopeFields,
+        ...(minPosition === undefined ? {} : { minPosition }),
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    this.failExpected("object constraint kind UNIQUE or ORDERED", this.previous());
   }
 
   private parseField(): FieldDeclarationAst {
@@ -699,6 +921,8 @@ class AdlParser {
     const startToken = this.expectWord("VIEW", "VIEW declaration");
     const name = this.consumeName("view name");
     const viewKind = this.parseViewKind();
+    let context: ViewContextDeclarationAst | undefined;
+    let readModel: string | undefined;
     const fields: string[] = [];
     const searchFields: string[] = [];
     const sort: SortDeclarationAst[] = [];
@@ -718,6 +942,8 @@ class AdlParser {
           kind: "ViewDeclaration",
           name,
           viewKind,
+          ...(context === undefined ? {} : { context }),
+          ...(readModel === undefined ? {} : { readModel }),
           fields,
           searchFields,
           sort,
@@ -727,7 +953,13 @@ class AdlParser {
         };
       }
 
-      if (this.matchWord("FIELDS")) {
+      if (this.matchWord("CONTEXT")) {
+        context = this.parseViewContextAfterKeyword();
+        this.consumeLineEnd("VIEW CONTEXT directive");
+      } else if (this.matchWord("READ_MODEL") || this.matchDottedWord("READ", "MODEL")) {
+        readModel = this.consumeName("view read model name");
+        this.consumeLineEnd("VIEW READ_MODEL directive");
+      } else if (this.matchWord("FIELDS")) {
         fields.push(...this.consumeNameListUntilLine("view field list"));
         this.consumeLineEnd("VIEW FIELDS directive");
       } else if (this.matchWord("SEARCH")) {
@@ -750,6 +982,7 @@ class AdlParser {
       ? this.expectWord("READ_MODEL", "READ_MODEL declaration")
       : this.expectDottedWord("READ", "MODEL", "READ.MODEL declaration");
     const name = this.consumeName("read model name");
+    let context: ViewContextDeclarationAst | undefined;
     const sources: ReadModelSourceDeclarationAst[] = [];
     const fields: ReadModelFieldDeclarationAst[] = [];
     const sort: SortDeclarationAst[] = [];
@@ -767,6 +1000,7 @@ class AdlParser {
         return {
           kind: "ReadModelDeclaration",
           name,
+          ...(context === undefined ? {} : { context }),
           sources,
           fields,
           sort,
@@ -775,7 +1009,10 @@ class AdlParser {
         };
       }
 
-      if (this.checkWord("SOURCE")) {
+      if (this.matchWord("CONTEXT")) {
+        context = this.parseViewContextAfterKeyword();
+        this.consumeLineEnd("READ_MODEL CONTEXT directive");
+      } else if (this.checkWord("SOURCE")) {
         sources.push(this.parseReadModelSource());
       } else if (this.checkWord("FIELD")) {
         fields.push(this.parseReadModelField());
@@ -878,6 +1115,36 @@ class AdlParser {
           "read model source scope ALL, CURRENT_CONTEXT, ALL_AVAILABLE_CONTEXTS, or CURRENT_USER",
           token,
         );
+    }
+  }
+
+  private parseViewContextAfterKeyword(): ViewContextDeclarationAst {
+    const mode = this.parseViewContextMode();
+    if (mode === "none") {
+      return { mode };
+    }
+
+    const context = this.consumeName("view context name");
+    return { mode, context };
+  }
+
+  private parseViewContextMode(): ViewContextMode {
+    const token = this.consumeWordToken("view context mode");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "none":
+        return "none";
+      case "required":
+      case "current":
+      case "currentcontext":
+        return "required";
+      case "optional":
+        return "optional";
+      case "all":
+      case "allcontexts":
+        return "all";
+      default:
+        this.failExpected("view context mode NONE, REQUIRED, OPTIONAL, or ALL", token);
     }
   }
 
@@ -1413,6 +1680,47 @@ class AdlParser {
       return "command";
     }
     this.failExpected("command step authority CALLER or COMMAND", this.previous());
+  }
+
+  private parseContextSelectionMode(): ContextSelectionMode {
+    const token = this.consumeWordToken("context selection mode");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "required":
+        return "required";
+      case "optional":
+        return "optional";
+      default:
+        this.failExpected("context selection mode REQUIRED or OPTIONAL", token);
+    }
+  }
+
+  private parseContextSelectionPersistence(): ContextSelectionPersistence {
+    const token = this.consumeWordToken("context selection persistence");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "none":
+        return "none";
+      case "session":
+        return "session";
+      case "local":
+        return "local";
+      default:
+        this.failExpected("context selection persistence NONE, SESSION, or LOCAL", token);
+    }
+  }
+
+  private parseContextSelectionSource(): ContextSelectionSource {
+    const token = this.consumeWordToken("context selection source");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "runtime":
+        return "runtime";
+      case "route":
+        return "route";
+      default:
+        this.failExpected("context selection source RUNTIME or ROUTE", token);
+    }
   }
 
   private parseCommandValueExpression(): ResolvedCommandValueExpression {
@@ -2092,6 +2400,25 @@ class AdlParser {
     if (token.kind === "number" && typeof token.value === "number") {
       this.advance();
       return token.value;
+    }
+
+    this.failExpected(context, token);
+  }
+
+  private consumeBooleanValue(context: string): boolean {
+    const token = this.current();
+
+    if (token.kind === "boolean" && typeof token.value === "boolean") {
+      this.advance();
+      return token.value;
+    }
+
+    if (this.matchWord("TRUE")) {
+      return true;
+    }
+
+    if (this.matchWord("FALSE")) {
+      return false;
     }
 
     this.failExpected(context, token);

@@ -3,6 +3,7 @@ import type {
   ResolvedField,
   ResolvedObject,
   ResolvedView,
+  JsonValue,
   StoredObjectRecord,
 } from "../../model/resolved-model.js";
 import type { RuntimeContext } from "../../runtime/runtime-types.js";
@@ -21,6 +22,8 @@ export class AdlListViewElement extends HTMLElement {
   private _records: StoredObjectRecord[] = [];
   private _selectedRecordId: string | undefined;
   private _searchText = "";
+  private lookupLabels = new Map<string, string>();
+  private pendingLookupLabels = new Set<string>();
 
   private readonly handleClick = (event: Event): void => {
     const target = event.target;
@@ -61,26 +64,31 @@ export class AdlListViewElement extends HTMLElement {
 
   set runtime(runtime: ApplicationRuntime | undefined) {
     this._runtime = runtime;
+    this.queueLookupLabelLoads();
     this.render();
   }
 
   set object(object: ResolvedObject | undefined) {
     this._object = object;
+    this.queueLookupLabelLoads();
     this.render();
   }
 
   set view(view: ResolvedView | undefined) {
     this._view = view;
+    this.queueLookupLabelLoads();
     this.render();
   }
 
   set context(context: RuntimeContext | undefined) {
     this._context = context;
+    this.queueLookupLabelLoads();
     this.render();
   }
 
   set records(records: StoredObjectRecord[]) {
     this._records = [...records];
+    this.queueLookupLabelLoads();
     this.render();
   }
 
@@ -97,6 +105,7 @@ export class AdlListViewElement extends HTMLElement {
   connectedCallback(): void {
     this.addEventListener("click", this.handleClick);
     this.addEventListener("input", this.handleInput);
+    this.queueLookupLabelLoads();
     this.render();
   }
 
@@ -208,7 +217,72 @@ export class AdlListViewElement extends HTMLElement {
       )}</span></td>`;
     }
 
-    return `<td>${escapeHtml(formatValue(value))}</td>`;
+    return `<td>${escapeHtml(this.formatCellValue(field, value))}</td>`;
+  }
+
+  private formatCellValue(field: ResolvedField, value: JsonValue | undefined): string {
+    if (field.lookup === undefined || typeof value !== "string" || value.length === 0) {
+      return formatValue(value);
+    }
+
+    return this.lookupLabels.get(lookupLabelKey(field, value)) ?? value;
+  }
+
+  private queueLookupLabelLoads(): void {
+    if (
+      !this.isConnected ||
+      this._runtime === undefined ||
+      this._object === undefined ||
+      this._view === undefined ||
+      this._context === undefined
+    ) {
+      return;
+    }
+
+    const lookupFields = this._view.fields
+      .map((fieldName) => this._object?.fields.find((field) => field.name === fieldName))
+      .filter((field): field is ResolvedField => field !== undefined && field.lookup !== undefined);
+
+    for (const field of lookupFields) {
+      for (const record of this._records) {
+        const value = record.values[field.name];
+        if (typeof value !== "string" || value.length === 0) {
+          continue;
+        }
+
+        const key = lookupLabelKey(field, value);
+        if (this.lookupLabels.has(key) || this.pendingLookupLabels.has(key)) {
+          continue;
+        }
+
+        this.pendingLookupLabels.add(key);
+        void this.loadLookupLabel(field, value, key);
+      }
+    }
+  }
+
+  private async loadLookupLabel(
+    field: ResolvedField,
+    recordId: string,
+    key: string,
+  ): Promise<void> {
+    if (this._runtime === undefined || this._context === undefined || field.lookup === undefined) {
+      this.pendingLookupLabels.delete(key);
+      return;
+    }
+
+    try {
+      const record = await this._runtime.read(field.lookup.targetObject, recordId, this._context);
+      const label = record?.values[field.lookup.displayField];
+      if (label !== undefined && label !== null) {
+        this.lookupLabels.set(key, String(label));
+      }
+    } catch {
+      this.lookupLabels.set(key, recordId);
+    } finally {
+      this.pendingLookupLabels.delete(key);
+      this.render();
+    }
   }
 }
 
@@ -228,4 +302,8 @@ function formatValue(value: unknown): string {
   }
 
   return String(value);
+}
+
+function lookupLabelKey(field: ResolvedField, recordId: string): string {
+  return `${field.lookup?.targetObject ?? ""}:${field.lookup?.displayField ?? ""}:${recordId}`;
 }

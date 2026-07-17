@@ -13,7 +13,13 @@ import {
   getInitialLifecycleState,
   resolveFieldPresentation,
 } from "../policy-presentation.js";
-import type { ActionBarItem, SaveRecordDetail, TransitionRecordDetail, UiMode } from "../types.js";
+import type {
+  ActionBarItem,
+  DraftRecordDetail,
+  SaveRecordDetail,
+  TransitionRecordDetail,
+  UiMode,
+} from "../types.js";
 import { AdlActionBarElement } from "./adl-action-bar.js";
 import { AdlFieldRendererElement } from "./adl-field-renderer.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
@@ -31,6 +37,20 @@ export class AdlFormViewElement extends HTMLElement {
   private _record: StoredObjectRecord | undefined;
   private _mode: UiMode = "edit";
   private _fieldIssues: RuntimeValidationIssue[] = [];
+  private _draftValues: Record<string, JsonValue> = {};
+
+  private readonly handleFormInput = (): void => {
+    this.dispatchEvent(
+      new CustomEvent<DraftRecordDetail>("adl-draft-record", {
+        bubbles: true,
+        detail: {
+          mode: this._mode,
+          values: this.collectValues(),
+          ...(this._record === undefined ? {} : { record: this._record }),
+        },
+      }),
+    );
+  };
 
   private readonly handleAction = (event: Event): void => {
     const detail = (event as CustomEvent<ActionEventDetail>).detail;
@@ -48,7 +68,11 @@ export class AdlFormViewElement extends HTMLElement {
       this.dispatchEvent(
         new CustomEvent<TransitionRecordDetail>("adl-transition-record", {
           bubbles: true,
-          detail: { actionName: detail.name, record: this._record },
+          detail: {
+            actionName: detail.name,
+            record: this._record,
+            values: this.collectValues(),
+          },
         }),
       );
       return;
@@ -118,13 +142,22 @@ export class AdlFormViewElement extends HTMLElement {
     this.render();
   }
 
+  set draftValues(draftValues: Record<string, JsonValue>) {
+    this._draftValues = { ...draftValues };
+    this.render();
+  }
+
   connectedCallback(): void {
     this.addEventListener("adl-action", this.handleAction);
+    this.addEventListener("input", this.handleFormInput);
+    this.addEventListener("change", this.handleFormInput);
     this.render();
   }
 
   disconnectedCallback(): void {
     this.removeEventListener("adl-action", this.handleAction);
+    this.removeEventListener("input", this.handleFormInput);
+    this.removeEventListener("change", this.handleFormInput);
   }
 
   private render(): void {
@@ -198,6 +231,9 @@ export class AdlFormViewElement extends HTMLElement {
         mode: this._mode,
         ...(this._record === undefined ? {} : { record: this._record }),
       });
+      renderer.runtime = this._runtime;
+      renderer.object = this._object;
+      renderer.context = this._context;
       renderer.field = field;
       renderer.mode = this._mode;
       renderer.value = this.getFieldValue(field);
@@ -267,7 +303,11 @@ export class AdlFormViewElement extends HTMLElement {
     });
 
     actions.push(
-      ...getAvailableLifecycleActions(this._runtime, this._object, this._record, this._context),
+      ...disambiguateLifecycleActionLabels(
+        actions,
+        getAvailableLifecycleActions(this._runtime, this._object, this._record, this._context),
+        this._object,
+      ),
     );
     actionBar.actions = actions;
   }
@@ -297,6 +337,10 @@ export class AdlFormViewElement extends HTMLElement {
   }
 
   private getFieldValue(field: ResolvedField): JsonValue | undefined {
+    if (Object.prototype.hasOwnProperty.call(this._draftValues, field.name)) {
+      return this._draftValues[field.name];
+    }
+
     if (this._record !== undefined) {
       return this._record.values[field.name];
     }
@@ -327,6 +371,40 @@ function getRecordTitle(object: ResolvedObject, record: StoredObjectRecord | und
   }
 
   return `${titleCaseIdentifier(object.name)} ${record.meta.guid}`;
+}
+
+function disambiguateLifecycleActionLabels(
+  commandActions: ActionBarItem[],
+  lifecycleActions: ActionBarItem[],
+  object: ResolvedObject,
+): ActionBarItem[] {
+  if (lifecycleActions.length === 0) {
+    return lifecycleActions;
+  }
+
+  const commandLabels = new Set(commandActions.map((action) => normalizeActionLabel(action.label)));
+  const lifecycleLabelCounts = new Map<string, number>();
+  for (const action of lifecycleActions) {
+    const label = normalizeActionLabel(action.label);
+    lifecycleLabelCounts.set(label, (lifecycleLabelCounts.get(label) ?? 0) + 1);
+  }
+
+  return lifecycleActions.map((action) => {
+    const label = normalizeActionLabel(action.label);
+    const duplicated = commandLabels.has(label) || (lifecycleLabelCounts.get(label) ?? 0) > 1;
+    if (!duplicated) {
+      return action;
+    }
+
+    return {
+      ...action,
+      label: `${action.label} ${titleCaseIdentifier(object.name)}`,
+    };
+  });
+}
+
+function normalizeActionLabel(label: string): string {
+  return label.trim().toLowerCase();
 }
 
 function cssEscape(value: string): string {

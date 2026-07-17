@@ -5,6 +5,7 @@ import {
 } from "../index.js";
 import {
   createBandReferenceModel,
+  createGiggleBandExampleModel,
   seedBandReferenceRuntime,
   seedBandReferenceRuntimeIfEmpty,
 } from "../reference/band-app.js";
@@ -17,6 +18,7 @@ import type {
 
 export const BROWSER_DEMO_DATABASE_NAME = "adl-browser-runtime-demo";
 export const BAND_REFERENCE_DATABASE_NAME = "adl-band-reference-demo";
+export const GIGGLE_BAND_EXAMPLE_DATABASE_NAME = "adl-giggle-band-example";
 
 export const browserDemoContext: RuntimeContext = {
   userId: "admin-ui",
@@ -475,7 +477,22 @@ export function createPersistentBandReferenceRuntime(
   });
 }
 
-export { createBandReferenceModel, seedBandReferenceRuntime, seedBandReferenceRuntimeIfEmpty };
+export function createPersistentGiggleBandExampleRuntime(
+  model: ResolvedApplicationModel = createGiggleBandExampleModel(),
+): ApplicationRuntime {
+  return new ApplicationRuntime(model, {
+    storage: new IndexedDbObjectStorageBackend({
+      databaseName: GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
+    }),
+  });
+}
+
+export {
+  createBandReferenceModel,
+  createGiggleBandExampleModel,
+  seedBandReferenceRuntime,
+  seedBandReferenceRuntimeIfEmpty,
+};
 
 export async function seedBrowserDemoRuntime(
   runtime: ApplicationRuntime,

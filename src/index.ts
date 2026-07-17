@@ -1,4 +1,5 @@
 export * from "./compiler/compile-adl.js";
+export * from "./compiler/compile-adl-project.js";
 export * from "./compiler/resolve-model.js";
 export * from "./compiler/validate-model.js";
 export * from "./conformance/runner.js";

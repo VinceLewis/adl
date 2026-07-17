@@ -10,11 +10,15 @@ import type {
   RuntimeChannel,
   SyncMode,
   SyncScope,
+  ContextSelectionMode,
+  ContextSelectionPersistence,
+  ContextSelectionSource,
   ThemeDensity,
   ThemeNav,
   ThemeRadius,
   ValidatorKind,
   ViewKind,
+  ViewContextMode,
 } from "../model/resolved-model.js";
 
 export interface SourcePosition {
@@ -51,6 +55,7 @@ export interface AdlDocumentAst {
   kind: "AdlDocument";
   app: AppDeclarationAst;
   roles: RoleDeclarationAst[];
+  contexts: BusinessContextDeclarationAst[];
   objects: ObjectDeclarationAst[];
   readModels: ReadModelDeclarationAst[];
   decisionTables: DecisionTableDeclarationAst[];
@@ -78,6 +83,31 @@ export interface RoleDeclarationAst {
   range: SourceRange;
 }
 
+export interface BusinessContextDeclarationAst {
+  kind: "BusinessContextDeclaration";
+  name: string;
+  object?: string;
+  selection?: ContextSelectionDeclarationAst;
+  membership?: ContextMembershipDeclarationAst;
+  range: SourceRange;
+}
+
+export interface ContextSelectionDeclarationAst {
+  mode?: ContextSelectionMode;
+  autoSelect?: boolean;
+  persistence?: ContextSelectionPersistence;
+  source?: ContextSelectionSource;
+  routeParam?: string;
+}
+
+export interface ContextMembershipDeclarationAst {
+  object: string;
+  userField: string;
+  contextField: string;
+  roleField: string;
+  roles: string[];
+}
+
 export interface ObjectDeclarationAst {
   kind: "ObjectDeclaration";
   name: string;
@@ -85,12 +115,43 @@ export interface ObjectDeclarationAst {
   displayField?: string;
   fields: FieldDeclarationAst[];
   computedFields: ComputedFieldDeclarationAst[];
+  scope?: ObjectScopeDeclarationAst;
+  constraints: ObjectConstraintDeclarationAst[];
   validations: ObjectValidationDeclarationAst[];
   lifecycle?: LifecycleDeclarationAst;
   views: ViewDeclarationAst[];
   sync?: SyncDeclarationAst;
   policyRefs: string[];
   end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface ObjectScopeDeclarationAst {
+  kind: "ObjectScopeDeclaration";
+  context: string;
+  field: string;
+  range: SourceRange;
+}
+
+export type ObjectConstraintDeclarationAst =
+  | UniqueObjectConstraintDeclarationAst
+  | OrderedObjectConstraintDeclarationAst;
+
+export interface UniqueObjectConstraintDeclarationAst {
+  kind: "UniqueObjectConstraintDeclaration";
+  name: string;
+  fields: string[];
+  scopeFields: string[];
+  range: SourceRange;
+}
+
+export interface OrderedObjectConstraintDeclarationAst {
+  kind: "OrderedObjectConstraintDeclaration";
+  name: string;
+  parentField: string;
+  positionField: string;
+  scopeFields: string[];
+  minPosition?: number;
   range: SourceRange;
 }
 
@@ -206,12 +267,19 @@ export interface ViewDeclarationAst {
   kind: "ViewDeclaration";
   name: string;
   viewKind: ViewKind;
+  context?: ViewContextDeclarationAst;
+  readModel?: string;
   fields: string[];
   searchFields: string[];
   sort: SortDeclarationAst[];
   actions: string[];
   end: EndMarkerNode;
   range: SourceRange;
+}
+
+export interface ViewContextDeclarationAst {
+  mode: ViewContextMode;
+  context?: string;
 }
 
 export interface SortDeclarationAst {
@@ -224,6 +292,7 @@ export interface SortDeclarationAst {
 export interface ReadModelDeclarationAst {
   kind: "ReadModelDeclaration";
   name: string;
+  context?: ViewContextDeclarationAst;
   sources: ReadModelSourceDeclarationAst[];
   fields: ReadModelFieldDeclarationAst[];
   sort: SortDeclarationAst[];

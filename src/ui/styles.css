@@ -360,6 +360,10 @@ button:disabled {
   font-weight: 650;
 }
 
+.adl-required-marker {
+  color: var(--adl-color-danger);
+}
+
 .adl-field-badge {
   color: var(--adl-color-text-muted);
   font-size: 12px;
@@ -368,6 +372,23 @@ button:disabled {
 .adl-field-control {
   box-sizing: border-box;
   width: 100%;
+}
+
+input.adl-field-control[type="date"],
+input.adl-field-control[type="datetime-local"],
+input.adl-field-control[type="time"] {
+  padding-left: 34px;
+  padding-right: 10px;
+  position: relative;
+}
+
+input.adl-field-control[type="date"]::-webkit-calendar-picker-indicator,
+input.adl-field-control[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input.adl-field-control[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  left: 10px;
+  margin: 0;
+  position: absolute;
 }
 
 textarea.adl-field-control {

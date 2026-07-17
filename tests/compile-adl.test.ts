@@ -6,6 +6,7 @@ import {
   PolicyDeniedError,
   RuntimeValidationError,
   compileAdl,
+  compileAdlProject,
   validateApplicationModel,
 } from "../src/index.js";
 import type { RuntimeContext } from "../src/index.js";
@@ -480,8 +481,105 @@ END.OBJECT
       ]),
     );
   });
+
+  it("compiles the Giggle Band ADL reference app from app.yaml into the runtime model", async () => {
+    const result = compileAdlProject({
+      manifestSource: readReference("giggle-band/app.yaml"),
+      sources: {
+        "domain.adl": readReference("giggle-band/domain.adl"),
+      },
+    });
+
+    expect(result.manifest).toMatchObject({
+      name: "Giggle Band ADL Example",
+      id: "giggle-band",
+      sources: ["domain.adl"],
+    });
+    expect(result.diagnostics).toEqual([]);
+    expect(validateApplicationModel(result.model)).toEqual([]);
+    expect(result.model.app).toEqual({
+      name: "Giggle Band ADL Example",
+      theme: "CorporateLight",
+      startView: "HomeDashboard",
+    });
+    expect(result.model.contexts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "Band",
+          object: "Band",
+          membership: expect.objectContaining({
+            object: "BandMember",
+            userField: "User",
+            contextField: "Band",
+            roleField: "Role",
+            roles: ["BandAdmin", "BandMember"],
+          }),
+        }),
+      ]),
+    );
+    expect(result.model.objects.find((object) => object.name === "SetListItem")).toMatchObject({
+      scope: { context: "Band", field: "Band" },
+      constraints: [
+        expect.objectContaining({
+          name: "orderedSetListItems",
+          kind: "ordered",
+          parentField: "SetList",
+          positionField: "Position",
+        }),
+      ],
+    });
+    expect(result.model.readModels?.map((readModel) => readModel.name)).toEqual(
+      expect.arrayContaining(["HomeUpcomingEvents", "SetListItemsByPosition"]),
+    );
+    expect(result.model.commands?.map((command) => command.name)).toContain("AcceptBandInvitation");
+
+    const runtime = new ApplicationRuntime(result.model);
+    const systemContext: RuntimeContext = {
+      userId: "band-reference-system",
+      roles: ["SystemAdmin"],
+      channel: "api",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const musician = await runtime.create(
+      "User",
+      { Name: "Casey Morgan", Email: "casey@example.com" },
+      systemContext,
+    );
+    const band = await runtime.create("Band", { Name: "The Alphas" }, systemContext);
+    const bandContext: RuntimeContext = {
+      ...systemContext,
+      selectedContexts: { Band: band.meta.guid },
+    };
+
+    await runtime.create(
+      "BandMember",
+      { User: musician.meta.guid, Band: band.meta.guid, Role: "BandAdmin" },
+      bandContext,
+    );
+    const song = await runtime.create(
+      "Song",
+      { Band: band.meta.guid, Title: "Neon Map" },
+      bandContext,
+    );
+    const setList = await runtime.create(
+      "SetList",
+      { Band: band.meta.guid, Name: "August headline" },
+      bandContext,
+    );
+    const item = await runtime.create(
+      "SetListItem",
+      { Band: band.meta.guid, SetList: setList.meta.guid, Song: song.meta.guid, Position: 1 },
+      bandContext,
+    );
+
+    expect(item.values.Position).toBe(1);
+  });
 });
 
 function readExample(name: string): string {
   return readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
+}
+
+function readReference(name: string): string {
+  return readFileSync(new URL(`../src/reference/${name}`, import.meta.url), "utf8");
 }

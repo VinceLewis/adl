@@ -1,0 +1,10 @@
+name: Giggle Band ADL Example
+id: giggle-band
+version: 0.1.0
+startView: HomeDashboard
+
+sources:
+  - domain.adl
+
+demo:
+  route: giggle-band

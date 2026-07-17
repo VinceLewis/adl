@@ -11,6 +11,15 @@ Read this before changing browser UI components, runtime/UI policy integration, 
 - `adl-app` coordinates model, runtime, selected object, selected record, messages, and runtime commands. Data operations call `ApplicationRuntime`; components do not write store state directly.
 - Field presentation is resolved in `src/ui/policy-presentation.ts` through the shared runtime `policyEngine`. Edit mode combines read policy and write policy so fields can be masked, hidden, or readonly. Create mode does not apply read masking to empty forms, otherwise required masked fields would become impossible to enter.
 - Lifecycle action buttons are filtered by both current state and transition policy before rendering.
+- Lifecycle action labels are disambiguated in the form action bar when they
+  collide with built-in form command labels, so a model action such as
+  `cancel` can remain a business lifecycle transition while the form command
+  remains a navigation/discard action.
+- Lifecycle action clicks from an edit form include pending form values; the app
+  saves those values first and then runs the lifecycle transition.
+- Form save actions stay enabled when required fields are incomplete. Runtime
+  validation remains authoritative; the browser UI preserves draft values and
+  renders field-level validation issues after a failed save.
 - Existing resolved theme tokens are applied by `adl-app` as CSS custom properties. Phase 5 should extend this foundation rather than replacing the UI styling path.
 - UI tests use `happy-dom` with Vitest. They cover rendered workflows and direct runtime bypass enforcement for the same policy used by the UI.
 
@@ -19,3 +28,4 @@ Read this before changing browser UI components, runtime/UI policy integration, 
 - Keep UI behavior generic over `ResolvedObject` and `ResolvedView`; do not add per-object component forks.
 - Add new UI workflows through `ApplicationRuntime` first, then expose presentation decisions through the same policy engine.
 - When policy presentation blocks a field, make the UI skip that field in save patches so masked or readonly display values are not written back accidentally.
+- Proposed presentation-language constructs for richer composed screens are documented separately in `docs/spec/ui-language-addendum.md`. Treat that file as UI design direction until parser, resolved-model, and runtime support are implemented.

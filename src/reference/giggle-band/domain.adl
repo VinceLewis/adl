@@ -1,0 +1,416 @@
+APP 'Giggle Band ADL Example'
+  THEME CorporateLight
+  START_VIEW HomeDashboard
+END.APP
+
+ROLE SystemAdmin
+ROLE BandMember
+ROLE BandAdmin INHERITS BandMember
+
+CONTEXT User OBJECT User SELECTION REQUIRED
+CONTEXT Band OBJECT Band SELECTION OPTIONAL AUTO_SELECT false PERSISTENCE local MEMBERSHIP BandMember USER User CONTEXT_FIELD Band ROLE_FIELD Role ROLES BandAdmin BandMember
+
+OBJECT User
+  KEY Email
+  DISPLAY Name
+  FIELD Name TEXT REQUIRED
+  FIELD Email TEXT REQUIRED EMAIL
+  FIELD ProfilePicture ATTACHMENT
+  SYNC LOCAL_FIRST SCOPE currentUser
+
+  VIEW UserProfileList LIST
+    FIELDS Name Email
+    SEARCH Name Email
+    ACTIONS read search
+  END.VIEW
+END.OBJECT
+
+OBJECT Band
+  DISPLAY Name
+  FIELD Name TEXT REQUIRED
+  FIELD Description TEXT
+  FIELD Biography TEXT
+  SYNC LOCAL_FIRST SCOPE allAvailableContexts
+
+  VIEW BandDirectory LIST
+    CONTEXT ALL Band
+    FIELDS Name Description
+    SEARCH Name
+    ACTIONS read search
+  END.VIEW
+
+  VIEW BandProfile FORM
+    CONTEXT REQUIRED Band
+    FIELDS Name Description Biography
+    ACTIONS save delete
+  END.VIEW
+END.OBJECT
+
+OBJECT BandMember
+  SCOPE Band FIELD Band
+  CONSTRAINT uniqueBandMemberUser UNIQUE SCOPE Band FIELDS User
+  FIELD User TEXT REQUIRED LOOKUP User DISPLAY Name
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD Role TEXT REQUIRED IN ('BandAdmin', 'BandMember')
+  FIELD JoinedAt DATE
+  SYNC LOCAL_FIRST SCOPE allAvailableContexts
+
+  VIEW BandMemberList LIST
+    CONTEXT REQUIRED Band
+    FIELDS User Role JoinedAt
+    SEARCH Role
+    ACTIONS read search
+  END.VIEW
+END.OBJECT
+
+OBJECT BandInvitation
+  SCOPE Band FIELD Band
+  CONSTRAINT uniqueBandInvitationEmail UNIQUE SCOPE Band FIELDS InviteeEmail
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD Inviter TEXT REQUIRED LOOKUP User DISPLAY Name
+  FIELD Invitee TEXT LOOKUP User DISPLAY Name
+  FIELD InviteeEmail TEXT REQUIRED EMAIL
+  FIELD Role TEXT REQUIRED DEFAULT BandMember IN ('BandMember')
+  FIELD Status TEXT REQUIRED DEFAULT Pending IN ('Pending', 'Accepted', 'Declined')
+  FIELD SentAt DATE
+  FIELD RespondedAt DATE
+  VALIDATE respondedAtRequiredAfterResponse Status == 'Pending' OR RespondedAt != NULL MESSAGE 'RespondedAt is required when an invitation is accepted or declined.'
+  SYNC ONLINE_REQUIRED SCOPE currentContext
+
+  VIEW BandInvitationList LIST
+    CONTEXT REQUIRED Band
+    FIELDS InviteeEmail Role Status SentAt
+    SEARCH InviteeEmail Status
+    ACTIONS create read update delete
+  END.VIEW
+END.OBJECT
+
+OBJECT Event
+  DISPLAY Title
+  SCOPE Band FIELD Band
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD EventType TEXT REQUIRED DEFAULT Gig IN ('Gig', 'Rehearsal')
+  FIELD Date DATE REQUIRED
+  FIELD StartTime TIME
+  FIELD EndTime TIME
+  FIELD Title TEXT REQUIRED
+  FIELD VenueName TEXT
+  FIELD VenueLocation TEXT
+  FIELD Notes TEXT
+  SYNC LOCAL_FIRST SCOPE currentContext
+
+  VIEW HomeDashboard DASHBOARD
+    CONTEXT ALL Band
+    READ_MODEL HomeUpcomingEvents
+    FIELDS EventDate StartTime EventType Title VenueName BandName
+    SORT EventDate ASC StartTime ASC
+    ACTIONS read search
+  END.VIEW
+
+  VIEW BandEventList LIST
+    CONTEXT REQUIRED Band
+    FIELDS Date StartTime EventType Title VenueName
+    SEARCH Title VenueName EventType
+    SORT Date ASC StartTime ASC
+    ACTIONS create read update delete
+  END.VIEW
+
+  VIEW BandEventForm FORM
+    CONTEXT REQUIRED Band
+    FIELDS EventType Date StartTime EndTime Title VenueName VenueLocation Notes
+    ACTIONS save delete
+  END.VIEW
+END.OBJECT
+
+OBJECT Availability
+  DISPLAY Date
+  CONSTRAINT uniqueUserAvailabilityDate UNIQUE SCOPE User FIELDS Date
+  FIELD User TEXT REQUIRED LOOKUP User DISPLAY Name
+  FIELD Date DATE REQUIRED
+  FIELD Status TEXT REQUIRED IN ('Available', 'Unavailable')
+  FIELD Notes TEXT
+  SYNC LOCAL_FIRST SCOPE currentUser
+
+  VIEW MyAvailabilityList LIST
+    FIELDS Date Status Notes
+    SEARCH Status Notes
+    SORT Date ASC
+    ACTIONS create read update delete
+  END.VIEW
+END.OBJECT
+
+OBJECT Song
+  DISPLAY Title
+  SCOPE Band FIELD Band
+  CONSTRAINT uniqueSongTitleInBand UNIQUE SCOPE Band FIELDS Title
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD Title TEXT REQUIRED
+  FIELD Composer TEXT
+  FIELD DurationSeconds NUMBER MIN 0
+  FIELD Notes TEXT
+  SYNC LOCAL_FIRST SCOPE currentContext
+
+  VIEW SongLibrary LIST
+    CONTEXT REQUIRED Band
+    FIELDS Title Composer DurationSeconds
+    SEARCH Title Composer
+    ACTIONS create read update delete
+  END.VIEW
+END.OBJECT
+
+OBJECT SetList
+  DISPLAY Name
+  SCOPE Band FIELD Band
+  CONSTRAINT uniqueSetListNameInBand UNIQUE SCOPE Band FIELDS Name
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD Name TEXT REQUIRED
+  FIELD Description TEXT
+  FIELD CreatedBy TEXT LOOKUP User DISPLAY Name
+  SYNC LOCAL_FIRST SCOPE currentContext
+
+  VIEW SetListList LIST
+    CONTEXT REQUIRED Band
+    FIELDS Name Description
+    SEARCH Name
+    ACTIONS create read update delete
+  END.VIEW
+END.OBJECT
+
+OBJECT SetListItem
+  SCOPE Band FIELD Band
+  CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name
+  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
+  FIELD Position NUMBER REQUIRED MIN 1
+  FIELD Notes TEXT
+  SYNC LOCAL_FIRST SCOPE currentContext
+
+  VIEW SetListItemList LIST
+    CONTEXT REQUIRED Band
+    FIELDS SetList Position Song Notes
+    SEARCH Notes
+    SORT Position ASC
+    ACTIONS create read update delete
+  END.VIEW
+
+  VIEW SetListByPosition DASHBOARD
+    CONTEXT REQUIRED Band
+    READ_MODEL SetListItemsByPosition
+    FIELDS Position SongTitle SetListName DurationSeconds
+    SORT Position ASC
+    ACTIONS read search
+  END.VIEW
+END.OBJECT
+
+OBJECT StreamingLink
+  SCOPE Band FIELD Band
+  CONSTRAINT uniqueStreamingPlatformForSong UNIQUE SCOPE Song FIELDS Platform
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
+  FIELD Platform TEXT REQUIRED IN ('YouTube', 'Spotify', 'Apple Music', 'SoundCloud', 'Bandcamp', 'Other')
+  FIELD Url TEXT REQUIRED REGEXP '^https?://'
+  SYNC CACHE_READONLY SCOPE currentContext
+
+  VIEW StreamingLinkList LIST
+    CONTEXT REQUIRED Band
+    FIELDS Song Platform Url
+    SEARCH Platform Url
+    ACTIONS read search
+  END.VIEW
+END.OBJECT
+
+OBJECT DevicePreference
+  DISPLAY LastOpenedView
+  FIELD User TEXT REQUIRED LOOKUP User DISPLAY Name
+  FIELD SelectedBand TEXT LOOKUP Band DISPLAY Name
+  FIELD LastOpenedView TEXT
+  FIELD OfflineHomeLimit NUMBER DEFAULT 30 MIN 1
+  SYNC LOCAL_PRIVATE SCOPE currentUser
+
+  VIEW DevicePreferenceList LIST
+    FIELDS SelectedBand LastOpenedView OfflineHomeLimit
+    SEARCH LastOpenedView
+    ACTIONS create read update delete
+  END.VIEW
+END.OBJECT
+
+READ_MODEL HomeUpcomingEvents
+  CONTEXT ALL Band
+  SOURCE event OBJECT Event SCOPE allAvailableContexts
+  SOURCE band OBJECT Band SCOPE allAvailableContexts
+  FIELD EventDate FROM event.Date
+  FIELD StartTime FROM event.StartTime
+  FIELD EventType FROM event.EventType
+  FIELD Title FROM event.Title
+  FIELD VenueName FROM event.VenueName
+  FIELD BandName FROM band.Name
+  SORT EventDate ASC StartTime ASC
+END.READ_MODEL
+
+READ_MODEL SetListItemsByPosition
+  CONTEXT REQUIRED Band
+  SOURCE item OBJECT SetListItem SCOPE currentContext
+  SOURCE setList OBJECT SetList SCOPE currentContext
+  SOURCE song OBJECT Song SCOPE currentContext
+  FIELD Position FROM item.Position
+  FIELD SetListName FROM setList.Name
+  FIELD SongTitle FROM song.Title
+  FIELD DurationSeconds FROM song.DurationSeconds
+  SORT Position ASC
+END.READ_MODEL
+
+READ_MODEL CurrentUserAvailability
+  SOURCE availability OBJECT Availability SCOPE currentUser
+  SOURCE user OBJECT User SCOPE currentUser
+  FIELD AvailabilityDate FROM availability.Date
+  FIELD Status FROM availability.Status
+  FIELD UserName FROM user.Name
+  SORT AvailabilityDate ASC
+END.READ_MODEL
+
+COMMAND AcceptBandInvitation LABEL 'Accept invitation'
+  INPUT Invitation TEXT REQUIRED
+  STEP acceptInvitation UPDATE BandInvitation ID INPUT Invitation
+    VALUE Status LITERAL Accepted
+    VALUE RespondedAt RUNTIME today
+    REQUIRE Invitee == runtime.userId
+    REQUIRE Status == 'Pending'
+  END.STEP
+
+  STEP createMembership CREATE BandMember AUTHORITY command
+    VALUE User RUNTIME userId
+    VALUE Band STEP acceptInvitation FIELD Band
+    VALUE Role STEP acceptInvitation FIELD Role
+    VALUE JoinedAt RUNTIME today
+  END.STEP
+END.COMMAND
+
+POLICY UserSystemAdminPolicy ON User
+  RULE allowSystemAdminAllUserOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY BandSystemAdminPolicy ON Band
+  RULE allowSystemAdminAllBandOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY BandMemberSystemAdminPolicy ON BandMember
+  RULE allowSystemAdminAllBandMemberOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY BandInvitationSystemAdminPolicy ON BandInvitation
+  RULE allowSystemAdminAllBandInvitationOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY EventSystemAdminPolicy ON Event
+  RULE allowSystemAdminAllEventOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY AvailabilitySystemAdminPolicy ON Availability
+  RULE allowSystemAdminAllAvailabilityOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY SongSystemAdminPolicy ON Song
+  RULE allowSystemAdminAllSongOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY SetListSystemAdminPolicy ON SetList
+  RULE allowSystemAdminAllSetListOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY SetListItemSystemAdminPolicy ON SetListItem
+  RULE allowSystemAdminAllSetListItemOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY StreamingLinkSystemAdminPolicy ON StreamingLink
+  RULE allowSystemAdminAllStreamingLinkOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY DevicePreferenceSystemAdminPolicy ON DevicePreference
+  RULE allowSystemAdminAllDevicePreferenceOps ALLOW * ROLE SystemAdmin
+END.POLICY
+
+POLICY UserPolicy ON User
+  RULE allowBandMemberSearchUsers ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadUsers ALLOW READ ROLE BandMember
+END.POLICY
+
+POLICY BandPolicy ON Band
+  RULE allowBandMemberSearchBands ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadBand ALLOW READ ROLE BandMember
+  RULE allowBandAdminUpdateBand ALLOW UPDATE ROLE BandAdmin
+  RULE allowBandAdminDeleteBand ALLOW DELETE ROLE BandAdmin
+END.POLICY
+
+POLICY BandMemberPolicy ON BandMember
+  RULE allowBandMemberSearchMembers ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadMembers ALLOW READ ROLE BandMember
+  RULE allowAuthenticatedReadOwnMembership ALLOW READ AUTHENTICATED WHEN User == runtime.userId
+  RULE allowBandAdminCreateMembers ALLOW CREATE ROLE BandAdmin
+  RULE allowBandAdminUpdateMembers ALLOW UPDATE ROLE BandAdmin
+  RULE allowBandAdminDeleteMembers ALLOW DELETE ROLE BandAdmin
+END.POLICY
+
+POLICY BandInvitationPolicy ON BandInvitation
+  RULE allowBandAdminCreateInvitations ALLOW CREATE ROLE BandAdmin
+  RULE allowBandAdminReadInvitations ALLOW READ ROLE BandAdmin
+  RULE allowInviteeReadOwnInvitation ALLOW READ AUTHENTICATED WHEN Invitee == runtime.userId
+  RULE allowBandAdminSearchInvitations ALLOW SEARCH ROLE BandAdmin
+  RULE allowBandAdminUpdateInvitations ALLOW UPDATE ROLE BandAdmin
+  RULE allowInviteeAcceptInvitation ALLOW UPDATE AUTHENTICATED WHEN Invitee == runtime.userId AND Status == 'Accepted'
+  RULE denyInviteeIdentityInvitationUpdates DENY UPDATE FIELDS Band Inviter Invitee InviteeEmail 'Role' AUTHENTICATED WHEN Invitee == runtime.userId AND Status == 'Accepted'
+  RULE allowBandAdminDeleteInvitations ALLOW DELETE ROLE BandAdmin
+END.POLICY
+
+POLICY EventPolicy ON Event
+  RULE allowBandMemberSearchEvents ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadEvents ALLOW READ ROLE BandMember
+  RULE allowBandAdminCreateEvents ALLOW CREATE ROLE BandAdmin
+  RULE allowBandAdminUpdateEvents ALLOW UPDATE ROLE BandAdmin
+  RULE allowBandAdminDeleteEvents ALLOW DELETE ROLE BandAdmin
+END.POLICY
+
+POLICY AvailabilityPolicy ON Availability
+  RULE allowAuthenticatedSearchAvailability ALLOW SEARCH AUTHENTICATED
+  RULE allowAuthenticatedCreateAvailability ALLOW CREATE AUTHENTICATED WHEN User == runtime.userId
+  RULE allowAvailabilityOwnerRead ALLOW READ AUTHENTICATED WHEN User == runtime.userId
+  RULE allowAvailabilityOwnerUpdate ALLOW UPDATE AUTHENTICATED WHEN User == runtime.userId
+  RULE allowAvailabilityOwnerDelete ALLOW DELETE AUTHENTICATED WHEN User == runtime.userId
+END.POLICY
+
+POLICY SongPolicy ON Song
+  RULE allowBandMemberSearchSongs ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadSongs ALLOW READ ROLE BandMember
+  RULE allowBandAdminCreateSongs ALLOW CREATE ROLE BandAdmin
+  RULE allowBandAdminUpdateSongs ALLOW UPDATE ROLE BandAdmin
+  RULE allowBandAdminDeleteSongs ALLOW DELETE ROLE BandAdmin
+END.POLICY
+
+POLICY SetListPolicy ON SetList
+  RULE allowBandMemberSearchSetLists ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadSetLists ALLOW READ ROLE BandMember
+  RULE allowBandAdminCreateSetLists ALLOW CREATE ROLE BandAdmin
+  RULE allowBandAdminUpdateSetLists ALLOW UPDATE ROLE BandAdmin
+  RULE allowBandAdminDeleteSetLists ALLOW DELETE ROLE BandAdmin
+END.POLICY
+
+POLICY SetListItemPolicy ON SetListItem
+  RULE allowBandMemberSearchSetListItems ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadSetListItems ALLOW READ ROLE BandMember
+  RULE allowBandAdminCreateSetListItemsWithPosition ALLOW CREATE ROLE BandAdmin
+  RULE allowBandAdminUpdateSetListItems ALLOW UPDATE ROLE BandAdmin
+  RULE allowBandAdminDeleteSetListItems ALLOW DELETE ROLE BandAdmin
+END.POLICY
+
+POLICY StreamingLinkPolicy ON StreamingLink
+  RULE allowBandMemberSearchStreamingLinks ALLOW SEARCH ROLE BandMember
+  RULE allowBandMemberReadStreamingLinks ALLOW READ ROLE BandMember
+END.POLICY
+
+POLICY DevicePreferencePolicy ON DevicePreference
+  RULE allowAuthenticatedSearchDevicePreferences ALLOW SEARCH AUTHENTICATED
+  RULE allowAuthenticatedCreateDevicePreferences ALLOW CREATE AUTHENTICATED
+  RULE allowDevicePreferenceOwnerRead ALLOW READ OWNER
+  RULE allowDevicePreferenceOwnerUpdate ALLOW UPDATE OWNER
+  RULE allowDevicePreferenceOwnerDelete ALLOW DELETE OWNER
+END.POLICY

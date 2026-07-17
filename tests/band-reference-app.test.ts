@@ -11,6 +11,7 @@ import {
   bandReferenceSystemContext,
   createBandReferenceModel,
   createBandReferenceRuntime,
+  createGiggleBandExampleModel,
   contextForBand,
   seedBandReferenceRuntime,
 } from "../src/reference/band-app.js";
@@ -94,6 +95,17 @@ describe("band reference app model", () => {
       mode: "localPrivate",
       scope: "currentUser",
     });
+  });
+
+  it("exposes the Giggle Band example as the same ADL model with an example app identity", () => {
+    const model = createGiggleBandExampleModel();
+
+    expect(validateApplicationModel(model)).toEqual([]);
+    expect(model.app.name).toBe("Giggle Band ADL Example");
+    expect(model.app.startView).toBe("HomeDashboard");
+    expect(model.objects.map((object) => object.name)).toEqual(
+      expect.arrayContaining(["Band", "Event", "Song", "SetList", "SetListItem"]),
+    );
   });
 });
 
@@ -510,12 +522,262 @@ describe("band reference browser demo", () => {
     await app.whenReady();
     await flushUi();
 
-    expect(app.textContent).toContain("Band Reference");
+    expect(app.textContent).toContain("Giggle Band ADL Example");
     expect(app.querySelector("adl-dashboard-view")).not.toBeNull();
     expect(app.textContent).toContain("Canal Street headline");
     expect(app.textContent).toContain("New set rehearsal");
     expect(app.textContent).toContain("The Alphas");
     expect(app.textContent).toContain("The Betas");
+  });
+
+  it("renders lookup choices for set-list item creation in the generic browser form", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const thirdSong = await seeded.runtime.create(
+      "Song",
+      {
+        Band: seeded.firstBand.meta.guid,
+        Title: "Glass Arcade",
+        Composer: "The Alphas",
+        DurationSeconds: 201,
+      },
+      seeded.firstBandContext,
+    );
+    const thirdItem = await seeded.runtime.create(
+      "SetListItem",
+      {
+        Band: seeded.firstBand.meta.guid,
+        SetList: seeded.firstSetList.meta.guid,
+        Song: thirdSong.meta.guid,
+        Position: 3,
+      },
+      seeded.firstBandContext,
+    );
+    const app = document.createElement("adl-app") as AdlAppElement;
+    app.model = seeded.model;
+    app.runtime = seeded.runtime;
+    app.context = {
+      ...seeded.firstBandContext,
+      channel: "ui",
+    };
+
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
+    viewSelector.value = "SetListItemList";
+    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+    await waitForText(app, "Glass Arcade");
+
+    const rows = [...app.querySelectorAll("adl-list-view tbody tr")];
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      expect.stringContaining("Neon Map"),
+      expect.stringContaining("Late Signal"),
+      expect.stringContaining("Glass Arcade"),
+    ]);
+    expect(app.textContent).toContain("August headline");
+    expect(app.textContent).not.toContain(seeded.firstSong.meta.guid);
+    expect(app.textContent).not.toContain(seeded.firstSetList.meta.guid);
+    expect(app.textContent).not.toContain(thirdItem.values.Song);
+
+    requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
+    await flushUi();
+    await flushUi();
+
+    const setList = requireElement<HTMLSelectElement>(
+      app,
+      "adl-field-renderer[data-field-name='SetList'] select",
+    );
+    const song = requireElement<HTMLSelectElement>(
+      app,
+      "adl-field-renderer[data-field-name='Song'] select",
+    );
+
+    expect([...setList.options].map((option) => option.textContent?.trim())).toContain(
+      "August headline",
+    );
+    expect([...song.options].map((option) => option.textContent?.trim())).toEqual(
+      expect.arrayContaining(["Neon Map", "Late Signal"]),
+    );
+  });
+
+  it("renders event records as plain save/delete forms without lifecycle actions", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const app = document.createElement("adl-app") as AdlAppElement;
+    app.model = seeded.model;
+    app.runtime = seeded.runtime;
+    app.context = {
+      ...seeded.firstBandContext,
+      channel: "ui",
+    };
+
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
+    viewSelector.value = "BandEventList";
+    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+    await waitForText(app, "Canal Street headline");
+
+    const actionLabels = [...app.querySelectorAll("adl-action-bar button")].map((button) =>
+      button.textContent?.trim(),
+    );
+
+    expect(actionLabels).toEqual(["Save", "Delete", "Cancel"]);
+    expect(app.querySelector("adl-field-renderer[data-field-name='Status']")).toBeNull();
+    expect(app.querySelector("button[data-action-kind='lifecycle']")).toBeNull();
+    expect(
+      requireElement<HTMLButtonElement>(
+        app,
+        "button[data-action-name='cancel'][data-action-kind='command']",
+      ).textContent?.trim(),
+    ).toBe("Cancel");
+  });
+
+  it("keeps new event draft values and shows inline validation after save", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const app = document.createElement("adl-app") as AdlAppElement;
+    app.model = seeded.model;
+    app.runtime = seeded.runtime;
+    app.context = {
+      ...seeded.firstBandContext,
+      channel: "ui",
+    };
+
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
+    viewSelector.value = "BandEventList";
+    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+
+    requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
+    await flushUi();
+
+    expect(
+      requireElement<HTMLLabelElement>(
+        app,
+        "adl-field-renderer[data-field-name='Title'] label",
+      ).textContent?.trim(),
+    ).toBe("Title *");
+    expect(
+      requireElement<HTMLLabelElement>(
+        app,
+        "adl-field-renderer[data-field-name='EventType'] label",
+      ).textContent?.trim(),
+    ).toBe("Event Type");
+    expect(
+      requireElement<HTMLElement>(app, "adl-field-renderer[data-field-name='Title']").textContent,
+    ).not.toContain("Required");
+    expect(requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").disabled).toBe(
+      false,
+    );
+
+    const eventType = requireElement<HTMLSelectElement>(
+      app,
+      "adl-field-renderer[data-field-name='EventType'] select",
+    );
+    const date = requireElement<HTMLInputElement>(
+      app,
+      "adl-field-renderer[data-field-name='Date'] input",
+    );
+    const venue = requireElement<HTMLInputElement>(
+      app,
+      "adl-field-renderer[data-field-name='VenueName'] input",
+    );
+
+    eventType.value = "Rehearsal";
+    eventType.dispatchEvent(new Event("change", { bubbles: true }));
+    date.value = "2026-09-03";
+    date.dispatchEvent(new Event("input", { bubbles: true }));
+    venue.value = "Practice Room";
+    venue.dispatchEvent(new Event("input", { bubbles: true }));
+    await flushUi();
+
+    const save = requireElement<HTMLButtonElement>(app, "button[data-action-name='save']");
+    expect(save.disabled).toBe(false);
+    save.click();
+    await flushUi();
+
+    expect(app.textContent).toContain("Record for object 'Event' is invalid.");
+    expect(
+      requireElement<HTMLElement>(app, "adl-field-renderer[data-field-name='Title']").textContent,
+    ).toContain("Field 'Title' is required on object 'Event'.");
+    expect(
+      requireElement<HTMLSelectElement>(
+        app,
+        "adl-field-renderer[data-field-name='EventType'] select",
+      ).value,
+    ).toBe("Rehearsal");
+    expect(
+      requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='Date'] input")
+        .value,
+    ).toBe("2026-09-03");
+    expect(
+      requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='VenueName'] input")
+        .value,
+    ).toBe("Practice Room");
+
+    const title = requireElement<HTMLInputElement>(
+      app,
+      "adl-field-renderer[data-field-name='Title'] input",
+    );
+    title.value = "Wednesday rehearsal";
+    title.dispatchEvent(new Event("input", { bubbles: true }));
+    await flushUi();
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+
+    expect(app.textContent).toContain("Event created.");
+    await waitForText(app, "Wednesday rehearsal");
+  });
+
+  it("renders finite IN validators as select controls in generic forms", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const app = document.createElement("adl-app") as AdlAppElement;
+    app.model = seeded.model;
+    app.runtime = seeded.runtime;
+    app.context = {
+      ...seeded.firstBandContext,
+      channel: "ui",
+    };
+
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
+    viewSelector.value = "BandInvitationList";
+    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+
+    requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
+    await flushUi();
+    await flushUi();
+
+    const role = requireElement<HTMLSelectElement>(
+      app,
+      "adl-field-renderer[data-field-name='Role'] select",
+    );
+    const status = requireElement<HTMLSelectElement>(
+      app,
+      "adl-field-renderer[data-field-name='Status'] select",
+    );
+
+    expect([...role.options].map((option) => option.value)).toEqual(["", "BandMember"]);
+    expect([...status.options].map((option) => option.value)).toEqual([
+      "",
+      "Pending",
+      "Accepted",
+      "Declined",
+    ]);
   });
 });
 
@@ -527,4 +789,24 @@ async function createSeededBandReferenceRuntime() {
 async function flushUi(): Promise<void> {
   await Promise.resolve();
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function waitForText(root: ParentNode, text: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await flushUi();
+    if (root.textContent?.includes(text) === true) {
+      return;
+    }
+  }
+
+  expect(root.textContent).toContain(text);
+}
+
+function requireElement<T extends Element>(root: ParentNode, selector: string): T {
+  const element = root.querySelector<T>(selector);
+  if (element === null) {
+    throw new Error(`Missing element for selector: ${selector}`);
+  }
+
+  return element;
 }

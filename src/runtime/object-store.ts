@@ -32,6 +32,7 @@ import type {
   RuntimeContext,
   RuntimeLogger,
   RuntimeSearchInput,
+  RuntimeSearchQuery,
   RuntimeValidationIssue,
 } from "./runtime-types.js";
 import type { SyncPolicyService } from "./sync-policy-service.js";
@@ -336,10 +337,11 @@ export class ObjectStore {
     const scopedRecords = records.filter((record) =>
       recordMatchesObjectScope(this.index, objectName, record, context),
     );
+    const sortedRecords = sortRecords(scopedRecords, searchQuery.sort);
     const limited =
       searchQuery.limit === undefined || searchQuery.limit < 0
-        ? scopedRecords
-        : scopedRecords.slice(0, searchQuery.limit);
+        ? sortedRecords
+        : sortedRecords.slice(0, searchQuery.limit);
 
     const shaped = limited.map((record) =>
       this.policyEngine.applyReadPolicy(
@@ -741,6 +743,46 @@ function stateProperty(currentState: string | undefined): { currentState: string
 
 function hasComputedField(object: ResolvedObject, fieldName: string): boolean {
   return object.computedFields.some((field) => field.name === fieldName);
+}
+
+function sortRecords(
+  records: StoredObjectRecord[],
+  sort: RuntimeSearchQuery["sort"],
+): StoredObjectRecord[] {
+  if (sort === undefined || sort.length === 0) {
+    return records;
+  }
+
+  return [...records].sort((left, right) => {
+    for (const sortItem of sort) {
+      const comparison = compareValues(left.values[sortItem.field], right.values[sortItem.field]);
+      if (comparison !== 0) {
+        return sortItem.direction === "asc" ? comparison : -comparison;
+      }
+    }
+
+    return 0;
+  });
+}
+
+function compareValues(left: JsonValue | undefined, right: JsonValue | undefined): number {
+  if (left === right) {
+    return 0;
+  }
+
+  if (left === undefined || left === null) {
+    return 1;
+  }
+
+  if (right === undefined || right === null) {
+    return -1;
+  }
+
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+
+  return String(left).localeCompare(String(right));
 }
 
 function hasMissingConstraintValue(record: StoredObjectRecord, fields: string[]): boolean {

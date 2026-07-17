@@ -39,7 +39,14 @@ export interface SaveRecordDetail {
   record?: StoredObjectRecord;
 }
 
+export interface DraftRecordDetail {
+  mode: UiMode;
+  values: Record<string, JsonValue>;
+  record?: StoredObjectRecord;
+}
+
 export interface TransitionRecordDetail {
   actionName: string;
   record: StoredObjectRecord;
+  values: Record<string, JsonValue>;
 }

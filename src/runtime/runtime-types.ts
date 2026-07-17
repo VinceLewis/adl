@@ -54,6 +54,7 @@ export interface RuntimeSearchQuery {
   text?: string;
   fields?: string[];
   includeDeleted?: boolean;
+  sort?: ResolvedSort[];
   limit?: number;
 }
 
