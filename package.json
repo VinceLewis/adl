@@ -6,7 +6,7 @@
   "description": "Standalone ADL resolved model contract and resolver.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/prepare-sites-build.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
