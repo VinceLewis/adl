@@ -98,6 +98,7 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
     | "executeCommand"
     | "evaluateDecisionTable"
     | "executeReadModel"
+    | "evaluatePresentationView"
     | "evaluateOfflineDataset";
   model?: PartialApplicationModel;
   modelRef?: string;
@@ -146,8 +147,25 @@ export type RuntimeConformanceInput =
       query?: RuntimeReadModelQuery;
     }
   | {
+      objectName: string;
+      viewName: string;
+      context: JsonRuntimeContext;
+      state?: Record<string, JsonValue>;
+      updates?: Record<string, JsonValue>;
+    }
+  | {
       context: JsonRuntimeContext;
     };
+
+type ObjectRuntimeOperationInput = {
+  objectName: string;
+  values?: Record<string, JsonValue>;
+  id?: JsonValue;
+  patch?: Record<string, JsonValue>;
+  actionName?: string;
+  query?: RuntimeSearchInput;
+  context: JsonRuntimeContext;
+};
 
 export interface JsonPolicyRequest {
   objectName: string;
@@ -425,11 +443,11 @@ async function runRuntimeOperation(
       return explainPolicyRequest(runtime.model, request, context);
     }
     case "create": {
-      const typed = input as Extract<RuntimeConformanceInput, { objectName: string }>;
+      const typed = input as ObjectRuntimeOperationInput;
       return runtime.create(typed.objectName, typed.values ?? {}, parseContext(typed.context));
     }
     case "read": {
-      const typed = input as Extract<RuntimeConformanceInput, { objectName: string }>;
+      const typed = input as ObjectRuntimeOperationInput;
       return runtime.read(
         typed.objectName,
         requireText(typed.id, "read id"),
@@ -437,7 +455,7 @@ async function runRuntimeOperation(
       );
     }
     case "update": {
-      const typed = input as Extract<RuntimeConformanceInput, { objectName: string }>;
+      const typed = input as ObjectRuntimeOperationInput;
       return runtime.update(
         typed.objectName,
         requireText(typed.id, "update id"),
@@ -446,7 +464,7 @@ async function runRuntimeOperation(
       );
     }
     case "delete": {
-      const typed = input as Extract<RuntimeConformanceInput, { objectName: string }>;
+      const typed = input as ObjectRuntimeOperationInput;
       return runtime.delete(
         typed.objectName,
         requireText(typed.id, "delete id"),
@@ -454,11 +472,11 @@ async function runRuntimeOperation(
       );
     }
     case "search": {
-      const typed = input as Extract<RuntimeConformanceInput, { objectName: string }>;
+      const typed = input as ObjectRuntimeOperationInput;
       return runtime.search(typed.objectName, typed.query, parseContext(typed.context));
     }
     case "transition": {
-      const typed = input as Extract<RuntimeConformanceInput, { objectName: string }>;
+      const typed = input as ObjectRuntimeOperationInput;
       return runtime.transition(
         typed.objectName,
         requireText(typed.id, "transition id"),
@@ -484,6 +502,18 @@ async function runRuntimeOperation(
         typed.readModelName,
         parseContext(typed.context),
         typed.query ?? {},
+      );
+    }
+    case "evaluatePresentationView": {
+      const typed = input as Extract<RuntimeConformanceInput, { viewName: string }>;
+      return runtime.evaluatePresentationView(
+        typed.objectName,
+        typed.viewName,
+        parseContext(typed.context),
+        {
+          ...(typed.state === undefined ? {} : { state: typed.state }),
+          ...(typed.updates === undefined ? {} : { updates: typed.updates }),
+        },
       );
     }
     case "evaluateOfflineDataset": {

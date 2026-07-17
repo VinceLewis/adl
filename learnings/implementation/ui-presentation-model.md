@@ -51,6 +51,13 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - The browser has a generic composed-view app bar treatment, but parser and
   runtime support for ADL `SHELL`/`TOP_BAR` declarations remains a future
   platform gap. Do not model shell behavior with app-specific browser branches.
+- Phase 29 added DOM-free presentation conformance coverage. New presentation
+  semantics should be pinned through `conformance/presentation/` using public
+  model resolution, validation, inspect, and `evaluatePresentationView` paths
+  before or alongside browser component assertions.
+- `explainResolvedModel` now walks composed view presentation declarations. It
+  reports defaults and reference-bearing paths for layout, density, local state,
+  icon maps, controls, list sources, row templates, and fragment styles.
 
 ## Practical Guidance
 
@@ -66,3 +73,5 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - Keep read models responsible for data shape and authorization; keep
   presentation responsible for display composition such as row text, icons,
   formatting, empty states, and section layout.
+- Keep ADL shell syntax documented as unsupported until parser, evaluator, and
+  browser handoff support the same resolved contract end to end.

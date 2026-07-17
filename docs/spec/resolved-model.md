@@ -106,12 +106,18 @@ Implemented presentation declarations include:
 - row templates with literal text, field text, icon, and conditional fragments
 - fragment styles limited to `plain`, `bold`, `muted`, and `caption`
 - display-only format declarations for text, number, date, datetime, and time
-- optional shell regions such as top bar, bottom bar, and sidebar
+- optional shell regions such as top bar, bottom bar, and sidebar in resolved
+  JSON/TypeScript partial models
 
 Presentation references are validated against the resolved model. Lists must
 reference known read models or objects. Row fragments, list fields, sort fields,
 filters, icon maps, controls, local state, commands, target views, contexts, and
 shell controls produce structured diagnostics when invalid.
+
+The resolved shell shape is not currently authored through ADL `SHELL` or
+`TOP_BAR` syntax, and presentation runtime evaluation does not emit shell
+regions. Generic browser app-bar styling exists for composed views, but it is
+not a resolved shell contract yet.
 
 Presentation does not replace read models, validation, policy enforcement,
 lifecycle enforcement, or sync policy. It only describes how already-authorized

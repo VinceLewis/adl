@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { runConformanceSuite } from "../src/index.js";
 import type { ConformanceSuite } from "../src/index.js";
 
-const suiteFiles = ["../conformance/expressions/basic.json", "../conformance/runtime/core.json"];
+const suiteFiles = [
+  "../conformance/expressions/basic.json",
+  "../conformance/runtime/core.json",
+  "../conformance/presentation/ui.json",
+];
 
 describe("ADL conformance corpus", () => {
   for (const suiteFile of suiteFiles) {

@@ -171,6 +171,11 @@ END.VIEW
 Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
 framework component names, procedural render loops, or host functions.
 
+ADL source syntax for `SHELL`, `TOP_BAR`, `SELECT`, `ACTION`, and
+`CONTEXT_SELECTOR` is not implemented. Some of these shapes exist in the
+resolved model for JSON/TypeScript partial models or future parser work, but
+the current parser rejects them as authored UI syntax.
+
 ## Commands
 
 Commands declare typed inputs, command-level preconditions, and create/update

@@ -3,9 +3,20 @@ import type {
   JsonValue,
   PartialApplicationModel,
   PartialObjectModel,
+  PartialPresentationListModel,
+  PartialPresentationRowFragmentModel,
+  PartialPresentationSectionModel,
+  PartialPresentationStateModel,
+  PartialViewModel,
   PolicyAction,
   ResolvedApplicationModel,
   ResolvedObject,
+  ResolvedPresentationControl,
+  ResolvedPresentationList,
+  ResolvedPresentationRowFragment,
+  ResolvedPresentationSection,
+  ResolvedPresentationState,
+  ResolvedView,
   RuntimeChannel,
   StoredObjectRecord,
 } from "./model/resolved-model.js";
@@ -310,6 +321,13 @@ function explainObjectDefaults(
           ? "List and form views were derived from object fields."
           : "Object views were supplied by the source model.",
     },
+    ...object.views.flatMap((view, viewIndex) =>
+      explainViewDefaults(
+        view,
+        `${objectPath}.views[${viewIndex}]`,
+        source?.views?.find((item) => item.name === view.name),
+      ),
+    ),
     {
       path: `${objectPath}.audit`,
       value: object.audit as unknown as JsonValue,
@@ -320,6 +338,308 @@ function explainObjectDefaults(
           : "Object audit policy was supplied by the source model.",
     },
   ];
+}
+
+function explainViewDefaults(
+  view: ResolvedView,
+  viewPath: string,
+  source: PartialViewModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  if (view.presentation === undefined) {
+    return [];
+  }
+
+  const sourcePresentation = source?.presentation;
+  const presentationPath = `${viewPath}.presentation`;
+  return [
+    {
+      path: `${presentationPath}.layout`,
+      value: view.presentation.layout,
+      origin: sourcePresentation?.layout === undefined ? "platformDefault" : "source",
+      note:
+        sourcePresentation?.layout === undefined
+          ? "Composed view presentation layout default was applied."
+          : "Composed view presentation layout was supplied by the source model.",
+    },
+    {
+      path: `${presentationPath}.density`,
+      value: view.presentation.density,
+      origin: sourcePresentation?.density === undefined ? "platformDefault" : "source",
+      note:
+        sourcePresentation?.density === undefined
+          ? "Composed view presentation density default was applied."
+          : "Composed view presentation density was supplied by the source model.",
+    },
+    ...view.presentation.state.flatMap((state, stateIndex) =>
+      explainPresentationStateDefaults(
+        state,
+        `${presentationPath}.state[${stateIndex}]`,
+        sourcePresentation?.state?.find((item) => item.name === state.name),
+      ),
+    ),
+    ...view.presentation.iconMaps.map((iconMap, iconMapIndex) => ({
+      path: `${presentationPath}.iconMaps[${iconMapIndex}].field`,
+      value: iconMap.field,
+      origin: "source" as const,
+      note: `Icon map '${iconMap.name}' resolves values from presentation row field '${iconMap.field}'.`,
+    })),
+    ...view.presentation.sections.flatMap((section, sectionIndex) =>
+      explainPresentationSectionDefaults(
+        section,
+        `${presentationPath}.sections[${sectionIndex}]`,
+        sourcePresentation?.sections?.find((item) => item.name === section.name),
+      ),
+    ),
+  ];
+}
+
+function explainPresentationStateDefaults(
+  state: ResolvedPresentationState,
+  statePath: string,
+  source: PartialPresentationStateModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${statePath}.type`,
+      value: state.type,
+      origin: source?.type === undefined ? "platformDefault" : "source",
+      note:
+        source?.type === undefined
+          ? "Presentation local state type defaulted to boolean."
+          : "Presentation local state type was supplied by the source model.",
+    },
+    {
+      path: `${statePath}.defaultValue`,
+      value: state.defaultValue,
+      origin: source?.defaultValue === undefined ? "platformDefault" : "source",
+      note:
+        source?.defaultValue === undefined
+          ? "Presentation local state default value was derived from its type."
+          : "Presentation local state default value was supplied by the source model.",
+    },
+    {
+      path: `${statePath}.persistence`,
+      value: state.persistence,
+      origin: source?.persistence === undefined ? "platformDefault" : "source",
+      note:
+        source?.persistence === undefined
+          ? "Presentation local state persistence defaulted to memory."
+          : "Presentation local state persistence was supplied by the source model.",
+    },
+  ];
+}
+
+function explainPresentationSectionDefaults(
+  section: ResolvedPresentationSection,
+  sectionPath: string,
+  source: PartialPresentationSectionModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${sectionPath}.layout`,
+      value: section.layout,
+      origin: source?.layout === undefined ? "platformDefault" : "source",
+      note:
+        source?.layout === undefined
+          ? "Presentation section layout inherited the default stack layout."
+          : "Presentation section layout was supplied by the source model.",
+    },
+    {
+      path: `${sectionPath}.density`,
+      value: section.density,
+      origin: source?.density === undefined ? "platformDefault" : "source",
+      note:
+        source?.density === undefined
+          ? "Presentation section density inherited the comfortable default."
+          : "Presentation section density was supplied by the source model.",
+    },
+    ...section.controls.flatMap((control, controlIndex) =>
+      explainPresentationControlReferences(control, `${sectionPath}.controls[${controlIndex}]`),
+    ),
+    ...section.lists.flatMap((list, listIndex) =>
+      explainPresentationListDefaults(
+        list,
+        `${sectionPath}.lists[${listIndex}]`,
+        source?.lists?.find((item) => item.name === list.name),
+      ),
+    ),
+  ];
+}
+
+function explainPresentationControlReferences(
+  control: ResolvedPresentationControl,
+  controlPath: string,
+): ResolvedModelExplanationEntry[] {
+  const entries: ResolvedModelExplanationEntry[] = [];
+
+  if (control.kind === "toggle" || control.kind === "select") {
+    entries.push({
+      path: `${controlPath}.state`,
+      value: control.state,
+      origin: "source",
+      note: `Presentation control '${control.name}' resolves local state '${control.state}'.`,
+    });
+  }
+
+  if (control.kind === "action" && control.command !== undefined) {
+    entries.push({
+      path: `${controlPath}.command`,
+      value: control.command,
+      origin: "source",
+      note: `Presentation action '${control.name}' resolves command '${control.command}'.`,
+    });
+  }
+
+  if (control.kind === "action" && control.view !== undefined) {
+    entries.push({
+      path: `${controlPath}.view`,
+      value: control.view,
+      origin: "source",
+      note: `Presentation action '${control.name}' resolves view '${control.view}'.`,
+    });
+  }
+
+  if (control.kind === "contextSelector" && control.context !== undefined) {
+    entries.push({
+      path: `${controlPath}.context`,
+      value: control.context,
+      origin: "source",
+      note: `Presentation context selector '${control.name}' resolves context '${control.context}'.`,
+    });
+  }
+
+  return entries;
+}
+
+function explainPresentationListDefaults(
+  list: ResolvedPresentationList,
+  listPath: string,
+  source: PartialPresentationListModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${listPath}.source`,
+      value: list.source,
+      origin: "source",
+      note: `Presentation list '${list.name}' resolves ${list.sourceKind} source '${list.source}'.`,
+    },
+    {
+      path: `${listPath}.sourceKind`,
+      value: list.sourceKind,
+      origin: source?.sourceKind === undefined ? "platformDefault" : "source",
+      note:
+        source?.sourceKind === undefined
+          ? "Presentation list source kind defaulted to readModel."
+          : "Presentation list source kind was supplied by the source model.",
+    },
+    {
+      path: `${listPath}.renderAs`,
+      value: list.renderAs,
+      origin: source?.renderAs === undefined ? "platformDefault" : "source",
+      note:
+        source?.renderAs === undefined
+          ? "Presentation list render style defaulted to table."
+          : "Presentation list render style was supplied by the source model.",
+    },
+    {
+      path: `${listPath}.density`,
+      value: list.density,
+      origin: source?.density === undefined ? "platformDefault" : "source",
+      note:
+        source?.density === undefined
+          ? "Presentation list density inherited the comfortable default."
+          : "Presentation list density was supplied by the source model.",
+    },
+    {
+      path: `${listPath}.emptyState.text`,
+      value: list.emptyState.text,
+      origin: source?.emptyState?.text === undefined ? "platformDefault" : "source",
+      note:
+        source?.emptyState?.text === undefined
+          ? "Presentation list empty-state text defaulted to an empty string."
+          : "Presentation list empty-state text was supplied by the source model.",
+    },
+    {
+      path: `${listPath}.row.layout`,
+      value: list.row.layout,
+      origin: source?.row?.layout === undefined ? "platformDefault" : "source",
+      note:
+        source?.row?.layout === undefined
+          ? "Presentation row layout defaulted to inline."
+          : "Presentation row layout was supplied by the source model.",
+    },
+    {
+      path: `${listPath}.row.density`,
+      value: list.row.density,
+      origin: source?.row?.density === undefined ? "platformDefault" : "source",
+      note:
+        source?.row?.density === undefined
+          ? "Presentation row density inherited the comfortable default."
+          : "Presentation row density was supplied by the source model.",
+    },
+    ...list.row.fragments.flatMap((fragment, fragmentIndex) =>
+      explainPresentationFragmentDefaults(
+        fragment,
+        `${listPath}.row.fragments[${fragmentIndex}]`,
+        source?.row?.fragments?.[fragmentIndex],
+      ),
+    ),
+  ];
+}
+
+function explainPresentationFragmentDefaults(
+  fragment: ResolvedPresentationRowFragment,
+  fragmentPath: string,
+  source: PartialPresentationRowFragmentModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  if (fragment.kind === "field") {
+    return [
+      {
+        path: `${fragmentPath}.field`,
+        value: fragment.field,
+        origin: "source",
+        note: `Presentation row field fragment resolves row field '${fragment.field}'.`,
+      },
+      {
+        path: `${fragmentPath}.style`,
+        value: fragment.style,
+        origin:
+          source?.kind === "field" && source.style === undefined ? "platformDefault" : "source",
+        note:
+          source?.kind === "field" && source.style === undefined
+            ? "Presentation row field fragment style defaulted to plain."
+            : "Presentation row field fragment style was supplied by the source model.",
+      },
+    ];
+  }
+
+  if (fragment.kind === "text") {
+    return [
+      {
+        path: `${fragmentPath}.style`,
+        value: fragment.style,
+        origin:
+          source?.kind === "text" && source.style === undefined ? "platformDefault" : "source",
+        note:
+          source?.kind === "text" && source.style === undefined
+            ? "Presentation row text fragment style defaulted to plain."
+            : "Presentation row text fragment style was supplied by the source model.",
+      },
+    ];
+  }
+
+  if (fragment.kind === "icon" && fragment.icon.kind === "map") {
+    return [
+      {
+        path: `${fragmentPath}.icon.map`,
+        value: fragment.icon.map,
+        origin: "source",
+        note: `Presentation icon fragment resolves icon map '${fragment.icon.map}'.`,
+      },
+    ];
+  }
+
+  return [];
 }
 
 function originForOptionalSourceValue(

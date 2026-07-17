@@ -29,6 +29,24 @@ decision behavior, or the executable conformance corpus.
 - The three written spec layers live under `docs/spec/`: language syntax,
   resolved-model contract, and runtime semantics.
 
+## Key decisions from Phase 29
+
+- Presentation conformance cases live under `conformance/presentation/` and run
+  through the same `tests/conformance-suite.test.ts` loader as the expression
+  and runtime suites.
+- The conformance runner supports `evaluatePresentationView` as a runtime
+  operation. Cases seed records through public runtime create steps, then call
+  `ApplicationRuntime.evaluatePresentationView` and assert renderer-neutral
+  sections, controls, lists, rows, fragments, icons, state, diagnostics, and
+  empty states.
+- Presentation conformance remains DOM-free. Browser component tests can cover
+  rendering, but the cross-runtime corpus pins model resolution, validation,
+  inspection, and evaluator semantics.
+- Inspection conformance can select presentation origin paths. `explainResolvedModel`
+  now includes presentation defaults and reference-bearing declarations such as
+  local state, icon-map fields, control state references, list sources, row
+  fields, and fragment style defaults.
+
 ## Practical guidance
 
 - Add or update conformance cases whenever a semantic behavior changes. Each

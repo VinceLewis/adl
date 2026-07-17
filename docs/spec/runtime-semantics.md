@@ -153,6 +153,10 @@ Unsupported formats and missing row data produce structured
 `ADL_PRESENTATION_*` diagnostics and fall back to raw or empty text where
 possible.
 
+Presentation evaluation does not consume or emit browser DOM structures. The
+cross-runtime conformance corpus exercises this renderer-neutral output without
+importing browser Web Components.
+
 ## Business Contexts
 
 Selected contexts narrow scoped object operations. Context-scoped roles are
@@ -185,6 +189,14 @@ included locally but are not queued for sync.
 platform defaults, derived defaults, and source values. `inspectResolvedModel`
 formats the same information as text. `explainPolicyDecision` formats policy
 request, context, winning decision, reasons, and precedence.
+
+Inspection includes presentation defaults and reference-bearing declarations
+when a view has `presentation`: layout, density, local state type/default/
+persistence, icon-map fields, control state/command/view/context references,
+list source and source kind, render style, density, empty-state text, row layout
+and density, row field references, icon-map references, and fragment style
+defaults. Invalid presentation references remain validation diagnostics with
+`ADL_PRESENTATION_*` codes rather than parser-AST explanations.
 
 ## Schema-Version Compatibility
 

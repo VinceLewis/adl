@@ -1,19 +1,16 @@
 # ADL UI Language Addendum
 
-This document defines proposed ADL presentation-layer constructs for composed
-application screens such as the Giggle Band home dashboard. It is intentionally
+This document specifies the implemented ADL presentation-layer subset for
+composed application screens such as the Giggle Band home dashboard. It remains
 separate from `language.md`, `resolved-model.md`, and `runtime-semantics.md`
 because these constructs describe UI composition and rendering intent, not core
 business object semantics.
 
-This addendum is design documentation for ADL source syntax and renderer
-behavior. The resolved-model foundation for composed view presentation is
-implemented: JSON/TypeScript partial models can resolve and validate
-presentation declarations. The initial parser/compiler subset is implemented
-for composed view presentation blocks, local state, sections, toggles, lists,
-row templates, icon maps, formatting, and empty states. Runtime evaluation is
-implemented through a renderer-neutral presentation evaluator. The browser
-runtime renders the initial composed-view subset through generic Web Components.
+Implemented behavior covers composed view presentation blocks, local state,
+sections, toggles, lists, row templates, icon maps, formatting, empty states,
+renderer-neutral runtime evaluation, browser rendering through generic Web
+Components, and data-driven conformance coverage. Future proposals are called
+out explicitly below.
 
 ## Purpose
 
@@ -140,12 +137,10 @@ TOGGLE showGigs
 END.TOGGLE
 ```
 
-The language should include at least:
-
-- `TOGGLE` for Boolean state.
-- `SELECT` for finite option selection.
-- `ACTION` for commands or navigation.
-- `CONTEXT_SELECTOR` for selecting an active business context, such as a band.
+Implemented source syntax includes `TOGGLE` for Boolean local state. The
+resolved model also has generic `select`, `action`, and `contextSelector`
+control shapes for JSON/TypeScript partial models, but ADL source syntax for
+those controls is not implemented yet.
 
 ### Lists In Composed Views
 
@@ -290,7 +285,8 @@ business state.
 
 ### App Shell
 
-Some screen elements belong to the app shell rather than a single list or form:
+Some screen elements belong to the app shell rather than a single list or form.
+The following syntax is a future proposal, not implemented parser syntax:
 
 ```adl
 SHELL
@@ -308,8 +304,12 @@ For the Giggle dashboard screenshot this covers:
 - centered band/app title
 - right-side band selector
 
-The shell should be app-level or layout-level. It should not be repeated inside
-every view unless a view intentionally overrides it.
+The resolved model can represent shell regions in JSON/TypeScript partial
+models and validates shell region/control references. The parser, presentation
+evaluator, and browser handoff do not implement ADL `SHELL`, `TOP_BAR`, or
+view-declared shell behavior yet. The current browser has a generic composed
+view app-bar treatment used by the Giggle dashboard route, but that styling is
+not driven by ADL shell declarations.
 
 ## Giggle Dashboard Example
 
@@ -442,7 +442,7 @@ The implemented presentation model resolves to structured data for:
 - icon maps
 - format declarations
 - empty states
-- shell regions
+- shell regions in JSON/TypeScript partial models only
 
 Runtime services should still consume the resolved model, not ADL syntax or raw
 parser AST nodes.
@@ -465,6 +465,12 @@ Implemented validation reports structured diagnostics for invalid references to
 read models, objects, fields, local state, icon maps, known fragment styles,
 formats, commands, target views, contexts, shell regions, and shell controls.
 
+Conformance cases under `conformance/presentation/` cover resolution defaults,
+validation diagnostics, local state defaults, toggle-controlled filters,
+read-model list binding, row fragments, icon maps, deterministic formatting,
+ordering, empty states, and inspect output for presentation defaults and
+references.
+
 ## Implementation Notes
 
 Parser/compiler support is implemented for the smallest useful subset:
@@ -478,6 +484,10 @@ Parser/compiler support is implemented for the smallest useful subset:
 7. `TEXT` literals and fields with `FORMAT` and `STYLE bold`
 8. `ICON`
 9. `ICON_MAP`
+
+Unsupported source constructs include `SHELL`, `TOP_BAR`, `SELECT`, `ACTION`,
+`CONTEXT_SELECTOR`, arbitrary CSS, raw SVG, framework component names, host
+callbacks, procedural render loops, and DOM-specific declarations.
 
 The first implementation target is the Giggle Band home dashboard source in
 `src/reference/giggle-band/ui.adl`. It proves that non-CRUD presentation can be

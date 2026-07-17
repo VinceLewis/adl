@@ -1,0 +1,658 @@
+{
+  "version": 1,
+  "models": {
+    "presentationConformance": {
+      "app": { "name": "PresentationConformance", "startView": "Home" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Event",
+          "fields": [
+            { "name": "Title", "type": "text", "required": true },
+            { "name": "EventType", "type": "text", "required": true },
+            { "name": "EventDate", "type": "date", "required": true },
+            { "name": "StartTime", "type": "time", "required": true },
+            { "name": "Venue", "type": "text" }
+          ],
+          "views": [
+            {
+              "name": "Home",
+              "kind": "composite",
+              "fields": ["Title", "EventType", "EventDate", "StartTime", "Venue"],
+              "presentation": {
+                "state": [
+                  { "name": "showGigs", "defaultValue": true },
+                  { "name": "showRehearsals", "defaultValue": true },
+                  { "name": "showUnavailable", "defaultValue": true }
+                ],
+                "iconMaps": [
+                  {
+                    "name": "EventTypeIcon",
+                    "field": "EventType",
+                    "values": [
+                      { "value": "Gig", "icon": "music" },
+                      { "value": "Rehearsal", "icon": "microphone" },
+                      { "value": "Unavailable", "icon": "x" }
+                    ],
+                    "defaultIcon": "calendar"
+                  }
+                ],
+                "sections": [
+                  { "name": "Welcome", "heading": "Welcome Back!" },
+                  {
+                    "name": "Filters",
+                    "controls": [
+                      {
+                        "name": "showGigsToggle",
+                        "kind": "toggle",
+                        "state": "showGigs",
+                        "label": "Gigs",
+                        "icon": { "kind": "map", "map": "EventTypeIcon", "value": "Gig" }
+                      },
+                      {
+                        "name": "showRehearsalsToggle",
+                        "kind": "toggle",
+                        "state": "showRehearsals",
+                        "label": "Rehearsals",
+                        "icon": {
+                          "kind": "map",
+                          "map": "EventTypeIcon",
+                          "value": "Rehearsal"
+                        }
+                      },
+                      {
+                        "name": "showUnavailableToggle",
+                        "kind": "toggle",
+                        "state": "showUnavailable",
+                        "label": "Unavailable",
+                        "icon": {
+                          "kind": "map",
+                          "map": "EventTypeIcon",
+                          "value": "Unavailable"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Schedule",
+                    "lists": [
+                      {
+                        "name": "UpcomingEvents",
+                        "source": "HomeUpcomingEvents",
+                        "renderAs": "compactFeed",
+                        "fields": ["Title", "EventType", "EventDate", "StartTime", "Venue"],
+                        "sort": [
+                          { "field": "EventDate", "direction": "asc" },
+                          { "field": "StartTime", "direction": "asc" }
+                        ],
+                        "filter": {
+                          "kind": "binary",
+                          "operator": "or",
+                          "left": {
+                            "kind": "binary",
+                            "operator": "or",
+                            "left": {
+                              "kind": "binary",
+                              "operator": "and",
+                              "left": {
+                                "kind": "binary",
+                                "operator": "==",
+                                "left": { "kind": "field", "field": "EventType" },
+                                "right": { "kind": "literal", "value": "Gig" }
+                              },
+                              "right": { "kind": "field", "field": "showGigs" }
+                            },
+                            "right": {
+                              "kind": "binary",
+                              "operator": "and",
+                              "left": {
+                                "kind": "binary",
+                                "operator": "==",
+                                "left": { "kind": "field", "field": "EventType" },
+                                "right": { "kind": "literal", "value": "Rehearsal" }
+                              },
+                              "right": { "kind": "field", "field": "showRehearsals" }
+                            }
+                          },
+                          "right": {
+                            "kind": "binary",
+                            "operator": "and",
+                            "left": {
+                              "kind": "binary",
+                              "operator": "==",
+                              "left": { "kind": "field", "field": "EventType" },
+                              "right": { "kind": "literal", "value": "Unavailable" }
+                            },
+                            "right": { "kind": "field", "field": "showUnavailable" }
+                          }
+                        },
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "icon",
+                              "icon": {
+                                "kind": "map",
+                                "map": "EventTypeIcon",
+                                "field": "EventType"
+                              }
+                            },
+                            {
+                              "kind": "field",
+                              "field": "EventDate",
+                              "format": { "kind": "date", "pattern": "EEE d MMM" }
+                            },
+                            { "kind": "text", "text": " " },
+                            {
+                              "kind": "field",
+                              "field": "StartTime",
+                              "format": { "kind": "time", "pattern": "h:mma" }
+                            },
+                            { "kind": "text", "text": " - " },
+                            { "kind": "field", "field": "Title", "style": "bold" },
+                            {
+                              "kind": "conditional",
+                              "when": {
+                                "kind": "binary",
+                                "operator": "!=",
+                                "left": { "kind": "field", "field": "Venue" },
+                                "right": { "kind": "literal", "value": "" }
+                              },
+                              "fragments": [
+                                { "kind": "text", "text": " - " },
+                                { "kind": "field", "field": "Venue" }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Invitations",
+                    "lists": [
+                      {
+                        "name": "PendingInvitations",
+                        "source": "PendingInvitations",
+                        "fields": ["Email"],
+                        "emptyState": { "text": "No pending invitations" }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invitation",
+          "fields": [
+            { "name": "Email", "type": "text", "required": true },
+            { "name": "Status", "type": "text", "required": true }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "HomeUpcomingEvents",
+          "sources": [{ "name": "event", "object": "Event" }],
+          "fields": [
+            { "name": "Title", "source": "event", "field": "Title" },
+            { "name": "EventType", "source": "event", "field": "EventType" },
+            { "name": "EventDate", "source": "event", "field": "EventDate" },
+            { "name": "StartTime", "source": "event", "field": "StartTime" },
+            { "name": "Venue", "source": "event", "field": "Venue" }
+          ]
+        },
+        {
+          "name": "PendingInvitations",
+          "sources": [{ "name": "invitation", "object": "Invitation" }],
+          "fields": [{ "name": "Email", "source": "invitation", "field": "Email" }]
+        }
+      ],
+      "policies": [
+        {
+          "name": "EventPolicy",
+          "object": "Event",
+          "rules": [
+            {
+              "name": "allowAdminAllEventActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "InvitationPolicy",
+          "object": "Invitation",
+          "rules": [
+            {
+              "name": "allowAdminAllInvitationActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "presentation.resolve-defaults",
+      "title": "Presentation model resolution applies explicit composed-view defaults",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "resolveModel",
+      "modelRef": "presentationConformance",
+      "input": {
+        "select": [
+          "objects.0.views.0.presentation.layout",
+          "objects.0.views.0.presentation.density",
+          "objects.0.views.0.presentation.state.0.type",
+          "objects.0.views.0.presentation.state.0.persistence",
+          "objects.0.views.0.presentation.sections.0.layout",
+          "objects.0.views.0.presentation.sections.2.lists.0.sourceKind",
+          "objects.0.views.0.presentation.sections.2.lists.0.row.layout",
+          "objects.0.views.0.presentation.sections.2.lists.0.row.fragments.1.style",
+          "objects.0.views.0.presentation.sections.3.lists.0.renderAs",
+          "objects.0.views.0.presentation.sections.3.lists.0.emptyState.text"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.presentation.layout": "stack",
+          "objects.0.views.0.presentation.density": "comfortable",
+          "objects.0.views.0.presentation.state.0.type": "boolean",
+          "objects.0.views.0.presentation.state.0.persistence": "memory",
+          "objects.0.views.0.presentation.sections.0.layout": "stack",
+          "objects.0.views.0.presentation.sections.2.lists.0.sourceKind": "readModel",
+          "objects.0.views.0.presentation.sections.2.lists.0.row.layout": "inline",
+          "objects.0.views.0.presentation.sections.2.lists.0.row.fragments.1.style": "plain",
+          "objects.0.views.0.presentation.sections.3.lists.0.renderAs": "table",
+          "objects.0.views.0.presentation.sections.3.lists.0.emptyState.text": "No pending invitations"
+        }
+      }
+    },
+    {
+      "id": "presentation.evaluate-default-state",
+      "title": "Presentation evaluation binds read models, formats rows, resolves icons, and emits empty states",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "presentationConformance",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "event-rehearsal",
+          "objectName": "Event",
+          "values": {
+            "Title": "New set rehearsal",
+            "EventType": "Rehearsal",
+            "EventDate": "2026-08-02",
+            "StartTime": "19:30",
+            "Venue": "Studio B"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "alias": "event-gig",
+          "objectName": "Event",
+          "values": {
+            "Title": "Canal Street headline",
+            "EventType": "Gig",
+            "EventDate": "2026-08-01",
+            "StartTime": "20:00",
+            "Venue": "Alpha Hall"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "alias": "event-unavailable",
+          "objectName": "Event",
+          "values": {
+            "Title": "Unavailable - session prep",
+            "EventType": "Unavailable",
+            "EventDate": "2026-08-03",
+            "StartTime": "10:00",
+            "Venue": ""
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Event",
+        "viewName": "Home",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "layout": "stack",
+          "density": "comfortable",
+          "state": {
+            "showGigs": true,
+            "showRehearsals": true,
+            "showUnavailable": true
+          },
+          "diagnostics": [],
+          "sections": [
+            { "name": "Welcome", "heading": "Welcome Back!", "controls": [], "lists": [] },
+            {
+              "name": "Filters",
+              "controls": [
+                {
+                  "kind": "toggle",
+                  "state": "showGigs",
+                  "value": true,
+                  "icon": {
+                    "name": "music",
+                    "source": { "kind": "map", "map": "EventTypeIcon", "value": "Gig" }
+                  }
+                },
+                {
+                  "kind": "toggle",
+                  "state": "showRehearsals",
+                  "value": true,
+                  "icon": {
+                    "name": "microphone",
+                    "source": {
+                      "kind": "map",
+                      "map": "EventTypeIcon",
+                      "value": "Rehearsal"
+                    }
+                  }
+                },
+                {
+                  "kind": "toggle",
+                  "state": "showUnavailable",
+                  "value": true,
+                  "icon": {
+                    "name": "x",
+                    "source": {
+                      "kind": "map",
+                      "map": "EventTypeIcon",
+                      "value": "Unavailable"
+                    }
+                  }
+                }
+              ],
+              "lists": []
+            },
+            {
+              "name": "Schedule",
+              "lists": [
+                {
+                  "name": "UpcomingEvents",
+                  "sourceKind": "readModel",
+                  "source": "HomeUpcomingEvents",
+                  "renderAs": "compactFeed",
+                  "rows": [
+                    {
+                      "values": {
+                        "Title": "Canal Street headline",
+                        "EventType": "Gig",
+                        "EventDate": "2026-08-01",
+                        "StartTime": "20:00"
+                      },
+                      "fragments": [
+                        {
+                          "kind": "icon",
+                          "icon": {
+                            "name": "music",
+                            "source": {
+                              "kind": "map",
+                              "map": "EventTypeIcon",
+                              "value": "Gig"
+                            }
+                          }
+                        },
+                        { "kind": "text", "text": "Sat 1 Aug", "style": "plain" },
+                        { "kind": "text", "text": " ", "style": "plain" },
+                        { "kind": "text", "text": "8:00PM", "style": "plain" },
+                        { "kind": "text", "text": " - ", "style": "plain" },
+                        { "kind": "text", "text": "Canal Street headline", "style": "bold" },
+                        { "kind": "text", "text": " - ", "style": "plain" },
+                        { "kind": "text", "text": "Alpha Hall", "style": "plain" }
+                      ]
+                    },
+                    { "values": { "Title": "New set rehearsal", "EventType": "Rehearsal" } },
+                    {
+                      "values": {
+                        "Title": "Unavailable - session prep",
+                        "EventType": "Unavailable"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Invitations",
+              "lists": [
+                {
+                  "name": "PendingInvitations",
+                  "rows": [],
+                  "emptyState": { "text": "No pending invitations" }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.evaluate-toggle-filter",
+      "title": "Presentation toggle updates filter visible rows without changing records",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "presentationConformance",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Event",
+          "values": {
+            "Title": "Canal Street headline",
+            "EventType": "Gig",
+            "EventDate": "2026-08-01",
+            "StartTime": "20:00",
+            "Venue": "Alpha Hall"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Event",
+          "values": {
+            "Title": "New set rehearsal",
+            "EventType": "Rehearsal",
+            "EventDate": "2026-08-02",
+            "StartTime": "19:30",
+            "Venue": "Studio B"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Event",
+        "viewName": "Home",
+        "updates": { "showRehearsals": false },
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "state": {
+            "showGigs": true,
+            "showRehearsals": false,
+            "showUnavailable": true
+          },
+          "diagnostics": [],
+          "sections": [
+            { "name": "Welcome" },
+            { "name": "Filters" },
+            {
+              "name": "Schedule",
+              "lists": [
+                {
+                  "name": "UpcomingEvents",
+                  "rows": [{ "values": { "Title": "Canal Street headline" } }]
+                }
+              ]
+            },
+            { "name": "Invitations" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.inspect-defaults-and-references",
+      "title": "Inspect output explains presentation defaults and resolved references",
+      "specRef": "runtime-semantics#inspection",
+      "operation": "inspectResolvedModel",
+      "modelRef": "presentationConformance",
+      "input": {
+        "selectOrigins": [
+          "objects[0].views[0].presentation.layout",
+          "objects[0].views[0].presentation.state[0].type",
+          "objects[0].views[0].presentation.state[0].persistence",
+          "objects[0].views[0].presentation.iconMaps[0].field",
+          "objects[0].views[0].presentation.sections[1].controls[0].state",
+          "objects[0].views[0].presentation.sections[2].lists[0].source",
+          "objects[0].views[0].presentation.sections[2].lists[0].sourceKind",
+          "objects[0].views[0].presentation.sections[2].lists[0].row.fragments[1].style"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "origins": [
+            {
+              "path": "objects[0].views[0].presentation.layout",
+              "value": "stack",
+              "origin": "platformDefault"
+            },
+            {
+              "path": "objects[0].views[0].presentation.state[0].type",
+              "value": "boolean",
+              "origin": "platformDefault"
+            },
+            {
+              "path": "objects[0].views[0].presentation.state[0].persistence",
+              "value": "memory",
+              "origin": "platformDefault"
+            },
+            {
+              "path": "objects[0].views[0].presentation.iconMaps[0].field",
+              "value": "EventType",
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[0].presentation.sections[1].controls[0].state",
+              "value": "showGigs",
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[0].presentation.sections[2].lists[0].source",
+              "value": "HomeUpcomingEvents",
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[0].presentation.sections[2].lists[0].sourceKind",
+              "value": "readModel",
+              "origin": "platformDefault"
+            },
+            {
+              "path": "objects[0].views[0].presentation.sections[2].lists[0].row.fragments[1].style",
+              "value": "plain",
+              "origin": "platformDefault"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.validate-invalid-references",
+      "title": "Presentation validation reports invalid source, state, and icon-map references",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "validateModel",
+      "model": {
+        "app": { "name": "InvalidPresentation", "startView": "Home" },
+        "objects": [
+          {
+            "name": "Event",
+            "fields": [
+              { "name": "Title", "type": "text" },
+              { "name": "EventType", "type": "text" }
+            ],
+            "views": [
+              {
+                "name": "Home",
+                "kind": "composite",
+                "fields": ["Title", "EventType"],
+                "presentation": {
+                  "iconMaps": [
+                    {
+                      "name": "EventTypeIcon",
+                      "field": "EventType",
+                      "values": [{ "value": "Gig", "icon": "music" }]
+                    }
+                  ],
+                  "sections": [
+                    {
+                      "name": "Broken",
+                      "controls": [
+                        { "name": "MissingState", "kind": "toggle", "state": "showGigs" }
+                      ],
+                      "lists": [
+                        {
+                          "name": "BrokenList",
+                          "source": "MissingReadModel",
+                          "fields": ["MissingField"],
+                          "row": {
+                            "fragments": [
+                              {
+                                "kind": "icon",
+                                "icon": { "kind": "map", "map": "MissingIconMap" }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CONTROL_STATE_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].controls[0].state"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_LIST_SOURCE_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].lists[0].source"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_LIST_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].lists[0].fields[0]"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_ICON_MAP_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].lists[0].row.fragments[0].icon.map"
+          }
+        ]
+      }
+    }
+  ]
+}
