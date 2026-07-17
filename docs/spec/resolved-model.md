@@ -12,6 +12,8 @@ nodes or ADL source text.
   `audit`, `operationLog`, and `defaults`.
 - Optional `contexts`, `readModels`, `decisionTables`, and `commands` when the
   source model declares those features.
+- Optional `presentation` declarations on resolved views when the source model
+  declares composed UI structure.
 - No wall-clock `generatedAt` value by default.
 
 All defaults must be visible in the resolved model and explainable by inspection
@@ -32,6 +34,9 @@ Resolution applies platform defaults consistently:
   deny-all rule.
 - Objects without explicit views receive list and form views over business and
   computed fields.
+- View presentation defaults, when a view declares presentation, are `stack`
+  layout, `comfortable` density, `table` list rendering, `inline` row layout,
+  `plain` text fragments, memory-backed local state, and empty list text.
 - Recent sync scopes default to a 30-day `_updatedAt` window.
 
 ## Objects
@@ -82,6 +87,35 @@ declared.
 Read models contain named sources, output fields, and sort order. Source scopes
 are backend-neutral: `all`, `currentContext`, `allAvailableContexts`, and
 `currentUser`. Expression fields evaluate over already-projected row values.
+
+## View Presentation
+
+Resolved views may include an optional `presentation` contract. This is
+renderer-neutral JSON-compatible data consumed by UI runtimes, not parser AST
+or browser component code.
+
+Implemented presentation declarations include:
+
+- view layout and density hints
+- local view state with type, default value, and persistence
+- icon maps from semantic values to icon names
+- sections with headings, controls, and lists
+- toggle, select, action, and context-selector controls
+- read-model-backed or object-backed presentation lists
+- list render style, density, fields, sort, filters, and empty states
+- row templates with literal text, field text, icon, and conditional fragments
+- fragment styles limited to `plain`, `bold`, `muted`, and `caption`
+- display-only format declarations for text, number, date, datetime, and time
+- optional shell regions such as top bar, bottom bar, and sidebar
+
+Presentation references are validated against the resolved model. Lists must
+reference known read models or objects. Row fragments, list fields, sort fields,
+filters, icon maps, controls, local state, commands, target views, contexts, and
+shell controls produce structured diagnostics when invalid.
+
+Presentation does not replace read models, validation, policy enforcement,
+lifecycle enforcement, or sync policy. It only describes how already-authorized
+data should be composed for a renderer.
 
 ## Sync And Compatibility
 

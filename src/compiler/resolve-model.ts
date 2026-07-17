@@ -45,6 +45,18 @@ import type {
   PartialObjectSyncPolicyModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
+  PartialPresentationControlModel,
+  PartialPresentationEmptyStateModel,
+  PartialPresentationFormatModel,
+  PartialPresentationIconMapModel,
+  PartialPresentationIconRefModel,
+  PartialPresentationListModel,
+  PartialPresentationRowFragmentModel,
+  PartialPresentationRowTemplateModel,
+  PartialPresentationSectionModel,
+  PartialPresentationShellModel,
+  PartialPresentationShellRegionModel,
+  PartialPresentationStateModel,
   PartialPrincipalSelectorModel,
   PartialReadModelFieldModel,
   PartialReadModelModel,
@@ -87,6 +99,18 @@ import type {
   ResolvedPolicyConditionOperand,
   ResolvedPolicy,
   ResolvedPolicyRule,
+  ResolvedPresentationControl,
+  ResolvedPresentationEmptyState,
+  ResolvedPresentationFormat,
+  ResolvedPresentationIconMap,
+  ResolvedPresentationIconRef,
+  ResolvedPresentationList,
+  ResolvedPresentationRowFragment,
+  ResolvedPresentationRowTemplate,
+  ResolvedPresentationSection,
+  ResolvedPresentationShell,
+  ResolvedPresentationShellRegion,
+  ResolvedPresentationState,
   ResolvedPrincipalSelector,
   ResolvedReadModel,
   ResolvedReadModelField,
@@ -101,6 +125,8 @@ import type {
   ResolvedValidator,
   ResolvedView,
   ResolvedViewContext,
+  ResolvedViewPresentation,
+  PresentationStateType,
 } from "../model/resolved-model.js";
 
 export function resolveApplicationModel(input: PartialApplicationModel): ResolvedApplicationModel {
@@ -512,6 +538,230 @@ function resolveView(
     searchFields: [...(input.searchFields ?? [])],
     sort: [...(input.sort ?? [])].map(resolveSort),
     actions: [...(input.actions ?? [])],
+    ...(input.presentation === undefined
+      ? {}
+      : { presentation: resolveViewPresentation(input.presentation) }),
+  };
+}
+
+function resolveViewPresentation(
+  input: NonNullable<PartialViewModel["presentation"]>,
+): ResolvedViewPresentation {
+  return {
+    layout: input.layout ?? "stack",
+    density: input.density ?? "comfortable",
+    state: (input.state ?? []).map(resolvePresentationState),
+    iconMaps: (input.iconMaps ?? []).map(resolvePresentationIconMap),
+    sections: (input.sections ?? []).map(resolvePresentationSection),
+    ...(input.shell === undefined ? {} : { shell: resolvePresentationShell(input.shell) }),
+  };
+}
+
+function resolvePresentationState(input: PartialPresentationStateModel): ResolvedPresentationState {
+  const type = input.type ?? "boolean";
+
+  return {
+    name: input.name,
+    type,
+    defaultValue: input.defaultValue ?? defaultPresentationStateValue(type),
+    persistence: input.persistence ?? "memory",
+  };
+}
+
+function defaultPresentationStateValue(
+  type: PresentationStateType,
+): ResolvedPresentationState["defaultValue"] {
+  switch (type) {
+    case "boolean":
+      return false;
+    case "number":
+      return 0;
+    case "text":
+      return "";
+    case "date":
+    case "datetime":
+    case "time":
+      return null;
+  }
+}
+
+function resolvePresentationIconMap(
+  input: PartialPresentationIconMapModel,
+): ResolvedPresentationIconMap {
+  return {
+    name: input.name,
+    field: input.field,
+    values: (input.values ?? []).map((value) => ({ value: value.value, icon: value.icon })),
+    ...(input.defaultIcon === undefined ? {} : { defaultIcon: input.defaultIcon }),
+  };
+}
+
+function resolvePresentationSection(
+  input: PartialPresentationSectionModel,
+): ResolvedPresentationSection {
+  return {
+    name: input.name,
+    ...(input.heading === undefined ? {} : { heading: input.heading }),
+    layout: input.layout ?? "stack",
+    density: input.density ?? "comfortable",
+    controls: (input.controls ?? []).map(resolvePresentationControl),
+    lists: (input.lists ?? []).map(resolvePresentationList),
+  };
+}
+
+function resolvePresentationControl(
+  input: PartialPresentationControlModel,
+): ResolvedPresentationControl {
+  const base = {
+    name: input.name,
+    ...(input.label === undefined ? {} : { label: input.label }),
+    ...(input.icon === undefined ? {} : { icon: resolvePresentationIconRef(input.icon) }),
+  };
+
+  if (input.kind === "toggle") {
+    return {
+      ...base,
+      kind: "toggle",
+      state: input.state,
+    };
+  }
+
+  if (input.kind === "select") {
+    return {
+      ...base,
+      kind: "select",
+      state: input.state,
+      options: (input.options ?? []).map((option) => ({
+        value: option.value,
+        label: option.label,
+        ...(option.icon === undefined ? {} : { icon: resolvePresentationIconRef(option.icon) }),
+      })),
+    };
+  }
+
+  if (input.kind === "action") {
+    return {
+      ...base,
+      kind: "action",
+      ...(input.command === undefined ? {} : { command: input.command }),
+      ...(input.view === undefined ? {} : { view: input.view }),
+    };
+  }
+
+  return {
+    ...base,
+    kind: "contextSelector",
+    ...(input.context === undefined ? {} : { context: input.context }),
+  };
+}
+
+function resolvePresentationList(input: PartialPresentationListModel): ResolvedPresentationList {
+  return {
+    name: input.name,
+    sourceKind: input.sourceKind ?? "readModel",
+    source: input.source,
+    renderAs: input.renderAs ?? "table",
+    density: input.density ?? "comfortable",
+    fields: [...(input.fields ?? [])],
+    sort: [...(input.sort ?? [])].map(resolveSort),
+    ...(input.filter === undefined ? {} : { filter: resolveExpression(input.filter) }),
+    emptyState: resolvePresentationEmptyState(input.emptyState),
+    row: resolvePresentationRowTemplate(input.row),
+  };
+}
+
+function resolvePresentationEmptyState(
+  input: PartialPresentationEmptyStateModel | undefined,
+): ResolvedPresentationEmptyState {
+  return {
+    text: input?.text ?? "",
+    ...(input?.icon === undefined ? {} : { icon: resolvePresentationIconRef(input.icon) }),
+  };
+}
+
+function resolvePresentationRowTemplate(
+  input: PartialPresentationRowTemplateModel | undefined,
+): ResolvedPresentationRowTemplate {
+  return {
+    layout: input?.layout ?? "inline",
+    density: input?.density ?? "comfortable",
+    fragments: (input?.fragments ?? []).map(resolvePresentationRowFragment),
+  };
+}
+
+function resolvePresentationRowFragment(
+  input: PartialPresentationRowFragmentModel,
+): ResolvedPresentationRowFragment {
+  if (input.kind === "text") {
+    return {
+      kind: "text",
+      text: input.text,
+      style: input.style ?? "plain",
+    };
+  }
+
+  if (input.kind === "field") {
+    return {
+      kind: "field",
+      field: input.field,
+      style: input.style ?? "plain",
+      ...(input.format === undefined ? {} : { format: resolvePresentationFormat(input.format) }),
+      ...(input.fallback === undefined ? {} : { fallback: input.fallback }),
+    };
+  }
+
+  if (input.kind === "icon") {
+    return {
+      kind: "icon",
+      icon: resolvePresentationIconRef(input.icon),
+      ...(input.label === undefined ? {} : { label: input.label }),
+    };
+  }
+
+  return {
+    kind: "conditional",
+    when: resolveExpression(input.when),
+    fragments: (input.fragments ?? []).map(resolvePresentationRowFragment),
+  };
+}
+
+function resolvePresentationFormat(
+  input: PartialPresentationFormatModel,
+): ResolvedPresentationFormat {
+  return {
+    kind: input.kind,
+    ...(input.pattern === undefined ? {} : { pattern: input.pattern }),
+  };
+}
+
+function resolvePresentationIconRef(
+  input: PartialPresentationIconRefModel,
+): ResolvedPresentationIconRef {
+  if (input.kind === "named") {
+    return { kind: "named", name: input.name };
+  }
+
+  return {
+    kind: "map",
+    map: input.map,
+    ...(input.field === undefined ? {} : { field: input.field }),
+    ...(input.value === undefined ? {} : { value: input.value }),
+  };
+}
+
+function resolvePresentationShell(input: PartialPresentationShellModel): ResolvedPresentationShell {
+  return {
+    regions: (input.regions ?? []).map(resolvePresentationShellRegion),
+  };
+}
+
+function resolvePresentationShellRegion(
+  input: PartialPresentationShellRegionModel,
+): ResolvedPresentationShellRegion {
+  return {
+    region: input.region,
+    ...(input.title === undefined ? {} : { title: input.title }),
+    controls: [...(input.controls ?? [])],
   };
 }
 

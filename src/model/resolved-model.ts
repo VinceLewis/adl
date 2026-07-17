@@ -42,6 +42,17 @@ export type ViewKind =
   | "masterDetail"
   | "grid"
   | "composite";
+export type PresentationLayout = "stack" | "grid" | "split" | "sidebar";
+export type PresentationDensity = "compact" | "comfortable" | "spacious";
+export type PresentationStateType = Exclude<FieldType, "attachment">;
+export type PresentationStatePersistence = "memory" | "session" | "local";
+export type PresentationControlKind = "toggle" | "select" | "action" | "contextSelector";
+export type PresentationListSourceKind = "readModel" | "object";
+export type PresentationListRenderStyle = "table" | "feed" | "compactFeed" | "cards";
+export type PresentationRowLayout = "inline" | "stack";
+export type PresentationFragmentStyle = "plain" | "bold" | "muted" | "caption";
+export type PresentationFormatKind = "text" | "number" | "date" | "datetime" | "time";
+export type PresentationShellRegion = "topBar" | "bottomBar" | "sidebar";
 
 export type PolicyEffect = "allow" | "deny" | "readonly" | "mask" | "hidden";
 export type PolicyAction =
@@ -416,6 +427,7 @@ export interface ResolvedView {
   searchFields: string[];
   sort: ResolvedSort[];
   actions: string[];
+  presentation?: ResolvedViewPresentation;
 }
 
 export interface ResolvedViewContext {
@@ -426,6 +438,160 @@ export interface ResolvedViewContext {
 export interface ResolvedSort {
   field: string;
   direction: "asc" | "desc";
+}
+
+export interface ResolvedViewPresentation {
+  layout: PresentationLayout;
+  density: PresentationDensity;
+  state: ResolvedPresentationState[];
+  iconMaps: ResolvedPresentationIconMap[];
+  sections: ResolvedPresentationSection[];
+  shell?: ResolvedPresentationShell;
+}
+
+export interface ResolvedPresentationState {
+  name: string;
+  type: PresentationStateType;
+  defaultValue: JsonValue;
+  persistence: PresentationStatePersistence;
+}
+
+export interface ResolvedPresentationIconMap {
+  name: string;
+  field: string;
+  values: ResolvedPresentationIconMapValue[];
+  defaultIcon?: string;
+}
+
+export interface ResolvedPresentationIconMapValue {
+  value: JsonPrimitive;
+  icon: string;
+}
+
+export interface ResolvedPresentationSection {
+  name: string;
+  heading?: string;
+  layout: PresentationLayout;
+  density: PresentationDensity;
+  controls: ResolvedPresentationControl[];
+  lists: ResolvedPresentationList[];
+}
+
+export type ResolvedPresentationControl =
+  | ResolvedPresentationToggleControl
+  | ResolvedPresentationSelectControl
+  | ResolvedPresentationActionControl
+  | ResolvedPresentationContextSelectorControl;
+
+export interface ResolvedPresentationControlBase {
+  name: string;
+  kind: PresentationControlKind;
+  label?: string;
+  icon?: ResolvedPresentationIconRef;
+}
+
+export interface ResolvedPresentationToggleControl extends ResolvedPresentationControlBase {
+  kind: "toggle";
+  state: string;
+}
+
+export interface ResolvedPresentationSelectControl extends ResolvedPresentationControlBase {
+  kind: "select";
+  state: string;
+  options: ResolvedPresentationSelectOption[];
+}
+
+export interface ResolvedPresentationSelectOption {
+  value: JsonPrimitive;
+  label: string;
+  icon?: ResolvedPresentationIconRef;
+}
+
+export interface ResolvedPresentationActionControl extends ResolvedPresentationControlBase {
+  kind: "action";
+  command?: string;
+  view?: string;
+}
+
+export interface ResolvedPresentationContextSelectorControl
+  extends ResolvedPresentationControlBase {
+  kind: "contextSelector";
+  context?: string;
+}
+
+export interface ResolvedPresentationList {
+  name: string;
+  sourceKind: PresentationListSourceKind;
+  source: string;
+  renderAs: PresentationListRenderStyle;
+  density: PresentationDensity;
+  fields: string[];
+  sort: ResolvedSort[];
+  filter?: ResolvedExpression;
+  emptyState: ResolvedPresentationEmptyState;
+  row: ResolvedPresentationRowTemplate;
+}
+
+export interface ResolvedPresentationEmptyState {
+  text: string;
+  icon?: ResolvedPresentationIconRef;
+}
+
+export interface ResolvedPresentationRowTemplate {
+  layout: PresentationRowLayout;
+  density: PresentationDensity;
+  fragments: ResolvedPresentationRowFragment[];
+}
+
+export type ResolvedPresentationRowFragment =
+  | ResolvedPresentationLiteralTextFragment
+  | ResolvedPresentationFieldTextFragment
+  | ResolvedPresentationIconFragment
+  | ResolvedPresentationConditionalFragment;
+
+export interface ResolvedPresentationLiteralTextFragment {
+  kind: "text";
+  text: string;
+  style: PresentationFragmentStyle;
+}
+
+export interface ResolvedPresentationFieldTextFragment {
+  kind: "field";
+  field: string;
+  style: PresentationFragmentStyle;
+  format?: ResolvedPresentationFormat;
+  fallback?: string;
+}
+
+export interface ResolvedPresentationIconFragment {
+  kind: "icon";
+  icon: ResolvedPresentationIconRef;
+  label?: string;
+}
+
+export interface ResolvedPresentationConditionalFragment {
+  kind: "conditional";
+  when: ResolvedExpression;
+  fragments: ResolvedPresentationRowFragment[];
+}
+
+export interface ResolvedPresentationFormat {
+  kind: PresentationFormatKind;
+  pattern?: string;
+}
+
+export type ResolvedPresentationIconRef =
+  | { kind: "named"; name: string }
+  | { kind: "map"; map: string; field?: string; value?: JsonPrimitive };
+
+export interface ResolvedPresentationShell {
+  regions: ResolvedPresentationShellRegion[];
+}
+
+export interface ResolvedPresentationShellRegion {
+  region: PresentationShellRegion;
+  title?: string;
+  controls: string[];
 }
 
 export interface ResolvedReadModel {
@@ -852,11 +1018,166 @@ export interface PartialViewModel {
   searchFields?: string[];
   sort?: ResolvedSort[];
   actions?: string[];
+  presentation?: PartialViewPresentationModel;
 }
 
 export interface PartialViewContextModel {
   mode: ViewContextMode;
   context?: string;
+}
+
+export interface PartialViewPresentationModel {
+  layout?: PresentationLayout;
+  density?: PresentationDensity;
+  state?: PartialPresentationStateModel[];
+  iconMaps?: PartialPresentationIconMapModel[];
+  sections?: PartialPresentationSectionModel[];
+  shell?: PartialPresentationShellModel;
+}
+
+export interface PartialPresentationStateModel {
+  name: string;
+  type?: PresentationStateType;
+  defaultValue?: JsonValue;
+  persistence?: PresentationStatePersistence;
+}
+
+export interface PartialPresentationIconMapModel {
+  name: string;
+  field: string;
+  values?: PartialPresentationIconMapValueModel[];
+  defaultIcon?: string;
+}
+
+export interface PartialPresentationIconMapValueModel {
+  value: JsonPrimitive;
+  icon: string;
+}
+
+export interface PartialPresentationSectionModel {
+  name: string;
+  heading?: string;
+  layout?: PresentationLayout;
+  density?: PresentationDensity;
+  controls?: PartialPresentationControlModel[];
+  lists?: PartialPresentationListModel[];
+}
+
+export type PartialPresentationControlModel =
+  | PartialPresentationToggleControlModel
+  | PartialPresentationSelectControlModel
+  | PartialPresentationActionControlModel
+  | PartialPresentationContextSelectorControlModel;
+
+export interface PartialPresentationControlBaseModel {
+  name: string;
+  kind: PresentationControlKind;
+  label?: string;
+  icon?: PartialPresentationIconRefModel;
+}
+
+export interface PartialPresentationToggleControlModel extends PartialPresentationControlBaseModel {
+  kind: "toggle";
+  state: string;
+}
+
+export interface PartialPresentationSelectControlModel extends PartialPresentationControlBaseModel {
+  kind: "select";
+  state: string;
+  options?: PartialPresentationSelectOptionModel[];
+}
+
+export interface PartialPresentationSelectOptionModel {
+  value: JsonPrimitive;
+  label: string;
+  icon?: PartialPresentationIconRefModel;
+}
+
+export interface PartialPresentationActionControlModel extends PartialPresentationControlBaseModel {
+  kind: "action";
+  command?: string;
+  view?: string;
+}
+
+export interface PartialPresentationContextSelectorControlModel
+  extends PartialPresentationControlBaseModel {
+  kind: "contextSelector";
+  context?: string;
+}
+
+export interface PartialPresentationListModel {
+  name: string;
+  sourceKind?: PresentationListSourceKind;
+  source: string;
+  renderAs?: PresentationListRenderStyle;
+  density?: PresentationDensity;
+  fields?: string[];
+  sort?: ResolvedSort[];
+  filter?: PartialPolicyConditionModel;
+  emptyState?: PartialPresentationEmptyStateModel;
+  row?: PartialPresentationRowTemplateModel;
+}
+
+export interface PartialPresentationEmptyStateModel {
+  text?: string;
+  icon?: PartialPresentationIconRefModel;
+}
+
+export interface PartialPresentationRowTemplateModel {
+  layout?: PresentationRowLayout;
+  density?: PresentationDensity;
+  fragments?: PartialPresentationRowFragmentModel[];
+}
+
+export type PartialPresentationRowFragmentModel =
+  | PartialPresentationLiteralTextFragmentModel
+  | PartialPresentationFieldTextFragmentModel
+  | PartialPresentationIconFragmentModel
+  | PartialPresentationConditionalFragmentModel;
+
+export interface PartialPresentationLiteralTextFragmentModel {
+  kind: "text";
+  text: string;
+  style?: PresentationFragmentStyle;
+}
+
+export interface PartialPresentationFieldTextFragmentModel {
+  kind: "field";
+  field: string;
+  style?: PresentationFragmentStyle;
+  format?: PartialPresentationFormatModel;
+  fallback?: string;
+}
+
+export interface PartialPresentationIconFragmentModel {
+  kind: "icon";
+  icon: PartialPresentationIconRefModel;
+  label?: string;
+}
+
+export interface PartialPresentationConditionalFragmentModel {
+  kind: "conditional";
+  when: PartialPolicyConditionModel;
+  fragments?: PartialPresentationRowFragmentModel[];
+}
+
+export interface PartialPresentationFormatModel {
+  kind: PresentationFormatKind;
+  pattern?: string;
+}
+
+export type PartialPresentationIconRefModel =
+  | { kind: "named"; name: string }
+  | { kind: "map"; map: string; field?: string; value?: JsonPrimitive };
+
+export interface PartialPresentationShellModel {
+  regions?: PartialPresentationShellRegionModel[];
+}
+
+export interface PartialPresentationShellRegionModel {
+  region: PresentationShellRegion;
+  title?: string;
+  controls?: string[];
 }
 
 export interface PartialReadModelModel {

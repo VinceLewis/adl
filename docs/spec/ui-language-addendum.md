@@ -6,8 +6,11 @@ separate from `language.md`, `resolved-model.md`, and `runtime-semantics.md`
 because these constructs describe UI composition and rendering intent, not core
 business object semantics.
 
-This addendum is design documentation. It does not describe fully implemented
-parser or runtime behavior yet.
+This addendum is design documentation for ADL source syntax and renderer
+behavior. The resolved-model foundation for composed view presentation is
+implemented: JSON/TypeScript partial models can resolve and validate
+presentation declarations. Parser syntax and browser rendering for these
+constructs remain proposed for later phases.
 
 ## Purpose
 
@@ -416,16 +419,20 @@ layer maps that value to an icon, text fragment, or filter control.
 
 ## Resolved Model Implications
 
-The resolved model may need a presentation section separate from core objects:
+Implemented behavior: presentation lives as an optional `presentation`
+declaration on a resolved view. This keeps composed screens as ordinary views
+and avoids introducing a distinct dashboard view type.
 
 ```ts
-interface ResolvedApplicationModel {
-  views: ResolvedView[];
-  presentation?: ResolvedPresentationModel;
+interface ResolvedView {
+  name: string;
+  object: string;
+  kind: ViewKind;
+  presentation?: ResolvedViewPresentation;
 }
 ```
 
-The presentation model should resolve to structured data such as:
+The implemented presentation model resolves to structured data for:
 
 - view layout hints
 - sections
@@ -441,9 +448,28 @@ The presentation model should resolve to structured data such as:
 Runtime services should still consume the resolved model, not ADL syntax or raw
 parser AST nodes.
 
+Implemented defaults are explicit in the resolved model:
+
+- view and section layout: `stack`
+- view, section, list, and row density: `comfortable`
+- list source kind: `readModel`
+- list render style: `table`
+- row layout: `inline`
+- text and field fragment style: `plain`
+- local state type: `boolean`
+- local state persistence: `memory`
+- local state default values: `false` for Boolean, `0` for number, empty text
+  for text, and `null` for date/time values
+- empty-state text: empty string
+
+Implemented validation reports structured diagnostics for invalid references to
+read models, objects, fields, local state, icon maps, known fragment styles,
+formats, commands, target views, contexts, shell regions, and shell controls.
+
 ## Implementation Notes
 
-Parser support should start with the smallest useful subset:
+Parser support is not implemented yet. It should start with the smallest useful
+subset:
 
 1. `SECTION`
 2. local `STATE`

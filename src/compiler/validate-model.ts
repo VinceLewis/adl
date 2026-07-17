@@ -13,6 +13,16 @@ import type {
   ExpressionUnaryOperator,
   ExpressionValueType,
   FieldType,
+  PresentationDensity,
+  PresentationFormatKind,
+  PresentationFragmentStyle,
+  PresentationLayout,
+  PresentationListRenderStyle,
+  PresentationListSourceKind,
+  PresentationRowLayout,
+  PresentationShellRegion,
+  PresentationStatePersistence,
+  PresentationStateType,
   PolicyAction,
   ReadModelSourceScope,
   ResolvedApplicationModel,
@@ -37,6 +47,13 @@ import type {
   ResolvedPolicy,
   ResolvedExpression,
   ResolvedPolicyRule,
+  ResolvedPresentationControl,
+  ResolvedPresentationIconRef,
+  ResolvedPresentationList,
+  ResolvedPresentationRowFragment,
+  ResolvedPresentationSection,
+  ResolvedPresentationState,
+  ResolvedViewPresentation,
   ResolvedReadModel,
   ResolvedSyncPolicy,
   ResolvedSyncWindow,
@@ -191,6 +208,42 @@ export const MODEL_VALIDATION_CODES = {
   POLICY_OBJECT_UNKNOWN: "ADL_POLICY_OBJECT_UNKNOWN",
   POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
   POLICY_CHANNEL_INVALID: "ADL_POLICY_CHANNEL_INVALID",
+  PRESENTATION_CONTROL_COMMAND_UNKNOWN: "ADL_PRESENTATION_CONTROL_COMMAND_UNKNOWN",
+  PRESENTATION_CONTROL_CONTEXT_UNKNOWN: "ADL_PRESENTATION_CONTROL_CONTEXT_UNKNOWN",
+  PRESENTATION_CONTROL_DUPLICATE: "ADL_PRESENTATION_CONTROL_DUPLICATE",
+  PRESENTATION_CONTROL_KIND_INVALID: "ADL_PRESENTATION_CONTROL_KIND_INVALID",
+  PRESENTATION_CONTROL_STATE_UNKNOWN: "ADL_PRESENTATION_CONTROL_STATE_UNKNOWN",
+  PRESENTATION_CONTROL_VIEW_UNKNOWN: "ADL_PRESENTATION_CONTROL_VIEW_UNKNOWN",
+  PRESENTATION_DENSITY_INVALID: "ADL_PRESENTATION_DENSITY_INVALID",
+  PRESENTATION_FILTER_FIELD_UNKNOWN: "ADL_PRESENTATION_FILTER_FIELD_UNKNOWN",
+  PRESENTATION_FILTER_INVALID: "ADL_PRESENTATION_FILTER_INVALID",
+  PRESENTATION_FILTER_RUNTIME_PROPERTY_INVALID: "ADL_PRESENTATION_FILTER_RUNTIME_PROPERTY_INVALID",
+  PRESENTATION_FILTER_TYPE: "ADL_PRESENTATION_FILTER_TYPE",
+  PRESENTATION_FORMAT_INVALID: "ADL_PRESENTATION_FORMAT_INVALID",
+  PRESENTATION_ICON_MAP_DUPLICATE: "ADL_PRESENTATION_ICON_MAP_DUPLICATE",
+  PRESENTATION_ICON_MAP_FIELD_UNKNOWN: "ADL_PRESENTATION_ICON_MAP_FIELD_UNKNOWN",
+  PRESENTATION_ICON_MAP_UNKNOWN: "ADL_PRESENTATION_ICON_MAP_UNKNOWN",
+  PRESENTATION_LAYOUT_INVALID: "ADL_PRESENTATION_LAYOUT_INVALID",
+  PRESENTATION_LIST_DUPLICATE: "ADL_PRESENTATION_LIST_DUPLICATE",
+  PRESENTATION_LIST_FIELD_UNKNOWN: "ADL_PRESENTATION_LIST_FIELD_UNKNOWN",
+  PRESENTATION_LIST_RENDER_STYLE_INVALID: "ADL_PRESENTATION_LIST_RENDER_STYLE_INVALID",
+  PRESENTATION_LIST_SOURCE_KIND_INVALID: "ADL_PRESENTATION_LIST_SOURCE_KIND_INVALID",
+  PRESENTATION_LIST_SOURCE_UNKNOWN: "ADL_PRESENTATION_LIST_SOURCE_UNKNOWN",
+  PRESENTATION_ROW_CONDITION_FIELD_UNKNOWN: "ADL_PRESENTATION_ROW_CONDITION_FIELD_UNKNOWN",
+  PRESENTATION_ROW_CONDITION_INVALID: "ADL_PRESENTATION_ROW_CONDITION_INVALID",
+  PRESENTATION_ROW_CONDITION_RUNTIME_PROPERTY_INVALID:
+    "ADL_PRESENTATION_ROW_CONDITION_RUNTIME_PROPERTY_INVALID",
+  PRESENTATION_ROW_CONDITION_TYPE: "ADL_PRESENTATION_ROW_CONDITION_TYPE",
+  PRESENTATION_ROW_FIELD_UNKNOWN: "ADL_PRESENTATION_ROW_FIELD_UNKNOWN",
+  PRESENTATION_ROW_FRAGMENT_STYLE_INVALID: "ADL_PRESENTATION_ROW_FRAGMENT_STYLE_INVALID",
+  PRESENTATION_ROW_LAYOUT_INVALID: "ADL_PRESENTATION_ROW_LAYOUT_INVALID",
+  PRESENTATION_SECTION_DUPLICATE: "ADL_PRESENTATION_SECTION_DUPLICATE",
+  PRESENTATION_SHELL_CONTROL_UNKNOWN: "ADL_PRESENTATION_SHELL_CONTROL_UNKNOWN",
+  PRESENTATION_SHELL_REGION_INVALID: "ADL_PRESENTATION_SHELL_REGION_INVALID",
+  PRESENTATION_STATE_DEFAULT_INCOMPATIBLE: "ADL_PRESENTATION_STATE_DEFAULT_INCOMPATIBLE",
+  PRESENTATION_STATE_DUPLICATE: "ADL_PRESENTATION_STATE_DUPLICATE",
+  PRESENTATION_STATE_PERSISTENCE_INVALID: "ADL_PRESENTATION_STATE_PERSISTENCE_INVALID",
+  PRESENTATION_STATE_TYPE_INVALID: "ADL_PRESENTATION_STATE_TYPE_INVALID",
   READ_MODEL_CONTEXT_MODE_INVALID: "ADL_READ_MODEL_CONTEXT_MODE_INVALID",
   READ_MODEL_CONTEXT_REQUIRED: "ADL_READ_MODEL_CONTEXT_REQUIRED",
   READ_MODEL_CONTEXT_UNKNOWN: "ADL_READ_MODEL_CONTEXT_UNKNOWN",
@@ -253,6 +306,48 @@ const VIEW_KINDS = new Set<ViewKind>([
   "masterDetail",
   "grid",
   "composite",
+]);
+const PRESENTATION_LAYOUTS = new Set<PresentationLayout>(["stack", "grid", "split", "sidebar"]);
+const PRESENTATION_DENSITIES = new Set<PresentationDensity>(["compact", "comfortable", "spacious"]);
+const PRESENTATION_STATE_TYPES = new Set<PresentationStateType>([
+  "text",
+  "number",
+  "date",
+  "datetime",
+  "time",
+  "boolean",
+]);
+const PRESENTATION_STATE_PERSISTENCE = new Set<PresentationStatePersistence>([
+  "memory",
+  "session",
+  "local",
+]);
+const PRESENTATION_CONTROL_KINDS = new Set(["toggle", "select", "action", "contextSelector"]);
+const PRESENTATION_LIST_SOURCE_KINDS = new Set<PresentationListSourceKind>(["readModel", "object"]);
+const PRESENTATION_LIST_RENDER_STYLES = new Set<PresentationListRenderStyle>([
+  "table",
+  "feed",
+  "compactFeed",
+  "cards",
+]);
+const PRESENTATION_ROW_LAYOUTS = new Set<PresentationRowLayout>(["inline", "stack"]);
+const PRESENTATION_FRAGMENT_STYLES = new Set<PresentationFragmentStyle>([
+  "plain",
+  "bold",
+  "muted",
+  "caption",
+]);
+const PRESENTATION_FORMAT_KINDS = new Set<PresentationFormatKind>([
+  "text",
+  "number",
+  "date",
+  "datetime",
+  "time",
+]);
+const PRESENTATION_SHELL_REGIONS = new Set<PresentationShellRegion>([
+  "topBar",
+  "bottomBar",
+  "sidebar",
 ]);
 
 const CONTEXT_SELECTION_MODES = new Set<ContextSelectionMode>(["required", "optional"]);
@@ -2098,6 +2193,725 @@ function validateView(
       );
     }
   }
+
+  if (view.presentation !== undefined) {
+    validateViewPresentation(view.presentation, view, viewPath, targetObject, indexes, diagnostics);
+  }
+}
+
+function validateViewPresentation(
+  presentation: ResolvedViewPresentation,
+  view: ResolvedView,
+  viewPath: string,
+  targetObject: ResolvedObject,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const presentationPath = `${viewPath}.presentation`;
+  const stateByName = indexByName(presentation.state);
+  const iconMapByName = indexByName(presentation.iconMaps);
+  const controlsByName = indexPresentationControls(presentation.sections);
+  const viewFieldRefs = getViewFieldReferences(view, targetObject, indexes);
+
+  validatePresentationLayout(presentation.layout, `${presentationPath}.layout`, diagnostics);
+  validatePresentationDensity(presentation.density, `${presentationPath}.density`, diagnostics);
+  reportDuplicateNames(
+    presentation.state,
+    `${presentationPath}.state`,
+    MODEL_VALIDATION_CODES.PRESENTATION_STATE_DUPLICATE,
+    diagnostics,
+    `Presentation state names must be unique within view '${view.name}'.`,
+  );
+  reportDuplicateNames(
+    presentation.iconMaps,
+    `${presentationPath}.iconMaps`,
+    MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_DUPLICATE,
+    diagnostics,
+    `Presentation icon map names must be unique within view '${view.name}'.`,
+  );
+  reportDuplicateNames(
+    presentation.sections,
+    `${presentationPath}.sections`,
+    MODEL_VALIDATION_CODES.PRESENTATION_SECTION_DUPLICATE,
+    diagnostics,
+    `Presentation section names must be unique within view '${view.name}'.`,
+  );
+
+  for (let stateIndex = 0; stateIndex < presentation.state.length; stateIndex += 1) {
+    const state = presentation.state[stateIndex];
+    if (state === undefined) {
+      continue;
+    }
+    validatePresentationState(state, `${presentationPath}.state[${stateIndex}]`, diagnostics);
+  }
+
+  for (let iconMapIndex = 0; iconMapIndex < presentation.iconMaps.length; iconMapIndex += 1) {
+    const iconMap = presentation.iconMaps[iconMapIndex];
+    if (iconMap === undefined) {
+      continue;
+    }
+    if (!viewFieldRefs.has(iconMap.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_FIELD_UNKNOWN,
+          `Presentation icon map '${iconMap.name}' references unknown field '${iconMap.field}' in view '${view.name}'.`,
+          `${presentationPath}.iconMaps[${iconMapIndex}].field`,
+        ),
+      );
+    }
+  }
+
+  for (let sectionIndex = 0; sectionIndex < presentation.sections.length; sectionIndex += 1) {
+    const section = presentation.sections[sectionIndex];
+    if (section === undefined) {
+      continue;
+    }
+    validatePresentationSection(
+      section,
+      `${presentationPath}.sections[${sectionIndex}]`,
+      view,
+      stateByName,
+      iconMapByName,
+      indexes,
+      diagnostics,
+    );
+  }
+
+  if (presentation.shell !== undefined) {
+    for (let regionIndex = 0; regionIndex < presentation.shell.regions.length; regionIndex += 1) {
+      const region = presentation.shell.regions[regionIndex];
+      if (region === undefined) {
+        continue;
+      }
+      const regionPath = `${presentationPath}.shell.regions[${regionIndex}]`;
+      if (!PRESENTATION_SHELL_REGIONS.has(region.region)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.PRESENTATION_SHELL_REGION_INVALID,
+            `Presentation shell region '${String(region.region)}' is not supported.`,
+            `${regionPath}.region`,
+          ),
+        );
+      }
+      for (let controlIndex = 0; controlIndex < region.controls.length; controlIndex += 1) {
+        const controlName = region.controls[controlIndex];
+        if (controlName === undefined || controlsByName.has(controlName)) {
+          continue;
+        }
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.PRESENTATION_SHELL_CONTROL_UNKNOWN,
+            `Presentation shell references unknown control '${controlName}' in view '${view.name}'.`,
+            `${regionPath}.controls[${controlIndex}]`,
+          ),
+        );
+      }
+    }
+  }
+}
+
+function validatePresentationState(
+  state: ResolvedPresentationState,
+  statePath: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_STATE_TYPES.has(state.type)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_STATE_TYPE_INVALID,
+        `Presentation state '${state.name}' has invalid type '${String(state.type)}'.`,
+        `${statePath}.type`,
+      ),
+    );
+  }
+
+  if (!PRESENTATION_STATE_PERSISTENCE.has(state.persistence)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_STATE_PERSISTENCE_INVALID,
+        `Presentation state '${state.name}' has invalid persistence '${String(state.persistence)}'.`,
+        `${statePath}.persistence`,
+      ),
+    );
+  }
+
+  if (
+    state.defaultValue !== null &&
+    !isValueCompatibleWithExpressionType(state.type, state.defaultValue)
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_STATE_DEFAULT_INCOMPATIBLE,
+        `Presentation state '${state.name}' default value is not compatible with ${state.type}.`,
+        `${statePath}.defaultValue`,
+      ),
+    );
+  }
+}
+
+function validatePresentationSection(
+  section: ResolvedPresentationSection,
+  sectionPath: string,
+  view: ResolvedView,
+  stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  validatePresentationLayout(section.layout, `${sectionPath}.layout`, diagnostics);
+  validatePresentationDensity(section.density, `${sectionPath}.density`, diagnostics);
+  reportDuplicateNames(
+    section.controls,
+    `${sectionPath}.controls`,
+    MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_DUPLICATE,
+    diagnostics,
+    `Presentation control names must be unique within section '${section.name}'.`,
+  );
+  reportDuplicateNames(
+    section.lists,
+    `${sectionPath}.lists`,
+    MODEL_VALIDATION_CODES.PRESENTATION_LIST_DUPLICATE,
+    diagnostics,
+    `Presentation list names must be unique within section '${section.name}'.`,
+  );
+
+  for (let controlIndex = 0; controlIndex < section.controls.length; controlIndex += 1) {
+    const control = section.controls[controlIndex];
+    if (control === undefined) {
+      continue;
+    }
+    validatePresentationControl(
+      control,
+      `${sectionPath}.controls[${controlIndex}]`,
+      view,
+      stateByName,
+      iconMapByName,
+      indexes,
+      diagnostics,
+    );
+  }
+
+  for (let listIndex = 0; listIndex < section.lists.length; listIndex += 1) {
+    const list = section.lists[listIndex];
+    if (list === undefined) {
+      continue;
+    }
+    validatePresentationList(
+      list,
+      `${sectionPath}.lists[${listIndex}]`,
+      view,
+      stateByName,
+      iconMapByName,
+      indexes,
+      diagnostics,
+    );
+  }
+}
+
+function validatePresentationControl(
+  control: ResolvedPresentationControl,
+  controlPath: string,
+  view: ResolvedView,
+  stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_CONTROL_KINDS.has(control.kind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_KIND_INVALID,
+        `Presentation control '${control.name}' has invalid kind '${String(control.kind)}'.`,
+        `${controlPath}.kind`,
+      ),
+    );
+  }
+
+  if ((control.kind === "toggle" || control.kind === "select") && !stateByName.has(control.state)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_STATE_UNKNOWN,
+        `Presentation control '${control.name}' references unknown local state '${control.state}'.`,
+        `${controlPath}.state`,
+      ),
+    );
+  }
+
+  if (control.kind === "action") {
+    if (control.command !== undefined && !indexes.commandsByName.has(control.command)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_COMMAND_UNKNOWN,
+          `Presentation action '${control.name}' references unknown command '${control.command}'.`,
+          `${controlPath}.command`,
+        ),
+      );
+    }
+    if (control.view !== undefined && !indexes.viewNames.has(control.view)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VIEW_UNKNOWN,
+          `Presentation action '${control.name}' references unknown view '${control.view}'.`,
+          `${controlPath}.view`,
+        ),
+      );
+    }
+  }
+
+  if (control.kind === "contextSelector" && control.context !== undefined) {
+    if (!indexes.contextsByName.has(control.context)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_CONTEXT_UNKNOWN,
+          `Presentation context selector '${control.name}' references unknown context '${control.context}'.`,
+          `${controlPath}.context`,
+        ),
+      );
+    }
+  }
+
+  validatePresentationIconRef(
+    control.icon,
+    `${controlPath}.icon`,
+    view,
+    iconMapByName,
+    undefined,
+    diagnostics,
+  );
+
+  if (control.kind === "select") {
+    for (let optionIndex = 0; optionIndex < control.options.length; optionIndex += 1) {
+      const option = control.options[optionIndex];
+      if (option === undefined) {
+        continue;
+      }
+      validatePresentationIconRef(
+        option.icon,
+        `${controlPath}.options[${optionIndex}].icon`,
+        view,
+        iconMapByName,
+        undefined,
+        diagnostics,
+      );
+    }
+  }
+}
+
+function validatePresentationList(
+  list: ResolvedPresentationList,
+  listPath: string,
+  view: ResolvedView,
+  stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_LIST_SOURCE_KINDS.has(list.sourceKind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_SOURCE_KIND_INVALID,
+        `Presentation list '${list.name}' has invalid source kind '${String(list.sourceKind)}'.`,
+        `${listPath}.sourceKind`,
+      ),
+    );
+  }
+
+  if (!PRESENTATION_LIST_RENDER_STYLES.has(list.renderAs)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_RENDER_STYLE_INVALID,
+        `Presentation list '${list.name}' has unsupported render style '${String(list.renderAs)}'.`,
+        `${listPath}.renderAs`,
+      ),
+    );
+  }
+
+  validatePresentationDensity(list.density, `${listPath}.density`, diagnostics);
+
+  const fieldsByName = getPresentationListFieldReferences(list, indexes, listPath, diagnostics);
+  const expressionFieldsByName = mergePresentationExpressionFields(fieldsByName, stateByName);
+
+  for (let fieldIndex = 0; fieldIndex < list.fields.length; fieldIndex += 1) {
+    const field = list.fields[fieldIndex];
+    if (field === undefined || fieldsByName.has(field)) {
+      continue;
+    }
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_FIELD_UNKNOWN,
+        `Presentation list '${list.name}' references unknown field '${field}'.`,
+        `${listPath}.fields[${fieldIndex}]`,
+      ),
+    );
+  }
+
+  for (let sortIndex = 0; sortIndex < list.sort.length; sortIndex += 1) {
+    const sortItem = list.sort[sortIndex];
+    if (sortItem === undefined || fieldsByName.has(sortItem.field)) {
+      continue;
+    }
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_FIELD_UNKNOWN,
+        `Presentation list '${list.name}' sorts by unknown field '${sortItem.field}'.`,
+        `${listPath}.sort[${sortIndex}].field`,
+      ),
+    );
+  }
+
+  if (list.filter !== undefined) {
+    const filterType = validateExpression(
+      list.filter,
+      `${listPath}.filter`,
+      expressionFieldsByName,
+      {
+        invalid: MODEL_VALIDATION_CODES.PRESENTATION_FILTER_INVALID,
+        field: MODEL_VALIDATION_CODES.PRESENTATION_FILTER_FIELD_UNKNOWN,
+        runtime: MODEL_VALIDATION_CODES.PRESENTATION_FILTER_RUNTIME_PROPERTY_INVALID,
+        type: MODEL_VALIDATION_CODES.PRESENTATION_FILTER_TYPE,
+      },
+      diagnostics,
+    );
+    if (filterType !== "boolean" && filterType !== "unknown") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_FILTER_TYPE,
+          `Presentation list '${list.name}' filter must resolve to boolean, not ${filterType}.`,
+          `${listPath}.filter`,
+        ),
+      );
+    }
+  }
+
+  validatePresentationIconRef(
+    list.emptyState.icon,
+    `${listPath}.emptyState.icon`,
+    view,
+    iconMapByName,
+    fieldsByName,
+    diagnostics,
+  );
+  validatePresentationRowTemplate(
+    list.row,
+    `${listPath}.row`,
+    view,
+    fieldsByName,
+    expressionFieldsByName,
+    iconMapByName,
+    diagnostics,
+  );
+}
+
+function validatePresentationRowTemplate(
+  row: ResolvedPresentationList["row"],
+  rowPath: string,
+  view: ResolvedView,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  expressionFieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_ROW_LAYOUTS.has(row.layout)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_ROW_LAYOUT_INVALID,
+        `Presentation row has invalid layout '${String(row.layout)}'.`,
+        `${rowPath}.layout`,
+      ),
+    );
+  }
+  validatePresentationDensity(row.density, `${rowPath}.density`, diagnostics);
+
+  for (let fragmentIndex = 0; fragmentIndex < row.fragments.length; fragmentIndex += 1) {
+    const fragment = row.fragments[fragmentIndex];
+    if (fragment === undefined) {
+      continue;
+    }
+    validatePresentationRowFragment(
+      fragment,
+      `${rowPath}.fragments[${fragmentIndex}]`,
+      view,
+      fieldsByName,
+      expressionFieldsByName,
+      iconMapByName,
+      diagnostics,
+    );
+  }
+}
+
+function validatePresentationRowFragment(
+  fragment: ResolvedPresentationRowFragment,
+  fragmentPath: string,
+  view: ResolvedView,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  expressionFieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (fragment.kind === "field") {
+    if (!fieldsByName.has(fragment.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_ROW_FIELD_UNKNOWN,
+          `Presentation row references unknown field '${fragment.field}'.`,
+          `${fragmentPath}.field`,
+        ),
+      );
+    }
+    validatePresentationFragmentStyle(fragment.style, `${fragmentPath}.style`, diagnostics);
+    validatePresentationFormat(fragment.format, `${fragmentPath}.format`, diagnostics);
+    return;
+  }
+
+  if (fragment.kind === "text") {
+    validatePresentationFragmentStyle(fragment.style, `${fragmentPath}.style`, diagnostics);
+    return;
+  }
+
+  if (fragment.kind === "icon") {
+    validatePresentationIconRef(
+      fragment.icon,
+      `${fragmentPath}.icon`,
+      view,
+      iconMapByName,
+      fieldsByName,
+      diagnostics,
+    );
+    return;
+  }
+
+  if (fragment.kind === "conditional") {
+    const conditionType = validateExpression(
+      fragment.when,
+      `${fragmentPath}.when`,
+      expressionFieldsByName,
+      {
+        invalid: MODEL_VALIDATION_CODES.PRESENTATION_ROW_CONDITION_INVALID,
+        field: MODEL_VALIDATION_CODES.PRESENTATION_ROW_CONDITION_FIELD_UNKNOWN,
+        runtime: MODEL_VALIDATION_CODES.PRESENTATION_ROW_CONDITION_RUNTIME_PROPERTY_INVALID,
+        type: MODEL_VALIDATION_CODES.PRESENTATION_ROW_CONDITION_TYPE,
+      },
+      diagnostics,
+    );
+    if (conditionType !== "boolean" && conditionType !== "unknown") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_ROW_CONDITION_TYPE,
+          `Presentation conditional row fragment must resolve to boolean, not ${conditionType}.`,
+          `${fragmentPath}.when`,
+        ),
+      );
+    }
+    validatePresentationRowTemplate(
+      {
+        layout: "inline",
+        density: "comfortable",
+        fragments: fragment.fragments,
+      },
+      fragmentPath,
+      view,
+      fieldsByName,
+      expressionFieldsByName,
+      iconMapByName,
+      diagnostics,
+    );
+  }
+}
+
+function validatePresentationIconRef(
+  icon: ResolvedPresentationIconRef | undefined,
+  iconPath: string,
+  view: ResolvedView,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>> | undefined,
+  diagnostics: Diagnostic[],
+): void {
+  if (icon === undefined || icon.kind === "named") {
+    return;
+  }
+
+  if (!iconMapByName.has(icon.map)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_UNKNOWN,
+        `Presentation icon reference in view '${view.name}' uses unknown icon map '${icon.map}'.`,
+        `${iconPath}.map`,
+      ),
+    );
+  }
+
+  if (icon.field !== undefined && fieldsByName !== undefined && !fieldsByName.has(icon.field)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_ROW_FIELD_UNKNOWN,
+        `Presentation icon reference in view '${view.name}' uses unknown field '${icon.field}'.`,
+        `${iconPath}.field`,
+      ),
+    );
+  }
+}
+
+function validatePresentationLayout(
+  layout: ResolvedViewPresentation["layout"],
+  layoutPath: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_LAYOUTS.has(layout)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_LAYOUT_INVALID,
+        `Presentation layout '${String(layout)}' is not supported.`,
+        layoutPath,
+      ),
+    );
+  }
+}
+
+function validatePresentationDensity(
+  density: ResolvedViewPresentation["density"],
+  densityPath: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_DENSITIES.has(density)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_DENSITY_INVALID,
+        `Presentation density '${String(density)}' is not supported.`,
+        densityPath,
+      ),
+    );
+  }
+}
+
+function validatePresentationFragmentStyle(
+  style: PresentationFragmentStyle,
+  stylePath: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_FRAGMENT_STYLES.has(style)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_ROW_FRAGMENT_STYLE_INVALID,
+        `Presentation row fragment style '${String(style)}' is not supported.`,
+        stylePath,
+      ),
+    );
+  }
+}
+
+function validatePresentationFormat(
+  format: Extract<ResolvedPresentationRowFragment, { kind: "field" }>["format"],
+  formatPath: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (format === undefined) {
+    return;
+  }
+
+  if (!PRESENTATION_FORMAT_KINDS.has(format.kind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_FORMAT_INVALID,
+        `Presentation format '${String(format.kind)}' is not supported.`,
+        `${formatPath}.kind`,
+      ),
+    );
+  }
+
+  if (format.pattern !== undefined && format.pattern.trim() === "") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_FORMAT_INVALID,
+        "Presentation format pattern must not be empty.",
+        `${formatPath}.pattern`,
+      ),
+    );
+  }
+}
+
+function getViewFieldReferences(
+  view: ResolvedView,
+  targetObject: ResolvedObject,
+  indexes: ModelIndexes,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  if (view.readModel !== undefined) {
+    const readModel = indexes.readModelsByName.get(view.readModel)?.item;
+    if (readModel !== undefined) {
+      return indexReadModelExpressionFields(readModel);
+    }
+  }
+
+  return indexObjectExpressionFields(targetObject);
+}
+
+function getPresentationListFieldReferences(
+  list: ResolvedPresentationList,
+  indexes: ModelIndexes,
+  listPath: string,
+  diagnostics: Diagnostic[],
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  if (list.sourceKind === "object") {
+    const object = indexes.objectsByName.get(list.source)?.item;
+    if (object === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_LIST_SOURCE_UNKNOWN,
+          `Presentation list '${list.name}' references unknown object '${list.source}'.`,
+          `${listPath}.source`,
+        ),
+      );
+      return new Map();
+    }
+    return indexObjectExpressionFields(object);
+  }
+
+  if (list.sourceKind === "readModel") {
+    const readModel = indexes.readModelsByName.get(list.source)?.item;
+    if (readModel === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_LIST_SOURCE_UNKNOWN,
+          `Presentation list '${list.name}' references unknown read model '${list.source}'.`,
+          `${listPath}.source`,
+        ),
+      );
+      return new Map();
+    }
+    return indexReadModelExpressionFields(readModel);
+  }
+
+  return new Map();
+}
+
+function mergePresentationExpressionFields(
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  const result = new Map(fieldsByName);
+  for (const [name, state] of stateByName) {
+    result.set(name, {
+      item: expressionTypeField(name, state.item.type),
+      index: state.index,
+    });
+  }
+  return result;
+}
+
+function indexPresentationControls(
+  sections: ResolvedPresentationSection[],
+): Map<string, NamedReference<ResolvedPresentationControl>> {
+  const controlsByName = new Map<string, NamedReference<ResolvedPresentationControl>>();
+  let controlCount = 0;
+  for (const section of sections) {
+    for (const control of section.controls) {
+      controlsByName.set(control.name, {
+        item: control,
+        index: controlCount,
+      });
+      controlCount += 1;
+    }
+  }
+  return controlsByName;
 }
 
 function validateViewContext(
@@ -3550,6 +4364,25 @@ function indexObjectExpressionFields(
   }
   for (const [name, reference] of indexByName(object.computedFields)) {
     fields.set(name, reference);
+  }
+
+  return fields;
+}
+
+function indexReadModelExpressionFields(
+  readModel: ResolvedReadModel,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  const fields = new Map<string, NamedReference<ExpressionFieldReference>>();
+
+  for (let fieldIndex = 0; fieldIndex < readModel.fields.length; fieldIndex += 1) {
+    const field = readModel.fields[fieldIndex];
+    if (field === undefined || fields.has(field.name)) {
+      continue;
+    }
+    fields.set(field.name, {
+      item: expressionTypeField(field.name, field.type ?? "text"),
+      index: fieldIndex,
+    });
   }
 
   return fields;

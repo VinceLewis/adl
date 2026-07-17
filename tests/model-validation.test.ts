@@ -103,6 +103,12 @@ describe("validateApplicationModel", () => {
     expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
+  it("accepts valid composed view presentation declarations", () => {
+    const resolved = resolveApplicationModel(createPresentationPartialModel());
+
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
   it("does not mutate the resolved model", () => {
     const resolved = resolveApplicationModel(validPartialModel);
     const before = JSON.stringify(resolved);
@@ -445,6 +451,75 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  it("reports invalid presentation references and unsupported values", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPresentationPartialModel()));
+    const home = invalid.objects[0]?.views[0];
+    const presentation = home?.presentation;
+    const filters = presentation?.sections[0];
+    const schedule = presentation?.sections[1];
+    const toggle = filters?.controls[0];
+    const list = schedule?.lists[0];
+    const state = presentation?.state[0];
+    const iconMap = presentation?.iconMaps[0];
+
+    if (
+      home === undefined ||
+      presentation === undefined ||
+      filters === undefined ||
+      schedule === undefined ||
+      toggle === undefined ||
+      toggle.kind !== "toggle" ||
+      list === undefined ||
+      state === undefined ||
+      iconMap === undefined
+    ) {
+      throw new Error("Expected presentation fixture.");
+    }
+
+    (presentation as unknown as { layout: string }).layout = "masonry";
+    (state as unknown as { type: string }).type = "attachment";
+    state.defaultValue = 42;
+    iconMap.field = "MissingIconField";
+    toggle.state = "missingState";
+    toggle.icon = { kind: "map", map: "MissingIconMap", value: "Gig" };
+    presentation.shell = {
+      regions: [{ region: "topBar", title: "Home", controls: ["missingControl"] }],
+    };
+    (presentation.shell.regions[0] as unknown as { region: string }).region = "floating";
+    list.source = "MissingReadModel";
+    list.fields.push("MissingListField");
+    list.row.fragments.push({
+      kind: "field",
+      field: "MissingRowField",
+      style: "plain",
+      format: { kind: "date", pattern: "" },
+    });
+    (list.row.fragments[1] as unknown as { style: string }).style = "italic";
+    list.filter = { kind: "field", field: "MissingFilterField" };
+
+    const diagnostics = validateApplicationModel(invalid);
+    const codes = diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_STATE_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_FILTER_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_FORMAT_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_LAYOUT_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_SOURCE_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_ROW_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_ROW_FRAGMENT_STYLE_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_SHELL_CONTROL_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_SHELL_REGION_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATE_DEFAULT_INCOMPATIBLE,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATE_TYPE_INVALID,
+      ]),
+    );
+  });
+
   it("reports invalid theme tokens and base-theme cycles", () => {
     const resolved = resolveApplicationModel({
       ...validPartialModel,
@@ -623,4 +698,101 @@ function createInvalidResolvedModel(): ResolvedApplicationModel {
 
 function cloneResolved<T>(input: T): T {
   return JSON.parse(JSON.stringify(input)) as T;
+}
+
+function createPresentationPartialModel(): PartialApplicationModel {
+  return {
+    app: {
+      name: "Giggle",
+      startView: "Home",
+    },
+    objects: [
+      {
+        name: "Event",
+        fields: [
+          { name: "Title", type: "text" },
+          { name: "EventType", type: "text" },
+          { name: "EventDate", type: "date" },
+          { name: "StartTime", type: "time" },
+        ],
+        views: [
+          {
+            name: "Home",
+            kind: "composite",
+            readModel: "HomeUpcomingEvents",
+            fields: ["EventDate", "StartTime", "Title", "EventType"],
+            presentation: {
+              density: "compact",
+              state: [{ name: "showGigs", type: "boolean", defaultValue: true }],
+              iconMaps: [
+                {
+                  name: "EventTypeIcon",
+                  field: "EventType",
+                  values: [{ value: "Gig", icon: "music" }],
+                },
+              ],
+              sections: [
+                {
+                  name: "Filters",
+                  controls: [
+                    {
+                      name: "showGigsToggle",
+                      kind: "toggle",
+                      state: "showGigs",
+                      label: "Gigs",
+                      icon: { kind: "map", map: "EventTypeIcon", value: "Gig" },
+                    },
+                  ],
+                },
+                {
+                  name: "Schedule",
+                  lists: [
+                    {
+                      name: "UpcomingEvents",
+                      source: "HomeUpcomingEvents",
+                      renderAs: "compactFeed",
+                      fields: ["EventDate", "StartTime", "Title"],
+                      sort: [{ field: "EventDate", direction: "asc" }],
+                      filter: { kind: "field", field: "showGigs" },
+                      emptyState: { text: "No upcoming events" },
+                      row: {
+                        fragments: [
+                          {
+                            kind: "icon",
+                            icon: { kind: "map", map: "EventTypeIcon", field: "EventType" },
+                          },
+                          {
+                            kind: "field",
+                            field: "EventDate",
+                            format: { kind: "date", pattern: "EEE d MMM" },
+                          },
+                          { kind: "text", text: " - " },
+                          { kind: "field", field: "Title", style: "bold" },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              ],
+              shell: {
+                regions: [{ region: "topBar", title: "Home", controls: ["showGigsToggle"] }],
+              },
+            },
+          },
+        ],
+      },
+    ],
+    readModels: [
+      {
+        name: "HomeUpcomingEvents",
+        sources: [{ object: "Event" }],
+        fields: [
+          { name: "EventDate", source: "Event", field: "EventDate", type: "date" },
+          { name: "StartTime", source: "Event", field: "StartTime", type: "time" },
+          { name: "Title", source: "Event", field: "Title", type: "text" },
+          { name: "EventType", source: "Event", field: "EventType", type: "text" },
+        ],
+      },
+    ],
+  };
 }

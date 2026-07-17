@@ -85,6 +85,12 @@ Before tasks that change browser UI runtime components, browser demo fixtures, U
 - `implementation/policy-engine.md`
 - `implementation/sync-policy.md`
 
+Before tasks that change composed UI presentation declarations, presentation
+resolved-model defaults, UI syntax for composed views, presentation validation,
+or presentation renderer behavior, also read:
+
+- `implementation/ui-presentation-model.md`
+
 Before tasks that add or change ADL reference applications, model-driven demo fixtures, or follow-up platform gaps discovered by a reference app, also read:
 
 - `implementation/reference-app-models.md`
@@ -140,3 +146,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work.
 - `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases.
+- `implementation/ui-presentation-model.md`: read before changing composed UI presentation declarations, presentation defaults, UI syntax for composed views, presentation validation, or presentation renderer behavior.

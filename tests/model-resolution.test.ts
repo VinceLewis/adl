@@ -300,6 +300,83 @@ describe("resolveApplicationModel", () => {
     ]);
   });
 
+  it("resolves composed view presentation declarations with explicit defaults", () => {
+    const resolved = resolveApplicationModel(createPresentationPartialModel());
+    const home = resolved.objects[0]?.views.find((view) => view.name === "Home");
+
+    expect(home?.presentation).toMatchObject({
+      layout: "stack",
+      density: "compact",
+      state: [
+        {
+          name: "showGigs",
+          type: "boolean",
+          defaultValue: true,
+          persistence: "memory",
+        },
+      ],
+      iconMaps: [
+        {
+          name: "EventTypeIcon",
+          field: "EventType",
+          values: [{ value: "Gig", icon: "music" }],
+        },
+      ],
+      sections: [
+        {
+          name: "Filters",
+          layout: "stack",
+          density: "comfortable",
+          controls: [
+            {
+              name: "showGigsToggle",
+              kind: "toggle",
+              state: "showGigs",
+              label: "Gigs",
+              icon: { kind: "map", map: "EventTypeIcon", value: "Gig" },
+            },
+          ],
+          lists: [],
+        },
+        {
+          name: "Schedule",
+          layout: "stack",
+          density: "comfortable",
+          controls: [],
+          lists: [
+            {
+              name: "UpcomingEvents",
+              sourceKind: "readModel",
+              source: "HomeUpcomingEvents",
+              renderAs: "compactFeed",
+              density: "comfortable",
+              fields: ["EventDate", "StartTime", "Title"],
+              emptyState: { text: "No upcoming events" },
+              row: {
+                layout: "inline",
+                density: "comfortable",
+                fragments: [
+                  { kind: "icon", icon: { kind: "map", map: "EventTypeIcon", field: "EventType" } },
+                  {
+                    kind: "field",
+                    field: "EventDate",
+                    style: "plain",
+                    format: { kind: "date", pattern: "EEE d MMM" },
+                  },
+                  { kind: "text", text: " - ", style: "plain" },
+                  { kind: "field", field: "Title", style: "bold" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      shell: {
+        regions: [{ region: "topBar", title: "Home", controls: ["showGigsToggle"] }],
+      },
+    });
+  });
+
   it("resolves customer themes from explicit base themes and token overrides", () => {
     const resolved = resolveApplicationModel({
       ...minimalModel,
@@ -371,5 +448,102 @@ function createSyncScopeObject(
       scope,
       ...(window === undefined ? {} : { window }),
     },
+  };
+}
+
+function createPresentationPartialModel(): PartialApplicationModel {
+  return {
+    app: {
+      name: "Giggle",
+      startView: "Home",
+    },
+    objects: [
+      {
+        name: "Event",
+        fields: [
+          { name: "Title", type: "text" },
+          { name: "EventType", type: "text" },
+          { name: "EventDate", type: "date" },
+          { name: "StartTime", type: "time" },
+        ],
+        views: [
+          {
+            name: "Home",
+            kind: "composite",
+            readModel: "HomeUpcomingEvents",
+            fields: ["EventDate", "StartTime", "Title", "EventType"],
+            presentation: {
+              density: "compact",
+              state: [{ name: "showGigs", type: "boolean", defaultValue: true }],
+              iconMaps: [
+                {
+                  name: "EventTypeIcon",
+                  field: "EventType",
+                  values: [{ value: "Gig", icon: "music" }],
+                },
+              ],
+              sections: [
+                {
+                  name: "Filters",
+                  controls: [
+                    {
+                      name: "showGigsToggle",
+                      kind: "toggle",
+                      state: "showGigs",
+                      label: "Gigs",
+                      icon: { kind: "map", map: "EventTypeIcon", value: "Gig" },
+                    },
+                  ],
+                },
+                {
+                  name: "Schedule",
+                  lists: [
+                    {
+                      name: "UpcomingEvents",
+                      source: "HomeUpcomingEvents",
+                      renderAs: "compactFeed",
+                      fields: ["EventDate", "StartTime", "Title"],
+                      sort: [{ field: "EventDate", direction: "asc" }],
+                      filter: { kind: "field", field: "showGigs" },
+                      emptyState: { text: "No upcoming events" },
+                      row: {
+                        fragments: [
+                          {
+                            kind: "icon",
+                            icon: { kind: "map", map: "EventTypeIcon", field: "EventType" },
+                          },
+                          {
+                            kind: "field",
+                            field: "EventDate",
+                            format: { kind: "date", pattern: "EEE d MMM" },
+                          },
+                          { kind: "text", text: " - " },
+                          { kind: "field", field: "Title", style: "bold" },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              ],
+              shell: {
+                regions: [{ region: "topBar", title: "Home", controls: ["showGigsToggle"] }],
+              },
+            },
+          },
+        ],
+      },
+    ],
+    readModels: [
+      {
+        name: "HomeUpcomingEvents",
+        sources: [{ object: "Event" }],
+        fields: [
+          { name: "EventDate", source: "Event", field: "EventDate", type: "date" },
+          { name: "StartTime", source: "Event", field: "StartTime", type: "time" },
+          { name: "Title", source: "Event", field: "Title", type: "text" },
+          { name: "EventType", source: "Event", field: "EventType", type: "text" },
+        ],
+      },
+    ],
   };
 }
