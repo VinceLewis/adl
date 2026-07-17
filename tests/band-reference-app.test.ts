@@ -142,7 +142,10 @@ describe("band reference app runtime", () => {
       undefined,
       seeded.firstBandContext,
     );
-    expect(firstBandEvents.map((record) => record.values.Title)).toEqual(["Canal Street headline"]);
+    expect(firstBandEvents.map((record) => record.values.Title)).toEqual([
+      "Canal Street headline",
+      "Unavailable - session prep",
+    ]);
 
     await expect(
       seeded.runtime.read("Event", seeded.secondEvent.meta.guid, seeded.firstBandContext),
@@ -212,6 +215,14 @@ describe("band reference app runtime", () => {
         VenueName: "Beta Rooms",
         BandName: "The Betas",
       },
+      {
+        EventDate: "2026-08-03",
+        StartTime: "09:00",
+        EventType: "Unavailable",
+        Title: "Unavailable - session prep",
+        VenueName: "Personal calendar",
+        BandName: "The Alphas",
+      },
     ]);
 
     const setList = await seeded.runtime.executeReadModel(
@@ -258,7 +269,11 @@ describe("band reference app runtime", () => {
     );
 
     expect(new Set(eventRecords.map((record) => record.recordId))).toEqual(
-      new Set([seeded.firstEvent.meta.guid, seeded.secondEvent.meta.guid]),
+      new Set([
+        seeded.firstEvent.meta.guid,
+        seeded.secondEvent.meta.guid,
+        seeded.thirdEvent.meta.guid,
+      ]),
     );
     expect(
       eventRecords.find((record) => record.recordId === seeded.firstEvent.meta.guid)?.reasons,
@@ -278,6 +293,7 @@ describe("band reference app runtime", () => {
     expect(eventSearch.map((record) => record.meta.guid)).toEqual([
       seeded.firstEvent.meta.guid,
       seeded.secondEvent.meta.guid,
+      seeded.thirdEvent.meta.guid,
     ]);
     expect(availabilitySearch.map((record) => record.meta.guid)).toEqual([
       seeded.availability.meta.guid,
@@ -335,6 +351,7 @@ describe("band reference app runtime", () => {
 
   it("accepts invitations with a generic transaction command", async () => {
     const seeded = await createSeededBandReferenceRuntime();
+    const pendingInvitation = await createPendingInvitation(seeded);
     const inviteeContext: RuntimeContext = {
       userId: seeded.guest.meta.guid,
       roles: [],
@@ -357,7 +374,7 @@ describe("band reference app runtime", () => {
 
     const result = await seeded.runtime.executeCommand(
       "AcceptBandInvitation",
-      { Invitation: seeded.invitation.meta.guid },
+      { Invitation: pendingInvitation.meta.guid },
       inviteeContext,
     );
 
@@ -379,6 +396,7 @@ describe("band reference app runtime", () => {
 
   it("keeps invitation acceptance atomic when membership creation violates uniqueness", async () => {
     const seeded = await createSeededBandReferenceRuntime();
+    const pendingInvitation = await createPendingInvitation(seeded);
     const inviteeContext: RuntimeContext = {
       userId: seeded.guest.meta.guid,
       roles: [],
@@ -389,7 +407,7 @@ describe("band reference app runtime", () => {
 
     await seeded.runtime.executeCommand(
       "AcceptBandInvitation",
-      { Invitation: seeded.invitation.meta.guid },
+      { Invitation: pendingInvitation.meta.guid },
       inviteeContext,
     );
     const secondInvitation = await seeded.runtime.create(
@@ -527,6 +545,8 @@ describe("band reference browser demo", () => {
     expect(app.querySelector("[data-presentation-section='Schedule']")).not.toBeNull();
     expect(app.textContent).toContain("Canal Street headline");
     expect(app.textContent).toContain("New set rehearsal");
+    expect(app.textContent).toContain("Unavailable - session prep");
+    expect(app.textContent).toContain("No pending invitations");
     expect(app.textContent).toContain("The Alphas");
     expect(app.textContent).toContain("The Betas");
   });
@@ -785,6 +805,22 @@ describe("band reference browser demo", () => {
 async function createSeededBandReferenceRuntime() {
   const runtime = createBandReferenceRuntime();
   return seedBandReferenceRuntime(runtime);
+}
+
+async function createPendingInvitation(
+  seeded: Awaited<ReturnType<typeof createSeededBandReferenceRuntime>>,
+) {
+  return seeded.runtime.create(
+    "BandInvitation",
+    {
+      Band: seeded.firstBand.meta.guid,
+      Inviter: seeded.musician.meta.guid,
+      Invitee: seeded.guest.meta.guid,
+      InviteeEmail: "riley.pending@example.com",
+      SentAt: "2026-07-08",
+    },
+    contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid),
+  );
 }
 
 async function flushUi(): Promise<void> {

@@ -10,18 +10,19 @@ OBJECT Event
 
     STATE showGigs BOOLEAN DEFAULT true
     STATE showRehearsals BOOLEAN DEFAULT true
+    STATE showUnavailable BOOLEAN DEFAULT true
 
     ICON_MAP EventTypeIcon FOR EventType DEFAULT calendar
       Gig -> music
       Rehearsal -> microphone
+      Unavailable -> x
     END.ICON_MAP
 
     SECTION Welcome
-      HEADING 'Welcome back'
+      HEADING 'Welcome Back!'
     END.SECTION
 
     SECTION Filters
-      HEADING 'Home filters'
       DENSITY compact
 
       TOGGLE showGigsToggle STATE showGigs
@@ -33,14 +34,19 @@ OBJECT Event
         LABEL 'Rehearsals'
         ICON EventTypeIcon(Rehearsal)
       END.TOGGLE
+
+      TOGGLE showUnavailableToggle STATE showUnavailable
+        LABEL 'Unavailable'
+        ICON EventTypeIcon(Unavailable)
+      END.TOGGLE
     END.SECTION
 
     SECTION Schedule
-      HEADING 'Upcoming events'
+      HEADING 'Schedule'
 
       LIST UpcomingEvents FROM HomeUpcomingEvents
         ORDER BY EventDate ASC, StartTime ASC
-        WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true)
+        WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true) OR (EventType == 'Unavailable' AND showUnavailable == true)
         RENDER_AS compactFeed
         DENSITY compact
         EMPTY_TEXT 'No upcoming events'
@@ -48,12 +54,14 @@ OBJECT Event
         ROW
           ICON EventTypeIcon(EventType)
           TEXT EventDate FORMAT date 'EEE d MMM'
+          TEXT ' '
+          TEXT StartTime FORMAT time 'h:mma'
           TEXT ' - '
           TEXT BandName
           TEXT ' - '
           TEXT Title STYLE bold
-          TEXT ' at '
-          TEXT StartTime FORMAT time 'h:mma'
+          TEXT ' - '
+          TEXT VenueName
         END.ROW
       END.LIST
     END.SECTION

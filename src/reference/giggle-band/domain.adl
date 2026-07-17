@@ -89,7 +89,7 @@ OBJECT Event
   DISPLAY Title
   SCOPE Band FIELD Band
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
-  FIELD EventType TEXT REQUIRED DEFAULT Gig IN ('Gig', 'Rehearsal')
+  FIELD EventType TEXT REQUIRED DEFAULT Gig IN ('Gig', 'Rehearsal', 'Unavailable')
   FIELD Date DATE REQUIRED
   FIELD StartTime TIME
   FIELD EndTime TIME

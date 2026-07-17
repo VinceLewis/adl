@@ -5,7 +5,7 @@ Phase 17 added a model-driven band-management reference app in `src/reference/ba
 The browser demo is available through the existing Vite app with:
 
 ```text
-/?demo=band
+/?demo=giggle-band
 ```
 
 It runs against the existing local runtime and IndexedDB storage. It does not require Giggle, PostgreSQL, an auth provider, an email sender, or a sync server.
@@ -15,8 +15,9 @@ It runs against the existing local runtime and IndexedDB storage. It does not re
 - `Band` is a first-class business context.
 - `BandMember` resolves context-scoped `BandAdmin` and `BandMember` roles.
 - A user can be an admin in one band and a member in another.
-- `Event` models gigs and rehearsals with `EventType`.
+- `Event` models gigs, rehearsals, and unavailable rows with `EventType`.
 - The cross-band home dashboard uses `HomeUpcomingEvents`, an all-available-context read model over `Event` joined to `Band`.
+- The Giggle home dashboard presentation is authored in `src/reference/giggle-band/ui.adl` and rendered through the generic composed-view browser component. The row template, event-type icon map, local toggles, date/time formatting, bold title, venue fragment, and invitation empty state all come from the resolved presentation model.
 - Band-scoped objects are protected by runtime context scope and context-role policy checks.
 - `Availability` is user-owned data with a `currentUser` offline scope.
 - `SetListItem` represents ordered set-list entries with a positive `Position` field.
@@ -46,3 +47,4 @@ The following behaviors remain platform design candidates:
 - Ordered set-list behavior still needs generic reorder helpers and compaction after removal.
 - Batch commands are not modelled for mass song import, batch set-list item creation, or drag-reorder updates.
 - Remote sync remains backend-neutral; a future server must provide context-scoped datasets, conflict handling, email dispatch, and authoritative policy re-checks.
+- Presentation shell declarations remain a generic platform gap. Phase 28 added generic composed-view app-bar styling in the browser, but ADL `SHELL`/`TOP_BAR` source syntax is still future work.

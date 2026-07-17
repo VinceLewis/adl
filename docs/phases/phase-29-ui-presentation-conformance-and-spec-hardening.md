@@ -25,6 +25,9 @@ Harden the UI presentation implementation:
   `docs/spec/runtime-semantics.md` where UI presentation behavior is now
   implemented.
 - Add regression cases for gaps found while building the Giggle dashboard.
+- Clarify the status of presentation shell declarations: generic browser
+  composed-view app-bar styling exists, but ADL `SHELL`/`TOP_BAR` syntax is not
+  yet implemented in the parser, evaluator, or browser handoff.
 - Document unsupported UI constructs explicitly.
 
 This phase should not add large new UI features. It should stabilize and specify
@@ -85,9 +88,10 @@ Execute Phase 29 only. Add runtime-agnostic conformance coverage for the impleme
    icon maps, filters, ordering, and empty states.
 4. Integrate the cases into the existing conformance harness.
 5. Extend inspection/explain output for presentation defaults and references.
-6. Update `docs/spec/ui-language-addendum.md`, `docs/spec/language.md`,
+6. Document implemented versus proposed presentation shell behavior.
+7. Update `docs/spec/ui-language-addendum.md`, `docs/spec/language.md`,
    `docs/spec/resolved-model.md`, and `docs/spec/runtime-semantics.md`.
-7. Fix defects found by conformance or inspection work with regression cases.
-8. Update `learnings/` if the phase produces reusable project knowledge.
-9. Run typecheck, full tests, format check, and build.
-10. Commit all repository changes for the phase and push the current branch.
+8. Fix defects found by conformance or inspection work with regression cases.
+9. Update `learnings/` if the phase produces reusable project knowledge.
+10. Run typecheck, full tests, format check, and build.
+11. Commit all repository changes for the phase and push the current branch.

@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ApplicationRuntime, resolveApplicationModel } from "../src/index.js";
 import type { RuntimeContext } from "../src/index.js";
-import {
-  bandReferenceSystemContext,
-  createBandReferenceRuntime,
-  seedBandReferenceRuntime,
-} from "../src/reference/band-app.js";
+import { createBandReferenceRuntime, seedBandReferenceRuntime } from "../src/reference/band-app.js";
 
 describe("presentation runtime", () => {
   it("evaluates the Giggle home dashboard into renderer-neutral sections", async () => {
@@ -27,7 +23,11 @@ describe("presentation runtime", () => {
       "Schedule",
       "Invitations",
     ]);
-    expect(home.state).toEqual({ showGigs: true, showRehearsals: true });
+    expect(home.state).toEqual({
+      showGigs: true,
+      showRehearsals: true,
+      showUnavailable: true,
+    });
     expect(filters?.controls).toEqual([
       expect.objectContaining({
         kind: "toggle",
@@ -44,10 +44,17 @@ describe("presentation runtime", () => {
           source: { kind: "map", map: "EventTypeIcon", value: "Rehearsal" },
         },
       }),
+      expect.objectContaining({
+        kind: "toggle",
+        state: "showUnavailable",
+        value: true,
+        icon: { name: "x", source: { kind: "map", map: "EventTypeIcon", value: "Unavailable" } },
+      }),
     ]);
     expect(schedule?.lists[0]?.rows.map((row) => row.values.Title)).toEqual([
       "Canal Street headline",
       "New set rehearsal",
+      "Unavailable - session prep",
     ]);
     expect(schedule?.lists[0]?.rows[0]?.fragments).toEqual([
       {
@@ -55,16 +62,17 @@ describe("presentation runtime", () => {
         icon: { name: "music", source: { kind: "map", map: "EventTypeIcon", value: "Gig" } },
       },
       { kind: "text", text: "Sat 1 Aug", style: "plain" },
+      { kind: "text", text: " ", style: "plain" },
+      { kind: "text", text: "8:00PM", style: "plain" },
       { kind: "text", text: " - ", style: "plain" },
       { kind: "text", text: "The Alphas", style: "plain" },
       { kind: "text", text: " - ", style: "plain" },
       { kind: "text", text: "Canal Street headline", style: "bold" },
-      { kind: "text", text: " at ", style: "plain" },
-      { kind: "text", text: "8:00PM", style: "plain" },
+      { kind: "text", text: " - ", style: "plain" },
+      { kind: "text", text: "Alpha Hall", style: "plain" },
     ]);
-    expect(invitations?.lists[0]?.rows.map((row) => row.values.InviteeEmail)).toEqual([
-      "riley@example.com",
-    ]);
+    expect(invitations?.lists[0]?.rows).toEqual([]);
+    expect(invitations?.lists[0]?.emptyState).toEqual({ text: "No pending invitations" });
   });
 
   it("applies local toggle state without changing runtime records", async () => {
@@ -85,22 +93,24 @@ describe("presentation runtime", () => {
     );
 
     expect(filtered.diagnostics).toEqual([]);
-    expect(filtered.state).toEqual({ showGigs: true, showRehearsals: false });
+    expect(filtered.state).toEqual({
+      showGigs: true,
+      showRehearsals: false,
+      showUnavailable: true,
+    });
     expect(schedule?.lists[0]?.rows.map((row) => row.values.Title)).toEqual([
       "Canal Street headline",
+      "Unavailable - session prep",
     ]);
     expect(homeRows.rows.map((row) => row.values.Title)).toEqual([
       "Canal Street headline",
       "New set rehearsal",
+      "Unavailable - session prep",
     ]);
   });
 
   it("returns configured empty states for empty presentation lists", async () => {
     const seeded = await createSeededPresentationRuntime();
-    await seeded.runtime.delete("BandInvitation", seeded.invitation.meta.guid, {
-      ...bandReferenceSystemContext,
-      selectedContexts: { Band: seeded.firstBand.meta.guid },
-    });
 
     const home = await seeded.runtime.evaluatePresentationView(
       "Event",

@@ -8,7 +8,7 @@ The example app is available in the browser demo at:
 
 It uses the same model-driven runtime as the rest of ADL. The app definition
 lives in `src/reference/giggle-band/`: `app.yaml` is the app manifest and
-`domain.adl` is the current ADL source listed by that manifest.
+`domain.adl` and `ui.adl` are the current ADL sources listed by that manifest.
 `src/reference/band-app.ts` compiles the manifest-listed ADL sources and owns
 browser-demo seed data. The browser shell is generic Web Components under
 `src/ui/components/`.
@@ -24,6 +24,12 @@ browser-demo seed data. The browser shell is generic Web Components under
 - Band-scoped authorization and filtering enforced by runtime services, not only
   by UI hiding.
 - Cross-band home dashboard backed by the `HomeUpcomingEvents` read model.
+- Authored home dashboard presentation in `ui.adl`, including a blue generic
+  composed-view app bar, compact `Welcome Back!` screen, Gigs, Rehearsals, and
+  Unavailable toggles, semantic event icons, formatted date/time fragments,
+  bold event titles, venue text, and an Invitations empty state.
+- Representative browser seed data for three ordered schedule rows: a gig, a
+  rehearsal, and an unavailable row across the user's available bands.
 - Selected-band lists and forms for events, members, invitations, songs, set
   lists, set-list items, streaming links, and band profile data.
 - Plain create/update/delete event management for the current selected band.
@@ -60,5 +66,8 @@ browser-demo seed data. The browser shell is generic Web Components under
   drag-reorder helper commands.
 - Remote sync, conflict resolution, background dataset refresh, and attachment
   upload/download are still backend design work.
-- The browser UI is a generic ADL CRUD/dashboard shell. It is useful as an
-  example app, but not yet a product-grade Giggle-specific experience.
+- Declarative shell syntax is still future work. The browser can style composed
+  views with a generic app bar, but the `SHELL`/`TOP_BAR` proposal is not yet
+  parsed or evaluated from ADL source.
+- The browser UI is still a generic ADL CRUD/composed-view shell. It is useful
+  as an example app, but not yet a product-grade Giggle-specific experience.

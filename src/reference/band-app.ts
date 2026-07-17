@@ -50,6 +50,7 @@ export interface BandReferenceSeed {
   secondBand: StoredObjectRecord;
   firstEvent: StoredObjectRecord;
   secondEvent: StoredObjectRecord;
+  thirdEvent: StoredObjectRecord;
   availability: StoredObjectRecord;
   firstSong: StoredObjectRecord;
   secondSong: StoredObjectRecord;
@@ -162,6 +163,20 @@ export async function seedBandReferenceRuntime(
     },
     contextForBand(systemContext, secondBand.meta.guid),
   );
+  const thirdEvent = await runtime.create(
+    "Event",
+    {
+      Band: firstBand.meta.guid,
+      EventType: "Unavailable",
+      Date: "2026-08-03",
+      StartTime: "09:00",
+      EndTime: "12:00",
+      Title: "Unavailable - session prep",
+      VenueName: "Personal calendar",
+      VenueLocation: "Remote",
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
 
   const musicianContext: RuntimeContext = {
     userId: musician.meta.guid,
@@ -258,7 +273,9 @@ export async function seedBandReferenceRuntime(
       Inviter: musician.meta.guid,
       Invitee: guest.meta.guid,
       InviteeEmail: "riley@example.com",
+      Status: "Accepted",
       SentAt: "2026-07-07",
+      RespondedAt: "2026-07-08",
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
@@ -285,6 +302,7 @@ export async function seedBandReferenceRuntime(
     secondBand,
     firstEvent,
     secondEvent,
+    thirdEvent,
     availability,
     firstSong,
     secondSong,

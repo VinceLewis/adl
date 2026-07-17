@@ -527,16 +527,27 @@ export class AdlAppElement extends HTMLElement {
     const readModel = this.activeReadModel;
     const formView = this.formView;
     const isComposedView = view.presentation !== undefined;
+    const shellClass = isComposedView ? "adl-shell adl-shell-composed" : "adl-shell";
+    const topbarClass = isComposedView ? "adl-topbar adl-topbar-composed" : "adl-topbar";
     const showWorkspace =
       this.activeRuntimeContext !== undefined && this.activeViewEmptyState === undefined;
 
     this.applyThemeTokens();
     this.innerHTML = `
-      <main class="adl-shell">
-        <header class="adl-topbar">
+      <main class="${shellClass}">
+        <header class="${topbarClass}">
+          ${
+            isComposedView
+              ? `
+                <button class="adl-menu-action" type="button" aria-label="Menu">
+                  <span aria-hidden="true"></span>
+                </button>
+              `
+              : ""
+          }
           <div class="adl-brand">
             <h1>${escapeHtml(this._model.app.name)}</h1>
-            <span>Model-driven browser runtime</span>
+            ${isComposedView ? "" : "<span>Model-driven browser runtime</span>"}
           </div>
           <div class="adl-topbar-tools">
             ${this.renderContextSelectors()}

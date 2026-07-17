@@ -135,26 +135,33 @@ VIEW HomeDashboard DASHBOARD
   LAYOUT stack
   DENSITY compact
   STATE showGigs BOOLEAN DEFAULT true
+  STATE showRehearsals BOOLEAN DEFAULT true
+  STATE showUnavailable BOOLEAN DEFAULT true
 
   ICON_MAP EventTypeIcon FOR EventType
     Gig -> music
     Rehearsal -> microphone
+    Unavailable -> x
   END.ICON_MAP
 
   SECTION Schedule
-    HEADING 'Upcoming events'
+    HEADING 'Schedule'
 
     LIST UpcomingEvents FROM HomeUpcomingEvents
       ORDER BY EventDate ASC, StartTime ASC
-      WHERE EventType == 'Gig' AND showGigs == true
+      WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true) OR (EventType == 'Unavailable' AND showUnavailable == true)
       RENDER_AS compactFeed
       EMPTY_TEXT 'No upcoming events'
 
       ROW
         ICON EventTypeIcon(EventType)
         TEXT EventDate FORMAT date 'EEE d MMM'
+        TEXT ' '
+        TEXT StartTime FORMAT time 'h:mma'
         TEXT ' - '
         TEXT Title STYLE bold
+        TEXT ' - '
+        TEXT VenueName
       END.ROW
     END.LIST
   END.SECTION

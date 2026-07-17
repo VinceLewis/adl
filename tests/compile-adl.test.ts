@@ -651,6 +651,21 @@ END.READ_MODEL
         ?.views.find((view) => view.name === "HomeDashboard")?.presentation,
     ).toMatchObject({
       density: "compact",
+      state: expect.arrayContaining([
+        expect.objectContaining({ name: "showGigs", defaultValue: true }),
+        expect.objectContaining({ name: "showRehearsals", defaultValue: true }),
+        expect.objectContaining({ name: "showUnavailable", defaultValue: true }),
+      ]),
+      iconMaps: [
+        expect.objectContaining({
+          name: "EventTypeIcon",
+          values: expect.arrayContaining([
+            { value: "Gig", icon: "music" },
+            { value: "Rehearsal", icon: "microphone" },
+            { value: "Unavailable", icon: "x" },
+          ]),
+        }),
+      ],
       sections: expect.arrayContaining([
         expect.objectContaining({ name: "Welcome" }),
         expect.objectContaining({ name: "Filters" }),

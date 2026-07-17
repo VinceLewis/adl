@@ -121,7 +121,7 @@ Views may declare local UI state for filters and presentation choices:
 VIEW HomeDashboard DASHBOARD
   STATE showGigs Boolean DEFAULT true
   STATE showRehearsals Boolean DEFAULT true
-  STATE showUnavailable Boolean DEFAULT false
+  STATE showUnavailable Boolean DEFAULT true
 END.VIEW
 ```
 
@@ -323,7 +323,7 @@ VIEW HomeDashboard DASHBOARD
 
   STATE showGigs Boolean DEFAULT true
   STATE showRehearsals Boolean DEFAULT true
-  STATE showUnavailable Boolean DEFAULT false
+  STATE showUnavailable Boolean DEFAULT true
 
   ICON_MAP EventTypeIcon FOR EventType
     Gig -> music
@@ -359,17 +359,19 @@ VIEW HomeDashboard DASHBOARD
       RENDER_AS compactFeed
       ORDER BY EventDate ASC, StartTime ASC
       EMPTY_TEXT "No upcoming events"
-      WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true)
+      WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true) OR (EventType == 'Unavailable' AND showUnavailable == true)
 
       ROW
         ICON EventTypeIcon(EventType)
         TEXT EventDate FORMAT date "EEE d MMM"
+        TEXT " "
+        TEXT StartTime FORMAT time "h:mma"
         TEXT " - "
         TEXT BandName
         TEXT " - "
         TEXT Title STYLE bold
-        TEXT " at "
-        TEXT StartTime FORMAT time "h:mma"
+        TEXT " - "
+        TEXT VenueName
       END.ROW
     END.LIST
   END.SECTION

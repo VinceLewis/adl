@@ -10,12 +10,7 @@ import {
   createBrowserDemoRuntime,
   seedBrowserDemoRuntime,
 } from "../src/ui/demo-fixture.js";
-import {
-  bandReferenceSystemContext,
-  contextForBand,
-  createBandReferenceRuntime,
-  seedBandReferenceRuntime,
-} from "../src/reference/band-app.js";
+import { createBandReferenceRuntime, seedBandReferenceRuntime } from "../src/reference/band-app.js";
 import { AdlAppElement } from "../src/ui/components/adl-app.js";
 import { AdlFormViewElement } from "../src/ui/components/adl-form-view.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
@@ -291,17 +286,22 @@ describe("browser UI runtime", () => {
         (section) => (section as HTMLElement).dataset.presentationSection,
       ),
     ).toEqual(["Welcome", "Filters", "Schedule", "Invitations"]);
-    expect(app.textContent).toContain("Welcome back");
-    expect(app.textContent).toContain("Home filters");
-    expect(app.textContent).toContain("Upcoming events");
+    expect(app.textContent).toContain("Welcome Back!");
+    expect(app.textContent).toContain("Schedule");
     expect(app.textContent).toContain("Invitations");
     expect(app.textContent).toContain("Sat 1 Aug");
     expect(app.textContent).toContain("8:00PM");
+    expect(app.textContent).toContain("Alpha Hall");
     expect(app.textContent).toContain("The Alphas");
     expect(app.textContent).toContain("Canal Street headline");
     expect(app.textContent).toContain("New set rehearsal");
+    expect(app.textContent).toContain("Unavailable - session prep");
+    expect(app.textContent).toContain("No pending invitations");
+    expect(app.querySelector(".adl-topbar-composed")).not.toBeNull();
+    expect(app.querySelector(".adl-menu-action")).not.toBeNull();
     expect(app.querySelector("[data-icon='music']")).not.toBeNull();
     expect(app.querySelector("[data-icon='microphone']")).not.toBeNull();
+    expect(app.querySelector("[data-icon='x']")).not.toBeNull();
 
     const rehearsalToggle = requireElement<HTMLButtonElement>(
       app,
@@ -320,15 +320,11 @@ describe("browser UI runtime", () => {
     ).toBe("false");
     expect(app.textContent).toContain("Canal Street headline");
     expect(app.textContent).not.toContain("New set rehearsal");
+    expect(app.textContent).toContain("Unavailable - session prep");
   });
 
   it("renders composed list empty states from the presentation evaluator", async () => {
     const seeded = await createSeededGiggleRuntime();
-    await seeded.runtime.delete(
-      "BandInvitation",
-      seeded.invitation.meta.guid,
-      contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid),
-    );
 
     const app = await mountApp(seeded.model, seeded.runtime, {
       ...seeded.musicianContext,
