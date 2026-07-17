@@ -2,12 +2,22 @@ import type {
   ConflictStrategy,
   FieldType,
   JsonValue,
+  JsonPrimitive,
   CommandRuntimeProperty,
   CommandStepAuthority,
   CommandStepMetaProperty,
   ContextSelectionMode,
   ContextSelectionPersistence,
   ContextSelectionSource,
+  PresentationDensity,
+  PresentationFormatKind,
+  PresentationFragmentStyle,
+  PresentationLayout,
+  PresentationListRenderStyle,
+  PresentationListSourceKind,
+  PresentationRowLayout,
+  PresentationStatePersistence,
+  PresentationStateType,
   PolicyAction,
   PolicyEffect,
   ExpressionRuntimeProperty,
@@ -51,6 +61,15 @@ import type {
   ObjectScopeDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
+  PresentationIconMapDeclarationAst,
+  PresentationIconMapValueDeclarationAst,
+  PresentationIconRefDeclarationAst,
+  PresentationListDeclarationAst,
+  PresentationRowFragmentDeclarationAst,
+  PresentationRowTemplateDeclarationAst,
+  PresentationSectionDeclarationAst,
+  PresentationStateDeclarationAst,
+  PresentationToggleControlDeclarationAst,
   PrincipalSelectorAst,
   ReadModelDeclarationAst,
   ReadModelFieldDeclarationAst,
@@ -927,6 +946,11 @@ class AdlParser {
     const searchFields: string[] = [];
     const sort: SortDeclarationAst[] = [];
     const actions: string[] = [];
+    let layout: PresentationLayout | undefined;
+    let density: PresentationDensity | undefined;
+    const state: PresentationStateDeclarationAst[] = [];
+    const iconMaps: PresentationIconMapDeclarationAst[] = [];
+    const sections: PresentationSectionDeclarationAst[] = [];
     this.consumeLineEnd("VIEW declaration");
 
     while (true) {
@@ -948,6 +972,23 @@ class AdlParser {
           searchFields,
           sort,
           actions,
+          ...(layout === undefined &&
+          density === undefined &&
+          state.length === 0 &&
+          iconMaps.length === 0 &&
+          sections.length === 0
+            ? {}
+            : {
+                presentation: {
+                  kind: "ViewPresentationDeclaration",
+                  ...(layout === undefined ? {} : { layout }),
+                  ...(density === undefined ? {} : { density }),
+                  state,
+                  iconMaps,
+                  sections,
+                  range: { start: startToken.range.start, end: end.range.end },
+                },
+              }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -971,10 +1012,411 @@ class AdlParser {
       } else if (this.matchWord("SORT")) {
         sort.push(...this.parseSortList());
         this.consumeLineEnd("VIEW SORT directive");
+      } else if (this.matchWord("LAYOUT")) {
+        layout = this.parsePresentationLayout();
+        this.consumeLineEnd("VIEW LAYOUT directive");
+      } else if (this.matchWord("DENSITY")) {
+        density = this.parsePresentationDensity();
+        this.consumeLineEnd("VIEW DENSITY directive");
+      } else if (this.checkWord("STATE")) {
+        state.push(this.parsePresentationState());
+      } else if (this.checkWord("ICON_MAP") || this.checkDottedWord("ICON", "MAP")) {
+        iconMaps.push(this.parsePresentationIconMap());
+      } else if (this.checkWord("SECTION")) {
+        sections.push(this.parsePresentationSection());
       } else {
-        this.failUnexpected("VIEW directive FIELDS, SEARCH, ACTIONS, SORT, or END.VIEW");
+        this.failUnexpected(
+          "VIEW directive CONTEXT, READ_MODEL, FIELDS, SEARCH, ACTIONS, SORT, LAYOUT, DENSITY, STATE, ICON_MAP, SECTION, or END.VIEW",
+        );
       }
     }
+  }
+
+  private parsePresentationState(): PresentationStateDeclarationAst {
+    const startToken = this.expectWord("STATE", "VIEW STATE declaration");
+    const name = this.consumeName("presentation state name");
+    let type: PresentationStateType | undefined;
+    let defaultValue: JsonValue | undefined;
+    let persistence: PresentationStatePersistence | undefined;
+
+    if (!this.isLineEnd() && !this.checkWord("DEFAULT") && !this.checkWord("PERSISTENCE")) {
+      type = this.parsePresentationStateType();
+    }
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("DEFAULT")) {
+        defaultValue = this.consumeModifierValue("presentation state DEFAULT value");
+      } else if (this.matchWord("PERSISTENCE")) {
+        persistence = this.parsePresentationStatePersistence();
+      } else {
+        this.failUnexpected("VIEW STATE option DEFAULT, PERSISTENCE, or end of line");
+      }
+    }
+
+    this.consumeLineEnd("VIEW STATE declaration");
+    return {
+      kind: "PresentationStateDeclaration",
+      name,
+      ...(type === undefined ? {} : { type }),
+      ...(defaultValue === undefined ? {} : { defaultValue }),
+      ...(persistence === undefined ? {} : { persistence }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parsePresentationIconMap(): PresentationIconMapDeclarationAst {
+    const startToken = this.checkWord("ICON_MAP")
+      ? this.expectWord("ICON_MAP", "ICON_MAP declaration")
+      : this.expectDottedWord("ICON", "MAP", "ICON.MAP declaration");
+    const name = this.consumeName("icon map name");
+    this.expectWord("FOR", "ICON_MAP FOR clause");
+    const field = this.consumeName("icon map field");
+    let defaultIcon: string | undefined;
+    const values: PresentationIconMapValueDeclarationAst[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("DEFAULT")) {
+        defaultIcon = this.consumeName("icon map default icon");
+      } else {
+        this.failUnexpected("ICON_MAP header option DEFAULT or end of line");
+      }
+    }
+    this.consumeLineEnd("ICON_MAP declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.ICON_MAP", this.current());
+      }
+
+      if (this.checkEnd("ICON_MAP")) {
+        const end = this.parseEnd("ICON_MAP");
+        return {
+          kind: "PresentationIconMapDeclaration",
+          name,
+          field,
+          values,
+          ...(defaultIcon === undefined ? {} : { defaultIcon }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("DEFAULT")) {
+        defaultIcon = this.consumeName("icon map default icon");
+        this.consumeLineEnd("ICON_MAP DEFAULT directive");
+      } else {
+        values.push(this.parsePresentationIconMapValue());
+      }
+    }
+  }
+
+  private parsePresentationIconMapValue(): PresentationIconMapValueDeclarationAst {
+    const startToken = this.current();
+    const value = this.consumePrimitiveLiteral("icon map value");
+    this.expectSymbol("-", "ICON_MAP value arrow");
+    this.expectSymbol(">", "ICON_MAP value arrow");
+    const icon = this.consumeName("icon map icon");
+    this.consumeLineEnd("ICON_MAP value directive");
+
+    return {
+      kind: "PresentationIconMapValueDeclaration",
+      value,
+      icon,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parsePresentationSection(): PresentationSectionDeclarationAst {
+    const startToken = this.expectWord("SECTION", "SECTION declaration");
+    const name = this.consumeName("section name");
+    let heading: string | undefined;
+    let layout: PresentationLayout | undefined;
+    let density: PresentationDensity | undefined;
+    const controls: PresentationToggleControlDeclarationAst[] = [];
+    const lists: PresentationListDeclarationAst[] = [];
+    this.consumeLineEnd("SECTION declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.SECTION", this.current());
+      }
+
+      if (this.checkEnd("SECTION")) {
+        const end = this.parseEnd("SECTION");
+        return {
+          kind: "PresentationSectionDeclaration",
+          name,
+          ...(heading === undefined ? {} : { heading }),
+          ...(layout === undefined ? {} : { layout }),
+          ...(density === undefined ? {} : { density }),
+          controls,
+          lists,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("HEADING")) {
+        heading = String(this.consumeLiteral("section heading"));
+        this.consumeLineEnd("SECTION HEADING directive");
+      } else if (this.matchWord("LAYOUT")) {
+        layout = this.parsePresentationLayout();
+        this.consumeLineEnd("SECTION LAYOUT directive");
+      } else if (this.matchWord("DENSITY")) {
+        density = this.parsePresentationDensity();
+        this.consumeLineEnd("SECTION DENSITY directive");
+      } else if (this.checkWord("TOGGLE")) {
+        controls.push(this.parsePresentationToggle());
+      } else if (this.checkWord("LIST")) {
+        lists.push(this.parsePresentationList());
+      } else {
+        this.failUnexpected(
+          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, LIST, or END.SECTION",
+        );
+      }
+    }
+  }
+
+  private parsePresentationToggle(): PresentationToggleControlDeclarationAst {
+    const startToken = this.expectWord("TOGGLE", "TOGGLE declaration");
+    const name = this.consumeName("toggle name");
+    let state = name;
+    let label: string | undefined;
+    let icon: PresentationIconRefDeclarationAst | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("STATE")) {
+        state = this.consumeName("toggle state name");
+      } else if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("toggle label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+      } else {
+        this.failUnexpected("TOGGLE header option STATE, LABEL, ICON, or end of line");
+      }
+    }
+    this.consumeLineEnd("TOGGLE declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.TOGGLE", this.current());
+      }
+
+      if (this.checkEnd("TOGGLE")) {
+        const end = this.parseEnd("TOGGLE");
+        return {
+          kind: "PresentationToggleControlDeclaration",
+          name,
+          state,
+          ...(label === undefined ? {} : { label }),
+          ...(icon === undefined ? {} : { icon }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("STATE")) {
+        state = this.consumeName("toggle state name");
+        this.consumeLineEnd("TOGGLE STATE directive");
+      } else if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("toggle label"));
+        this.consumeLineEnd("TOGGLE LABEL directive");
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+        this.consumeLineEnd("TOGGLE ICON directive");
+      } else {
+        this.failUnexpected("TOGGLE directive STATE, LABEL, ICON, or END.TOGGLE");
+      }
+    }
+  }
+
+  private parsePresentationList(): PresentationListDeclarationAst {
+    const startToken = this.expectWord("LIST", "LIST declaration");
+    const name = this.consumeName("list name");
+    this.expectWord("FROM", "LIST FROM clause");
+    let sourceKind: PresentationListSourceKind | undefined;
+
+    if (this.matchWord("OBJECT")) {
+      sourceKind = "object";
+    } else if (this.matchWord("READ_MODEL") || this.matchDottedWord("READ", "MODEL")) {
+      sourceKind = "readModel";
+    }
+
+    const source = this.consumeName("list source");
+    let renderAs: PresentationListRenderStyle | undefined;
+    let density: PresentationDensity | undefined;
+    const sort: SortDeclarationAst[] = [];
+    let filter: ResolvedExpression | undefined;
+    let emptyText: string | undefined;
+    let row: PresentationRowTemplateDeclarationAst | undefined;
+    this.consumeLineEnd("LIST declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.LIST", this.current());
+      }
+
+      if (this.checkEnd("LIST")) {
+        const end = this.parseEnd("LIST");
+        return {
+          kind: "PresentationListDeclaration",
+          name,
+          ...(sourceKind === undefined ? {} : { sourceKind }),
+          source,
+          ...(renderAs === undefined ? {} : { renderAs }),
+          ...(density === undefined ? {} : { density }),
+          sort,
+          ...(filter === undefined ? {} : { filter }),
+          ...(emptyText === undefined ? {} : { emptyText }),
+          ...(row === undefined ? {} : { row }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("ORDER")) {
+        this.expectWord("BY", "LIST ORDER BY clause");
+        sort.push(...this.parseSortList());
+        this.consumeLineEnd("LIST ORDER BY directive");
+      } else if (this.matchWord("WHERE")) {
+        filter = this.parseExpressionUntil(new Set());
+        this.consumeLineEnd("LIST WHERE directive");
+      } else if (this.matchWord("RENDER_AS") || this.matchDottedWord("RENDER", "AS")) {
+        renderAs = this.parsePresentationListRenderStyle();
+        this.consumeLineEnd("LIST RENDER_AS directive");
+      } else if (this.matchWord("DENSITY")) {
+        density = this.parsePresentationDensity();
+        this.consumeLineEnd("LIST DENSITY directive");
+      } else if (this.matchWord("EMPTY_TEXT")) {
+        emptyText = String(this.consumeLiteral("LIST EMPTY_TEXT value"));
+        this.consumeLineEnd("LIST EMPTY_TEXT directive");
+      } else if (this.checkWord("ROW")) {
+        row = this.parsePresentationRowTemplate();
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.LIST", this.current());
+      } else {
+        this.failUnexpected(
+          "LIST directive ORDER BY, WHERE, RENDER_AS, DENSITY, EMPTY_TEXT, ROW, or END.LIST",
+        );
+      }
+    }
+  }
+
+  private parsePresentationRowTemplate(): PresentationRowTemplateDeclarationAst {
+    const startToken = this.expectWord("ROW", "ROW declaration");
+    let layout: PresentationRowLayout | undefined;
+    let density: PresentationDensity | undefined;
+    const fragments: PresentationRowFragmentDeclarationAst[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LAYOUT")) {
+        layout = this.parsePresentationRowLayout();
+      } else if (this.matchWord("DENSITY")) {
+        density = this.parsePresentationDensity();
+      } else {
+        this.failUnexpected("ROW header option LAYOUT, DENSITY, or end of line");
+      }
+    }
+    this.consumeLineEnd("ROW declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.ROW", this.current());
+      }
+
+      if (this.checkEnd("ROW")) {
+        const end = this.parseEnd("ROW");
+        return {
+          kind: "PresentationRowTemplateDeclaration",
+          ...(layout === undefined ? {} : { layout }),
+          ...(density === undefined ? {} : { density }),
+          fragments,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.checkWord("TEXT")) {
+        fragments.push(this.parsePresentationTextFragment());
+      } else if (this.checkWord("ICON")) {
+        fragments.push(this.parsePresentationIconFragment());
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.ROW", this.current());
+      } else {
+        this.failUnexpected("ROW directive TEXT, ICON, or END.ROW");
+      }
+    }
+  }
+
+  private parsePresentationTextFragment(): PresentationRowFragmentDeclarationAst {
+    const startToken = this.expectWord("TEXT", "TEXT row fragment");
+    const token = this.current();
+    const isLiteral = token.kind === "string";
+    const value = isLiteral
+      ? String(this.consumeLiteral("TEXT literal"))
+      : this.consumeName("TEXT field or literal");
+    let style: PresentationFragmentStyle | undefined;
+    let format: { kind: PresentationFormatKind; pattern?: string } | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("STYLE")) {
+        style = this.parsePresentationFragmentStyle();
+      } else if (this.matchWord("FORMAT")) {
+        format = this.parsePresentationFormat();
+      } else {
+        this.failUnexpected("TEXT option FORMAT, STYLE, or end of line");
+      }
+    }
+    this.consumeLineEnd("TEXT row fragment");
+
+    if (isLiteral) {
+      return {
+        kind: "PresentationLiteralTextFragmentDeclaration",
+        text: value,
+        ...(style === undefined ? {} : { style }),
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    return {
+      kind: "PresentationFieldTextFragmentDeclaration",
+      field: value,
+      ...(style === undefined ? {} : { style }),
+      ...(format === undefined ? {} : { format }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parsePresentationIconFragment(): PresentationRowFragmentDeclarationAst {
+    const startToken = this.expectWord("ICON", "ICON row fragment");
+    const icon = this.parsePresentationIconRef("field");
+    let label: string | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("ICON label"));
+      } else {
+        this.failUnexpected("ICON option LABEL or end of line");
+      }
+    }
+
+    this.consumeLineEnd("ICON row fragment");
+    return {
+      kind: "PresentationIconFragmentDeclaration",
+      icon,
+      ...(label === undefined ? {} : { label }),
+      range: this.rangeFrom(startToken),
+    };
   }
 
   private parseReadModel(): ReadModelDeclarationAst {
@@ -1847,6 +2289,200 @@ class AdlParser {
     }
   }
 
+  private parsePresentationLayout(): PresentationLayout {
+    const token = this.consumeWordToken("presentation layout");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "stack":
+        return "stack";
+      case "grid":
+        return "grid";
+      case "split":
+        return "split";
+      case "sidebar":
+        return "sidebar";
+      default:
+        this.failExpected("presentation layout STACK, GRID, SPLIT, or SIDEBAR", token);
+    }
+  }
+
+  private parsePresentationDensity(): PresentationDensity {
+    const token = this.consumeWordToken("presentation density");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "compact":
+        return "compact";
+      case "comfortable":
+        return "comfortable";
+      case "spacious":
+        return "spacious";
+      default:
+        this.failExpected("presentation density COMPACT, COMFORTABLE, or SPACIOUS", token);
+    }
+  }
+
+  private parsePresentationStateType(): PresentationStateType {
+    const token = this.consumeWordToken("presentation state type");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "text":
+        return "text";
+      case "number":
+      case "num":
+        return "number";
+      case "date":
+        return "date";
+      case "datetime":
+        return "datetime";
+      case "time":
+        return "time";
+      case "boolean":
+      case "bool":
+        return "boolean";
+      default:
+        this.failExpected(
+          "presentation state type TEXT, NUMBER, DATE, DATETIME, TIME, or BOOLEAN",
+          token,
+        );
+    }
+  }
+
+  private parsePresentationStatePersistence(): PresentationStatePersistence {
+    const token = this.consumeWordToken("presentation state persistence");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "memory":
+        return "memory";
+      case "session":
+        return "session";
+      case "local":
+        return "local";
+      default:
+        this.failExpected("presentation state persistence MEMORY, SESSION, or LOCAL", token);
+    }
+  }
+
+  private parsePresentationListRenderStyle(): PresentationListRenderStyle {
+    const token = this.consumeWordToken("presentation list render style");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "table":
+        return "table";
+      case "feed":
+        return "feed";
+      case "compactfeed":
+        return "compactFeed";
+      case "cards":
+        return "cards";
+      default:
+        this.failExpected(
+          "presentation list render style TABLE, FEED, COMPACT_FEED, or CARDS",
+          token,
+        );
+    }
+  }
+
+  private parsePresentationRowLayout(): PresentationRowLayout {
+    const token = this.consumeWordToken("presentation row layout");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "inline":
+        return "inline";
+      case "stack":
+        return "stack";
+      default:
+        this.failExpected("presentation row layout INLINE or STACK", token);
+    }
+  }
+
+  private parsePresentationFragmentStyle(): PresentationFragmentStyle {
+    const token = this.consumeWordToken("presentation fragment style");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "plain":
+        return "plain";
+      case "bold":
+        return "bold";
+      case "muted":
+        return "muted";
+      case "caption":
+        return "caption";
+      default:
+        this.failExpected("presentation fragment style PLAIN, BOLD, MUTED, or CAPTION", token);
+    }
+  }
+
+  private parsePresentationFormat(): { kind: PresentationFormatKind; pattern?: string } {
+    if (this.current().kind === "string") {
+      return {
+        kind: "text",
+        pattern: String(this.consumeLiteral("presentation format pattern")),
+      };
+    }
+
+    const token = this.consumeWordToken("presentation format kind or pattern");
+    const kind = this.normalisePresentationFormatKind(token);
+
+    if (this.isLineEnd()) {
+      return { kind };
+    }
+
+    return {
+      kind,
+      pattern: String(this.consumeLiteral("presentation format pattern")),
+    };
+  }
+
+  private normalisePresentationFormatKind(token: Token): PresentationFormatKind {
+    switch (normaliseKeyword(token.lexeme)) {
+      case "text":
+        return "text";
+      case "number":
+        return "number";
+      case "date":
+        return "date";
+      case "datetime":
+        return "datetime";
+      case "time":
+        return "time";
+      default:
+        return "text";
+    }
+  }
+
+  private parsePresentationIconRef(
+    argumentMode: "field" | "value",
+  ): PresentationIconRefDeclarationAst {
+    const name = this.consumeName("presentation icon name or map");
+
+    if (!this.matchSymbol("(")) {
+      return { kind: "named", name };
+    }
+
+    if (this.matchWord("FIELD")) {
+      const field = this.consumeName("presentation icon map field");
+      this.expectSymbol(")", "presentation icon map reference");
+      return { kind: "map", map: name, field };
+    }
+
+    if (this.matchWord("VALUE")) {
+      const value = this.consumePrimitiveLiteral("presentation icon map value");
+      this.expectSymbol(")", "presentation icon map reference");
+      return { kind: "map", map: name, value };
+    }
+
+    const token = this.current();
+    if (argumentMode === "field" && token.kind === "identifier") {
+      const field = this.consumeName("presentation icon map field");
+      this.expectSymbol(")", "presentation icon map reference");
+      return { kind: "map", map: name, field };
+    }
+
+    const value = this.consumePrimitiveLiteral("presentation icon map value");
+    this.expectSymbol(")", "presentation icon map reference");
+    return { kind: "map", map: name, value };
+  }
+
   private parsePolicyEffect(): PolicyEffect {
     const token = this.consumeWordToken("policy effect");
 
@@ -2366,6 +3002,21 @@ class AdlParser {
     }
 
     this.failExpected(context, token);
+  }
+
+  private consumePrimitiveLiteral(context: string): JsonPrimitive {
+    const value = this.consumeLiteral(context);
+
+    if (
+      value === null ||
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      return value;
+    }
+
+    this.failExpected("primitive literal", this.previous());
   }
 
   private consumeName(context: string): string {

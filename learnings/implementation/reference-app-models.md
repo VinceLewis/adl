@@ -31,6 +31,16 @@ Read this before adding or changing ADL reference applications, especially multi
   view/read-model contexts, and read-model-backed views should be maintained
   with the Giggle Band compile test in `tests/compile-adl.test.ts`.
 
+## Key decisions from Phase 25
+
+- The Giggle Band folder app now lists `domain.adl` and `ui.adl` in
+  `app.yaml`. `domain.adl` remains the domain/read-model/policy source, while
+  `ui.adl` contributes the authored `HomeDashboard` composed-view
+  presentation.
+- `src/reference/band-app.ts` must import every manifest-listed ADL source as
+  raw text and pass the same file names to `compileAdlProject`; otherwise the
+  reference app fails before runtime seeding.
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.

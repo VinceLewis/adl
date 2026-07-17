@@ -14,6 +14,14 @@ import type {
   ObjectDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
+  PresentationIconMapDeclarationAst,
+  PresentationIconRefDeclarationAst,
+  PresentationListDeclarationAst,
+  PresentationRowFragmentDeclarationAst,
+  PresentationRowTemplateDeclarationAst,
+  PresentationSectionDeclarationAst,
+  PresentationStateDeclarationAst,
+  PresentationToggleControlDeclarationAst,
   PrincipalSelectorAst,
   ReadModelDeclarationAst,
   SyncDeclarationAst,
@@ -33,6 +41,14 @@ import type {
   PartialObjectConstraintModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
+  PartialPresentationControlModel,
+  PartialPresentationIconMapModel,
+  PartialPresentationIconRefModel,
+  PartialPresentationListModel,
+  PartialPresentationRowFragmentModel,
+  PartialPresentationRowTemplateModel,
+  PartialPresentationSectionModel,
+  PartialPresentationStateModel,
   PartialPrincipalSelectorModel,
   PartialReadModelModel,
   PartialSyncPolicyModel,
@@ -66,7 +82,9 @@ export function compileAdl(source: string): CompileAdlResult {
 
 export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApplicationModel {
   const generatedPolicies: PartialPolicyModel[] = [];
-  const objects = ast.objects.map((object) => objectToPartial(object, generatedPolicies));
+  const objects = mergeViewOnlyObjectDeclarations(ast.objects).map((object) =>
+    objectToPartial(object, generatedPolicies),
+  );
 
   return {
     app: {
@@ -88,6 +106,42 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
     themes: ast.themes.map(themeToPartial),
     sync: ast.sync.map(syncToPartial),
   };
+}
+
+function mergeViewOnlyObjectDeclarations(objects: ObjectDeclarationAst[]): ObjectDeclarationAst[] {
+  const merged: ObjectDeclarationAst[] = [];
+
+  for (const object of objects) {
+    const existing = merged.find((candidate) => candidate.name === object.name);
+    if (existing !== undefined && isViewOnlyObjectDeclaration(object)) {
+      existing.views.push(...object.views);
+      existing.range = {
+        start: existing.range.start,
+        end: object.range.end,
+      };
+      continue;
+    }
+
+    merged.push(object);
+  }
+
+  return merged;
+}
+
+function isViewOnlyObjectDeclaration(object: ObjectDeclarationAst): boolean {
+  return (
+    object.businessKey === undefined &&
+    object.displayField === undefined &&
+    object.fields.length === 0 &&
+    object.computedFields.length === 0 &&
+    object.scope === undefined &&
+    object.constraints.length === 0 &&
+    object.validations.length === 0 &&
+    object.lifecycle === undefined &&
+    object.sync === undefined &&
+    object.policyRefs.length === 0 &&
+    object.views.length > 0
+  );
 }
 
 function objectToPartial(
@@ -405,6 +459,137 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
       direction: sort.direction,
     })),
     actions: [...view.actions],
+    ...(view.presentation === undefined
+      ? {}
+      : {
+          presentation: {
+            ...(view.presentation.layout === undefined ? {} : { layout: view.presentation.layout }),
+            ...(view.presentation.density === undefined
+              ? {}
+              : { density: view.presentation.density }),
+            state: view.presentation.state.map(presentationStateToPartial),
+            iconMaps: view.presentation.iconMaps.map(presentationIconMapToPartial),
+            sections: view.presentation.sections.map(presentationSectionToPartial),
+          },
+        }),
+  };
+}
+
+function presentationStateToPartial(
+  state: PresentationStateDeclarationAst,
+): PartialPresentationStateModel {
+  return {
+    name: state.name,
+    ...(state.type === undefined ? {} : { type: state.type }),
+    ...(state.defaultValue === undefined ? {} : { defaultValue: state.defaultValue }),
+    ...(state.persistence === undefined ? {} : { persistence: state.persistence }),
+  };
+}
+
+function presentationIconMapToPartial(
+  iconMap: PresentationIconMapDeclarationAst,
+): PartialPresentationIconMapModel {
+  return {
+    name: iconMap.name,
+    field: iconMap.field,
+    values: iconMap.values.map((value) => ({ value: value.value, icon: value.icon })),
+    ...(iconMap.defaultIcon === undefined ? {} : { defaultIcon: iconMap.defaultIcon }),
+  };
+}
+
+function presentationSectionToPartial(
+  section: PresentationSectionDeclarationAst,
+): PartialPresentationSectionModel {
+  return {
+    name: section.name,
+    ...(section.heading === undefined ? {} : { heading: section.heading }),
+    ...(section.layout === undefined ? {} : { layout: section.layout }),
+    ...(section.density === undefined ? {} : { density: section.density }),
+    controls: section.controls.map(presentationControlToPartial),
+    lists: section.lists.map(presentationListToPartial),
+  };
+}
+
+function presentationControlToPartial(
+  control: PresentationToggleControlDeclarationAst,
+): PartialPresentationControlModel {
+  return {
+    name: control.name,
+    kind: "toggle",
+    state: control.state,
+    ...(control.label === undefined ? {} : { label: control.label }),
+    ...(control.icon === undefined ? {} : { icon: presentationIconRefToPartial(control.icon) }),
+  };
+}
+
+function presentationListToPartial(
+  list: PresentationListDeclarationAst,
+): PartialPresentationListModel {
+  return {
+    name: list.name,
+    ...(list.sourceKind === undefined ? {} : { sourceKind: list.sourceKind }),
+    source: list.source,
+    ...(list.renderAs === undefined ? {} : { renderAs: list.renderAs }),
+    ...(list.density === undefined ? {} : { density: list.density }),
+    sort: list.sort.map((sort) => ({
+      field: sort.field,
+      direction: sort.direction,
+    })),
+    ...(list.filter === undefined ? {} : { filter: list.filter }),
+    ...(list.emptyText === undefined ? {} : { emptyState: { text: list.emptyText } }),
+    ...(list.row === undefined ? {} : { row: presentationRowTemplateToPartial(list.row) }),
+  };
+}
+
+function presentationRowTemplateToPartial(
+  row: PresentationRowTemplateDeclarationAst,
+): PartialPresentationRowTemplateModel {
+  return {
+    ...(row.layout === undefined ? {} : { layout: row.layout }),
+    ...(row.density === undefined ? {} : { density: row.density }),
+    fragments: row.fragments.map(presentationRowFragmentToPartial),
+  };
+}
+
+function presentationRowFragmentToPartial(
+  fragment: PresentationRowFragmentDeclarationAst,
+): PartialPresentationRowFragmentModel {
+  if (fragment.kind === "PresentationLiteralTextFragmentDeclaration") {
+    return {
+      kind: "text",
+      text: fragment.text,
+      ...(fragment.style === undefined ? {} : { style: fragment.style }),
+    };
+  }
+
+  if (fragment.kind === "PresentationFieldTextFragmentDeclaration") {
+    return {
+      kind: "field",
+      field: fragment.field,
+      ...(fragment.style === undefined ? {} : { style: fragment.style }),
+      ...(fragment.format === undefined ? {} : { format: fragment.format }),
+    };
+  }
+
+  return {
+    kind: "icon",
+    icon: presentationIconRefToPartial(fragment.icon),
+    ...(fragment.label === undefined ? {} : { label: fragment.label }),
+  };
+}
+
+function presentationIconRefToPartial(
+  icon: PresentationIconRefDeclarationAst,
+): PartialPresentationIconRefModel {
+  if (icon.kind === "named") {
+    return { kind: "named", name: icon.name };
+  }
+
+  return {
+    kind: "map",
+    map: icon.map,
+    ...(icon.field === undefined ? {} : { field: icon.field }),
+    ...(icon.value === undefined ? {} : { value: icon.value }),
   };
 }
 

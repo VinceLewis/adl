@@ -482,18 +482,128 @@ END.OBJECT
     );
   });
 
+  it("compiles UI ADL syntax into the resolved presentation model", () => {
+    const result = compileAdl(`APP Presentation
+  START_VIEW HomeDashboard
+END.APP
+
+OBJECT Event
+  FIELD EventType TEXT
+  FIELD EventDate DATE
+  FIELD StartTime TIME
+  FIELD Title TEXT
+
+  VIEW HomeDashboard DASHBOARD
+    READ_MODEL HomeUpcomingEvents
+    FIELDS EventDate StartTime EventType Title
+    LAYOUT stack
+    DENSITY compact
+    STATE showGigs BOOLEAN DEFAULT true
+
+    ICON_MAP EventTypeIcon FOR EventType
+      Gig -> music
+    END.ICON_MAP
+
+    SECTION Schedule
+      HEADING 'Upcoming events'
+
+      TOGGLE showGigsToggle STATE showGigs
+        LABEL 'Gigs'
+        ICON EventTypeIcon(Gig)
+      END.TOGGLE
+
+      LIST UpcomingEvents FROM HomeUpcomingEvents
+        ORDER BY EventDate ASC, StartTime ASC
+        WHERE EventType == 'Gig' AND showGigs == true
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'No upcoming events'
+
+        ROW
+          ICON EventTypeIcon(EventType)
+          TEXT EventDate FORMAT date 'EEE d MMM'
+          TEXT ' - '
+          TEXT Title STYLE bold
+        END.ROW
+      END.LIST
+    END.SECTION
+  END.VIEW
+END.OBJECT
+
+READ_MODEL HomeUpcomingEvents
+  SOURCE event OBJECT Event
+  FIELD EventDate FROM event.EventDate
+  FIELD StartTime FROM event.StartTime
+  FIELD EventType FROM event.EventType
+  FIELD Title FROM event.Title
+END.READ_MODEL
+`);
+
+    const home = result.model.objects[0]?.views.find((view) => view.name === "HomeDashboard");
+
+    expect(result.diagnostics).toEqual([]);
+    expect(home?.presentation).toMatchObject({
+      layout: "stack",
+      density: "compact",
+      state: [{ name: "showGigs", type: "boolean", defaultValue: true, persistence: "memory" }],
+      iconMaps: [
+        {
+          name: "EventTypeIcon",
+          field: "EventType",
+          values: [{ value: "Gig", icon: "music" }],
+        },
+      ],
+      sections: [
+        {
+          name: "Schedule",
+          heading: "Upcoming events",
+          controls: [
+            {
+              name: "showGigsToggle",
+              kind: "toggle",
+              state: "showGigs",
+              label: "Gigs",
+              icon: { kind: "map", map: "EventTypeIcon", value: "Gig" },
+            },
+          ],
+          lists: [
+            expect.objectContaining({
+              name: "UpcomingEvents",
+              source: "HomeUpcomingEvents",
+              renderAs: "compactFeed",
+              row: expect.objectContaining({
+                fragments: [
+                  { kind: "icon", icon: { kind: "map", map: "EventTypeIcon", field: "EventType" } },
+                  {
+                    kind: "field",
+                    field: "EventDate",
+                    style: "plain",
+                    format: { kind: "date", pattern: "EEE d MMM" },
+                  },
+                  { kind: "text", text: " - ", style: "plain" },
+                  { kind: "field", field: "Title", style: "bold" },
+                ],
+              }),
+            }),
+          ],
+        },
+      ],
+    });
+  });
+
   it("compiles the Giggle Band ADL reference app from app.yaml into the runtime model", async () => {
     const result = compileAdlProject({
       manifestSource: readReference("giggle-band/app.yaml"),
       sources: {
         "domain.adl": readReference("giggle-band/domain.adl"),
+        "ui.adl": readReference("giggle-band/ui.adl"),
       },
     });
 
     expect(result.manifest).toMatchObject({
       name: "Giggle Band ADL Example",
       id: "giggle-band",
-      sources: ["domain.adl"],
+      sources: ["domain.adl", "ui.adl"],
     });
     expect(result.diagnostics).toEqual([]);
     expect(validateApplicationModel(result.model)).toEqual([]);
@@ -529,8 +639,36 @@ END.OBJECT
       ],
     });
     expect(result.model.readModels?.map((readModel) => readModel.name)).toEqual(
-      expect.arrayContaining(["HomeUpcomingEvents", "SetListItemsByPosition"]),
+      expect.arrayContaining([
+        "HomeUpcomingEvents",
+        "SetListItemsByPosition",
+        "PendingInvitations",
+      ]),
     );
+    expect(
+      result.model.objects
+        .find((object) => object.name === "Event")
+        ?.views.find((view) => view.name === "HomeDashboard")?.presentation,
+    ).toMatchObject({
+      density: "compact",
+      sections: expect.arrayContaining([
+        expect.objectContaining({ name: "Welcome" }),
+        expect.objectContaining({ name: "Filters" }),
+        expect.objectContaining({
+          name: "Schedule",
+          lists: [expect.objectContaining({ name: "UpcomingEvents", renderAs: "compactFeed" })],
+        }),
+        expect.objectContaining({
+          name: "Invitations",
+          lists: [
+            expect.objectContaining({
+              name: "PendingInvitations",
+              emptyState: { text: "No pending invitations" },
+            }),
+          ],
+        }),
+      ]),
+    });
     expect(result.model.commands?.map((command) => command.name)).toContain("AcceptBandInvitation");
 
     const runtime = new ApplicationRuntime(result.model);

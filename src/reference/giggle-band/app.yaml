@@ -5,6 +5,7 @@ startView: HomeDashboard
 
 sources:
   - domain.adl
+  - ui.adl
 
 demo:
   route: giggle-band

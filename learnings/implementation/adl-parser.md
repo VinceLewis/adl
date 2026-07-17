@@ -30,6 +30,27 @@ Read this before changing the ADL lexer, parser, AST-to-partial-model compiler, 
 - Field names that collide with policy keywords, such as a field literally named
   `Role`, can be quoted in policy field lists: `FIELDS 'Role'`.
 
+## Key decisions from Phase 25
+
+- UI presentation syntax is parsed inside ordinary object-scoped `VIEW`
+  declarations and compiles to `PartialViewModel.presentation`. The runtime and
+  validators still consume only the resolved model.
+- The implemented UI syntax subset covers view `LAYOUT`/`DENSITY`, local
+  `STATE`, `ICON_MAP`, `SECTION`, `TOGGLE`, `LIST FROM`, list `ORDER BY`,
+  `WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, `ROW`, `TEXT`, and `ICON`.
+  Shell syntax remains out of parser scope.
+- `FORMAT` accepts an explicit kind before the pattern, such as
+  `TEXT EventDate FORMAT date 'EEE d MMM'`. If a pattern appears without a kind,
+  the parser records a text format.
+- Icon map calls are context-sensitive shorthand: row fragments parse
+  `ICON EventTypeIcon(EventType)` as a field lookup, while toggle controls parse
+  `ICON EventTypeIcon(Gig)` as a value lookup. Authors can use explicit
+  `FIELD` or `VALUE` inside the call when ambiguity matters.
+- `compileAdlProject` still concatenates manifest sources in order. The
+  AST-to-partial conversion now folds later object declarations that contain
+  only `VIEW` blocks into the first object of the same name, allowing
+  `domain.adl` plus `ui.adl` without redefining domain fields.
+
 ## Practical guidance
 
 - Keep parser syntax declarative. Unsupported procedural keywords such as `FETCH`, `STORE`, `LOOP`, `SET`, `DART.INLINE`, and `SQL.INTO` should remain rejected.

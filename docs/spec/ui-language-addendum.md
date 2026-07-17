@@ -9,8 +9,10 @@ business object semantics.
 This addendum is design documentation for ADL source syntax and renderer
 behavior. The resolved-model foundation for composed view presentation is
 implemented: JSON/TypeScript partial models can resolve and validate
-presentation declarations. Parser syntax and browser rendering for these
-constructs remain proposed for later phases.
+presentation declarations. The initial parser/compiler subset is implemented
+for composed view presentation blocks, local state, sections, toggles, lists,
+row templates, icon maps, formatting, and empty states. Browser rendering for
+these constructs remains a later phase.
 
 ## Purpose
 
@@ -79,7 +81,7 @@ runtime needs distinct behavior that cannot be expressed through general
 composition. If repeated defaults are useful later, prefer style or layout hints:
 
 ```adl
-VIEW Home
+VIEW HomeDashboard DASHBOARD
   LAYOUT Stack
   DENSITY Compact
 END.VIEW
@@ -95,7 +97,7 @@ of view.
 A view may contain multiple independent UI blocks:
 
 ```adl
-VIEW Home
+VIEW HomeDashboard DASHBOARD
   SECTION Welcome
     HEADING "Welcome Back!"
   END.SECTION
@@ -115,7 +117,7 @@ imply persistence.
 Views may declare local UI state for filters and presentation choices:
 
 ```adl
-VIEW Home
+VIEW HomeDashboard DASHBOARD
   STATE showGigs Boolean DEFAULT true
   STATE showRehearsals Boolean DEFAULT true
   STATE showUnavailable Boolean DEFAULT false
@@ -265,10 +267,7 @@ Presentation filters may reference local state and row values:
 
 ```adl
 LIST UpcomingEvents FROM HomeUpcomingEvents
-  WHERE
-    (EventType = Gig AND showGigs)
-    OR (EventType = Rehearsal AND showRehearsals)
-    OR (EventType = Unavailable AND showUnavailable)
+  WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true)
 END.LIST
 ```
 
@@ -317,7 +316,7 @@ The real Giggle dashboard can be described as one composed view over upcoming
 events and pending invitations:
 
 ```adl
-VIEW Home
+VIEW HomeDashboard DASHBOARD
   LAYOUT Stack
   DENSITY Compact
 
@@ -356,23 +355,20 @@ VIEW Home
     HEADING "Schedule"
 
     LIST UpcomingEvents FROM HomeUpcomingEvents
-      RENDER_AS CompactFeed
+      RENDER_AS compactFeed
       ORDER BY EventDate ASC, StartTime ASC
       EMPTY_TEXT "No upcoming events"
-      WHERE
-        (EventType = Gig AND showGigs)
-        OR (EventType = Rehearsal AND showRehearsals)
-        OR (EventType = Unavailable AND showUnavailable)
+      WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true)
 
       ROW
         ICON EventTypeIcon(EventType)
-        TEXT EventDate FORMAT "EEE d MMM"
+        TEXT EventDate FORMAT date "EEE d MMM"
         TEXT " - "
         TEXT BandName
         TEXT " - "
         TEXT Title STYLE bold
         TEXT " at "
-        TEXT StartTime FORMAT "h:mma"
+        TEXT StartTime FORMAT time "h:mma"
       END.ROW
     END.LIST
   END.SECTION
@@ -381,7 +377,7 @@ VIEW Home
     HEADING "Invitations"
 
     LIST PendingInvitations FROM PendingInvitations
-      RENDER_AS CompactFeed
+      RENDER_AS compactFeed
       EMPTY_TEXT "No pending invitations"
     END.LIST
   END.SECTION
@@ -468,22 +464,22 @@ formats, commands, target views, contexts, shell regions, and shell controls.
 
 ## Implementation Notes
 
-Parser support is not implemented yet. It should start with the smallest useful
-subset:
+Parser/compiler support is implemented for the smallest useful subset:
 
 1. `SECTION`
 2. local `STATE`
 3. `TOGGLE`
 4. `LIST ... FROM ...`
-5. `ROW`
-6. `TEXT`
-7. `ICON_MAP`
-8. `EMPTY_TEXT`
-9. `FORMAT`
+5. list `ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`, and `EMPTY_TEXT`
+6. `ROW`
+7. `TEXT` literals and fields with `FORMAT` and `STYLE bold`
+8. `ICON`
+9. `ICON_MAP`
 
-The first implementation target should be the Giggle Band home dashboard. It
-should prove that a non-CRUD screen can be rendered without app-specific UI
-components.
+The first implementation target is the Giggle Band home dashboard source in
+`src/reference/giggle-band/ui.adl`. It proves that non-CRUD presentation can be
+authored without app-specific UI components, though renderer execution remains
+future work.
 
 The compiler should accept presentation declarations from any source listed in
 `app.yaml`, so an app can keep domain and UI source separate:
@@ -494,6 +490,11 @@ src/reference/giggle-band/
   domain.adl
   ui.adl
 ```
+
+Current parser detail: view declarations are object-scoped. A later `OBJECT`
+declaration that contains only `VIEW` blocks extends the earlier object
+declaration of the same name, which allows `domain.adl` to define fields and
+`ui.adl` to add authored presentation views.
 
 ## Open Questions
 

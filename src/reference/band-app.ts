@@ -5,6 +5,7 @@ import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js"
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import giggleBandManifestSource from "./giggle-band/app.yaml?raw";
 import giggleBandDomainSource from "./giggle-band/domain.adl?raw";
+import giggleBandUiSource from "./giggle-band/ui.adl?raw";
 import type {
   PartialApplicationModel,
   ResolvedApplicationModel,
@@ -22,6 +23,7 @@ const bandReferenceCompileResult = compileAdlProject({
   manifestSource: giggleBandManifestSource,
   sources: {
     "domain.adl": giggleBandDomainSource,
+    "ui.adl": giggleBandUiSource,
   },
 });
 

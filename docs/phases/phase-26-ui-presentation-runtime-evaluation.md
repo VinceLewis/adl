@@ -52,10 +52,11 @@ Build a presentation runtime service that can:
 
 - Given seeded Giggle Band event and invitation data, the presentation evaluator
   returns a home view with Welcome, Filters, Schedule, and Invitations sections.
-- Toggling `showGigs`, `showRehearsals`, or `showUnavailable` changes visible
-  Schedule rows without changing stored records.
+- Toggling `showGigs` or `showRehearsals` changes visible Schedule rows
+  without changing stored records.
 - Schedule rows evaluate to fragment sequences equivalent to:
-  date, separator, band name, separator, bold title, " at ", formatted time.
+  event-type icon, date, separator, band name, separator, bold title, " at ",
+  formatted time.
 - Event type icon maps resolve to semantic icon names.
 - Empty invitation data produces the configured empty text.
 - Presentation filtering happens after runtime read authorization and read-model

@@ -1,0 +1,80 @@
+OBJECT Event
+  VIEW HomeDashboard DASHBOARD
+    CONTEXT ALL Band
+    READ_MODEL HomeUpcomingEvents
+    FIELDS EventDate StartTime EventType Title VenueName BandName
+    SORT EventDate ASC StartTime ASC
+    ACTIONS read search
+    LAYOUT stack
+    DENSITY compact
+
+    STATE showGigs BOOLEAN DEFAULT true
+    STATE showRehearsals BOOLEAN DEFAULT true
+
+    ICON_MAP EventTypeIcon FOR EventType DEFAULT calendar
+      Gig -> music
+      Rehearsal -> microphone
+    END.ICON_MAP
+
+    SECTION Welcome
+      HEADING 'Welcome back'
+    END.SECTION
+
+    SECTION Filters
+      HEADING 'Home filters'
+      DENSITY compact
+
+      TOGGLE showGigsToggle STATE showGigs
+        LABEL 'Gigs'
+        ICON EventTypeIcon(Gig)
+      END.TOGGLE
+
+      TOGGLE showRehearsalsToggle STATE showRehearsals
+        LABEL 'Rehearsals'
+        ICON EventTypeIcon(Rehearsal)
+      END.TOGGLE
+    END.SECTION
+
+    SECTION Schedule
+      HEADING 'Upcoming events'
+
+      LIST UpcomingEvents FROM HomeUpcomingEvents
+        ORDER BY EventDate ASC, StartTime ASC
+        WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true)
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'No upcoming events'
+
+        ROW
+          ICON EventTypeIcon(EventType)
+          TEXT EventDate FORMAT date 'EEE d MMM'
+          TEXT ' - '
+          TEXT BandName
+          TEXT ' - '
+          TEXT Title STYLE bold
+          TEXT ' at '
+          TEXT StartTime FORMAT time 'h:mma'
+        END.ROW
+      END.LIST
+    END.SECTION
+
+    SECTION Invitations
+      HEADING 'Invitations'
+
+      LIST PendingInvitations FROM PendingInvitations
+        WHERE Status == 'Pending'
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'No pending invitations'
+
+        ROW
+          TEXT InviteeEmail STYLE bold
+          TEXT ' - '
+          TEXT Role
+          TEXT ' invited on '
+          TEXT SentAt FORMAT date 'EEE d MMM'
+        END.ROW
+      END.LIST
+    END.SECTION
+  END.VIEW
+END.OBJECT

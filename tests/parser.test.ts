@@ -137,6 +137,74 @@ END.COMMAND
     });
   });
 
+  it("parses composed view presentation blocks", () => {
+    const ast = parseAdl(`APP Presentation
+END.APP
+
+OBJECT Event
+  FIELD EventType TEXT
+  FIELD EventDate DATE
+  FIELD Title TEXT
+
+  VIEW HomeDashboard DASHBOARD
+    LAYOUT stack
+    DENSITY compact
+    STATE showGigs BOOLEAN DEFAULT true
+
+    ICON_MAP EventTypeIcon FOR EventType
+      Gig -> music
+    END.ICON_MAP
+
+    SECTION Schedule
+      HEADING 'Upcoming events'
+
+      TOGGLE showGigsToggle STATE showGigs
+        LABEL 'Gigs'
+        ICON EventTypeIcon(Gig)
+      END.TOGGLE
+
+      LIST UpcomingEvents FROM HomeUpcomingEvents
+        ORDER BY EventDate ASC
+        WHERE EventType == 'Gig' AND showGigs == true
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'No upcoming events'
+
+        ROW
+          ICON EventTypeIcon(EventType)
+          TEXT EventDate FORMAT date 'EEE d MMM'
+          TEXT ' - '
+          TEXT Title STYLE bold
+        END.ROW
+      END.LIST
+    END.SECTION
+  END.VIEW
+END.OBJECT
+`);
+
+    const presentation = ast.objects[0]?.views[0]?.presentation;
+
+    expect(presentation).toMatchObject({
+      layout: "stack",
+      density: "compact",
+      state: [expect.objectContaining({ name: "showGigs", type: "boolean" })],
+      iconMaps: [
+        expect.objectContaining({
+          name: "EventTypeIcon",
+          field: "EventType",
+          values: [expect.objectContaining({ value: "Gig", icon: "music" })],
+        }),
+      ],
+      sections: [
+        expect.objectContaining({
+          name: "Schedule",
+          controls: [expect.objectContaining({ name: "showGigsToggle", state: "showGigs" })],
+          lists: [expect.objectContaining({ name: "UpcomingEvents", renderAs: "compactFeed" })],
+        }),
+      ],
+    });
+  });
+
   it("reports missing block terminators with a source location", () => {
     expect(() =>
       parseAdl(`APP Broken
@@ -165,6 +233,40 @@ OBJECT User
       expect(error.diagnostic.message).toContain("END.OBJECT");
       expect(error.diagnostic.sourceRange.start.line).toBeGreaterThanOrEqual(5);
     }
+  });
+
+  it("reports malformed UI blocks with a source location", () => {
+    try {
+      parseAdl(`APP BrokenUi
+END.APP
+
+OBJECT Event
+  FIELD Title TEXT
+
+  VIEW HomeDashboard DASHBOARD
+    SECTION Schedule
+      LIST UpcomingEvents FROM HomeUpcomingEvents
+        ROW
+          TEXT Title
+        END.ROW
+    END.SECTION
+  END.VIEW
+END.OBJECT
+`);
+    } catch (error) {
+      if (!(error instanceof ParseError)) {
+        throw error;
+      }
+
+      expect(error.diagnostic).toMatchObject({
+        code: "ADL_PARSE_EXPECTED_TOKEN",
+      });
+      expect(error.diagnostic.message).toContain("END.LIST");
+      expect(error.diagnostic.sourceRange.start.line).toBeGreaterThanOrEqual(13);
+      return;
+    }
+
+    throw new Error("Expected missing END.LIST to throw.");
   });
 
   it("rejects unsupported procedural keywords", () => {

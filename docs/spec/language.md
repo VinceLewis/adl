@@ -29,6 +29,11 @@ Unsupported procedural or host-code syntax is rejected. ADL source does not
 contain SQL, Dart, Flutter, Elixir, LiveView, loops, arbitrary host functions, or
 storage-engine declarations.
 
+Apps may list multiple ordered source files in `app.yaml`. The compiler reads
+them in manifest order. Later object declarations that contain only `VIEW`
+blocks extend the earlier object declaration, which allows UI source such as
+`ui.adl` to live beside domain source without redefining fields or policies.
+
 ## Objects And Fields
 
 Objects contain business fields. Field syntax supports text, number, date,
@@ -105,6 +110,59 @@ READ_MODEL HomeUpcomingEvents
   SOURCE event OBJECT Event SCOPE allAvailableContexts
 END.READ_MODEL
 ```
+
+## Composed View Presentation
+
+Views may include renderer-neutral presentation declarations. Presentation is
+resolved onto `ResolvedView.presentation`; runtime services still consume the
+resolved model, not parser AST nodes.
+
+Implemented view-level declarations:
+
+- `LAYOUT stack|grid|split|sidebar`
+- `DENSITY compact|comfortable|spacious`
+- local `STATE Name Type DEFAULT Literal`
+- `ICON_MAP Name FOR Field ... END.ICON_MAP`
+- `SECTION Name ... END.SECTION`
+
+Sections may declare `HEADING`, local layout/density hints, `TOGGLE` controls,
+and `LIST` blocks. Lists bind to an object or read model and support `ORDER BY`,
+`WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, and a `ROW` template.
+
+```adl
+VIEW HomeDashboard DASHBOARD
+  READ_MODEL HomeUpcomingEvents
+  LAYOUT stack
+  DENSITY compact
+  STATE showGigs BOOLEAN DEFAULT true
+
+  ICON_MAP EventTypeIcon FOR EventType
+    Gig -> music
+    Rehearsal -> microphone
+  END.ICON_MAP
+
+  SECTION Schedule
+    HEADING 'Upcoming events'
+
+    LIST UpcomingEvents FROM HomeUpcomingEvents
+      ORDER BY EventDate ASC, StartTime ASC
+      WHERE EventType == 'Gig' AND showGigs == true
+      RENDER_AS compactFeed
+      EMPTY_TEXT 'No upcoming events'
+
+      ROW
+        ICON EventTypeIcon(EventType)
+        TEXT EventDate FORMAT date 'EEE d MMM'
+        TEXT ' - '
+        TEXT Title STYLE bold
+      END.ROW
+    END.LIST
+  END.SECTION
+END.VIEW
+```
+
+Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
+framework component names, procedural render loops, or host functions.
 
 ## Commands
 

@@ -2,6 +2,16 @@ import type {
   ConflictStrategy,
   FieldType,
   JsonValue,
+  JsonPrimitive,
+  PresentationDensity,
+  PresentationFormatKind,
+  PresentationFragmentStyle,
+  PresentationLayout,
+  PresentationListRenderStyle,
+  PresentationListSourceKind,
+  PresentationRowLayout,
+  PresentationStatePersistence,
+  PresentationStateType,
   PolicyAction,
   PolicyEffect,
   ReadModelSourceScope,
@@ -43,7 +53,12 @@ export type BlockName =
   | "DECISION_TABLE"
   | "COMMAND"
   | "STEP"
-  | "READ_MODEL";
+  | "READ_MODEL"
+  | "SECTION"
+  | "TOGGLE"
+  | "LIST"
+  | "ROW"
+  | "ICON_MAP";
 
 export interface EndMarkerNode {
   kind: "EndMarker";
@@ -273,9 +288,130 @@ export interface ViewDeclarationAst {
   searchFields: string[];
   sort: SortDeclarationAst[];
   actions: string[];
+  presentation?: ViewPresentationDeclarationAst;
   end: EndMarkerNode;
   range: SourceRange;
 }
+
+export interface ViewPresentationDeclarationAst {
+  kind: "ViewPresentationDeclaration";
+  layout?: PresentationLayout;
+  density?: PresentationDensity;
+  state: PresentationStateDeclarationAst[];
+  iconMaps: PresentationIconMapDeclarationAst[];
+  sections: PresentationSectionDeclarationAst[];
+  range: SourceRange;
+}
+
+export interface PresentationStateDeclarationAst {
+  kind: "PresentationStateDeclaration";
+  name: string;
+  type?: PresentationStateType;
+  defaultValue?: JsonValue;
+  persistence?: PresentationStatePersistence;
+  range: SourceRange;
+}
+
+export interface PresentationIconMapDeclarationAst {
+  kind: "PresentationIconMapDeclaration";
+  name: string;
+  field: string;
+  values: PresentationIconMapValueDeclarationAst[];
+  defaultIcon?: string;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationIconMapValueDeclarationAst {
+  kind: "PresentationIconMapValueDeclaration";
+  value: JsonPrimitive;
+  icon: string;
+  range: SourceRange;
+}
+
+export interface PresentationSectionDeclarationAst {
+  kind: "PresentationSectionDeclaration";
+  name: string;
+  heading?: string;
+  layout?: PresentationLayout;
+  density?: PresentationDensity;
+  controls: PresentationControlDeclarationAst[];
+  lists: PresentationListDeclarationAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export type PresentationControlDeclarationAst = PresentationToggleControlDeclarationAst;
+
+export interface PresentationToggleControlDeclarationAst {
+  kind: "PresentationToggleControlDeclaration";
+  name: string;
+  state: string;
+  label?: string;
+  icon?: PresentationIconRefDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationListDeclarationAst {
+  kind: "PresentationListDeclaration";
+  name: string;
+  sourceKind?: PresentationListSourceKind;
+  source: string;
+  renderAs?: PresentationListRenderStyle;
+  density?: PresentationDensity;
+  sort: SortDeclarationAst[];
+  filter?: ResolvedExpression;
+  emptyText?: string;
+  row?: PresentationRowTemplateDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationRowTemplateDeclarationAst {
+  kind: "PresentationRowTemplateDeclaration";
+  layout?: PresentationRowLayout;
+  density?: PresentationDensity;
+  fragments: PresentationRowFragmentDeclarationAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export type PresentationRowFragmentDeclarationAst =
+  | PresentationLiteralTextFragmentDeclarationAst
+  | PresentationFieldTextFragmentDeclarationAst
+  | PresentationIconFragmentDeclarationAst;
+
+export interface PresentationLiteralTextFragmentDeclarationAst {
+  kind: "PresentationLiteralTextFragmentDeclaration";
+  text: string;
+  style?: PresentationFragmentStyle;
+  range: SourceRange;
+}
+
+export interface PresentationFieldTextFragmentDeclarationAst {
+  kind: "PresentationFieldTextFragmentDeclaration";
+  field: string;
+  style?: PresentationFragmentStyle;
+  format?: PresentationFormatDeclarationAst;
+  range: SourceRange;
+}
+
+export interface PresentationIconFragmentDeclarationAst {
+  kind: "PresentationIconFragmentDeclaration";
+  icon: PresentationIconRefDeclarationAst;
+  label?: string;
+  range: SourceRange;
+}
+
+export interface PresentationFormatDeclarationAst {
+  kind: PresentationFormatKind;
+  pattern?: string;
+}
+
+export type PresentationIconRefDeclarationAst =
+  | { kind: "named"; name: string }
+  | { kind: "map"; map: string; field?: string; value?: JsonPrimitive };
 
 export interface ViewContextDeclarationAst {
   mode: ViewContextMode;
