@@ -1,6 +1,7 @@
 import { ApplicationRuntime } from "../../runtime/application-runtime.js";
 import { RuntimeValidationError } from "../../runtime/runtime-types.js";
 import type {
+  JsonValue,
   ResolvedApplicationModel,
   ResolvedBusinessContext,
   ResolvedObject,
@@ -31,12 +32,14 @@ import type {
   UiMessage,
   UiMode,
 } from "../types.js";
+import type { AdlComposedViewElement, PresentationStateChangeDetail } from "./adl-composed-view.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
 import { AdlDashboardViewElement } from "./adl-dashboard-view.js";
 import { AdlFormViewElement } from "./adl-form-view.js";
 import { AdlListViewElement } from "./adl-list-view.js";
 import { AdlMessageAreaElement } from "./adl-message-area.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
+import type { RuntimePresentationView } from "../../runtime/presentation-runtime.js";
 
 interface ActiveViewContextState {
   context?: RuntimeContext;
@@ -54,6 +57,8 @@ export class AdlAppElement extends HTMLElement {
   private searchText = "";
   private records: StoredObjectRecord[] = [];
   private readModelRows: RuntimeReadModelRow[] = [];
+  private presentationView: RuntimePresentationView | undefined;
+  private presentationStateByView = new Map<string, Record<string, JsonValue>>();
   private selectedRecord: StoredObjectRecord | undefined;
   private mode: UiMode = "edit";
   private draftValues: SaveRecordDetail["values"] = {};
@@ -269,6 +274,18 @@ export class AdlAppElement extends HTMLElement {
     });
   };
 
+  private readonly handlePresentationStateChange = (event: Event): void => {
+    const detail = (event as CustomEvent<PresentationStateChangeDetail>).detail;
+    if (detail === undefined) {
+      return;
+    }
+
+    void this.runCommand(async () => {
+      await this.refreshPresentationView({ [detail.state]: detail.value });
+      this.render();
+    });
+  };
+
   private readonly handleOnlineStateChange = (): void => {
     this.applyBrowserOnlineState(true);
   };
@@ -293,6 +310,8 @@ export class AdlAppElement extends HTMLElement {
     this._model = model;
     this._runtime = undefined;
     this.seeded = false;
+    this.presentationView = undefined;
+    this.presentationStateByView = new Map();
 
     if (this.initialized) {
       this.readyPromise = this.initialize();
@@ -308,6 +327,8 @@ export class AdlAppElement extends HTMLElement {
   set runtime(runtime: ApplicationRuntime | undefined) {
     this._runtime = runtime;
     this.seeded = runtime !== undefined;
+    this.presentationView = undefined;
+    this.presentationStateByView = new Map();
   }
 
   get runtime(): ApplicationRuntime {
@@ -345,6 +366,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-cancel-record", this.handleCancel);
     this.addEventListener("adl-transition-record", this.handleTransition);
     this.addEventListener("adl-select-context", this.handleContextSelection);
+    this.addEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.addEventListener("change", this.handleChange);
     addBrowserOnlineListeners(this.handleOnlineStateChange);
     this.readyPromise = this.initialize();
@@ -360,6 +382,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-cancel-record", this.handleCancel);
     this.removeEventListener("adl-transition-record", this.handleTransition);
     this.removeEventListener("adl-select-context", this.handleContextSelection);
+    this.removeEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.removeEventListener("change", this.handleChange);
     removeBrowserOnlineListeners(this.handleOnlineStateChange);
     this.initialized = false;
@@ -400,10 +423,22 @@ export class AdlAppElement extends HTMLElement {
     if (viewContext.context === undefined) {
       this.records = [];
       this.readModelRows = [];
+      this.presentationView = undefined;
       this.selectedRecord = undefined;
       this.mode = "create";
       return;
     }
+
+    if (view.presentation !== undefined) {
+      await this.refreshPresentationView();
+      this.records = [];
+      this.readModelRows = [];
+      this.selectedRecord = undefined;
+      this.mode = "edit";
+      return;
+    }
+
+    this.presentationView = undefined;
 
     if (readModel !== undefined) {
       const result = await this.runtime.executeReadModel(readModel.name, viewContext.context, {
@@ -442,6 +477,26 @@ export class AdlAppElement extends HTMLElement {
     this.mode = selected === undefined ? "create" : "edit";
   }
 
+  private async refreshPresentationView(updates: Record<string, JsonValue> = {}): Promise<void> {
+    const context = this.requireActiveRuntimeContext();
+    const object = this.activeObject;
+    const view = this.activeView;
+    const stateKey = this.presentationStateKey(object, view);
+    const currentState = this.presentationStateByView.get(stateKey);
+    const presentation = await this.runtime.evaluatePresentationView(
+      object.name,
+      view.name,
+      context,
+      {
+        ...(currentState === undefined ? {} : { state: currentState }),
+        ...(Object.keys(updates).length === 0 ? {} : { updates }),
+      },
+    );
+
+    this.presentationStateByView.set(stateKey, { ...presentation.state });
+    this.presentationView = presentation;
+  }
+
   private async runCommand(command: () => Promise<void>): Promise<void> {
     try {
       await command();
@@ -471,6 +526,7 @@ export class AdlAppElement extends HTMLElement {
     const view = this.activeView;
     const readModel = this.activeReadModel;
     const formView = this.formView;
+    const isComposedView = view.presentation !== undefined;
     const showWorkspace =
       this.activeRuntimeContext !== undefined && this.activeViewEmptyState === undefined;
 
@@ -509,14 +565,20 @@ export class AdlAppElement extends HTMLElement {
         <adl-message-area></adl-message-area>
         ${
           showWorkspace
-            ? readModel === undefined
+            ? isComposedView
               ? `
+                <div class="adl-composed-workspace">
+                  <adl-composed-view></adl-composed-view>
+                </div>
+              `
+              : readModel === undefined
+                ? `
                 <div class="adl-workspace">
                   <adl-list-view></adl-list-view>
                   <adl-form-view></adl-form-view>
                 </div>
               `
-              : `
+                : `
                 <div class="adl-dashboard-workspace">
                   <adl-dashboard-view></adl-dashboard-view>
                 </div>
@@ -558,6 +620,11 @@ export class AdlAppElement extends HTMLElement {
     if (dashboard !== null) {
       dashboard.readModel = readModel;
       dashboard.rows = this.readModelRows;
+    }
+
+    const composed = this.querySelector<AdlComposedViewElement>("adl-composed-view");
+    if (composed !== null) {
+      composed.presentation = this.presentationView;
     }
 
     for (const selector of this.querySelectorAll<AdlContextSelectorElement>(
@@ -887,6 +954,10 @@ export class AdlAppElement extends HTMLElement {
 
   private findReadModel(readModelName: string): ResolvedReadModel | undefined {
     return this._model.readModels?.find((readModel) => readModel.name === readModelName);
+  }
+
+  private presentationStateKey(object: ResolvedObject, view: ResolvedView): string {
+    return `${object.name}:${view.name}`;
   }
 }
 

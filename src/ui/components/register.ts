@@ -1,5 +1,6 @@
 import { defineAdlActionBar } from "./adl-action-bar.js";
 import { defineAdlApp } from "./adl-app.js";
+import { defineAdlComposedView } from "./adl-composed-view.js";
 import { defineAdlContextSelector } from "./adl-context-selector.js";
 import { defineAdlDashboardView } from "./adl-dashboard-view.js";
 import { defineAdlFieldRenderer } from "./adl-field-renderer.js";
@@ -10,6 +11,7 @@ import { defineAdlMessageArea } from "./adl-message-area.js";
 export function defineAdlComponents(): void {
   defineAdlMessageArea();
   defineAdlActionBar();
+  defineAdlComposedView();
   defineAdlContextSelector();
   defineAdlDashboardView();
   defineAdlFieldRenderer();

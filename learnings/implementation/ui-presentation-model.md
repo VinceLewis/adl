@@ -27,6 +27,9 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - Presentation runtime evaluation is exposed through
   `ApplicationRuntime.evaluatePresentationView(...)`. Browser renderers should
   use this public API rather than binding lists or read models themselves.
+- The generic browser renderer consumes `RuntimePresentationView` output
+  directly. It maps renderer-neutral sections, controls, lists, row fragments,
+  icons, and empty states to DOM without adding app-specific branches.
 - Evaluation order is state defaults, caller state, local state updates, list
   binding, presentation filters, presentation ordering, row fragments, icon
   maps, formatting, and empty states.
@@ -49,6 +52,10 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - Browser renderer work should consume `ApplicationRuntime.evaluatePresentationView`
   output. It should not query storage or execute read models directly to render
   composed presentation lists.
+- Browser toggle controls should update view-local presentation state and
+  request re-evaluation. They are not durable fields and should not call object
+  create/update APIs unless a future model declaration explicitly binds them to
+  a persistent command.
 - Keep read models responsible for data shape and authorization; keep
   presentation responsible for display composition such as row text, icons,
   formatting, empty states, and section layout.

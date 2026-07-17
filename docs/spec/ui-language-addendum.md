@@ -12,8 +12,8 @@ implemented: JSON/TypeScript partial models can resolve and validate
 presentation declarations. The initial parser/compiler subset is implemented
 for composed view presentation blocks, local state, sections, toggles, lists,
 row templates, icon maps, formatting, and empty states. Runtime evaluation is
-implemented through a renderer-neutral presentation evaluator. Browser DOM
-rendering for these constructs remains a later phase.
+implemented through a renderer-neutral presentation evaluator. The browser
+runtime renders the initial composed-view subset through generic Web Components.
 
 ## Purpose
 
@@ -479,8 +479,7 @@ Parser/compiler support is implemented for the smallest useful subset:
 
 The first implementation target is the Giggle Band home dashboard source in
 `src/reference/giggle-band/ui.adl`. It proves that non-CRUD presentation can be
-authored without app-specific UI components, though renderer execution remains
-future work.
+authored without app-specific UI components.
 
 The compiler should accept presentation declarations from any source listed in
 `app.yaml`, so an app can keep domain and UI source separate:
@@ -507,6 +506,12 @@ The evaluator returns renderer-neutral data only. It does not return DOM nodes,
 HTML strings, CSS selectors, framework component names, or SVG payloads.
 Presentation filters run after read authorization, context scoping, and
 read-model shaping; they are not a policy or storage boundary.
+
+The browser renderer consumes this evaluator output. It renders sections,
+headings, local toggle controls, compact feed rows, inline text fragments, bold
+fragments, semantic icons, diagnostics, and empty states. Toggle interaction
+updates view-local presentation state and re-evaluates the view; it does not
+write object-store records.
 
 The deterministic formatter intentionally supports a small cross-runtime subset:
 date tokens such as `EEE d MMM`, time tokens such as `h:mma`, UTC datetime

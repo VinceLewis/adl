@@ -523,7 +523,8 @@ describe("band reference browser demo", () => {
     await flushUi();
 
     expect(app.textContent).toContain("Giggle Band ADL Example");
-    expect(app.querySelector("adl-dashboard-view")).not.toBeNull();
+    expect(app.querySelector("adl-composed-view")).not.toBeNull();
+    expect(app.querySelector("[data-presentation-section='Schedule']")).not.toBeNull();
     expect(app.textContent).toContain("Canal Street headline");
     expect(app.textContent).toContain("New set rehearsal");
     expect(app.textContent).toContain("The Alphas");

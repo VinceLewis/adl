@@ -21,6 +21,13 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   validation remains authoritative; the browser UI preserves draft values and
   renders field-level validation issues after a failed save.
 - Existing resolved theme tokens are applied by `adl-app` as CSS custom properties. Phase 5 should extend this foundation rather than replacing the UI styling path.
+- Composed presentation views render through `adl-composed-view`. `adl-app`
+  detects `ResolvedView.presentation`, calls
+  `ApplicationRuntime.evaluatePresentationView`, and passes only the
+  renderer-neutral result to the component.
+- View-local presentation controls, such as toggles, dispatch state updates
+  back to `adl-app`. The app re-evaluates the presentation view with local
+  state updates and does not write object-store records for those interactions.
 - UI tests use `happy-dom` with Vitest. They cover rendered workflows and direct runtime bypass enforcement for the same policy used by the UI.
 
 ## Practical guidance
@@ -28,4 +35,8 @@ Read this before changing browser UI components, runtime/UI policy integration, 
 - Keep UI behavior generic over `ResolvedObject` and `ResolvedView`; do not add per-object component forks.
 - Add new UI workflows through `ApplicationRuntime` first, then expose presentation decisions through the same policy engine.
 - When policy presentation blocks a field, make the UI skip that field in save patches so masked or readonly display values are not written back accidentally.
-- Proposed presentation-language constructs for richer composed screens are documented separately in `docs/spec/ui-language-addendum.md`. Treat that file as UI design direction until parser, resolved-model, and runtime support are implemented.
+- Presentation-language constructs for richer composed screens are documented
+  separately in `docs/spec/ui-language-addendum.md`. The initial browser
+  renderer supports composed sections, headings, local toggles, compact feed
+  rows, inline fragments, bold fragments, semantic icon names, diagnostics, and
+  empty states.
