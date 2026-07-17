@@ -1,8 +1,10 @@
 import type {
   JsonValue,
+  ResolvedExpression,
   ResolvedPolicyCondition,
   ResolvedPolicyConditionOperand,
 } from "../model/resolved-model.js";
+import { evaluateExpressionAsBoolean } from "./expression-evaluator.js";
 import type { RuntimeContext } from "./runtime-types.js";
 
 export interface RuntimeConditionInput {
@@ -11,46 +13,75 @@ export interface RuntimeConditionInput {
 }
 
 export function evaluateRuntimeCondition(
-  condition: ResolvedPolicyCondition,
+  condition: ResolvedExpression | ResolvedPolicyCondition,
   input: RuntimeConditionInput,
 ): boolean {
+  const expression = conditionToExpression(condition);
+  const result = evaluateExpressionAsBoolean(expression, input);
+  return result.ok ? result.value.value === true : false;
+}
+
+function conditionToExpression(
+  condition: ResolvedExpression | ResolvedPolicyCondition,
+): ResolvedExpression {
   switch (condition.kind) {
+    case "literal":
+    case "field":
+    case "runtime":
+    case "unary":
+    case "binary":
+      return condition;
     case "equals":
-      return jsonValuesEqual(
-        resolveConditionOperand(condition.left, input),
-        resolveConditionOperand(condition.right, input),
-      );
+      return {
+        kind: "binary",
+        operator: "==",
+        left: conditionOperandToExpression(condition.left),
+        right: conditionOperandToExpression(condition.right),
+      };
     case "all":
-      return condition.conditions.every((nested) => evaluateRuntimeCondition(nested, input));
+      return condition.conditions.reduce<ResolvedExpression>(
+        (left, nested) => ({
+          kind: "binary",
+          operator: "and",
+          left,
+          right: conditionToExpression(nested),
+        }),
+        { kind: "literal", value: true },
+      );
     case "any":
-      return condition.conditions.some((nested) => evaluateRuntimeCondition(nested, input));
+      return condition.conditions.reduce<ResolvedExpression>(
+        (left, nested) => ({
+          kind: "binary",
+          operator: "or",
+          left,
+          right: conditionToExpression(nested),
+        }),
+        { kind: "literal", value: false },
+      );
     case "not":
-      return !evaluateRuntimeCondition(condition.condition, input);
+      return {
+        kind: "unary",
+        operator: "not",
+        operand: conditionToExpression(condition.condition),
+      };
   }
 }
 
-function resolveConditionOperand(
-  operand: ResolvedPolicyConditionOperand,
-  input: RuntimeConditionInput,
-): JsonValue | undefined {
+function conditionOperandToExpression(operand: ResolvedPolicyConditionOperand): ResolvedExpression {
   switch (operand.kind) {
     case "field":
-      return input.values[operand.field];
+      return { kind: "field", field: operand.field };
     case "runtime":
-      switch (operand.property) {
-        case "userId":
-          return input.context.userId;
-      }
-      return undefined;
+      return { kind: "runtime", property: operand.property };
     case "literal":
-      return operand.value;
+      if (
+        typeof operand.value === "string" ||
+        typeof operand.value === "number" ||
+        typeof operand.value === "boolean" ||
+        operand.value === null
+      ) {
+        return { kind: "literal", value: operand.value };
+      }
+      return { kind: "literal", value: JSON.stringify(operand.value) };
   }
-}
-
-function jsonValuesEqual(left: JsonValue | undefined, right: JsonValue | undefined): boolean {
-  if (left === undefined || right === undefined) {
-    return false;
-  }
-
-  return JSON.stringify(left) === JSON.stringify(right);
 }

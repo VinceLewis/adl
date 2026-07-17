@@ -1,0 +1,60 @@
+[
+  {
+    "name": "comparison-and-boolean",
+    "expression": {
+      "kind": "binary",
+      "operator": "and",
+      "left": {
+        "kind": "binary",
+        "operator": ">",
+        "left": { "kind": "field", "field": "Value" },
+        "right": { "kind": "literal", "value": 10000 }
+      },
+      "right": {
+        "kind": "binary",
+        "operator": "==",
+        "left": { "kind": "field", "field": "Status" },
+        "right": { "kind": "literal", "value": "Submitted" }
+      }
+    },
+    "values": { "Value": 12000, "Status": "Submitted" },
+    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
+    "expected": { "ok": true, "kind": "boolean", "value": true }
+  },
+  {
+    "name": "decimal-division-rounding",
+    "expression": {
+      "kind": "binary",
+      "operator": "/",
+      "left": { "kind": "literal", "value": 1 },
+      "right": { "kind": "literal", "value": 3 }
+    },
+    "values": {},
+    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
+    "expected": { "ok": true, "kind": "number", "value": 0.3333 }
+  },
+  {
+    "name": "runtime-user-reference",
+    "expression": {
+      "kind": "binary",
+      "operator": "==",
+      "left": { "kind": "field", "field": "Owner" },
+      "right": { "kind": "runtime", "property": "userId" }
+    },
+    "values": { "Owner": "user-1" },
+    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
+    "expected": { "ok": true, "kind": "boolean", "value": true }
+  },
+  {
+    "name": "divide-by-zero-error",
+    "expression": {
+      "kind": "binary",
+      "operator": "/",
+      "left": { "kind": "literal", "value": 1 },
+      "right": { "kind": "literal", "value": 0 }
+    },
+    "values": {},
+    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
+    "expected": { "ok": false, "code": "ADL_EXPRESSION_DIVIDE_BY_ZERO" }
+  }
+]

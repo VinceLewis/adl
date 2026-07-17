@@ -104,6 +104,7 @@ export class LifecycleEngine {
         objectName,
         record,
         action.to,
+        context,
       );
 
       await this.hookRegistry.run(action.hooks.before, {

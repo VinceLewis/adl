@@ -196,6 +196,79 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  it("reports expression diagnostics for policy conditions and predicate validators", () => {
+    const resolved = resolveApplicationModel({
+      app: { name: "ExpressionDiagnostics" },
+      objects: [
+        {
+          name: "Invoice",
+          fields: [
+            {
+              name: "Amount",
+              type: "number",
+              validators: [
+                {
+                  kind: "predicate",
+                  expression: {
+                    kind: "binary",
+                    operator: ">",
+                    left: { kind: "field", field: "MissingAmount" },
+                    right: { kind: "literal", value: 0 },
+                  },
+                },
+              ],
+            },
+            { name: "Status", type: "text" },
+          ],
+        },
+      ],
+      policies: [
+        {
+          name: "InvoicePolicy",
+          object: "Invoice",
+          rules: [
+            {
+              name: "badRuntimeReference",
+              effect: "allow",
+              action: "read",
+              condition: { kind: "runtime", property: "roles" as "userId" },
+            },
+            {
+              name: "nonBooleanCondition",
+              effect: "allow",
+              action: "read",
+              condition: {
+                kind: "binary",
+                operator: "+",
+                left: { kind: "field", field: "Amount" },
+                right: { kind: "literal", value: 1 },
+              },
+            },
+            {
+              name: "wrongOperandType",
+              effect: "allow",
+              action: "read",
+              condition: {
+                kind: "binary",
+                operator: ">",
+                left: { kind: "field", field: "Status" },
+                right: { kind: "literal", value: 100 },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.FIELD_VALIDATOR_EXPRESSION_INVALID,
+        MODEL_VALIDATION_CODES.POLICY_CONDITION_RUNTIME_PROPERTY_INVALID,
+        MODEL_VALIDATION_CODES.POLICY_CONDITION_TYPE,
+      ]),
+    );
+  });
+
   it("reports invalid business context and read-model declarations", () => {
     const invalid = cloneResolved(resolveApplicationModel(bandContextPartialModel));
     const bandContext = invalid.contexts?.find((context) => context.name === "Band");

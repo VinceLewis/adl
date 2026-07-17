@@ -2,6 +2,24 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
 export type FieldType = "text" | "number" | "date" | "datetime" | "time" | "boolean" | "attachment";
+export type ExpressionValueType = Exclude<FieldType, "attachment"> | "null";
+export type ExpressionRuntimeProperty = "userId" | "now";
+export type ExpressionUnaryOperator = "not" | "negate";
+export type ExpressionBinaryOperator =
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "=="
+  | "!="
+  | "<"
+  | "<="
+  | ">"
+  | ">="
+  | "and"
+  | "or"
+  | "in"
+  | "??";
 
 export type ValidatorKind =
   | "email"
@@ -13,7 +31,8 @@ export type ValidatorKind =
   | "regexp"
   | "currencyCode"
   | "maxSize"
-  | "mimeType";
+  | "mimeType"
+  | "predicate";
 
 export type ViewKind =
   | "list"
@@ -185,9 +204,55 @@ export interface ResolvedMetadataField {
   description: string;
 }
 
-export interface ResolvedValidator {
-  kind: ValidatorKind;
+export type ResolvedValidator = ResolvedNamedValidator | ResolvedPredicateValidator;
+
+export type ResolvedNamedValidatorKind = Exclude<ValidatorKind, "predicate">;
+
+export interface ResolvedNamedValidator {
+  kind: ResolvedNamedValidatorKind;
   value?: JsonValue;
+}
+
+export interface ResolvedPredicateValidator {
+  kind: "predicate";
+  expression: ResolvedExpression;
+  message?: string;
+}
+
+export type ResolvedExpression =
+  | ResolvedLiteralExpression
+  | ResolvedFieldExpression
+  | ResolvedRuntimeExpression
+  | ResolvedUnaryExpression
+  | ResolvedBinaryExpression;
+
+export interface ResolvedLiteralExpression {
+  kind: "literal";
+  value: JsonPrimitive;
+  valueType?: ExpressionValueType;
+}
+
+export interface ResolvedFieldExpression {
+  kind: "field";
+  field: string;
+}
+
+export interface ResolvedRuntimeExpression {
+  kind: "runtime";
+  property: ExpressionRuntimeProperty;
+}
+
+export interface ResolvedUnaryExpression {
+  kind: "unary";
+  operator: ExpressionUnaryOperator;
+  operand: ResolvedExpression;
+}
+
+export interface ResolvedBinaryExpression {
+  kind: "binary";
+  operator: ExpressionBinaryOperator;
+  left: ResolvedExpression;
+  right: ResolvedExpression;
 }
 
 export interface ResolvedLookup {
@@ -265,7 +330,7 @@ export interface ResolvedPolicyRule {
   state: string[];
   fields: string[];
   lifecycleAction?: string;
-  condition?: ResolvedPolicyCondition;
+  condition?: ResolvedExpression;
   channels: RuntimeChannel[];
 }
 
@@ -283,12 +348,12 @@ export interface ResolvedEqualsPolicyCondition {
 
 export interface ResolvedAllPolicyCondition {
   kind: "all";
-  conditions: ResolvedPolicyCondition[];
+  conditions: (ResolvedPolicyCondition | ResolvedExpression)[];
 }
 
 export interface ResolvedAnyPolicyCondition {
   kind: "any";
-  conditions: ResolvedPolicyCondition[];
+  conditions: (ResolvedPolicyCondition | ResolvedExpression)[];
 }
 
 export interface ResolvedNotPolicyCondition {
@@ -374,7 +439,7 @@ export interface ResolvedCommandCreateStep {
   object: string;
   authority: CommandStepAuthority;
   values: Record<string, ResolvedCommandValueExpression>;
-  preconditions: ResolvedPolicyCondition[];
+  preconditions: ResolvedExpression[];
 }
 
 export interface ResolvedCommandUpdateStep {
@@ -384,7 +449,7 @@ export interface ResolvedCommandUpdateStep {
   authority: CommandStepAuthority;
   recordId: ResolvedCommandValueExpression;
   patch: Record<string, ResolvedCommandValueExpression>;
-  preconditions: ResolvedPolicyCondition[];
+  preconditions: ResolvedExpression[];
 }
 
 export type ResolvedCommandValueExpression =
@@ -591,9 +656,17 @@ export interface PartialFieldModel {
   autoId?: PartialAutoIdModel;
 }
 
-export interface PartialValidatorModel {
-  kind: ValidatorKind;
+export type PartialValidatorModel = PartialNamedValidatorModel | PartialPredicateValidatorModel;
+
+export interface PartialNamedValidatorModel {
+  kind: ResolvedNamedValidatorKind;
   value?: JsonValue;
+}
+
+export interface PartialPredicateValidatorModel {
+  kind: "predicate";
+  expression: ResolvedExpression;
+  message?: string;
 }
 
 export interface PartialLookupModel {
@@ -675,7 +748,7 @@ export interface PartialPolicyRuleModel {
   channels?: RuntimeChannel[];
 }
 
-export type PartialPolicyConditionModel = ResolvedPolicyCondition;
+export type PartialPolicyConditionModel = ResolvedExpression | ResolvedPolicyCondition;
 
 export interface PartialPrincipalSelectorModel {
   match?: PrincipalMatch;

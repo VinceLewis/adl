@@ -29,7 +29,11 @@ Design and implement, all built only from Phase 20 expression primitives:
 - **Lifecycle guards.** Action-level `WHEN` preconditions evaluated in addition
   to state and policy, enforced by `LifecycleEngine`.
 - **Command preconditions.** `REQUIRE` expressions on command/transaction
-  declarations, enforced by `CommandService`.
+  declarations, enforced by `CommandService`. Phase 20 already normalised the
+  existing resolved command step preconditions to `ResolvedExpression` and kept
+  their runtime enforcement path green; Phase 21 should add the author-facing
+  `REQUIRE` syntax/model shape and any broader command-level semantics that are
+  still missing.
 
 Every construct must remain pure, total, and deterministic, and must be
 representable in the resolved model as data, not code.
@@ -57,7 +61,8 @@ Flutter, Wasm, and procedural constructs.
 ## Expected Deliverables
 
 - Resolved-model additions for object validations, decision tables, lifecycle
-  guards, and command preconditions.
+  guards, and any remaining command precondition declarations beyond the
+  expression-backed step preconditions carried forward from Phase 20.
 - Runtime evaluation in the relevant services (`ValidationEngine`,
   `LifecycleEngine`, and `CommandService`).
 - Compile-time analysis for decision-table completeness/overlap where supported,
@@ -100,7 +105,9 @@ Execute Phase 21 only. Build object-level validation, decision tables, lifecycle
 4. Implement decision-table evaluation with defined match semantics, plus
    compile-time overlap/unreachable/default analysis.
 5. Implement lifecycle `WHEN` guards in `LifecycleEngine`.
-6. Implement command `REQUIRE` preconditions in `CommandService`.
+6. Add command `REQUIRE` syntax/model support and extend `CommandService` only
+   where Phase 20's expression-backed step preconditions do not already cover
+   the required behavior.
 7. Add parser support for all new constructs and convert to resolved model in
    `compileAdl`.
 8. Add tests for each construct, compile-time analysis, and direct-call runtime

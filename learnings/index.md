@@ -25,6 +25,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 - `implementation/model-validator.md`
 - `implementation/policy-engine.md`
 - `implementation/runtime-services.md`
+- `implementation/expression-language.md`
 
 Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
 
@@ -47,12 +48,14 @@ Before tasks that integrate compile-time validation, runtime model startup check
 Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour, also read:
 
 - `implementation/adl-parser.md`
+- `implementation/expression-language.md`
 
 Before tasks that change runtime services, model-declared commands, UI runtime integration, lifecycle execution, audit, operation log handling, sync policy enforcement, or runtime tests, also read:
 
 - `implementation/runtime-services.md`
 - `implementation/context-runtime.md`
 - `implementation/policy-engine.md`
+- `implementation/expression-language.md`
 - `implementation/sync-policy.md`
 - `implementation/offline-dataset-runtime.md`
 
@@ -123,6 +126,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/offline-dataset-runtime.md`: read before changing context-aware offline dataset selection, dataset-limited local reads, or future remote sync planning.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, policy conditions, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
+- `implementation/expression-language.md`: read before changing `ResolvedExpression`, expression evaluation, parser expression syntax, policy conditions, predicate validators, command preconditions, computed fields, decision tables, lifecycle guards, or read-model expressions.
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work.

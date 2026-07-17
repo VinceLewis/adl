@@ -101,7 +101,7 @@ export class ObjectStore {
   ): Promise<PlannedCreateObjectWrite> {
     await this.startupGuard();
     const object = this.index.getObject(objectName);
-    const preparedValues = this.validationEngine.prepareCreateValues(objectName, values);
+    const preparedValues = this.validationEngine.prepareCreateValues(objectName, values, context);
     const currentState = getInitialLifecycleState(object);
 
     requireObjectScopeForValues(this.index, objectName, preparedValues, context, "create");
@@ -207,7 +207,12 @@ export class ObjectStore {
     const existing = await this.requireActiveRecord(objectName, id);
     requireObjectScopeForRecord(this.index, objectName, existing, context, "update");
     const currentState = this.getState(objectName, existing);
-    const nextValues = this.validationEngine.prepareUpdateValues(objectName, existing, patch);
+    const nextValues = this.validationEngine.prepareUpdateValues(
+      objectName,
+      existing,
+      patch,
+      context,
+    );
 
     requireObjectScopeForValues(this.index, objectName, nextValues, context, "update");
     if (authority === "caller") {

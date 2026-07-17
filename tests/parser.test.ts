@@ -45,6 +45,39 @@ describe("ADL parser", () => {
     expect(startView?.range.start).toMatchObject({ line: 2, column: 3 });
   });
 
+  it("parses field predicate validators and policy WHEN expressions", () => {
+    const ast = parseAdl(`APP Expressions
+END.APP
+
+ROLE Requester
+
+OBJECT PurchaseOrder
+  FIELD Owner TEXT
+  FIELD Value NUMBER VALIDATE Value > 0 MESSAGE 'Positive only.'
+END.OBJECT
+
+POLICY PurchaseOrderPolicy ON PurchaseOrder
+  ALLOW CREATE ROLE Requester WHEN Owner == runtime.userId AND Value > 10000
+END.POLICY
+`);
+
+    const purchaseOrder = ast.objects.find((object) => object.name === "PurchaseOrder");
+    expect(
+      purchaseOrder?.fields.find((field) => field.name === "Value")?.validators[0],
+    ).toMatchObject({
+      validatorKind: "predicate",
+      message: "Positive only.",
+      expression: {
+        kind: "binary",
+        operator: ">",
+      },
+    });
+    expect(ast.policies[0]?.rules[0]?.condition).toMatchObject({
+      kind: "binary",
+      operator: "and",
+    });
+  });
+
   it("reports missing block terminators with a source location", () => {
     expect(() =>
       parseAdl(`APP Broken

@@ -97,10 +97,18 @@ function fieldToPartial(field: FieldDeclarationAst): PartialFieldModel {
     type: field.type,
     required: field.required,
     ...(field.defaultValue === undefined ? {} : { defaultValue: field.defaultValue }),
-    validators: field.validators.map((validator) => ({
-      kind: validator.validatorKind,
-      ...(validator.value === undefined ? {} : { value: validator.value }),
-    })),
+    validators: field.validators.map((validator) =>
+      validator.validatorKind === "predicate"
+        ? {
+            kind: "predicate",
+            expression: validator.expression ?? { kind: "literal", value: true },
+            ...(validator.message === undefined ? {} : { message: validator.message }),
+          }
+        : {
+            kind: validator.validatorKind,
+            ...(validator.value === undefined ? {} : { value: validator.value }),
+          },
+    ),
     readonly: field.readonly,
     hidden: field.hidden,
     ...(field.lookup === undefined
@@ -237,6 +245,7 @@ function policyRuleToPartial(rule: PolicyRuleDeclarationAst): PartialPolicyRuleM
     state: [...rule.state],
     fields: [...rule.fields],
     ...(rule.lifecycleAction === undefined ? {} : { lifecycleAction: rule.lifecycleAction }),
+    ...(rule.condition === undefined ? {} : { condition: rule.condition }),
     ...(rule.channels.length === 0 ? {} : { channels: [...rule.channels] }),
   };
 }

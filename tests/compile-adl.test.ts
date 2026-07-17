@@ -4,6 +4,7 @@ import {
   ApplicationRuntime,
   MODEL_VALIDATION_CODES,
   PolicyDeniedError,
+  RuntimeValidationError,
   compileAdl,
   validateApplicationModel,
 } from "../src/index.js";
@@ -231,6 +232,61 @@ END.POLICY
       operatorContext,
     );
     expect(opened.values.Status).toBe("Open");
+  });
+
+  it("compiles policy WHEN expressions and predicate validators into runtime enforcement", async () => {
+    const result = compileAdl(`APP ExpressionOrders
+END.APP
+
+ROLE Requester
+
+OBJECT PurchaseOrder
+  FIELD Owner TEXT REQUIRED
+  FIELD Value NUMBER REQUIRED VALIDATE Value > 0 MESSAGE 'Value must be positive.'
+  FIELD Status TEXT REQUIRED DEFAULT Draft
+END.OBJECT
+
+POLICY PurchaseOrderPolicy ON PurchaseOrder
+  ALLOW CREATE ROLE Requester WHEN Owner == runtime.userId AND Value > 10000
+  ALLOW READ ROLE Requester WHEN Owner == runtime.userId
+END.POLICY
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(
+      result.model.policies.find((policy) => policy.name === "PurchaseOrderPolicy")?.rules[0]
+        ?.condition,
+    ).toMatchObject({
+      kind: "binary",
+      operator: "and",
+    });
+
+    const runtime = new ApplicationRuntime(result.model);
+    const requester = {
+      userId: "requester-1",
+      roles: ["Requester"],
+      channel: "api",
+      now: new Date("2026-07-17T12:30:00.000Z"),
+    } satisfies RuntimeContext;
+
+    const created = await runtime.create(
+      "PurchaseOrder",
+      { Owner: "requester-1", Value: 12000 },
+      requester,
+    );
+
+    expect(created.values.Owner).toBe("requester-1");
+
+    await expect(
+      runtime.create("PurchaseOrder", { Owner: "other-user", Value: 12000 }, requester),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    await expect(
+      runtime.create("PurchaseOrder", { Owner: "requester-1", Value: -1 }, requester),
+    ).rejects.toMatchObject({
+      name: RuntimeValidationError.name,
+      issues: [expect.objectContaining({ message: "Value must be positive." })],
+    });
   });
 
   it("returns structured validation diagnostics for parsed but invalid models", () => {

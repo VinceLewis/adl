@@ -4,6 +4,8 @@ import type {
   JsonValue,
   PolicyAction,
   PolicyEffect,
+  ExpressionRuntimeProperty,
+  ResolvedExpression,
   RuntimeChannel,
   SyncMode,
   SyncScope,
@@ -96,6 +98,7 @@ const FIELD_LIST_STOP_WORDS = new Set([
   "ACTION",
   "CHANNEL",
   "CHANNELS",
+  "WHEN",
 ]);
 
 class AdlParser {
@@ -332,6 +335,14 @@ class AdlParser {
         validators.push(
           this.validator("mimeType", this.previous(), this.consumeModifierValue("MIME_TYPE value")),
         );
+      } else if (this.matchWord("VALIDATE") || this.matchWord("PREDICATE")) {
+        const validatorStart = this.previous();
+        const expression = this.parseExpressionUntil(new Set(["MESSAGE"]));
+        let message: string | undefined;
+        if (this.matchWord("MESSAGE")) {
+          message = String(this.consumeLiteral("predicate validator message"));
+        }
+        validators.push(this.predicateValidator(validatorStart, expression, message));
       } else if (this.matchWord("READONLY")) {
         readonly = true;
       } else if (this.matchWord("HIDDEN")) {
@@ -700,6 +711,7 @@ class AdlParser {
     const fields: string[] = [];
     const channels: RuntimeChannel[] = [];
     let lifecycleAction: string | undefined;
+    let condition: ResolvedExpression | undefined;
 
     while (!this.isLineEnd()) {
       if (this.matchWord("FIELD") || this.matchWord("FIELDS")) {
@@ -710,6 +722,8 @@ class AdlParser {
         lifecycleAction = this.consumeName("policy lifecycle action");
       } else if (this.matchWord("CHANNEL") || this.matchWord("CHANNELS")) {
         channels.push(...this.consumeChannelsUntilWords(FIELD_LIST_STOP_WORDS));
+      } else if (this.matchWord("WHEN")) {
+        condition = this.parseExpressionUntil(new Set());
       } else if (this.matchWord("ROLE") || this.matchWord("ROLES")) {
         principal.roles.push(
           ...this.consumeNameListUntilWords("principal role list", FIELD_LIST_STOP_WORDS),
@@ -751,6 +765,7 @@ class AdlParser {
       state,
       fields,
       ...(lifecycleAction === undefined ? {} : { lifecycleAction }),
+      ...(condition === undefined ? {} : { condition }),
       channels,
       range: this.rangeFrom(startToken),
     };
@@ -974,6 +989,247 @@ class AdlParser {
           token,
         );
     }
+  }
+
+  private parseExpressionUntil(stopWords: Set<string>): ResolvedExpression {
+    if (this.isExpressionStop(stopWords)) {
+      this.failExpected("expression", this.current());
+    }
+
+    return this.parseCoalesceExpression(stopWords);
+  }
+
+  private parseCoalesceExpression(stopWords: Set<string>): ResolvedExpression {
+    let expression = this.parseOrExpression(stopWords);
+
+    while (!this.isExpressionStop(stopWords) && this.matchSymbol("??")) {
+      expression = {
+        kind: "binary",
+        operator: "??",
+        left: expression,
+        right: this.parseOrExpression(stopWords),
+      };
+    }
+
+    return expression;
+  }
+
+  private parseOrExpression(stopWords: Set<string>): ResolvedExpression {
+    let expression = this.parseAndExpression(stopWords);
+
+    while (!this.isExpressionStop(stopWords) && this.matchWord("OR")) {
+      expression = {
+        kind: "binary",
+        operator: "or",
+        left: expression,
+        right: this.parseAndExpression(stopWords),
+      };
+    }
+
+    return expression;
+  }
+
+  private parseAndExpression(stopWords: Set<string>): ResolvedExpression {
+    let expression = this.parseEqualityExpression(stopWords);
+
+    while (!this.isExpressionStop(stopWords) && this.matchWord("AND")) {
+      expression = {
+        kind: "binary",
+        operator: "and",
+        left: expression,
+        right: this.parseEqualityExpression(stopWords),
+      };
+    }
+
+    return expression;
+  }
+
+  private parseEqualityExpression(stopWords: Set<string>): ResolvedExpression {
+    let expression = this.parseComparisonExpression(stopWords);
+
+    while (!this.isExpressionStop(stopWords)) {
+      if (this.matchSymbol("==")) {
+        expression = {
+          kind: "binary",
+          operator: "==",
+          left: expression,
+          right: this.parseComparisonExpression(stopWords),
+        };
+      } else if (this.matchSymbol("!=")) {
+        expression = {
+          kind: "binary",
+          operator: "!=",
+          left: expression,
+          right: this.parseComparisonExpression(stopWords),
+        };
+      } else {
+        break;
+      }
+    }
+
+    return expression;
+  }
+
+  private parseComparisonExpression(stopWords: Set<string>): ResolvedExpression {
+    let expression = this.parseAdditiveExpression(stopWords);
+
+    while (!this.isExpressionStop(stopWords)) {
+      if (this.matchSymbol("<")) {
+        expression = {
+          kind: "binary",
+          operator: "<",
+          left: expression,
+          right: this.parseAdditiveExpression(stopWords),
+        };
+      } else if (this.matchSymbol("<=")) {
+        expression = {
+          kind: "binary",
+          operator: "<=",
+          left: expression,
+          right: this.parseAdditiveExpression(stopWords),
+        };
+      } else if (this.matchSymbol(">")) {
+        expression = {
+          kind: "binary",
+          operator: ">",
+          left: expression,
+          right: this.parseAdditiveExpression(stopWords),
+        };
+      } else if (this.matchSymbol(">=")) {
+        expression = {
+          kind: "binary",
+          operator: ">=",
+          left: expression,
+          right: this.parseAdditiveExpression(stopWords),
+        };
+      } else if (this.matchWord("IN")) {
+        expression = {
+          kind: "binary",
+          operator: "in",
+          left: expression,
+          right: this.parseAdditiveExpression(stopWords),
+        };
+      } else {
+        break;
+      }
+    }
+
+    return expression;
+  }
+
+  private parseAdditiveExpression(stopWords: Set<string>): ResolvedExpression {
+    let expression = this.parseMultiplicativeExpression(stopWords);
+
+    while (!this.isExpressionStop(stopWords)) {
+      if (this.matchSymbol("+")) {
+        expression = {
+          kind: "binary",
+          operator: "+",
+          left: expression,
+          right: this.parseMultiplicativeExpression(stopWords),
+        };
+      } else if (this.matchSymbol("-")) {
+        expression = {
+          kind: "binary",
+          operator: "-",
+          left: expression,
+          right: this.parseMultiplicativeExpression(stopWords),
+        };
+      } else {
+        break;
+      }
+    }
+
+    return expression;
+  }
+
+  private parseMultiplicativeExpression(stopWords: Set<string>): ResolvedExpression {
+    let expression = this.parseUnaryExpression(stopWords);
+
+    while (!this.isExpressionStop(stopWords)) {
+      if (this.matchSymbol("*")) {
+        expression = {
+          kind: "binary",
+          operator: "*",
+          left: expression,
+          right: this.parseUnaryExpression(stopWords),
+        };
+      } else if (this.matchSymbol("/")) {
+        expression = {
+          kind: "binary",
+          operator: "/",
+          left: expression,
+          right: this.parseUnaryExpression(stopWords),
+        };
+      } else {
+        break;
+      }
+    }
+
+    return expression;
+  }
+
+  private parseUnaryExpression(stopWords: Set<string>): ResolvedExpression {
+    if (this.matchWord("NOT")) {
+      return {
+        kind: "unary",
+        operator: "not",
+        operand: this.parseUnaryExpression(stopWords),
+      };
+    }
+
+    if (this.matchSymbol("-")) {
+      return {
+        kind: "unary",
+        operator: "negate",
+        operand: this.parseUnaryExpression(stopWords),
+      };
+    }
+
+    return this.parsePrimaryExpression(stopWords);
+  }
+
+  private parsePrimaryExpression(stopWords: Set<string>): ResolvedExpression {
+    const token = this.current();
+
+    if (this.matchSymbol("(")) {
+      const expression = this.parseCoalesceExpression(stopWords);
+      this.expectSymbol(")", "expression group");
+      return expression;
+    }
+
+    if (token.kind === "string" || token.kind === "number" || token.kind === "boolean") {
+      this.advance();
+      return {
+        kind: "literal",
+        value: token.value as string | number | boolean,
+      };
+    }
+
+    if (this.matchWord("NULL")) {
+      return { kind: "literal", value: null };
+    }
+
+    if (token.kind === "identifier") {
+      const first = this.advance().lexeme;
+      if (this.matchSymbol(".")) {
+        const property = this.consumeWordLexeme("runtime expression property");
+        if (normaliseKeyword(first) !== "runtime") {
+          this.failExpected("runtime expression reference", token);
+        }
+        if (property === "userId" || property === "now") {
+          return { kind: "runtime", property };
+        }
+        return { kind: "runtime", property: property as ExpressionRuntimeProperty };
+      }
+      return { kind: "field", field: first };
+    }
+
+    this.failExpected("expression value", this.current());
+  }
+
+  private isExpressionStop(stopWords: Set<string>): boolean {
+    return this.isLineEnd() || this.checkSymbol(")") || this.currentWordIsAny(stopWords);
   }
 
   private parseThemeTokenName(raw: string): ThemeTokenName {
@@ -1249,6 +1505,20 @@ class AdlParser {
       kind: "ValidatorDeclaration",
       validatorKind,
       ...(value === undefined ? {} : { value }),
+      range: { start: startToken.range.start, end: this.previous().range.end },
+    };
+  }
+
+  private predicateValidator(
+    startToken: Token,
+    expression: ResolvedExpression,
+    message: string | undefined,
+  ): ValidatorDeclarationAst {
+    return {
+      kind: "ValidatorDeclaration",
+      validatorKind: "predicate",
+      expression,
+      ...(message === undefined ? {} : { message }),
       range: { start: startToken.range.start, end: this.previous().range.end },
     };
   }

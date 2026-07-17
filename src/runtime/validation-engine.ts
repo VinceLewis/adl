@@ -6,6 +6,7 @@ import type {
   ResolvedValidator,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import { evaluateExpressionAsBoolean } from "./expression-evaluator.js";
 import {
   RuntimeModelIndex,
   getInitialLifecycleState,
@@ -14,7 +15,7 @@ import {
   setValuesState,
 } from "./model-helpers.js";
 import { RuntimeValidationError, cloneJson, noopRuntimeLogger } from "./runtime-types.js";
-import type { RuntimeLogger, RuntimeValidationIssue } from "./runtime-types.js";
+import type { RuntimeContext, RuntimeLogger, RuntimeValidationIssue } from "./runtime-types.js";
 
 export class ValidationEngine {
   constructor(
@@ -26,6 +27,7 @@ export class ValidationEngine {
   prepareCreateValues(
     objectName: string,
     values: Record<string, JsonValue>,
+    context: RuntimeContext,
   ): Record<string, JsonValue> {
     this.logger.debug("ENTER ValidationEngine.prepareCreateValues", { objectName });
     const object = this.index.getObject(objectName);
@@ -35,7 +37,7 @@ export class ValidationEngine {
     this.copyProvidedValues(object, values, output, issues, "values", true);
     this.applyFieldDefaults(object, output);
     this.applyInitialLifecycleState(object, output, values, issues);
-    this.validateRecordValues(object, output, issues, "values");
+    this.validateRecordValues(object, output, issues, "values", context);
     this.throwIfInvalid(issues, `Record for object '${objectName}' is invalid.`);
     this.logger.debug("EXIT ValidationEngine.prepareCreateValues", { objectName });
 
@@ -46,6 +48,7 @@ export class ValidationEngine {
     objectName: string,
     record: StoredObjectRecord,
     patch: Record<string, JsonValue>,
+    context: RuntimeContext,
   ): Record<string, JsonValue> {
     this.logger.debug("ENTER ValidationEngine.prepareUpdateValues", {
       objectName,
@@ -56,7 +59,7 @@ export class ValidationEngine {
     const output = cloneJson(record.values);
 
     this.copyProvidedValues(object, patch, output, issues, "patch", false);
-    this.validateRecordValues(object, output, issues, "values");
+    this.validateRecordValues(object, output, issues, "values", context);
     this.throwIfInvalid(issues, `Patch for object '${objectName}' is invalid.`);
     this.logger.debug("EXIT ValidationEngine.prepareUpdateValues", {
       objectName,
@@ -70,6 +73,7 @@ export class ValidationEngine {
     objectName: string,
     record: StoredObjectRecord,
     targetState: string,
+    context: RuntimeContext,
   ): Record<string, JsonValue> {
     this.logger.debug("ENTER ValidationEngine.prepareTransitionValues", {
       objectName,
@@ -81,7 +85,7 @@ export class ValidationEngine {
     const output = setValuesState(object, record.values, targetState);
 
     this.validateLifecycleStateValue(object, targetState, issues, "lifecycle.to");
-    this.validateRecordValues(object, output, issues, "values");
+    this.validateRecordValues(object, output, issues, "values", context);
     this.throwIfInvalid(issues, `Lifecycle transition for object '${objectName}' is invalid.`);
     this.logger.debug("EXIT ValidationEngine.prepareTransitionValues", {
       objectName,
@@ -183,6 +187,7 @@ export class ValidationEngine {
     values: Record<string, JsonValue>,
     issues: RuntimeValidationIssue[],
     path: string,
+    context: RuntimeContext,
   ): void {
     for (const field of object.fields) {
       const value = values[field.name];
@@ -212,7 +217,14 @@ export class ValidationEngine {
       }
 
       for (const validator of field.validators) {
-        const validatorIssue = validateFieldValue(field, value, validator, `${path}.${field.name}`);
+        const validatorIssue = validateFieldValue(
+          field,
+          value,
+          validator,
+          `${path}.${field.name}`,
+          values,
+          context,
+        );
         if (validatorIssue !== undefined) {
           issues.push(validatorIssue);
         }
@@ -286,6 +298,8 @@ function validateFieldValue(
   value: JsonValue,
   validator: ResolvedValidator,
   path: string,
+  values: Record<string, JsonValue>,
+  context: RuntimeContext,
 ): RuntimeValidationIssue | undefined {
   const invalid = (message: string): RuntimeValidationIssue => ({
     code: "ADL_RUNTIME_FIELD_VALIDATOR",
@@ -295,6 +309,17 @@ function validateFieldValue(
   });
 
   switch (validator.kind) {
+    case "predicate": {
+      const result = evaluateExpressionAsBoolean(validator.expression, { values, context });
+      if (!result.ok) {
+        return invalid(
+          `Field '${field.name}' predicate could not be evaluated: ${result.error.message}`,
+        );
+      }
+      return result.value.value === true
+        ? undefined
+        : invalid(validator.message ?? `Field '${field.name}' failed predicate validation.`);
+    }
     case "email":
       return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
         ? undefined
@@ -350,7 +375,9 @@ function validateFieldValue(
 }
 
 function getNumericValidatorValue(validator: ResolvedValidator): number {
-  return typeof validator.value === "number" ? validator.value : Number.POSITIVE_INFINITY;
+  return "value" in validator && typeof validator.value === "number"
+    ? validator.value
+    : Number.POSITIVE_INFINITY;
 }
 
 function getApproximateSize(value: JsonValue): number {

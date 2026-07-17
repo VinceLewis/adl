@@ -7,9 +7,12 @@ import type {
   ContextSelectionMode,
   ContextSelectionPersistence,
   ContextSelectionSource,
+  ExpressionBinaryOperator,
+  ExpressionRuntimeProperty,
+  ExpressionUnaryOperator,
+  ExpressionValueType,
   FieldType,
   PolicyAction,
-  PolicyConditionRuntimeProperty,
   ReadModelSourceScope,
   ResolvedApplicationModel,
   ResolvedBusinessContext,
@@ -25,8 +28,7 @@ import type {
   ResolvedObjectConstraint,
   ResolvedObjectScope,
   ResolvedPolicy,
-  ResolvedPolicyCondition,
-  ResolvedPolicyConditionOperand,
+  ResolvedExpression,
   ResolvedPolicyRule,
   ResolvedReadModel,
   ResolvedSyncPolicy,
@@ -80,6 +82,9 @@ export const MODEL_VALIDATION_CODES = {
   CONTEXT_SELECTION_SOURCE_INVALID: "ADL_CONTEXT_SELECTION_SOURCE_INVALID",
   FIELD_DEFAULT_INCOMPATIBLE: "ADL_FIELD_DEFAULT_INCOMPATIBLE",
   FIELD_DUPLICATE: "ADL_FIELD_DUPLICATE",
+  FIELD_VALIDATOR_EXPRESSION_INVALID: "ADL_FIELD_VALIDATOR_EXPRESSION_INVALID",
+  FIELD_VALIDATOR_EXPRESSION_TYPE: "ADL_FIELD_VALIDATOR_EXPRESSION_TYPE",
+  FIELD_VALIDATOR_RUNTIME_PROPERTY_INVALID: "ADL_FIELD_VALIDATOR_RUNTIME_PROPERTY_INVALID",
   HOOK_REFERENCE_INVALID: "ADL_HOOK_REFERENCE_INVALID",
   LIFECYCLE_ACTION_DUPLICATE: "ADL_LIFECYCLE_ACTION_DUPLICATE",
   LIFECYCLE_ACTION_FROM_UNKNOWN: "ADL_LIFECYCLE_ACTION_FROM_UNKNOWN",
@@ -136,6 +141,7 @@ export const MODEL_VALIDATION_CODES = {
   POLICY_FIELD_UNKNOWN: "ADL_POLICY_FIELD_UNKNOWN",
   POLICY_CONDITION_FIELD_UNKNOWN: "ADL_POLICY_CONDITION_FIELD_UNKNOWN",
   POLICY_CONDITION_INVALID: "ADL_POLICY_CONDITION_INVALID",
+  POLICY_CONDITION_TYPE: "ADL_POLICY_CONDITION_TYPE",
   POLICY_CONDITION_RUNTIME_PROPERTY_INVALID: "ADL_POLICY_CONDITION_RUNTIME_PROPERTY_INVALID",
   POLICY_LIFECYCLE_ACTION_UNKNOWN: "ADL_POLICY_LIFECYCLE_ACTION_UNKNOWN",
   POLICY_OBJECT_UNKNOWN: "ADL_POLICY_OBJECT_UNKNOWN",
@@ -227,7 +233,33 @@ const POLICY_ACTIONS = new Set<PolicyAction>([
 ]);
 
 const RUNTIME_CHANNELS = new Set<RuntimeChannel>(["ui", "api", "sync", "import", "test"]);
-const POLICY_CONDITION_RUNTIME_PROPERTIES = new Set<PolicyConditionRuntimeProperty>(["userId"]);
+const EXPRESSION_RUNTIME_PROPERTIES = new Set<ExpressionRuntimeProperty>(["userId", "now"]);
+const EXPRESSION_UNARY_OPERATORS = new Set<ExpressionUnaryOperator>(["not", "negate"]);
+const EXPRESSION_BINARY_OPERATORS = new Set<ExpressionBinaryOperator>([
+  "+",
+  "-",
+  "*",
+  "/",
+  "==",
+  "!=",
+  "<",
+  "<=",
+  ">",
+  ">=",
+  "and",
+  "or",
+  "in",
+  "??",
+]);
+const EXPRESSION_VALUE_TYPES = new Set<ExpressionValueType>([
+  "text",
+  "number",
+  "boolean",
+  "date",
+  "datetime",
+  "time",
+  "null",
+]);
 const COMMAND_RUNTIME_PROPERTIES = new Set<CommandRuntimeProperty>(["userId", "nowIso", "today"]);
 const COMMAND_STEP_AUTHORITIES = new Set<CommandStepAuthority>(["caller", "command"]);
 const COMMAND_STEP_META_PROPERTIES = new Set<CommandStepMetaProperty>([
@@ -890,6 +922,7 @@ function validateField(
 ): void {
   const fieldPath = `${objectPath}.fields[${fieldIndex}]`;
   const fieldNames = new Set(object.fields.map((candidate) => candidate.name));
+  const fieldsByName = indexByName(object.fields);
 
   if (field.defaultValue !== undefined && !isDefaultCompatible(field, field.defaultValue)) {
     diagnostics.push(
@@ -954,6 +987,36 @@ function validateField(
           MODEL_VALIDATION_CODES.LOOKUP_DISPLAY_FIELD_UNKNOWN,
           `Lookup display field '${field.lookup.displayField}' does not exist on object '${target.item.name}'.`,
           `${fieldPath}.lookup.displayField`,
+        ),
+      );
+    }
+  }
+
+  for (let validatorIndex = 0; validatorIndex < field.validators.length; validatorIndex += 1) {
+    const validator = field.validators[validatorIndex];
+    if (validator === undefined || validator.kind !== "predicate") {
+      continue;
+    }
+
+    const expressionType = validateExpression(
+      validator.expression,
+      `${fieldPath}.validators[${validatorIndex}].expression`,
+      fieldsByName,
+      {
+        invalid: MODEL_VALIDATION_CODES.FIELD_VALIDATOR_EXPRESSION_INVALID,
+        field: MODEL_VALIDATION_CODES.FIELD_VALIDATOR_EXPRESSION_INVALID,
+        runtime: MODEL_VALIDATION_CODES.FIELD_VALIDATOR_RUNTIME_PROPERTY_INVALID,
+        type: MODEL_VALIDATION_CODES.FIELD_VALIDATOR_EXPRESSION_TYPE,
+      },
+      diagnostics,
+    );
+
+    if (expressionType !== "boolean" && expressionType !== "unknown") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.FIELD_VALIDATOR_EXPRESSION_TYPE,
+          `Predicate validator on field '${field.name}' must resolve to boolean, not ${expressionType}.`,
+          `${fieldPath}.validators[${validatorIndex}].expression`,
         ),
       );
     }
@@ -1281,7 +1344,7 @@ function validatePolicyRule(
   }
 
   if (rule.condition !== undefined) {
-    validatePolicyCondition(
+    const conditionType = validateExpression(
       rule.condition,
       `${rulePath}.condition`,
       fieldsByName,
@@ -1289,9 +1352,19 @@ function validatePolicyRule(
         invalid: MODEL_VALIDATION_CODES.POLICY_CONDITION_INVALID,
         field: MODEL_VALIDATION_CODES.POLICY_CONDITION_FIELD_UNKNOWN,
         runtime: MODEL_VALIDATION_CODES.POLICY_CONDITION_RUNTIME_PROPERTY_INVALID,
+        type: MODEL_VALIDATION_CODES.POLICY_CONDITION_TYPE,
       },
       diagnostics,
     );
+    if (conditionType !== "boolean" && conditionType !== "unknown") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.POLICY_CONDITION_TYPE,
+          `Policy rule '${rule.name}' condition must resolve to boolean, not ${conditionType}.`,
+          `${rulePath}.condition`,
+        ),
+      );
+    }
   }
 
   for (let channelIndex = 0; channelIndex < rule.channels.length; channelIndex += 1) {
@@ -1311,129 +1384,299 @@ function validatePolicyRule(
   }
 }
 
-function validatePolicyCondition(
-  condition: ResolvedPolicyCondition,
-  conditionPath: string,
+type ExpressionStaticType = ExpressionValueType | "unknown";
+
+function validateExpression(
+  expression: ResolvedExpression,
+  expressionPath: string,
   fieldsByName: Map<string, NamedReference<ResolvedField>>,
   codes: {
     invalid: ModelValidationCode;
     field: ModelValidationCode;
     runtime: ModelValidationCode;
+    type: ModelValidationCode;
   },
   diagnostics: Diagnostic[],
-): void {
-  switch (condition.kind) {
-    case "equals":
-      validatePolicyConditionOperand(
-        condition.left,
-        `${conditionPath}.left`,
-        fieldsByName,
-        codes,
-        diagnostics,
-      );
-      validatePolicyConditionOperand(
-        condition.right,
-        `${conditionPath}.right`,
-        fieldsByName,
-        codes,
-        diagnostics,
-      );
-      return;
-    case "all":
-    case "any":
-      if (condition.conditions.length === 0) {
+): ExpressionStaticType {
+  switch (expression.kind) {
+    case "literal":
+      if (expression.valueType !== undefined) {
+        if (!EXPRESSION_VALUE_TYPES.has(expression.valueType)) {
+          diagnostics.push(
+            diagnostic(
+              codes.invalid,
+              `Expression literal has invalid value type '${String(expression.valueType)}'.`,
+              `${expressionPath}.valueType`,
+            ),
+          );
+          return "unknown";
+        }
+
+        if (expression.valueType === "null" && expression.value !== null) {
+          diagnostics.push(
+            diagnostic(
+              codes.type,
+              "Expression literal valueType 'null' requires a null value.",
+              `${expressionPath}.value`,
+            ),
+          );
+          return "unknown";
+        }
+
+        if (
+          expression.valueType !== "null" &&
+          expression.valueType !== "date" &&
+          expression.valueType !== "datetime" &&
+          expression.valueType !== "time" &&
+          !isValueCompatibleWithExpressionType(expression.valueType, expression.value)
+        ) {
+          diagnostics.push(
+            diagnostic(
+              codes.type,
+              `Expression literal value is not compatible with ${expression.valueType}.`,
+              `${expressionPath}.value`,
+            ),
+          );
+          return "unknown";
+        }
+
+        return expression.valueType;
+      }
+
+      return expression.value === null
+        ? "null"
+        : typeof expression.value === "string"
+          ? "text"
+          : typeof expression.value === "number"
+            ? "number"
+            : "boolean";
+    case "field": {
+      const field = fieldsByName.get(expression.field)?.item;
+      if (field === undefined) {
+        diagnostics.push(
+          diagnostic(
+            codes.field,
+            `Expression references unknown field '${expression.field}'.`,
+            `${expressionPath}.field`,
+          ),
+        );
+        return "unknown";
+      }
+      return field.type === "attachment" ? "unknown" : field.type;
+    }
+    case "runtime":
+      if (!EXPRESSION_RUNTIME_PROPERTIES.has(expression.property)) {
+        diagnostics.push(
+          diagnostic(
+            codes.runtime,
+            `Expression references unsupported runtime property '${String(expression.property)}'.`,
+            `${expressionPath}.property`,
+          ),
+        );
+        return "unknown";
+      }
+      return expression.property === "now" ? "datetime" : "text";
+    case "unary": {
+      if (!EXPRESSION_UNARY_OPERATORS.has(expression.operator)) {
         diagnostics.push(
           diagnostic(
             codes.invalid,
-            `Policy condition '${condition.kind}' must contain at least one nested condition.`,
-            `${conditionPath}.conditions`,
+            `Expression has invalid unary operator '${String(expression.operator)}'.`,
+            `${expressionPath}.operator`,
           ),
         );
+        return "unknown";
       }
 
-      for (
-        let conditionIndex = 0;
-        conditionIndex < condition.conditions.length;
-        conditionIndex += 1
-      ) {
-        const nested = condition.conditions[conditionIndex];
-        if (nested === undefined) {
-          continue;
-        }
-        validatePolicyCondition(
-          nested,
-          `${conditionPath}.conditions[${conditionIndex}]`,
-          fieldsByName,
-          codes,
-          diagnostics,
-        );
-      }
-      return;
-    case "not":
-      validatePolicyCondition(
-        condition.condition,
-        `${conditionPath}.condition`,
+      const operandType = validateExpression(
+        expression.operand,
+        `${expressionPath}.operand`,
         fieldsByName,
         codes,
         diagnostics,
       );
-      return;
+      if (expression.operator === "not") {
+        requireExpressionType(
+          operandType,
+          ["boolean"],
+          `${expressionPath}.operand`,
+          codes,
+          diagnostics,
+        );
+        return "boolean";
+      }
+      requireExpressionType(
+        operandType,
+        ["number"],
+        `${expressionPath}.operand`,
+        codes,
+        diagnostics,
+      );
+      return "number";
+    }
+    case "binary":
+      return validateBinaryExpression(expression, expressionPath, fieldsByName, codes, diagnostics);
   }
 
   diagnostics.push(
     diagnostic(
       codes.invalid,
-      `Policy condition has invalid kind '${String((condition as { kind?: unknown }).kind)}'.`,
-      `${conditionPath}.kind`,
+      `Expression has invalid kind '${String((expression as { kind?: unknown }).kind)}'.`,
+      `${expressionPath}.kind`,
+    ),
+  );
+  return "unknown";
+}
+
+function validateBinaryExpression(
+  expression: Extract<ResolvedExpression, { kind: "binary" }>,
+  expressionPath: string,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  codes: {
+    invalid: ModelValidationCode;
+    field: ModelValidationCode;
+    runtime: ModelValidationCode;
+    type: ModelValidationCode;
+  },
+  diagnostics: Diagnostic[],
+): ExpressionStaticType {
+  if (!EXPRESSION_BINARY_OPERATORS.has(expression.operator)) {
+    diagnostics.push(
+      diagnostic(
+        codes.invalid,
+        `Expression has invalid binary operator '${String(expression.operator)}'.`,
+        `${expressionPath}.operator`,
+      ),
+    );
+    return "unknown";
+  }
+
+  const leftType = validateExpression(
+    expression.left,
+    `${expressionPath}.left`,
+    fieldsByName,
+    codes,
+    diagnostics,
+  );
+  const rightType = validateExpression(
+    expression.right,
+    `${expressionPath}.right`,
+    fieldsByName,
+    codes,
+    diagnostics,
+  );
+
+  switch (expression.operator) {
+    case "+":
+    case "-":
+    case "*":
+    case "/":
+      requireExpressionType(leftType, ["number"], `${expressionPath}.left`, codes, diagnostics);
+      requireExpressionType(rightType, ["number"], `${expressionPath}.right`, codes, diagnostics);
+      return "number";
+    case "and":
+    case "or":
+      requireExpressionType(leftType, ["boolean"], `${expressionPath}.left`, codes, diagnostics);
+      requireExpressionType(rightType, ["boolean"], `${expressionPath}.right`, codes, diagnostics);
+      return "boolean";
+    case "==":
+    case "!=":
+      if (
+        leftType !== "unknown" &&
+        rightType !== "unknown" &&
+        leftType !== "null" &&
+        rightType !== "null" &&
+        leftType !== rightType
+      ) {
+        diagnostics.push(
+          diagnostic(
+            codes.type,
+            `Expression compares incompatible types ${leftType} and ${rightType}.`,
+            expressionPath,
+          ),
+        );
+      }
+      return "boolean";
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+      if (
+        !areComparableExpressionTypes(leftType, rightType) &&
+        leftType !== "unknown" &&
+        rightType !== "unknown"
+      ) {
+        diagnostics.push(
+          diagnostic(
+            codes.type,
+            `Expression cannot compare ${leftType} with ${rightType}.`,
+            expressionPath,
+          ),
+        );
+      }
+      return "boolean";
+    case "in":
+      diagnostics.push(
+        diagnostic(
+          codes.invalid,
+          "Expression operator 'in' is reserved until list expressions are added.",
+          `${expressionPath}.operator`,
+        ),
+      );
+      return "boolean";
+    case "??":
+      return leftType === "null" ? rightType : leftType;
+  }
+}
+
+function requireExpressionType(
+  actual: ExpressionStaticType,
+  expected: ExpressionStaticType[],
+  path: string,
+  codes: { type: ModelValidationCode },
+  diagnostics: Diagnostic[],
+): void {
+  if (actual === "unknown" || expected.includes(actual)) {
+    return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      codes.type,
+      `Expression expected ${expected.join(" or ")} but received ${actual}.`,
+      path,
     ),
   );
 }
 
-function validatePolicyConditionOperand(
-  operand: ResolvedPolicyConditionOperand,
-  operandPath: string,
-  fieldsByName: Map<string, NamedReference<ResolvedField>>,
-  codes: {
-    invalid: ModelValidationCode;
-    field: ModelValidationCode;
-    runtime: ModelValidationCode;
-  },
-  diagnostics: Diagnostic[],
-): void {
-  switch (operand.kind) {
-    case "field":
-      if (!fieldsByName.has(operand.field)) {
-        diagnostics.push(
-          diagnostic(
-            codes.field,
-            `Policy condition references unknown field '${operand.field}'.`,
-            `${operandPath}.field`,
-          ),
-        );
-      }
-      return;
-    case "runtime":
-      if (!POLICY_CONDITION_RUNTIME_PROPERTIES.has(operand.property)) {
-        diagnostics.push(
-          diagnostic(
-            codes.runtime,
-            `Policy condition references unsupported runtime property '${String(operand.property)}'.`,
-            `${operandPath}.property`,
-          ),
-        );
-      }
-      return;
-    case "literal":
-      return;
-  }
-
-  diagnostics.push(
-    diagnostic(
-      codes.invalid,
-      `Policy condition operand has invalid kind '${String((operand as { kind?: unknown }).kind)}'.`,
-      `${operandPath}.kind`,
-    ),
+function areComparableExpressionTypes(
+  left: ExpressionStaticType,
+  right: ExpressionStaticType,
+): boolean {
+  return (
+    left === right &&
+    (left === "number" ||
+      left === "text" ||
+      left === "date" ||
+      left === "datetime" ||
+      left === "time")
   );
+}
+
+function isValueCompatibleWithExpressionType(type: ExpressionValueType, value: unknown): boolean {
+  switch (type) {
+    case "text":
+    case "date":
+    case "datetime":
+    case "time":
+      return typeof value === "string";
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+  }
 }
 
 function validateView(
@@ -1879,7 +2122,7 @@ function validateCommandStep(
     if (precondition === undefined) {
       continue;
     }
-    validatePolicyCondition(
+    const preconditionType = validateExpression(
       precondition,
       `${stepPath}.preconditions[${preconditionIndex}]`,
       fieldsByName,
@@ -1887,9 +2130,19 @@ function validateCommandStep(
         invalid: MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_INVALID,
         field: MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_FIELD_UNKNOWN,
         runtime: MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_RUNTIME_PROPERTY_INVALID,
+        type: MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_INVALID,
       },
       diagnostics,
     );
+    if (preconditionType !== "boolean" && preconditionType !== "unknown") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_INVALID,
+          `Command '${command.name}' step '${step.name}' precondition must resolve to boolean, not ${preconditionType}.`,
+          `${stepPath}.preconditions[${preconditionIndex}]`,
+        ),
+      );
+    }
   }
 }
 

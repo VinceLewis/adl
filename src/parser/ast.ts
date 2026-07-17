@@ -4,6 +4,7 @@ import type {
   JsonValue,
   PolicyAction,
   PolicyEffect,
+  ResolvedExpression,
   RuntimeChannel,
   SyncMode,
   SyncScope,
@@ -93,6 +94,8 @@ export interface ValidatorDeclarationAst {
   kind: "ValidatorDeclaration";
   validatorKind: ValidatorKind;
   value?: JsonValue;
+  expression?: ResolvedExpression;
+  message?: string;
   range: SourceRange;
 }
 
@@ -193,6 +196,7 @@ export interface PolicyRuleDeclarationAst {
   state: string[];
   fields: string[];
   lifecycleAction?: string;
+  condition?: ResolvedExpression;
   channels: RuntimeChannel[];
   range: SourceRange;
 }

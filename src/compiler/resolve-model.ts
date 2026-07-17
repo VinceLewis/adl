@@ -68,7 +68,9 @@ import type {
   ResolvedObjectConstraint,
   ResolvedObjectScope,
   ResolvedObjectSyncPolicy,
+  ResolvedExpression,
   ResolvedPolicyCondition,
+  ResolvedPolicyConditionOperand,
   ResolvedPolicy,
   ResolvedPolicyRule,
   ResolvedPrincipalSelector,
@@ -243,6 +245,14 @@ function resolveField(input: PartialFieldModel): ResolvedField {
 }
 
 function resolveValidator(input: PartialValidatorModel): ResolvedValidator {
+  if (input.kind === "predicate") {
+    return {
+      kind: "predicate",
+      expression: resolveExpression(input.expression),
+      ...(input.message === undefined ? {} : { message: input.message }),
+    };
+  }
+
   return {
     kind: input.kind,
     ...(input.value === undefined ? {} : { value: input.value }),
@@ -549,7 +559,7 @@ function resolveCommandStep(input: PartialCommandStepModel): ResolvedCommandStep
       authority: input.authority ?? "caller",
       recordId: cloneCommandValueExpression(input.recordId),
       patch: cloneCommandValueExpressionMap(input.patch ?? {}),
-      preconditions: (input.preconditions ?? []).map(resolvePolicyCondition),
+      preconditions: (input.preconditions ?? []).map(resolveExpression),
     };
   }
 
@@ -559,7 +569,7 @@ function resolveCommandStep(input: PartialCommandStepModel): ResolvedCommandStep
     object: input.object,
     authority: input.authority ?? "caller",
     values: cloneCommandValueExpressionMap(input.values ?? {}),
-    preconditions: (input.preconditions ?? []).map(resolvePolicyCondition),
+    preconditions: (input.preconditions ?? []).map(resolveExpression),
   };
 }
 
@@ -591,36 +601,104 @@ function resolvePolicyRule(input: PartialPolicyRuleModel): ResolvedPolicyRule {
     state: asArray(input.state),
     fields: [...(input.fields ?? [])],
     ...(input.lifecycleAction === undefined ? {} : { lifecycleAction: input.lifecycleAction }),
-    ...(input.condition === undefined
-      ? {}
-      : { condition: resolvePolicyCondition(input.condition) }),
+    ...(input.condition === undefined ? {} : { condition: resolveExpression(input.condition) }),
     channels: [...(input.channels ?? ["ui", "api", "sync", "import", "test"])],
   };
 }
 
-function resolvePolicyCondition(input: ResolvedPolicyCondition): ResolvedPolicyCondition {
+function resolveExpression(
+  input: ResolvedExpression | ResolvedPolicyCondition,
+): ResolvedExpression {
   switch (input.kind) {
+    case "literal":
+      return {
+        kind: "literal",
+        value: cloneJsonValue(input.value),
+        ...(input.valueType === undefined ? {} : { valueType: input.valueType }),
+      };
+    case "field":
+      return {
+        kind: "field",
+        field: input.field,
+      };
+    case "runtime":
+      return {
+        kind: "runtime",
+        property: input.property === "userId" ? "userId" : input.property,
+      };
+    case "unary":
+      return {
+        kind: "unary",
+        operator: input.operator,
+        operand: resolveExpression(input.operand),
+      };
+    case "binary":
+      return {
+        kind: "binary",
+        operator: input.operator,
+        left: resolveExpression(input.left),
+        right: resolveExpression(input.right),
+      };
     case "equals":
       return {
-        kind: "equals",
-        left: cloneJsonValue(input.left),
-        right: cloneJsonValue(input.right),
+        kind: "binary",
+        operator: "==",
+        left: resolvePolicyConditionOperand(input.left),
+        right: resolvePolicyConditionOperand(input.right),
       };
     case "all":
-      return {
-        kind: "all",
-        conditions: input.conditions.map(resolvePolicyCondition),
-      };
+      return foldConditions(input.conditions, "and", true);
     case "any":
-      return {
-        kind: "any",
-        conditions: input.conditions.map(resolvePolicyCondition),
-      };
+      return foldConditions(input.conditions, "or", false);
     case "not":
       return {
-        kind: "not",
-        condition: resolvePolicyCondition(input.condition),
+        kind: "unary",
+        operator: "not",
+        operand: resolveExpression(input.condition),
       };
+  }
+}
+
+function foldConditions(
+  conditions: (ResolvedExpression | ResolvedPolicyCondition)[],
+  operator: "and" | "or",
+  emptyValue: boolean,
+): ResolvedExpression {
+  const [first, ...rest] = conditions;
+  if (first === undefined) {
+    return { kind: "literal", value: emptyValue };
+  }
+
+  return rest.reduce<ResolvedExpression>(
+    (left, condition) => ({
+      kind: "binary",
+      operator,
+      left,
+      right: resolveExpression(condition),
+    }),
+    resolveExpression(first),
+  );
+}
+
+function resolvePolicyConditionOperand(
+  operand: ResolvedPolicyConditionOperand,
+): ResolvedExpression {
+  switch (operand.kind) {
+    case "field":
+      return { kind: "field", field: operand.field };
+    case "runtime":
+      return { kind: "runtime", property: operand.property };
+    case "literal":
+      if (
+        typeof operand.value === "string" ||
+        typeof operand.value === "number" ||
+        typeof operand.value === "boolean" ||
+        operand.value === null
+      ) {
+        return { kind: "literal", value: operand.value };
+      }
+
+      return { kind: "literal", value: JSON.stringify(operand.value) };
   }
 }
 

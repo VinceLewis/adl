@@ -213,7 +213,17 @@ class AdlLexer {
 
   private readSymbol(): Token {
     const start = this.position();
-    const lexeme = this.advanceChar();
+    let lexeme = this.advanceChar();
+
+    if (
+      (lexeme === "=" && this.currentChar() === "=") ||
+      (lexeme === "!" && this.currentChar() === "=") ||
+      (lexeme === "<" && this.currentChar() === "=") ||
+      (lexeme === ">" && this.currentChar() === "=") ||
+      (lexeme === "?" && this.currentChar() === "?")
+    ) {
+      lexeme += this.advanceChar();
+    }
 
     return {
       kind: "symbol",
@@ -297,7 +307,7 @@ function isDigit(char: string): boolean {
 }
 
 function isSymbol(char: string): boolean {
-  return ["(", ")", ",", ".", "*"].includes(char);
+  return ["(", ")", ",", ".", "*", "+", "-", "/", "<", ">", "=", "!", "?"].includes(char);
 }
 
 function unescapeStringChar(char: string): string {
