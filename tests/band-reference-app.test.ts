@@ -585,9 +585,7 @@ describe("band reference browser demo", () => {
     await app.whenReady();
     await flushUi();
 
-    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
-    viewSelector.value = "SetListItemList";
-    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    navigateWithDrawer(app, "SetListItemList");
     await flushUi();
     await waitForText(app, "Glass Arcade");
 
@@ -638,9 +636,7 @@ describe("band reference browser demo", () => {
     await app.whenReady();
     await flushUi();
 
-    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
-    viewSelector.value = "BandEventList";
-    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    navigateWithDrawer(app, "BandEventList");
     await flushUi();
     await waitForText(app, "Canal Street headline");
 
@@ -673,9 +669,7 @@ describe("band reference browser demo", () => {
     await app.whenReady();
     await flushUi();
 
-    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
-    viewSelector.value = "BandEventList";
-    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    navigateWithDrawer(app, "BandEventList");
     await flushUi();
 
     requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
@@ -774,9 +768,7 @@ describe("band reference browser demo", () => {
     await app.whenReady();
     await flushUi();
 
-    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
-    viewSelector.value = "BandInvitationList";
-    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    navigateWithDrawer(app, "BandInvitationList");
     await flushUi();
 
     requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
@@ -846,4 +838,9 @@ function requireElement<T extends Element>(root: ParentNode, selector: string): 
   }
 
   return element;
+}
+
+function navigateWithDrawer(root: ParentNode, viewName: string): void {
+  requireElement<HTMLButtonElement>(root, "button[data-shell-menu='true']").click();
+  requireElement<HTMLButtonElement>(root, `button[data-view-nav='${viewName}']`).click();
 }

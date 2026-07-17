@@ -48,9 +48,10 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   `ui.adl`: local toggle state, event-type icon maps, read-model-backed compact
   feed rows, formatted date/time fragments, bold titles, venue text, and empty
   states all flow through the generic evaluator and browser renderer.
-- The browser has a generic composed-view app bar treatment, but parser and
-  runtime support for ADL `SHELL`/`TOP_BAR` declarations remains a future
-  platform gap. Do not model shell behavior with app-specific browser branches.
+- The browser has a generic hamburger-drawer shell with top-bar business
+  context controls, but parser and runtime support for ADL `SHELL`/`TOP_BAR` or
+  `NAV_DRAWER` declarations remains a future platform gap. Do not model shell
+  behavior with app-specific browser branches.
 - Phase 29 added DOM-free presentation conformance coverage. New presentation
   semantics should be pinned through `conformance/presentation/` using public
   model resolution, validation, inspect, and `evaluatePresentationView` paths
@@ -74,4 +75,6 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   presentation responsible for display composition such as row text, icons,
   formatting, empty states, and section layout.
 - Keep ADL shell syntax documented as unsupported until parser, evaluator, and
-  browser handoff support the same resolved contract end to end.
+  browser handoff support the same resolved contract end to end. The browser's
+  current drawer navigation is a generic convention, not an authored shell
+  declaration.

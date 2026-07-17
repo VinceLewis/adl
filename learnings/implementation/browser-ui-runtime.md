@@ -25,6 +25,10 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   detects `ResolvedView.presentation`, calls
   `ApplicationRuntime.evaluatePresentationView`, and passes only the
   renderer-neutral result to the component.
+- The generic browser shell uses a hamburger button and off-canvas navigation
+  drawer for application view navigation. Business context selectors stay in the
+  top bar. Avoid putting the raw object/view selector back into the top bar for
+  app-like reference experiences.
 - View-local presentation controls, such as toggles, dispatch state updates
   back to `adl-app`. The app re-evaluates the presentation view with local
   state updates and does not write object-store records for those interactions.

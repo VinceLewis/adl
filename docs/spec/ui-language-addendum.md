@@ -307,9 +307,11 @@ For the Giggle dashboard screenshot this covers:
 The resolved model can represent shell regions in JSON/TypeScript partial
 models and validates shell region/control references. The parser, presentation
 evaluator, and browser handoff do not implement ADL `SHELL`, `TOP_BAR`, or
-view-declared shell behavior yet. The current browser has a generic composed
-view app-bar treatment used by the Giggle dashboard route, but that styling is
-not driven by ADL shell declarations.
+view-declared shell behavior yet. The current browser has a generic app shell:
+a left hamburger button opens an off-canvas navigation drawer, the center area
+shows the application title, and business context selectors remain in the
+top-bar tools. That browser shell is convention-driven, not driven by ADL shell
+declarations.
 
 ## Giggle Dashboard Example
 
@@ -524,6 +526,11 @@ headings, local toggle controls, compact feed rows, inline text fragments, bold
 fragments, semantic icons, diagnostics, and empty states. Toggle interaction
 updates view-local presentation state and re-evaluates the view; it does not
 write object-store records.
+
+The generic browser shell renders application navigation through a hamburger
+drawer rather than exposing a raw view selector in the top bar. The top bar is
+reserved for app identity and business context controls such as band selection.
+The drawer closes through the hamburger button, overlay click, or Escape key.
 
 The deterministic formatter intentionally supports a small cross-runtime subset:
 date tokens such as `EEE d MMM`, time tokens such as `h:mma`, UTC datetime

@@ -253,9 +253,7 @@ describe("browser UI runtime", () => {
     expect(app.textContent).toContain("Alpha Hall");
     expect(app.textContent).not.toContain("Beta Hall");
 
-    const viewSelector = requireElement<HTMLSelectElement>(app, "select[data-view-switch='true']");
-    viewSelector.value = "HomeDashboard";
-    viewSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    navigateWithDrawer(app, "HomeDashboard");
     await flushUi();
 
     expect(app.querySelector("adl-dashboard-view")).not.toBeNull();
@@ -299,9 +297,34 @@ describe("browser UI runtime", () => {
     expect(app.textContent).toContain("No pending invitations");
     expect(app.querySelector(".adl-topbar-composed")).not.toBeNull();
     expect(app.querySelector(".adl-menu-action")).not.toBeNull();
+    expect(app.querySelector(".adl-view-switch")).toBeNull();
+    expect(app.querySelector("select[data-context-select='Band']")).not.toBeNull();
     expect(app.querySelector("[data-icon='music']")).not.toBeNull();
     expect(app.querySelector("[data-icon='microphone']")).not.toBeNull();
     expect(app.querySelector("[data-icon='x']")).not.toBeNull();
+
+    const menu = requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']");
+    menu.click();
+    await flushUi();
+    expect(requireElement<HTMLElement>(app, ".adl-nav-drawer").classList.contains("active")).toBe(
+      true,
+    );
+    expect(
+      requireElement<HTMLButtonElement>(app, "button[data-view-nav='BandEventList']"),
+    ).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await flushUi();
+    expect(requireElement<HTMLElement>(app, ".adl-nav-drawer").classList.contains("active")).toBe(
+      false,
+    );
+
+    menu.click();
+    await flushUi();
+    requireElement<HTMLButtonElement>(app, "button[data-shell-overlay='true']").click();
+    await flushUi();
+    expect(requireElement<HTMLElement>(app, ".adl-nav-drawer").classList.contains("active")).toBe(
+      false,
+    );
 
     const rehearsalToggle = requireElement<HTMLButtonElement>(
       app,
@@ -701,6 +724,11 @@ function requireElement<T extends Element>(root: ParentNode, selector: string): 
   }
 
   return element;
+}
+
+function navigateWithDrawer(root: ParentNode, viewName: string): void {
+  requireElement<HTMLButtonElement>(root, "button[data-shell-menu='true']").click();
+  requireElement<HTMLButtonElement>(root, `button[data-view-nav='${viewName}']`).click();
 }
 
 function installFakeIndexedDb(): () => void {

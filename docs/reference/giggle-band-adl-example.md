@@ -25,9 +25,10 @@ browser-demo seed data. The browser shell is generic Web Components under
   by UI hiding.
 - Cross-band home dashboard backed by the `HomeUpcomingEvents` read model.
 - Authored home dashboard presentation in `ui.adl`, including a blue generic
-  composed-view app bar, compact `Welcome Back!` screen, Gigs, Rehearsals, and
-  Unavailable toggles, semantic event icons, formatted date/time fragments,
-  bold event titles, venue text, and an Invitations empty state.
+  app shell with hamburger drawer navigation, top-bar band context selection,
+  compact `Welcome Back!` screen, Gigs, Rehearsals, and Unavailable toggles,
+  semantic event icons, formatted date/time fragments, bold event titles, venue
+  text, and an Invitations empty state.
 - Representative browser seed data for three ordered schedule rows: a gig, a
   rehearsal, and an unavailable row across the user's available bands.
 - Selected-band lists and forms for events, members, invitations, songs, set
@@ -66,8 +67,8 @@ browser-demo seed data. The browser shell is generic Web Components under
   drag-reorder helper commands.
 - Remote sync, conflict resolution, background dataset refresh, and attachment
   upload/download are still backend design work.
-- Declarative shell syntax is still future work. The browser can style composed
-  views with a generic app bar, but the `SHELL`/`TOP_BAR` proposal is not yet
-  parsed or evaluated from ADL source.
+- Declarative shell syntax is still future work. The browser now provides a
+  generic hamburger-drawer shell convention, but the `SHELL`, `TOP_BAR`, and
+  `NAV_DRAWER` proposals are not yet parsed or evaluated from ADL source.
 - The browser UI is still a generic ADL CRUD/composed-view shell. It is useful
   as an example app, but not yet a product-grade Giggle-specific experience.

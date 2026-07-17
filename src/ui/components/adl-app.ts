@@ -69,6 +69,7 @@ export class AdlAppElement extends HTMLElement {
   private selectedContextIds: Record<string, string> = {};
   private activeRuntimeContext: RuntimeContext | undefined;
   private activeViewEmptyState: string | undefined;
+  private navDrawerOpen = false;
 
   private readonly handleSearch = (event: Event): void => {
     const detail = (event as CustomEvent<{ text: string }>).detail;
@@ -242,18 +243,64 @@ export class AdlAppElement extends HTMLElement {
       return;
     }
 
-    this.viewName = target.value;
+    this.navigateToView(target.value);
+  };
+
+  private readonly handleClick = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const menuButton = target.closest<HTMLButtonElement>("[data-shell-menu='true']");
+    if (menuButton !== null) {
+      this.navDrawerOpen = !this.navDrawerOpen;
+      this.render();
+      return;
+    }
+
+    if (target.closest("[data-shell-overlay='true']") !== null) {
+      this.navDrawerOpen = false;
+      this.render();
+      return;
+    }
+
+    const navButton = target.closest<HTMLButtonElement>("[data-view-nav]");
+    const viewName = navButton?.dataset.viewNav;
+    if (viewName !== undefined) {
+      this.navigateToView(viewName);
+    }
+  };
+
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || !this.navDrawerOpen) {
+      return;
+    }
+
+    this.navDrawerOpen = false;
+    this.render();
+  };
+
+  private navigateToView(viewName: string): void {
+    if (viewName.length === 0 || viewName === this.viewName) {
+      this.navDrawerOpen = false;
+      this.render();
+      return;
+    }
+
+    this.viewName = viewName;
     this.searchText = "";
     this.selectedRecord = undefined;
     this.mode = "edit";
     this.draftValues = {};
     this.messages = [];
     this.fieldIssues = [];
+    this.navDrawerOpen = false;
     void this.runCommand(async () => {
       await this.refreshRecords();
       this.render();
     });
-  };
+  }
 
   private readonly handleContextSelection = (event: Event): void => {
     const detail = (event as CustomEvent<ContextSelectionDetail>).detail;
@@ -368,6 +415,8 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-select-context", this.handleContextSelection);
     this.addEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.addEventListener("change", this.handleChange);
+    this.addEventListener("click", this.handleClick);
+    document.addEventListener("keydown", this.handleKeyDown);
     addBrowserOnlineListeners(this.handleOnlineStateChange);
     this.readyPromise = this.initialize();
   }
@@ -384,6 +433,8 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-select-context", this.handleContextSelection);
     this.removeEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.removeEventListener("change", this.handleChange);
+    this.removeEventListener("click", this.handleClick);
+    document.removeEventListener("keydown", this.handleKeyDown);
     removeBrowserOnlineListeners(this.handleOnlineStateChange);
     this.initialized = false;
   }
@@ -536,43 +587,25 @@ export class AdlAppElement extends HTMLElement {
     this.innerHTML = `
       <main class="${shellClass}">
         <header class="${topbarClass}">
-          ${
-            isComposedView
-              ? `
-                <button class="adl-menu-action" type="button" aria-label="Menu">
-                  <span aria-hidden="true"></span>
-                </button>
-              `
-              : ""
-          }
+          <button
+            class="adl-menu-action"
+            type="button"
+            aria-label="${this.navDrawerOpen ? "Close navigation menu" : "Open navigation menu"}"
+            aria-controls="adl-nav-drawer"
+            aria-expanded="${this.navDrawerOpen ? "true" : "false"}"
+            data-shell-menu="true"
+          >
+            <span aria-hidden="true"></span>
+          </button>
           <div class="adl-brand">
             <h1>${escapeHtml(this._model.app.name)}</h1>
             ${isComposedView ? "" : "<span>Model-driven browser runtime</span>"}
           </div>
           <div class="adl-topbar-tools">
             ${this.renderContextSelectors()}
-            <label class="adl-view-switch">
-              <span>View</span>
-              <select data-view-switch="true">
-                ${this.allViews
-                  .map(
-                    ({ object: candidateObject, view: candidateView }) => `
-                      <option value="${escapeHtml(candidateView.name)}" ${
-                        candidateView.name === view.name ? "selected" : ""
-                      }>
-                        ${escapeHtml(
-                          `${titleCaseIdentifier(candidateObject.name)} / ${titleCaseIdentifier(
-                            candidateView.name,
-                          )}`,
-                        )}
-                      </option>
-                  `,
-                  )
-                  .join("")}
-              </select>
-            </label>
           </div>
         </header>
+        ${this.renderNavigationDrawer(view)}
         <adl-message-area></adl-message-area>
         ${
           showWorkspace
@@ -664,6 +697,45 @@ export class AdlAppElement extends HTMLElement {
           `<adl-context-selector data-context-name="${escapeHtml(context.name)}"></adl-context-selector>`,
       )
       .join("");
+  }
+
+  private renderNavigationDrawer(activeView: ResolvedView): string {
+    const activeViewName = activeView.name;
+    return `
+      <button
+        class="adl-nav-overlay ${this.navDrawerOpen ? "active" : ""}"
+        type="button"
+        aria-label="Close navigation menu"
+        data-shell-overlay="true"
+      ></button>
+      <nav
+        id="adl-nav-drawer"
+        class="adl-nav-drawer ${this.navDrawerOpen ? "active" : ""}"
+        aria-label="Application navigation"
+      >
+        <div class="adl-nav-drawer-header">
+          <span>${escapeHtml(this._model.app.name)}</span>
+        </div>
+        <div class="adl-nav-list">
+          ${this.allViews
+            .map(({ object, view }) => {
+              const active = view.name === activeViewName;
+              return `
+                <button
+                  class="adl-nav-item ${active ? "active" : ""}"
+                  type="button"
+                  data-view-nav="${escapeHtml(view.name)}"
+                  ${active ? 'aria-current="page"' : ""}
+                >
+                  <span>${escapeHtml(titleCaseIdentifier(view.name))}</span>
+                  <small>${escapeHtml(titleCaseIdentifier(object.name))}</small>
+                </button>
+              `;
+            })
+            .join("")}
+        </div>
+      </nav>
+    `;
   }
 
   private async refreshAvailableContexts(): Promise<void> {

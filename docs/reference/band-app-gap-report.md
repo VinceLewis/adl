@@ -47,4 +47,7 @@ The following behaviors remain platform design candidates:
 - Ordered set-list behavior still needs generic reorder helpers and compaction after removal.
 - Batch commands are not modelled for mass song import, batch set-list item creation, or drag-reorder updates.
 - Remote sync remains backend-neutral; a future server must provide context-scoped datasets, conflict handling, email dispatch, and authoritative policy re-checks.
-- Presentation shell declarations remain a generic platform gap. Phase 28 added generic composed-view app-bar styling in the browser, but ADL `SHELL`/`TOP_BAR` source syntax is still future work.
+- Presentation shell declarations remain a generic platform gap. The browser
+  shell now uses a generic hamburger drawer with business context controls in
+  the top bar, but ADL `SHELL`, `TOP_BAR`, and `NAV_DRAWER` source syntax is
+  still future work.
