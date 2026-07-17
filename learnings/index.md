@@ -27,6 +27,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 - `implementation/runtime-services.md`
 - `implementation/expression-language.md`
 - `implementation/computed-fields-and-read-model-expressions.md`
+- `implementation/conformance-suite.md`
 
 Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
 
@@ -60,6 +61,11 @@ Before tasks that change runtime services, model-declared commands, UI runtime i
 - `implementation/expression-language.md`
 - `implementation/sync-policy.md`
 - `implementation/offline-dataset-runtime.md`
+- `implementation/conformance-suite.md`
+
+Before tasks that change runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases, also read:
+
+- `implementation/conformance-suite.md`
 
 Before tasks that change runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests, also read:
 
@@ -133,3 +139,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work.
+- `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases.

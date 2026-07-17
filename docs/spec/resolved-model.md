@@ -1,0 +1,93 @@
+# ADL Resolved Model Specification
+
+The resolved model is the stable ADL intermediate representation and runtime
+contract. Runtime services consume `ResolvedApplicationModel`, not parser AST
+nodes or ADL source text.
+
+## Contract
+
+`ResolvedApplicationModel` is deterministic and JSON-compatible. It contains:
+
+- `modelVersion`, `app`, `roles`, `objects`, `policies`, `themes`, `sync`,
+  `audit`, `operationLog`, and `defaults`.
+- Optional `contexts`, `readModels`, `decisionTables`, and `commands` when the
+  source model declares those features.
+- No wall-clock `generatedAt` value by default.
+
+All defaults must be visible in the resolved model and explainable by inspection
+tooling.
+
+## Defaults
+
+Resolution applies platform defaults consistently:
+
+- Application theme defaults to `CorporateLight`.
+- Start view defaults to the first resolved object view.
+- Object schema version defaults to `1`.
+- Object table names and field storage names use deterministic snake-case
+  normalization.
+- Objects receive platform metadata fields outside normal business fields.
+- Object sync defaults to `localFirst`, `all`, and `manual`.
+- Every object has a default-deny policy with `defaultEffect: "deny"` and no
+  deny-all rule.
+- Objects without explicit views receive list and form views over business and
+  computed fields.
+- Recent sync scopes default to a 30-day `_updatedAt` window.
+
+## Objects
+
+An object has business fields, computed fields, metadata fields, optional
+scope, constraints, validations, optional lifecycle, policies, views, sync, and
+audit policy.
+
+Business fields are author-defined. Metadata fields are platform-managed and
+include `_guid`, `_object`, `_schemaVersion`, `_revision`, `_state`,
+creation/update/delete metadata, and `_syncStatus`.
+
+Computed fields are separate from stored fields. They include a structured
+expression, dependencies, read-time strategy, deterministic evaluation order,
+and system-managed readonly flags.
+
+## Expressions
+
+`ResolvedExpression` is the expression contract. Implemented expression nodes
+are literal, field, runtime, unary, and binary expressions. Runtime services use
+these trees directly for validation, policy conditions, guards, decision tables,
+commands, computed fields, and read-model expression fields.
+
+## Contexts
+
+Business contexts name a context object and optional membership declaration.
+Object scopes link objects to a context through a field. View and read-model
+contexts declare whether a context is none, required, optional, or all.
+
+Context roles are not global roles. Runtime context roles must carry context
+name, context instance id, and role.
+
+## Policies
+
+Policies are object-scoped and deny by default. A rule has effect, principal,
+action, optional states, optional fields, optional lifecycle action, optional
+condition, and channels. Conditions are resolved expressions.
+
+## Lifecycles
+
+A lifecycle names its state field, initial state, states, and actions. Actions
+declare source states, target state, guards, policy references, and hook
+references. Metadata-backed `_state` is valid when no author state field is
+declared.
+
+## Read Models
+
+Read models contain named sources, output fields, and sort order. Source scopes
+are backend-neutral: `all`, `currentContext`, `allAvailableContexts`, and
+`currentUser`. Expression fields evaluate over already-projected row values.
+
+## Sync And Compatibility
+
+Sync modes are `localFirst`, `cacheReadonly`, `onlineRequired`, and
+`localPrivate`. Scope and conflict strategy are explicit on each object and in
+the top-level sync list.
+
+Runtime startup compatibility checks compare persisted application metadata and
+stored record schema versions against the resolved model.

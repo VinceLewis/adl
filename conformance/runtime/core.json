@@ -1,0 +1,1003 @@
+{
+  "version": 1,
+  "models": {
+    "coreRuntime": {
+      "app": { "name": "ConformanceCore" },
+      "roles": [
+        { "name": "Admin" },
+        { "name": "Viewer" },
+        { "name": "Requester" },
+        { "name": "Approver" }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "businessKey": "Email",
+          "displayField": "Name",
+          "fields": [
+            { "name": "Name", "type": "text", "required": true },
+            { "name": "Email", "type": "text", "required": true, "validators": [{ "kind": "email" }] },
+            { "name": "Phone", "type": "text" },
+            { "name": "Active", "type": "boolean", "defaultValue": true }
+          ]
+        },
+        {
+          "name": "PurchaseOrder",
+          "fields": [
+            { "name": "Owner", "type": "text", "required": true },
+            { "name": "Value", "type": "number", "required": true },
+            { "name": "ApprovalComment", "type": "text" },
+            { "name": "Reviewed", "type": "boolean", "defaultValue": false },
+            { "name": "Status", "type": "text", "required": true, "defaultValue": "Draft" }
+          ],
+          "validations": [
+            {
+              "name": "ApprovalCommentRequired",
+              "message": "Approval comment is required above 10000.",
+              "expression": {
+                "kind": "binary",
+                "operator": "or",
+                "left": {
+                  "kind": "binary",
+                  "operator": "<=",
+                  "left": { "kind": "field", "field": "Value" },
+                  "right": { "kind": "literal", "value": 10000 }
+                },
+                "right": {
+                  "kind": "binary",
+                  "operator": "!=",
+                  "left": { "kind": "field", "field": "ApprovalComment" },
+                  "right": { "kind": "literal", "value": null, "valueType": "null" }
+                }
+              }
+            }
+          ],
+          "lifecycle": {
+            "name": "PurchaseOrderLifecycle",
+            "stateField": "Status",
+            "initialState": "Draft",
+            "states": [
+              { "name": "Draft" },
+              { "name": "Approved", "terminal": true }
+            ],
+            "actions": [
+              {
+                "name": "approve",
+                "from": "Draft",
+                "to": "Approved",
+                "policyRefs": ["PurchaseOrderPolicy"],
+                "guards": [
+                  {
+                    "name": "ReviewedBeforeApproval",
+                    "message": "Purchase order must be reviewed before approval.",
+                    "expression": {
+                      "kind": "binary",
+                      "operator": "==",
+                      "left": { "kind": "field", "field": "Reviewed" },
+                      "right": { "kind": "literal", "value": true }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "LineItem",
+          "fields": [
+            { "name": "UnitPrice", "type": "number", "required": true },
+            { "name": "Quantity", "type": "number", "required": true },
+            { "name": "Discount", "type": "number", "defaultValue": 0 }
+          ],
+          "computedFields": [
+            {
+              "name": "Gross",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": { "kind": "field", "field": "UnitPrice" },
+                "right": { "kind": "field", "field": "Quantity" }
+              }
+            },
+            {
+              "name": "Net",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "-",
+                "left": { "kind": "field", "field": "Gross" },
+                "right": { "kind": "field", "field": "Discount" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "SyncItem",
+          "fields": [{ "name": "Name", "type": "text", "required": true }],
+          "sync": { "mode": "localFirst", "scope": "all" }
+        }
+      ],
+      "readModels": [
+        {
+          "name": "LineItemSummary",
+          "sources": [{ "name": "line", "object": "LineItem" }],
+          "fields": [
+            { "name": "Quantity", "source": "line", "field": "Quantity" },
+            { "name": "Net", "source": "line", "field": "Net" },
+            {
+              "name": "NetWithTax",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": { "kind": "field", "field": "Net" },
+                "right": { "kind": "literal", "value": 1.2 }
+              }
+            }
+          ]
+        }
+      ],
+      "decisionTables": [
+        {
+          "name": "ApprovalTier",
+          "object": "PurchaseOrder",
+          "match": "single",
+          "inputs": [{ "name": "amount", "expression": { "kind": "field", "field": "Value" } }],
+          "rows": [
+            {
+              "name": "standard",
+              "condition": {
+                "kind": "binary",
+                "operator": "<=",
+                "left": { "kind": "field", "field": "amount" },
+                "right": { "kind": "literal", "value": 10000 }
+              },
+              "outputs": { "tier": "standard" }
+            },
+            {
+              "name": "senior",
+              "condition": {
+                "kind": "binary",
+                "operator": ">",
+                "left": { "kind": "field", "field": "amount" },
+                "right": { "kind": "literal", "value": 10000 }
+              },
+              "outputs": { "tier": "senior" }
+            }
+          ],
+          "defaultOutputs": { "tier": "unknown" }
+        }
+      ],
+      "commands": [
+        {
+          "name": "CreatePurchaseOrder",
+          "inputs": [
+            { "name": "Owner", "type": "text", "required": true },
+            { "name": "Value", "type": "number", "required": true }
+          ],
+          "preconditions": [
+            {
+              "name": "PositiveValue",
+              "message": "Command value must be positive.",
+              "expression": {
+                "kind": "binary",
+                "operator": ">",
+                "left": { "kind": "field", "field": "Value" },
+                "right": { "kind": "literal", "value": 0 }
+              }
+            }
+          ],
+          "steps": [
+            {
+              "name": "createOrder",
+              "action": "create",
+              "object": "PurchaseOrder",
+              "authority": "command",
+              "values": {
+                "Owner": { "kind": "input", "name": "Owner" },
+                "Value": { "kind": "input", "name": "Value" },
+                "Reviewed": { "kind": "literal", "value": true },
+                "Status": { "kind": "literal", "value": "Draft" }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowAdminAllUserOps",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            },
+            {
+              "name": "allowViewerReadUsers",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "read"
+            },
+            {
+              "name": "allowViewerSearchUsers",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "search"
+            },
+            {
+              "name": "maskViewerUserEmailRead",
+              "effect": "mask",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "read",
+              "fields": ["Email"]
+            },
+            {
+              "name": "hideViewerUserPhoneRead",
+              "effect": "hidden",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "read",
+              "fields": ["Phone"]
+            }
+          ]
+        },
+        {
+          "name": "PurchaseOrderPolicy",
+          "object": "PurchaseOrder",
+          "rules": [
+            {
+              "name": "allowAdminAllPurchaseOrderOps",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            },
+            {
+              "name": "allowRequesterCreatePurchaseOrder",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Requester"] },
+              "action": "create"
+            },
+            {
+              "name": "allowRequesterReadPurchaseOrder",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Requester"] },
+              "action": "read"
+            },
+            {
+              "name": "allowRequesterUpdatePurchaseOrder",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Requester"] },
+              "action": "update"
+            },
+            {
+              "name": "allowApproverReadPurchaseOrder",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Approver"] },
+              "action": "read"
+            },
+            {
+              "name": "allowApproverUpdatePurchaseOrder",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Approver"] },
+              "action": "update"
+            },
+            {
+              "name": "allowApproverApprovePurchaseOrder",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Approver"] },
+              "action": "transition",
+              "state": "Draft",
+              "lifecycleAction": "approve"
+            }
+          ]
+        },
+        {
+          "name": "LineItemPolicy",
+          "object": "LineItem",
+          "rules": [
+            {
+              "name": "allowAdminAllLineItemOps",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "SyncItemPolicy",
+          "object": "SyncItem",
+          "rules": [
+            {
+              "name": "allowAdminAllSyncItemOps",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "contextRuntime": {
+      "app": { "name": "ContextConformance" },
+      "roles": [{ "name": "Admin" }, { "name": "BandAdmin" }],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": { "mode": "required" }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "Gig",
+          "scope": { "context": "Band", "field": "Band" },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "Band", "displayField": "Name" }
+            },
+            { "name": "Venue", "type": "text", "required": true },
+            { "name": "Date", "type": "date", "required": true }
+          ],
+          "sync": { "mode": "localFirst", "scope": "currentContext" }
+        }
+      ],
+      "readModels": [
+        {
+          "name": "GigsByBand",
+          "context": { "mode": "all", "context": "Band" },
+          "sources": [{ "name": "gig", "object": "Gig", "scope": "allAvailableContexts" }],
+          "fields": [
+            { "name": "Venue", "source": "gig", "field": "Venue" },
+            { "name": "Date", "source": "gig", "field": "Date" }
+          ],
+          "sort": [{ "field": "Date", "direction": "asc" }]
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowAdminAllBands",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            },
+            {
+              "name": "allowBandAdminReadBands",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandAdmin"] },
+              "action": "read"
+            },
+            {
+              "name": "allowBandAdminSearchBands",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandAdmin"] },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAllGigs",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            },
+            {
+              "name": "allowBandAdminAllGigs",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandAdmin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "onlineRequiredSync": {
+      "app": { "name": "OnlineRequiredSync" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "SyncItem",
+          "fields": [{ "name": "Name", "type": "text", "required": true }],
+          "sync": { "mode": "onlineRequired", "scope": "all" }
+        }
+      ],
+      "policies": [
+        {
+          "name": "SyncItemPolicy",
+          "object": "SyncItem",
+          "rules": [
+            {
+              "name": "allowAdminAllSyncItemOps",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "model.defaults.001",
+      "title": "Model resolution applies inspectable defaults",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "coreRuntime",
+      "input": {
+        "select": [
+          "app.startView",
+          "app.theme",
+          "objects.0.tableName",
+          "objects.0.fields.0.storageName",
+          "objects.0.sync.mode",
+          "objects.0.views.0.name",
+          "policies.0.defaultEffect"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.startView": "UserList",
+          "app.theme": "CorporateLight",
+          "objects.0.tableName": "user",
+          "objects.0.fields.0.storageName": "name",
+          "objects.0.sync.mode": "localFirst",
+          "objects.0.views.0.name": "UserList",
+          "policies.0.defaultEffect": "deny"
+        }
+      }
+    },
+    {
+      "id": "inspect.defaults.001",
+      "title": "Inspection reports default origins",
+      "specRef": "runtime-semantics#inspection",
+      "operation": "inspectResolvedModel",
+      "modelRef": "coreRuntime",
+      "input": {
+        "selectOrigins": [
+          "app.theme",
+          "app.startView",
+          "objects[0].tableName",
+          "objects[0].fields[0].storageName"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "origins": [
+            { "path": "app.theme", "origin": "platformDefault" },
+            { "path": "app.startView", "origin": "derivedDefault" },
+            { "path": "objects[0].tableName", "origin": "derivedDefault" },
+            { "path": "objects[0].fields[0].storageName", "origin": "derivedDefault" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.view-field.001",
+      "title": "Model validation reports unknown view fields",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "model": {
+        "app": { "name": "InvalidView", "startView": "BrokenList" },
+        "objects": [
+          {
+            "name": "Broken",
+            "fields": [{ "name": "Name", "type": "text" }],
+            "views": [{ "name": "BrokenList", "kind": "list", "fields": ["Missing"] }]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].fields[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "computed.read-time.001",
+      "title": "Computed fields evaluate on create responses",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "create",
+      "modelRef": "coreRuntime",
+      "input": {
+        "objectName": "LineItem",
+        "values": { "UnitPrice": 12.5, "Quantity": 4, "Discount": 5 },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LineItem",
+          "state": null,
+          "values": { "UnitPrice": 12.5, "Quantity": 4, "Discount": 5, "Gross": 50, "Net": 45 }
+        }
+      }
+    },
+    {
+      "id": "read-model.expression-field.001",
+      "title": "Read-model expression fields evaluate over projected row values",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "coreRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "line",
+          "objectName": "LineItem",
+          "values": { "UnitPrice": 10, "Quantity": 3, "Discount": 2 },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "LineItemSummary",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": { "rows": [{ "values": { "Quantity": 3, "Net": 28, "NetWithTax": 33.6 } }] }
+      }
+    },
+    {
+      "id": "policy.explain-mask.001",
+      "title": "Policy explanation reports mask precedence and matching rule",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "coreRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "user",
+          "objectName": "User",
+          "values": { "Name": "Ada Lovelace", "Email": "ada@example.com", "Phone": "123" },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "request": {
+          "objectName": "User",
+          "action": "read",
+          "field": "Email",
+          "record": { "$ref": "user" }
+        },
+        "context": {
+          "userId": "viewer-1",
+          "roles": ["Viewer"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "presentationRestriction",
+          "decision": {
+            "effect": "mask",
+            "reasons": [
+              { "policyName": "UserPolicy", "ruleName": "maskViewerUserEmailRead", "effect": "mask" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.single.001",
+      "title": "Single-match decision tables return the matching outputs",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "coreRuntime",
+      "input": {
+        "tableName": "ApprovalTier",
+        "values": { "Value": 12000 },
+        "context": {
+          "userId": "requester-1",
+          "roles": ["Requester"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rowName": "senior",
+          "outputs": { "tier": "senior" },
+          "inputValues": { "amount": 12000 }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.guard-deny.001",
+      "title": "Lifecycle guards run after transition policy and before writes",
+      "specRef": "runtime-semantics#lifecycle",
+      "operation": "transition",
+      "modelRef": "coreRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "po",
+          "objectName": "PurchaseOrder",
+          "values": { "Owner": "requester-1", "Value": 12000, "ApprovalComment": "Budget approved" },
+          "context": {
+            "userId": "requester-1",
+            "roles": ["Requester"],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "PurchaseOrder",
+        "id": { "$ref": "po.meta.guid" },
+        "actionName": "approve",
+        "context": {
+          "userId": "approver-1",
+          "roles": ["Approver"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Purchase order must be reviewed before approval."
+        }
+      }
+    },
+    {
+      "id": "lifecycle.transition.001",
+      "title": "Allowed lifecycle transitions persist the target state",
+      "specRef": "runtime-semantics#lifecycle",
+      "operation": "transition",
+      "modelRef": "coreRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "po",
+          "objectName": "PurchaseOrder",
+          "values": { "Owner": "requester-1", "Value": 12000, "ApprovalComment": "Budget approved" },
+          "context": {
+            "userId": "requester-1",
+            "roles": ["Requester"],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "alias": "reviewedPo",
+          "objectName": "PurchaseOrder",
+          "id": { "$ref": "po.meta.guid" },
+          "patch": { "Reviewed": true },
+          "context": {
+            "userId": "requester-1",
+            "roles": ["Requester"],
+            "channel": "api",
+            "now": "2026-07-17T09:05:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "PurchaseOrder",
+        "id": { "$ref": "po.meta.guid" },
+        "actionName": "approve",
+        "context": {
+          "userId": "approver-1",
+          "roles": ["Approver"],
+          "channel": "api",
+          "now": "2026-07-17T09:10:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": { "objectName": "PurchaseOrder", "state": "Approved", "values": { "Status": "Approved" } }
+      }
+    },
+    {
+      "id": "command.precondition.001",
+      "title": "Command preconditions deny before any command writes",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "coreRuntime",
+      "input": {
+        "commandName": "CreatePurchaseOrder",
+        "input": { "Owner": "requester-1", "Value": -1 },
+        "context": {
+          "userId": "requester-1",
+          "roles": ["Requester"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "decision": {
+            "reasons": [{ "policyName": "Command:CreatePurchaseOrder", "ruleName": "PositiveValue" }]
+          }
+        }
+      }
+    },
+    {
+      "id": "command.transaction.001",
+      "title": "Command authority can create records through declared steps",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "coreRuntime",
+      "input": {
+        "commandName": "CreatePurchaseOrder",
+        "input": { "Owner": "requester-1", "Value": 100 },
+        "context": {
+          "userId": "requester-1",
+          "roles": ["Requester"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "createOrder",
+              "objectName": "PurchaseOrder",
+              "values": { "Owner": "requester-1", "Value": 100, "Reviewed": true, "Status": "Draft" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "context.scope-search.001",
+      "title": "Selected context narrows context-scoped searches",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "search",
+      "modelRef": "contextRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": { "Name": "The Alphas" },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": { "Name": "The Betas" },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": { "Band": { "$ref": "alpha.meta.guid" }, "Venue": "Alpha Hall", "Date": "2026-08-01" },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": { "Band": { "$ref": "alpha.meta.guid" } },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": { "Band": { "$ref": "beta.meta.guid" }, "Venue": "Beta Hall", "Date": "2026-08-02" },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": { "Band": { "$ref": "beta.meta.guid" } },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Gig",
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": { "Band": { "$ref": "alpha.meta.guid" } },
+          "contextRoles": [
+            { "context": "Band", "contextId": { "$ref": "alpha.meta.guid" }, "role": "BandAdmin" },
+            { "context": "Band", "contextId": { "$ref": "beta.meta.guid" }, "role": "BandAdmin" }
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [{ "objectName": "Gig", "recordId": "$alphaGig", "values": { "Venue": "Alpha Hall" } }]
+      }
+    },
+    {
+      "id": "offline.dataset.001",
+      "title": "Offline datasets include local-first records in scope",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "coreRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "syncItem",
+          "objectName": "SyncItem",
+          "values": { "Name": "Cached item" },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "SyncItem",
+              "recordId": "$syncItem",
+              "reasons": [{ "kind": "objectSync", "mode": "localFirst", "scope": "all" }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "sync.online-required.001",
+      "title": "Online-required objects reject offline writes after policy allows the write",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "onlineRequiredSync",
+      "input": {
+        "objectName": "SyncItem",
+        "values": { "Name": "Offline item" },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "online": false,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": { "code": "ADL_SYNC_POLICY_DENIED" }
+      }
+    },
+    {
+      "id": "startup.schema-version.001",
+      "title": "Runtime startup rejects incompatible persisted object schema versions",
+      "specRef": "runtime-semantics#schema-version-compatibility",
+      "operation": "startupCompatibility",
+      "model": {
+        "app": { "name": "StartupCompatibility" },
+        "roles": [{ "name": "Admin" }],
+        "objects": [
+          {
+            "name": "SyncItem",
+            "fields": [{ "name": "Name", "type": "text", "required": true }]
+          }
+        ],
+        "policies": [
+          {
+            "name": "SyncItemPolicy",
+            "object": "SyncItem",
+            "rules": [
+              {
+                "name": "allowAdminAll",
+                "effect": "allow",
+                "principal": { "match": "specific", "roles": ["Admin"] },
+                "action": "*"
+              }
+            ]
+          }
+        ]
+      },
+      "input": {
+        "applicationMetadata": { "modelVersion": "0.1.0" },
+        "records": [
+          {
+            "objectName": "SyncItem",
+            "record": {
+              "meta": {
+                "guid": "stale-record-1",
+                "object": "SyncItem",
+                "schemaVersion": 2,
+                "revision": "1",
+                "createdAt": "2026-07-17T09:00:00.000Z",
+                "createdBy": "admin-1",
+                "updatedAt": "2026-07-17T09:00:00.000Z",
+                "updatedBy": "admin-1",
+                "syncStatus": "local"
+              },
+              "values": { "Name": "Stale cached item" }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_STARTUP_COMPATIBILITY_FAILED",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "objectName": "SyncItem",
+              "recordId": "stale-record-1",
+              "expected": 1,
+              "actual": 2
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

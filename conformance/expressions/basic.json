@@ -1,60 +1,106 @@
-[
-  {
-    "name": "comparison-and-boolean",
-    "expression": {
-      "kind": "binary",
-      "operator": "and",
-      "left": {
-        "kind": "binary",
-        "operator": ">",
-        "left": { "kind": "field", "field": "Value" },
-        "right": { "kind": "literal", "value": 10000 }
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "expr.boolean-comparison.001",
+      "title": "Boolean conjunction shortlists matching purchase orders",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "and",
+          "left": {
+            "kind": "binary",
+            "operator": ">",
+            "left": { "kind": "field", "field": "Value" },
+            "right": { "kind": "literal", "value": 10000 }
+          },
+          "right": {
+            "kind": "binary",
+            "operator": "==",
+            "left": { "kind": "field", "field": "Status" },
+            "right": { "kind": "literal", "value": "Submitted" }
+          }
+        },
+        "values": { "Value": 12000, "Status": "Submitted" },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
       },
-      "right": {
-        "kind": "binary",
-        "operator": "==",
-        "left": { "kind": "field", "field": "Status" },
-        "right": { "kind": "literal", "value": "Submitted" }
+      "expected": { "ok": true, "result": { "kind": "boolean", "value": true } }
+    },
+    {
+      "id": "expr.decimal-rounding.001",
+      "title": "Decimal division rounds to the fixed runtime scale",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "/",
+          "left": { "kind": "literal", "value": 1 },
+          "right": { "kind": "literal", "value": 3 }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": { "ok": true, "result": { "kind": "number", "value": 0.3333 } }
+    },
+    {
+      "id": "expr.runtime-user.001",
+      "title": "Runtime user id participates in expression equality",
+      "specRef": "runtime-semantics#runtime-context",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "==",
+          "left": { "kind": "field", "field": "Owner" },
+          "right": { "kind": "runtime", "property": "userId" }
+        },
+        "values": { "Owner": "user-1" },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": { "ok": true, "result": { "kind": "boolean", "value": true } }
+    },
+    {
+      "id": "expr.divide-by-zero.001",
+      "title": "Divide by zero returns a structured expression error",
+      "specRef": "runtime-semantics#expression-errors",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "/",
+          "left": { "kind": "literal", "value": 1 },
+          "right": { "kind": "literal", "value": 0 }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": { "code": "ADL_EXPRESSION_DIVIDE_BY_ZERO" }
       }
-    },
-    "values": { "Value": 12000, "Status": "Submitted" },
-    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
-    "expected": { "ok": true, "kind": "boolean", "value": true }
-  },
-  {
-    "name": "decimal-division-rounding",
-    "expression": {
-      "kind": "binary",
-      "operator": "/",
-      "left": { "kind": "literal", "value": 1 },
-      "right": { "kind": "literal", "value": 3 }
-    },
-    "values": {},
-    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
-    "expected": { "ok": true, "kind": "number", "value": 0.3333 }
-  },
-  {
-    "name": "runtime-user-reference",
-    "expression": {
-      "kind": "binary",
-      "operator": "==",
-      "left": { "kind": "field", "field": "Owner" },
-      "right": { "kind": "runtime", "property": "userId" }
-    },
-    "values": { "Owner": "user-1" },
-    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
-    "expected": { "ok": true, "kind": "boolean", "value": true }
-  },
-  {
-    "name": "divide-by-zero-error",
-    "expression": {
-      "kind": "binary",
-      "operator": "/",
-      "left": { "kind": "literal", "value": 1 },
-      "right": { "kind": "literal", "value": 0 }
-    },
-    "values": {},
-    "context": { "userId": "user-1", "now": "2026-07-17T12:30:00.000Z" },
-    "expected": { "ok": false, "code": "ADL_EXPRESSION_DIVIDE_BY_ZERO" }
-  }
-]
+    }
+  ]
+}
