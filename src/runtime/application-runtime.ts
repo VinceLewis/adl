@@ -20,6 +20,11 @@ import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import { ObjectStore } from "./object-store.js";
 import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
+import { PresentationRuntime } from "./presentation-runtime.js";
+import type {
+  RuntimePresentationEvaluationInput,
+  RuntimePresentationView,
+} from "./presentation-runtime.js";
 import { ReadModelService } from "./read-model-service.js";
 import {
   ModelValidationError,
@@ -60,6 +65,7 @@ export class ApplicationRuntime {
   readonly decisionTableService: DecisionTableService;
   readonly offlineDatasetService: OfflineDatasetService;
   readonly readModelService: ReadModelService;
+  readonly presentationRuntime: PresentationRuntime;
   readonly objectStore: ObjectStore;
   readonly lifecycleEngine: LifecycleEngine;
   readonly commandService: CommandService;
@@ -109,6 +115,16 @@ export class ApplicationRuntime {
       storage,
       this.logger,
       () => this.whenReady(),
+    );
+    this.presentationRuntime = new PresentationRuntime(
+      model,
+      {
+        search: (objectName, query, context) => this.search(objectName, query, context),
+        executeReadModel: (readModelName, context, query) =>
+          this.executeReadModel(readModelName, context, query),
+      },
+      this.index,
+      this.logger,
     );
     this.objectStore = new ObjectStore(
       model,
@@ -333,6 +349,32 @@ export class ApplicationRuntime {
     this.logger.debug("EXIT ApplicationRuntime.executeReadModel", {
       readModelName,
       count: result.rows.length,
+    });
+    return result;
+  }
+
+  async evaluatePresentationView(
+    objectName: string,
+    viewName: string,
+    context: RuntimeContext,
+    options: Omit<RuntimePresentationEvaluationInput, "objectName" | "viewName" | "context"> = {},
+  ): Promise<RuntimePresentationView> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.evaluatePresentationView", {
+      objectName,
+      viewName,
+      context: safeContextLog(context),
+    });
+    const result = await this.presentationRuntime.evaluate({
+      objectName,
+      viewName,
+      context,
+      ...options,
+    });
+    this.logger.debug("EXIT ApplicationRuntime.evaluatePresentationView", {
+      objectName,
+      viewName,
+      sections: result.sections.length,
     });
     return result;
   }

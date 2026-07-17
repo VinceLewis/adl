@@ -11,8 +11,9 @@ behavior. The resolved-model foundation for composed view presentation is
 implemented: JSON/TypeScript partial models can resolve and validate
 presentation declarations. The initial parser/compiler subset is implemented
 for composed view presentation blocks, local state, sections, toggles, lists,
-row templates, icon maps, formatting, and empty states. Browser rendering for
-these constructs remains a later phase.
+row templates, icon maps, formatting, and empty states. Runtime evaluation is
+implemented through a renderer-neutral presentation evaluator. Browser DOM
+rendering for these constructs remains a later phase.
 
 ## Purpose
 
@@ -495,6 +496,23 @@ Current parser detail: view declarations are object-scoped. A later `OBJECT`
 declaration that contains only `VIEW` blocks extends the earlier object
 declaration of the same name, which allows `domain.adl` to define fields and
 `ui.adl` to add authored presentation views.
+
+Runtime evaluation is implemented by `ApplicationRuntime.evaluatePresentationView`.
+It initializes resolved local state defaults, applies local state updates, binds
+lists through policy-enforcing runtime reads or read models, applies
+presentation filters and ordering, resolves row templates and icon maps, formats
+primitive display values, and returns empty states when no visible rows remain.
+
+The evaluator returns renderer-neutral data only. It does not return DOM nodes,
+HTML strings, CSS selectors, framework component names, or SVG payloads.
+Presentation filters run after read authorization, context scoping, and
+read-model shaping; they are not a policy or storage boundary.
+
+The deterministic formatter intentionally supports a small cross-runtime subset:
+date tokens such as `EEE d MMM`, time tokens such as `h:mma`, UTC datetime
+combinations, number patterns such as `fixed:1`, and primitive text conversion.
+Unsupported patterns produce `ADL_PRESENTATION_FORMAT_UNSUPPORTED` diagnostics
+and fall back to raw values where possible.
 
 ## Open Questions
 

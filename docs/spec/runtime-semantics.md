@@ -113,6 +113,46 @@ scope, search/read policy, and source scope checks before projection.
 Expression fields evaluate in declaration order over already-projected row
 values, after source read policy shaping.
 
+## Presentation Evaluation
+
+Composed views evaluate through `ApplicationRuntime.evaluatePresentationView`.
+The runtime consumes `ResolvedView.presentation` and returns renderer-neutral
+view data: sections, controls, lists, rows, text/icon fragments, empty states,
+local state values, and structured diagnostics.
+
+Evaluation order is deterministic:
+
+1. Initialize local view state from resolved state defaults.
+2. Apply caller-provided local state and state updates with type checks.
+3. Bind each list through policy-enforcing runtime APIs: object lists use
+   `search`, and read-model lists use `executeReadModel`.
+4. Apply presentation `WHERE` filters to already-shaped row values plus local
+   state.
+5. Apply presentation list ordering.
+6. Evaluate row templates, icon maps, display formats, conditional fragments,
+   and empty states.
+
+Presentation filters are display filters only. They run after runtime read
+authorization, context scoping, offline dataset constraints, and read-model
+projection. They do not grant access to rows or fields and do not replace
+policy enforcement on writes, commands, sync replay, imports, or APIs.
+
+Row-template evaluation is read-only. It does not mutate stored records or local
+view state.
+
+The deterministic formatter currently supports:
+
+- dates with `yyyy`, `yy`, `MMM`, `MM`, `M`, `dd`, `d`, and `EEE`
+- times with `HH`, `H`, `hh`, `h`, `mm`, `ss`, and `a`
+- datetimes as UTC combinations of supported date and time segments
+- numbers as `plain`, `integer`, `fixed:N` for `N` from 0 to 4, and `0`,
+  `0.0`, `0.00`, `0.000`, or `0.0000`
+- text as primitive string conversion
+
+Unsupported formats and missing row data produce structured
+`ADL_PRESENTATION_*` diagnostics and fall back to raw or empty text where
+possible.
+
 ## Business Contexts
 
 Selected contexts narrow scoped object operations. Context-scoped roles are

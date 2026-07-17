@@ -23,6 +23,7 @@ export * from "./runtime/object-store.js";
 export * from "./runtime/offline-dataset-service.js";
 export * from "./runtime/operation-log.js";
 export * from "./runtime/policy-engine.js";
+export * from "./runtime/presentation-runtime.js";
 export * from "./runtime/read-model-service.js";
 export * from "./runtime/runtime-types.js";
 export * from "./runtime/startup-compatibility.js";

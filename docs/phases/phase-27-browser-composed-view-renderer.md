@@ -30,6 +30,9 @@ Extend the existing native Web Component UI runtime to render composed views:
 
 - Keep components generic over resolved presentation data. Do not hard-code
   Giggle Band object names or row layouts in browser components.
+- Consume `ApplicationRuntime.evaluatePresentationView` output as the browser
+  data source for composed views. Browser components should not reimplement list
+  binding, presentation filters, icon-map resolution, or formatting.
 - Do not introduce a frontend framework dependency unless the phase explicitly
   proves the native Web Component path cannot reasonably handle the renderer.
 - Icons should use semantic names from the resolved model. Avoid raw SVG in ADL
@@ -76,7 +79,8 @@ Execute Phase 27 only. Extend the generic browser UI runtime to render composed 
 
 1. Inventory current `adl-app`, list, form, and field-renderer component
    boundaries.
-2. Add composed-view rendering entry points that consume Phase 26 output.
+2. Add composed-view rendering entry points that consume
+   `ApplicationRuntime.evaluatePresentationView` output.
 3. Render sections, headings, controls, lists, rows, fragments, icons, and empty
    states generically.
 4. Wire toggle events to local presentation state updates and re-evaluation.
