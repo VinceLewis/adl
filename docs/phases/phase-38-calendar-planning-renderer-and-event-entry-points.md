@@ -63,6 +63,8 @@ calendar a planning view over the same business model and commands.
 - Calendar rendering does not become required for apps that only need compact
   feeds or lists.
 - Mobile viewport behavior is tested and usable.
+- Browser visual smoke verification captures and checks every Giggle Band app
+  page at desktop and mobile widths before push.
 - `npm run typecheck`, full tests, `npm run format:check`, and `npm run build`
   pass.
 
@@ -88,5 +90,6 @@ Execute Phase 38 only. Add a generic calendar month planning renderer with seman
 8. Add tests for layout, statuses, conflicts, multiple events, action dispatch,
    and mobile behavior.
 9. Update docs and learnings as needed.
-10. Run typecheck, full tests, format check, and build.
+10. Run typecheck, full tests, format check, build, and Playwright visual smoke
+    screenshots through `npm run verify:push`.
 11. Commit all repository changes for the phase and push the current branch.

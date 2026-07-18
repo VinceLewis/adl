@@ -85,6 +85,7 @@ OBJECT Event
           TEXT EventDate FORMAT date 'EEE d MMM'
           TEXT ' '
           TEXT StartTime FORMAT time 'h:mma'
+          TEXT ' - '
           TEXT Title STYLE bold
           TEXT ' - '
           TEXT VenueName

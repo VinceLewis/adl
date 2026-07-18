@@ -102,6 +102,7 @@ describe("presentation runtime", () => {
       { kind: "text", text: "Sat 1 Aug", style: "plain" },
       { kind: "text", text: " ", style: "plain" },
       { kind: "text", text: "8:00PM", style: "plain" },
+      { kind: "text", text: " - ", style: "plain" },
       { kind: "text", text: "Canal Street headline", style: "bold" },
       { kind: "text", text: " - ", style: "plain" },
       { kind: "text", text: "Alpha Hall", style: "plain" },

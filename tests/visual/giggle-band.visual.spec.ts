@@ -1,0 +1,181 @@
+import { expect, test, type Page } from "@playwright/test";
+
+interface VisualPage {
+  name: string;
+  navItem: string;
+  expectedText: string;
+}
+
+const gigglePages: VisualPage[] = [
+  { name: "home", navItem: "HomeDashboard", expectedText: "Welcome Back!" },
+  { name: "gigs", navItem: "BandEventList", expectedText: "Canal Street headline" },
+  { name: "calendar", navItem: "BandEventCalendar", expectedText: "August 2026" },
+  {
+    name: "availability",
+    navItem: "MyAvailabilityList",
+    expectedText: "Unavailable - session prep",
+  },
+  { name: "songs", navItem: "SongLibrary", expectedText: "Neon Map" },
+  { name: "set-lists", navItem: "SetListList", expectedText: "August headline" },
+  { name: "bands", navItem: "BandDirectory", expectedText: "The Alphas" },
+];
+
+test.describe("Giggle Band visual smoke", () => {
+  for (const pageSpec of gigglePages) {
+    test(`captures ${pageSpec.name} on every configured viewport`, async ({ page }, testInfo) => {
+      await openGiggleApp(page);
+      await selectBandContext(page);
+      await navigateTo(page, pageSpec);
+
+      await expect(page.locator(".adl-workspace, .adl-composed-workspace")).toContainText(
+        pageSpec.expectedText,
+      );
+      await expectAppReady(page);
+
+      await page.screenshot({
+        path: testInfo.outputPath(`giggle-${testInfo.project.name}-${pageSpec.name}.png`),
+        fullPage: true,
+      });
+
+      await expectNoDocumentHorizontalOverflow(page);
+      await expectNoVisibleElementOverflow(page);
+
+      if (pageSpec.navItem === "HomeDashboard") {
+        await expectHomeFeedSpacing(page);
+      }
+    });
+  }
+});
+
+async function openGiggleApp(page: Page): Promise<void> {
+  await page.goto("/?demo=giggle-band");
+  await page.locator("adl-app").waitFor({ state: "attached" });
+  await expect(page.getByRole("heading", { name: "Giggle Band ADL Example" })).toBeVisible();
+}
+
+async function selectBandContext(page: Page): Promise<void> {
+  const bandSelector = page.locator("select[data-context-select='Band']");
+  await bandSelector.waitFor({ state: "attached" });
+  const selected = await bandSelector.evaluate((select) => {
+    const htmlSelect = select as HTMLSelectElement;
+    const option = [...htmlSelect.options].find((candidate) => candidate.label === "The Alphas");
+    if (option === undefined) {
+      return "";
+    }
+    htmlSelect.value = option.value;
+    htmlSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return htmlSelect.value;
+  });
+  expect(selected).not.toBe("");
+}
+
+async function navigateTo(page: Page, pageSpec: VisualPage): Promise<void> {
+  const menuButton = page.locator("button[data-shell-menu='true']");
+  await expect(menuButton).toBeVisible();
+  await menuButton.click();
+
+  const navItem = page.locator(`button[data-nav-item='${pageSpec.navItem}']`);
+  await expect(navItem).toBeVisible();
+  await navItem.click();
+
+  await expect(page.locator(".adl-nav-drawer")).not.toHaveClass(/active/);
+}
+
+async function expectHomeFeedSpacing(page: Page): Promise<void> {
+  const schedule = page.locator("[data-presentation-list='UpcomingEvents']");
+  await expect(schedule).toBeVisible();
+
+  const text = normaliseWhitespace(await schedule.innerText());
+  expect(text).toContain("8:00PM - Canal Street headline");
+  expect(text).not.toContain("8:00PMCanal Street headline");
+
+  const separatorWidths = await schedule
+    .locator(".adl-fragment-plain")
+    .evaluateAll((fragments) =>
+      fragments
+        .filter((fragment) => fragment.textContent === " - ")
+        .map((fragment) => fragment.getBoundingClientRect().width),
+    );
+  expect(separatorWidths[0], "home feed separator should reserve visible spacing").toBeGreaterThan(
+    10,
+  );
+}
+
+async function expectNoDocumentHorizontalOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const scrollWidth = Math.max(root.scrollWidth, body.scrollWidth);
+    const viewportWidth = window.innerWidth;
+    return {
+      scrollWidth,
+      viewportWidth,
+      overflowing: scrollWidth > viewportWidth + 4,
+    };
+  });
+
+  expect(overflow, `document overflowed horizontally: ${JSON.stringify(overflow)}`).toMatchObject({
+    overflowing: false,
+  });
+}
+
+async function expectNoVisibleElementOverflow(page: Page): Promise<void> {
+  const overflowing = await page.evaluate(() => {
+    const selectors = [
+      "button",
+      "select",
+      ".adl-topbar",
+      ".adl-presentation-row",
+      ".adl-calendar-agenda-day",
+      ".adl-calendar-cell",
+      ".adl-list-header",
+      ".adl-list-row",
+      ".adl-form-field",
+    ];
+    const viewportWidth = window.innerWidth;
+
+    return selectors
+      .flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)])
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.visibility !== "hidden" &&
+          style.display !== "none" &&
+          rect.left < viewportWidth &&
+          rect.right > 0
+        );
+      })
+      .filter((element) => {
+        const style = window.getComputedStyle(element);
+        const visibleWidthOverflow =
+          element.scrollWidth > element.clientWidth + 2 && style.overflowX === "visible";
+        const visibleHeightOverflow =
+          element.scrollHeight > element.clientHeight + 2 && style.overflowY === "visible";
+        return visibleWidthOverflow || visibleHeightOverflow;
+      })
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        className: element.className,
+        text: element.textContent?.replace(/\s+/g, " ").trim().slice(0, 120),
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+      }));
+  });
+
+  expect(overflowing).toEqual([]);
+}
+
+function normaliseWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+async function expectAppReady(page: Page): Promise<void> {
+  const app = page.locator("adl-app");
+  await expect(app).toBeVisible();
+  await expect(app).not.toContainText("Loading");
+}

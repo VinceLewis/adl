@@ -9,11 +9,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:visual": "playwright test",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\"",
-    "format:check": "prettier --check \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\""
+    "verify:push": "npm run typecheck && npm run format:check && npm test && npm run build && npm run test:visual",
+    "format": "prettier --write \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"playwright.config.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\"",
+    "format:check": "prettier --check \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"playwright.config.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\""
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "20.17.6",
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^20.10.6",

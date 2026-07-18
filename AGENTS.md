@@ -39,6 +39,8 @@ Every phase must end with:
 
 For code phases, add or update tests that prove the behavior introduced by the phase. Run the relevant test, typecheck, lint, format, or build commands that exist in the project at that point. If a command cannot run, record why in the final summary.
 
+Before pushing any change that affects browser UI rendering, shell chrome, reference app screens, presentation runtime output, or CSS, run `npm run verify:push`. This includes Playwright desktop and mobile screenshots for every Giggle Band app page through `npm run test:visual`; inspect the generated screenshots before committing.
+
 For documentation-only phases, no automated tests are expected, but verify the requested files exist and that instructions do not contradict the repository boundary.
 
 ## Implementation Boundaries

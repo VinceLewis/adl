@@ -36,6 +36,10 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   back to `adl-app`. The app re-evaluates the presentation view with local
   state updates and does not write object-store records for those interactions.
 - UI tests use `happy-dom` with Vitest. They cover rendered workflows and direct runtime bypass enforcement for the same policy used by the UI.
+- UI-affecting changes also need Playwright visual smoke coverage. Run
+  `npm run test:visual` to capture desktop and mobile screenshots of every
+  Giggle Band app page, and run `npm run verify:push` before pushing browser UI,
+  CSS, shell chrome, reference screen, or presentation-rendering changes.
 - Generic object CRUD views are list-first by default. `adl-app` should not
   auto-select the first row or render a permanent form for normal list views.
   Row clicks and create actions open the resolved view's `editContainer`.

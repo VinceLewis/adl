@@ -771,6 +771,11 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.adl-presentation-row > strong,
+.adl-presentation-row > span:not(.adl-presentation-status):not(.adl-presentation-icon) {
+  white-space: pre-wrap;
+}
+
 .adl-presentation-row strong {
   font-size: 13px;
   font-weight: 700;
@@ -1048,6 +1053,7 @@ button:disabled {
 .adl-calendar-item-title,
 .adl-calendar-item-summary {
   font-size: 12px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1070,6 +1076,7 @@ button:disabled {
   cursor: pointer;
   justify-items: start;
   min-height: 0;
+  overflow: hidden;
   padding: 2px;
   text-align: left;
   width: 100%;

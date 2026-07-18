@@ -37,3 +37,10 @@ Code phases should add or update tests that prove the behavior introduced by the
 - Phase 29: UI presentation conformance cases, inspect/explain output, spec consistency, and regression tests for any defects fixed
 
 Run the strongest relevant commands available at that point, usually some combination of tests, typecheck, lint, format check, and build. If the project does not yet have one of those commands, do not invent unrelated tooling just to satisfy the word "test"; record the gap and proceed with the best available verification.
+
+For browser UI rendering, shell chrome, reference app screens, presentation
+runtime output, or CSS changes, run `npm run verify:push` before committing and
+pushing. That command includes `npm run test:visual`, which captures Playwright
+desktop and mobile screenshots for every Giggle Band app page. Inspect the
+generated screenshots under `test-results/visual/` before pushing; DOM and unit
+tests alone are not enough for UI layout changes.

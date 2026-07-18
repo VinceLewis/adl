@@ -2,4 +2,6 @@ node_modules/
 dist/
 coverage/
 .vitest/
+playwright-report/
+test-results/
 npm-debug.log*

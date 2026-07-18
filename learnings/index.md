@@ -80,6 +80,7 @@ Before tasks that change runtime startup compatibility checks, persisted applica
 Before tasks that change browser UI runtime components, browser demo fixtures, UI policy or sync presentation, or browser verification, also read:
 
 - `implementation/browser-ui-runtime.md`
+- `process/visual-browser-verification.md`
 - `implementation/context-ui-navigation.md`
 - `implementation/shell-navigation.md`
 - `implementation/read-model-runtime.md`
@@ -134,6 +135,7 @@ When adding a new learning document, update this index with when future agents s
 - `project/repository-boundaries.md`: read before any task that touches paths, setup, repository structure, or MINIL.
 - `process/phase-execution.md`: read before executing a phase or updating phase documents.
 - `process/testing-expectations.md`: read before code implementation or verification work.
+- `process/visual-browser-verification.md`: read before changing browser UI rendering, CSS, shell chrome, reference app screens, or browser verification.
 - `minil/repository-audit.md`: read before comparing ADL with MINIL, reusing MINIL concepts, or designing parser/model/validator/runtime-test behaviour informed by MINIL.
 - `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.
 - `architecture/business-contexts-and-backends.md`: read before changing business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions.
