@@ -57,6 +57,7 @@ export interface StageChildOperationDetail {
   operation: EditChildOperationKind | "updateChild";
   childObject: string;
   childId?: string;
+  childIds?: string[];
   values?: Record<string, JsonValue>;
   stagedOperationId?: string;
 }

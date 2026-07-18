@@ -833,6 +833,13 @@ button:disabled {
   justify-content: space-between;
 }
 
+.adl-child-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-xs);
+  justify-content: end;
+}
+
 .adl-child-rows {
   border: 1px solid var(--adl-color-border);
   border-radius: var(--adl-radius);
@@ -875,6 +882,81 @@ button:disabled {
   display: grid;
   gap: var(--adl-space-sm);
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.adl-relationship-picker {
+  align-items: center;
+  background: rgba(16, 24, 40, 0.42);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: var(--adl-space-lg);
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 1100;
+}
+
+.adl-relationship-picker-panel {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  box-shadow: 0 18px 48px rgba(16, 24, 40, 0.24);
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--adl-space-md);
+  max-height: calc(100vh - (2 * var(--adl-space-lg)));
+  max-width: min(520px, 100%);
+  overflow-y: auto;
+  padding: var(--adl-space-lg);
+  width: 520px;
+}
+
+.adl-relationship-picker-header,
+.adl-relationship-picker-footer,
+.adl-relationship-picker-search {
+  align-items: center;
+  display: flex;
+  gap: var(--adl-space-sm);
+  justify-content: space-between;
+}
+
+.adl-relationship-picker-header h3 {
+  font-size: 15px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.adl-relationship-picker-search input {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  box-sizing: border-box;
+  min-height: var(--adl-control-height);
+  min-width: 0;
+  padding: 0 var(--adl-space-sm);
+  width: 100%;
+}
+
+.adl-relationship-picker-list {
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  display: grid;
+  overflow: hidden;
+}
+
+.adl-relationship-picker-row {
+  align-items: center;
+  border-bottom: 1px solid var(--adl-color-border);
+  display: flex;
+  gap: var(--adl-space-sm);
+  min-height: 38px;
+  padding: var(--adl-space-sm);
+}
+
+.adl-relationship-picker-row:last-child {
+  border-bottom: 0;
 }
 
 .adl-event-list {

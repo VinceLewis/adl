@@ -5,6 +5,7 @@ import type {
   PartialEditSectionModel,
   PartialObjectModel,
   PartialPresentationListModel,
+  PartialRelationshipPickerModel,
   PartialPresentationRowFragmentModel,
   PartialPresentationSectionModel,
   PartialPresentationStateModel,
@@ -20,6 +21,7 @@ import type {
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
   ResolvedPresentationState,
+  ResolvedRelationshipPicker,
   ResolvedShellControl,
   ResolvedShellNavItem,
   ResolvedView,
@@ -588,7 +590,7 @@ function explainEditSectionDefaults(
     ];
   }
 
-  return [
+  const entries: ResolvedModelExplanationEntry[] = [
     {
       path: `${sectionPath}.childObject`,
       value: section.childObject,
@@ -636,6 +638,98 @@ function explainEditSectionDefaults(
         source?.kind === "childCollection" && source.emptyState?.text === undefined
           ? "Edit child collection empty-state text defaulted to an empty string."
           : "Edit child collection empty-state text was supplied by the source model.",
+    },
+  ];
+  if (section.picker !== undefined) {
+    entries.push(
+      ...explainRelationshipPickerDefaults(
+        section.picker,
+        `${sectionPath}.picker`,
+        source?.kind === "childCollection" ? source.picker : undefined,
+      ),
+    );
+  }
+
+  return entries;
+}
+
+function explainRelationshipPickerDefaults(
+  picker: ResolvedRelationshipPicker,
+  pickerPath: string,
+  source: PartialRelationshipPickerModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${pickerPath}.sourceKind`,
+      value: picker.sourceKind,
+      origin: source?.sourceKind === undefined ? "platformDefault" : "source",
+      note:
+        source?.sourceKind === undefined
+          ? "Relationship picker source kind defaulted to object."
+          : "Relationship picker source kind was supplied by the source model.",
+    },
+    {
+      path: `${pickerPath}.source`,
+      value: picker.source,
+      origin: source?.source === undefined ? "platformDefault" : "source",
+      note:
+        source?.source === undefined
+          ? "Relationship picker source defaulted from the child object."
+          : "Relationship picker source was supplied by the source model.",
+    },
+    {
+      path: `${pickerPath}.selection`,
+      value: picker.selection,
+      origin: source?.selection === undefined ? "platformDefault" : "source",
+      note:
+        source?.selection === undefined
+          ? "Relationship picker selection defaulted to multiple."
+          : "Relationship picker selection was supplied by the source model.",
+    },
+    {
+      path: `${pickerPath}.displayFields`,
+      value: picker.displayFields,
+      origin: source?.displayFields === undefined ? "platformDefault" : "source",
+      note:
+        source?.displayFields === undefined
+          ? "Relationship picker display fields defaulted to runtime label fallback."
+          : "Relationship picker display fields were supplied by the source model.",
+    },
+    {
+      path: `${pickerPath}.searchFields`,
+      value: picker.searchFields,
+      origin: source?.searchFields === undefined ? "platformDefault" : "source",
+      note:
+        source?.searchFields === undefined
+          ? "Relationship picker search fields defaulted from display fields or text fields."
+          : "Relationship picker search fields were supplied by the source model.",
+    },
+    {
+      path: `${pickerPath}.sort`,
+      value: picker.sort as unknown as JsonValue,
+      origin: source?.sort === undefined ? "platformDefault" : "source",
+      note:
+        source?.sort === undefined
+          ? "Relationship picker sort defaulted to label and record id ordering."
+          : "Relationship picker sort was supplied by the source model.",
+    },
+    {
+      path: `${pickerPath}.excludeAlreadyLinked`,
+      value: picker.excludeAlreadyLinked,
+      origin: source?.excludeAlreadyLinked === undefined ? "platformDefault" : "source",
+      note:
+        source?.excludeAlreadyLinked === undefined
+          ? "Relationship picker excludes already linked child rows by default."
+          : "Relationship picker linked-row exclusion was supplied by the source model.",
+    },
+    {
+      path: `${pickerPath}.emptyState.text`,
+      value: picker.emptyState.text,
+      origin: source?.emptyState?.text === undefined ? "platformDefault" : "source",
+      note:
+        source?.emptyState?.text === undefined
+          ? "Relationship picker empty-state text default was applied."
+          : "Relationship picker empty-state text was supplied by the source model.",
     },
   ];
 }

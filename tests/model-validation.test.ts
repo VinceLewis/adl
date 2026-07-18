@@ -109,6 +109,66 @@ describe("validateApplicationModel", () => {
     expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
+  it("accepts valid relationship picker declarations", () => {
+    const resolved = resolveApplicationModel(createRelationshipPickerPartialModel());
+
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
+  it("reports invalid relationship picker declarations", () => {
+    const invalidSource = resolveApplicationModel(createRelationshipPickerPartialModel());
+    const event = invalidSource.objects.find((object) => object.name === "Event");
+    const form = event?.views.find((view) => view.name === "EventForm");
+    const section = form?.editSections.find((candidate) => candidate.kind === "childCollection");
+    if (
+      section === undefined ||
+      section.kind !== "childCollection" ||
+      section.picker === undefined
+    ) {
+      throw new Error("Expected valid relationship picker fixture.");
+    }
+
+    section.operations = ["createChild"];
+    section.picker.sourceKind = "readModel";
+    section.picker.source = "MissingCandidates";
+    section.picker.selection = "invalid" as "multiple";
+    section.picker.displayFields = ["MissingDisplay"];
+    section.picker.searchFields = ["MissingSearch"];
+    section.picker.sort = [{ field: "MissingSort", direction: "asc" }];
+
+    expect(validateApplicationModel(invalidSource).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED,
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SELECTION_INVALID,
+      ]),
+    );
+
+    const invalidFields = resolveApplicationModel(createRelationshipPickerPartialModel());
+    const fieldsSection = invalidFields.objects
+      .find((object) => object.name === "Event")
+      ?.views.find((view) => view.name === "EventForm")
+      ?.editSections.find((candidate) => candidate.kind === "childCollection");
+    if (
+      fieldsSection === undefined ||
+      fieldsSection.kind !== "childCollection" ||
+      fieldsSection.picker === undefined
+    ) {
+      throw new Error("Expected valid relationship picker fixture.");
+    }
+    fieldsSection.picker.displayFields = ["MissingDisplay"];
+    fieldsSection.picker.searchFields = ["MissingSearch"];
+    fieldsSection.picker.sort = [{ field: "MissingSort", direction: "asc" }];
+
+    expect(validateApplicationModel(invalidFields).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN,
+      ]),
+    );
+  });
+
   it("does not mutate the resolved model", () => {
     const resolved = resolveApplicationModel(validPartialModel);
     const before = JSON.stringify(resolved);
@@ -867,6 +927,51 @@ function createPresentationPartialModel(): PartialApplicationModel {
           { name: "StartTime", source: "Event", field: "StartTime", type: "time" },
           { name: "Title", source: "Event", field: "Title", type: "text" },
           { name: "EventType", source: "Event", field: "EventType", type: "text" },
+        ],
+      },
+    ],
+  };
+}
+
+function createRelationshipPickerPartialModel(): PartialApplicationModel {
+  return {
+    app: { name: "RelationshipPicker", startView: "EventList" },
+    objects: [
+      {
+        name: "Event",
+        fields: [{ name: "Title", type: "text" }],
+        views: [
+          { name: "EventList", kind: "list", fields: ["Title"] },
+          {
+            name: "EventForm",
+            kind: "form",
+            fields: ["Title"],
+            editSections: [
+              { name: "Details", kind: "fields", fields: ["Title"] },
+              {
+                name: "SetLists",
+                kind: "childCollection",
+                childObject: "SetList",
+                parentField: "Event",
+                operations: ["linkExisting"],
+                picker: {
+                  sourceKind: "object",
+                  source: "SetList",
+                  selection: "multiple",
+                  displayFields: ["Title"],
+                  searchFields: ["Title"],
+                  sort: [{ field: "Title", direction: "asc" }],
+                },
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "SetList",
+        fields: [
+          { name: "Event", type: "text", lookup: { targetObject: "Event", displayField: "Title" } },
+          { name: "Title", type: "text" },
         ],
       },
     ],

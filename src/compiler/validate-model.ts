@@ -57,6 +57,7 @@ import type {
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
   ResolvedPresentationState,
+  ResolvedRelationshipPicker,
   ResolvedViewPresentation,
   ResolvedReadModel,
   ResolvedShell,
@@ -70,6 +71,8 @@ import type {
   ResolvedView,
   ResolvedViewContext,
   RuntimeChannel,
+  RelationshipPickerSelectionMode,
+  RelationshipPickerSourceKind,
   ShellContextSelectorPlacement,
   ShellControlKind,
   ShellControlPlacement,
@@ -301,6 +304,13 @@ export const MODEL_VALIDATION_CODES = {
   READ_MODEL_SOURCE_OBJECT_UNKNOWN: "ADL_READ_MODEL_SOURCE_OBJECT_UNKNOWN",
   READ_MODEL_SOURCE_SCOPE_INVALID: "ADL_READ_MODEL_SOURCE_SCOPE_INVALID",
   READ_MODEL_SORT_FIELD_UNKNOWN: "ADL_READ_MODEL_SORT_FIELD_UNKNOWN",
+  RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN",
+  RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED: "ADL_RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED",
+  RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN",
+  RELATIONSHIP_PICKER_SELECTION_INVALID: "ADL_RELATIONSHIP_PICKER_SELECTION_INVALID",
+  RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN",
+  RELATIONSHIP_PICKER_SOURCE_KIND_INVALID: "ADL_RELATIONSHIP_PICKER_SOURCE_KIND_INVALID",
+  RELATIONSHIP_PICKER_SOURCE_UNKNOWN: "ADL_RELATIONSHIP_PICKER_SOURCE_UNKNOWN",
   SYNC_CONFLICT_INVALID: "ADL_SYNC_CONFLICT_INVALID",
   SYNC_MODE_INVALID: "ADL_SYNC_MODE_INVALID",
   SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
@@ -388,6 +398,14 @@ const PRESENTATION_ACTION_PLACEMENTS = new Set<PresentationActionPlacement>([
   "row",
 ]);
 const PRESENTATION_LIST_SOURCE_KINDS = new Set<PresentationListSourceKind>(["readModel", "object"]);
+const RELATIONSHIP_PICKER_SOURCE_KINDS = new Set<RelationshipPickerSourceKind>([
+  "object",
+  "readModel",
+]);
+const RELATIONSHIP_PICKER_SELECTION_MODES = new Set<RelationshipPickerSelectionMode>([
+  "single",
+  "multiple",
+]);
 const PRESENTATION_LIST_RENDER_STYLES = new Set<PresentationListRenderStyle>([
   "table",
   "feed",
@@ -2649,6 +2667,17 @@ function validateViewEditSections(
           ),
         );
       }
+
+      if (section.picker !== undefined) {
+        validateRelationshipPicker(
+          section.picker,
+          `${sectionPath}.picker`,
+          section,
+          childObject,
+          indexes,
+          diagnostics,
+        );
+      }
     }
 
     for (let operationIndex = 0; operationIndex < section.operations.length; operationIndex += 1) {
@@ -2676,6 +2705,176 @@ function validateViewEditSections(
       );
     }
   }
+}
+
+function validateRelationshipPicker(
+  picker: ResolvedRelationshipPicker,
+  pickerPath: string,
+  section: Extract<ResolvedEditSection, { kind: "childCollection" }>,
+  childObject: ResolvedObject,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!section.operations.includes("linkExisting")) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED,
+        `Relationship picker '${picker.name}' requires edit child collection '${section.name}' to support linkExisting.`,
+        `${pickerPath}.name`,
+      ),
+    );
+  }
+
+  if (!RELATIONSHIP_PICKER_SOURCE_KINDS.has(picker.sourceKind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_KIND_INVALID,
+        `Relationship picker '${picker.name}' has invalid source kind '${String(picker.sourceKind)}'.`,
+        `${pickerPath}.sourceKind`,
+      ),
+    );
+    return;
+  }
+
+  if (!RELATIONSHIP_PICKER_SELECTION_MODES.has(picker.selection)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SELECTION_INVALID,
+        `Relationship picker '${picker.name}' has invalid selection mode '${String(picker.selection)}'.`,
+        `${pickerPath}.selection`,
+      ),
+    );
+  }
+
+  const fields =
+    picker.sourceKind === "object"
+      ? validateObjectRelationshipPickerSource(
+          picker,
+          pickerPath,
+          childObject,
+          indexes,
+          diagnostics,
+        )
+      : validateReadModelRelationshipPickerSource(
+          picker,
+          pickerPath,
+          childObject,
+          indexes,
+          diagnostics,
+        );
+
+  if (fields === undefined) {
+    return;
+  }
+
+  for (let fieldIndex = 0; fieldIndex < picker.displayFields.length; fieldIndex += 1) {
+    const field = picker.displayFields[fieldIndex];
+    if (field === undefined || fields.has(field)) {
+      continue;
+    }
+
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN,
+        `Relationship picker '${picker.name}' displays unknown candidate field '${field}'.`,
+        `${pickerPath}.displayFields[${fieldIndex}]`,
+      ),
+    );
+  }
+
+  for (let fieldIndex = 0; fieldIndex < picker.searchFields.length; fieldIndex += 1) {
+    const field = picker.searchFields[fieldIndex];
+    if (field === undefined || fields.has(field)) {
+      continue;
+    }
+
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN,
+        `Relationship picker '${picker.name}' searches unknown candidate field '${field}'.`,
+        `${pickerPath}.searchFields[${fieldIndex}]`,
+      ),
+    );
+  }
+
+  for (let sortIndex = 0; sortIndex < picker.sort.length; sortIndex += 1) {
+    const sort = picker.sort[sortIndex];
+    if (sort === undefined || fields.has(sort.field)) {
+      continue;
+    }
+
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN,
+        `Relationship picker '${picker.name}' sorts by unknown candidate field '${sort.field}'.`,
+        `${pickerPath}.sort[${sortIndex}].field`,
+      ),
+    );
+  }
+}
+
+function validateObjectRelationshipPickerSource(
+  picker: ResolvedRelationshipPicker,
+  pickerPath: string,
+  childObject: ResolvedObject,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): Set<string> | undefined {
+  const source = indexes.objectsByName.get(picker.source)?.item;
+  if (source === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        `Relationship picker '${picker.name}' references unknown object source '${picker.source}'.`,
+        `${pickerPath}.source`,
+      ),
+    );
+    return undefined;
+  }
+
+  if (source.name !== childObject.name) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        `Relationship picker '${picker.name}' object source '${picker.source}' must be child object '${childObject.name}'.`,
+        `${pickerPath}.source`,
+      ),
+    );
+  }
+
+  return new Set(indexObjectExpressionFields(source).keys());
+}
+
+function validateReadModelRelationshipPickerSource(
+  picker: ResolvedRelationshipPicker,
+  pickerPath: string,
+  childObject: ResolvedObject,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): Set<string> | undefined {
+  const readModel = indexes.readModelsByName.get(picker.source)?.item;
+  if (readModel === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        `Relationship picker '${picker.name}' references unknown read model source '${picker.source}'.`,
+        `${pickerPath}.source`,
+      ),
+    );
+    return undefined;
+  }
+
+  if (!readModel.sources.some((source) => source.object === childObject.name)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        `Relationship picker '${picker.name}' read model '${picker.source}' must include child object '${childObject.name}' as a source.`,
+        `${pickerPath}.source`,
+      ),
+    );
+  }
+
+  return new Set(readModel.fields.map((field) => field.name));
 }
 
 function validateEditContainerMode(

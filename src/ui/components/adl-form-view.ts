@@ -10,6 +10,7 @@ import type { RuntimeContext, RuntimeValidationIssue } from "../../runtime/runti
 import type {
   RuntimeEditSurface,
   RuntimeEditChildCollectionSection,
+  RuntimeRelationshipPickerResult,
 } from "../../runtime/edit-surface-runtime.js";
 import {
   canRunCommand,
@@ -44,8 +45,18 @@ export class AdlFormViewElement extends HTMLElement {
   private _fieldIssues: RuntimeValidationIssue[] = [];
   private _draftValues: Record<string, JsonValue> = {};
   private _editSurface: RuntimeEditSurface | undefined;
+  private pickerResult: RuntimeRelationshipPickerResult | undefined;
+  private pickerLoadingSection: string | undefined;
 
   private readonly handleFormInput = (): void => {
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement.closest(".adl-relationship-picker") !== null
+    ) {
+      return;
+    }
+
     this.dispatchEvent(
       new CustomEvent<DraftRecordDetail>("adl-draft-record", {
         bubbles: true,
@@ -120,6 +131,12 @@ export class AdlFormViewElement extends HTMLElement {
     }
 
     const action = target.closest<HTMLButtonElement>("button[data-child-action]");
+    const pickerButton = target.closest<HTMLButtonElement>("button[data-picker-action]");
+    if (pickerButton !== null) {
+      this.handlePickerButtonClick(event, pickerButton);
+      return;
+    }
+
     if (action === null) {
       return;
     }
@@ -145,6 +162,11 @@ export class AdlFormViewElement extends HTMLElement {
           },
         }),
       );
+      return;
+    }
+
+    if (operation === "linkExisting" && action.dataset.childId === undefined) {
+      void this.openRelationshipPicker(sectionName);
       return;
     }
 
@@ -279,6 +301,7 @@ export class AdlFormViewElement extends HTMLElement {
           ${this.renderEditSections(fields)}
         </div>
       </section>
+      ${this.renderRelationshipPicker()}
     `;
 
     this.configureFields(fields);
@@ -328,21 +351,37 @@ export class AdlFormViewElement extends HTMLElement {
     const addAction = section.actions.find(
       (action) => action.operation === "createChild" && action.visible,
     );
+    const linkAction = section.actions.find(
+      (action) => action.operation === "linkExisting" && action.visible,
+    );
     return `
       <section class="adl-edit-section adl-child-section" data-child-section="${escapeHtml(section.name)}">
         <header class="adl-child-section-header">
           <h3>${escapeHtml(section.heading ?? titleCaseIdentifier(section.name))}</h3>
-          ${
-            addAction === undefined
-              ? ""
-              : `<button
+          <div class="adl-child-section-actions">
+            ${
+              linkAction === undefined || section.picker === undefined
+                ? ""
+                : `<button
+                    type="button"
+                    data-child-action="linkExisting"
+                    data-child-section="${escapeHtml(section.name)}"
+                    data-child-object="${escapeHtml(section.childObject)}"
+                    ${linkAction.enabled ? "" : "disabled"}
+                  >Link</button>`
+            }
+            ${
+              addAction === undefined
+                ? ""
+                : `<button
                   type="button"
                   data-child-action="createChild"
                   data-child-section="${escapeHtml(section.name)}"
                   data-child-object="${escapeHtml(section.childObject)}"
                   ${addAction.enabled ? "" : "disabled"}
                 >Add</button>`
-          }
+            }
+          </div>
         </header>
         ${this.renderChildRows(section)}
         ${this.renderChildDraft(section)}
@@ -380,9 +419,9 @@ export class AdlFormViewElement extends HTMLElement {
                           data-child-section="${escapeHtml(section.name)}"
                           data-child-object="${escapeHtml(section.childObject)}"
                           ${
-                            row.record === undefined
+                            row.source === "staged"
                               ? `data-staged-operation-id="${escapeHtml(row.stagedOperationId ?? "")}"`
-                              : `data-child-id="${escapeHtml(row.record.meta.guid)}"`
+                              : `data-child-id="${escapeHtml(row.record?.meta.guid ?? row.id)}"`
                           }
                           ${action.enabled ? "" : "disabled"}
                         >${escapeHtml(action.operation === "remove" ? "Remove" : titleCaseIdentifier(action.operation))}</button>
@@ -523,6 +562,147 @@ export class AdlFormViewElement extends HTMLElement {
       ),
     );
     actionBar.actions = actions;
+  }
+
+  private async openRelationshipPicker(sectionName: string, text?: string): Promise<void> {
+    if (
+      this._runtime === undefined ||
+      this._object === undefined ||
+      this._view === undefined ||
+      this._context === undefined
+    ) {
+      return;
+    }
+
+    this.pickerLoadingSection = sectionName;
+    this.render();
+    this.pickerResult = await this._runtime.evaluateRelationshipPicker({
+      objectName: this._object.name,
+      viewName: this._view.name,
+      sectionName,
+      context: this._context,
+      ...(this._record === undefined ? {} : { recordId: this._record.meta.guid }),
+      stagedChanges: this._editSurface?.stagedChanges ?? [],
+      query: text === undefined || text.trim().length === 0 ? {} : { text },
+    });
+    this.pickerLoadingSection = undefined;
+    this.render();
+  }
+
+  private handlePickerButtonClick(event: Event, button: HTMLButtonElement): void {
+    event.stopPropagation();
+    const action = button.dataset.pickerAction;
+    if (action === "close") {
+      this.pickerResult = undefined;
+      this.render();
+      return;
+    }
+
+    if (action === "search") {
+      const sectionName = button.dataset.pickerSection;
+      if (sectionName === undefined) {
+        return;
+      }
+      const text =
+        this.querySelector<HTMLInputElement>(
+          `.adl-relationship-picker input[data-picker-search="${cssEscape(sectionName)}"]`,
+        )?.value ?? "";
+      void this.openRelationshipPicker(sectionName, text);
+      return;
+    }
+
+    if (action !== "add" || this.pickerResult === undefined) {
+      return;
+    }
+
+    const selected = [...this.querySelectorAll<HTMLInputElement>("input[data-picker-candidate]")]
+      .filter((input) => input.checked)
+      .map((input) => input.value);
+    if (selected.length === 0) {
+      return;
+    }
+
+    this.dispatchEvent(
+      new CustomEvent<StageChildOperationDetail>("adl-stage-child-operation", {
+        bubbles: true,
+        detail: {
+          section: this.pickerResult.section,
+          operation: "linkExisting",
+          childObject: this.pickerResult.candidates[0]?.source.objectName ?? "",
+          childIds: selected,
+        },
+      }),
+    );
+    this.pickerResult = undefined;
+    this.render();
+  }
+
+  private renderRelationshipPicker(): string {
+    const loadingSection = this.pickerLoadingSection;
+    if (loadingSection !== undefined) {
+      return `
+        <section class="adl-relationship-picker" role="dialog" aria-modal="true">
+          <div class="adl-relationship-picker-panel">
+            <p>Loading...</p>
+          </div>
+        </section>
+      `;
+    }
+
+    const result = this.pickerResult;
+    if (result === undefined) {
+      return "";
+    }
+
+    const inputType = result.picker.selection === "single" ? "radio" : "checkbox";
+    return `
+      <section class="adl-relationship-picker" role="dialog" aria-modal="true">
+        <div class="adl-relationship-picker-panel">
+          <header class="adl-relationship-picker-header">
+            <h3>${escapeHtml(titleCaseIdentifier(result.picker.name))}</h3>
+            <button type="button" data-picker-action="close">Close</button>
+          </header>
+          <div class="adl-relationship-picker-search">
+            <input
+              type="search"
+              data-picker-search="${escapeHtml(result.section)}"
+              placeholder="Search"
+            />
+            <button
+              type="button"
+              data-picker-action="search"
+              data-picker-section="${escapeHtml(result.section)}"
+            >Search</button>
+          </div>
+          ${
+            result.candidates.length === 0
+              ? `<div class="adl-empty">${escapeHtml(result.picker.emptyState.text)}</div>`
+              : `<div class="adl-relationship-picker-list">
+                  ${result.candidates
+                    .map(
+                      (candidate) => `
+                        <label class="adl-relationship-picker-row">
+                          <input
+                            type="${inputType}"
+                            name="adl-picker-${escapeHtml(result.section)}"
+                            data-picker-candidate="${escapeHtml(result.section)}"
+                            value="${escapeHtml(candidate.id)}"
+                          />
+                          <span>${escapeHtml(candidate.label)}</span>
+                        </label>
+                      `,
+                    )
+                    .join("")}
+                </div>`
+          }
+          <footer class="adl-relationship-picker-footer">
+            <button type="button" data-picker-action="add" ${
+              result.candidates.length === 0 ? "disabled" : ""
+            }>Add</button>
+          </footer>
+        </div>
+      </section>
+    `;
   }
 
   private collectValues(): Record<string, JsonValue> {

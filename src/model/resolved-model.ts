@@ -50,6 +50,8 @@ export type PresentationStatePersistence = "memory" | "session" | "local";
 export type PresentationControlKind = "toggle" | "select" | "action" | "contextSelector";
 export type PresentationActionPlacement = "primary" | "secondary" | "row";
 export type PresentationListSourceKind = "readModel" | "object";
+export type RelationshipPickerSourceKind = "object" | "readModel";
+export type RelationshipPickerSelectionMode = "single" | "multiple";
 export type PresentationListRenderStyle = "table" | "feed" | "compactFeed" | "cards";
 export type PresentationRowLayout = "inline" | "stack";
 export type PresentationFragmentStyle = "plain" | "bold" | "muted" | "caption";
@@ -532,9 +534,26 @@ export interface ResolvedEditChildCollectionSection extends ResolvedEditSectionB
   staged: boolean;
   orderField?: string;
   emptyState: ResolvedEditChildCollectionEmptyState;
+  picker?: ResolvedRelationshipPicker;
 }
 
 export interface ResolvedEditChildCollectionEmptyState {
+  text: string;
+}
+
+export interface ResolvedRelationshipPicker {
+  name: string;
+  sourceKind: RelationshipPickerSourceKind;
+  source: string;
+  selection: RelationshipPickerSelectionMode;
+  displayFields: string[];
+  searchFields: string[];
+  sort: ResolvedSort[];
+  excludeAlreadyLinked: boolean;
+  emptyState: ResolvedRelationshipPickerEmptyState;
+}
+
+export interface ResolvedRelationshipPickerEmptyState {
   text: string;
 }
 
@@ -1197,9 +1216,26 @@ export interface PartialEditChildCollectionSectionModel extends PartialEditSecti
   staged?: boolean;
   orderField?: string;
   emptyState?: PartialEditChildCollectionEmptyStateModel;
+  picker?: PartialRelationshipPickerModel;
 }
 
 export interface PartialEditChildCollectionEmptyStateModel {
+  text?: string;
+}
+
+export interface PartialRelationshipPickerModel {
+  name?: string;
+  sourceKind?: RelationshipPickerSourceKind;
+  source?: string;
+  selection?: RelationshipPickerSelectionMode;
+  displayFields?: string[];
+  searchFields?: string[];
+  sort?: ResolvedSort[];
+  excludeAlreadyLinked?: boolean;
+  emptyState?: PartialRelationshipPickerEmptyStateModel;
+}
+
+export interface PartialRelationshipPickerEmptyStateModel {
   text?: string;
 }
 

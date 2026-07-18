@@ -595,6 +595,18 @@ runtime services after the parent save succeeds. ADL source syntax for authored
 child edit sections is not implemented yet; JSON/TypeScript partial models can
 use the resolved contract.
 
+Child collection sections can now declare relationship pickers for
+`linkExisting` operations. The generic browser renderer opens a modal picker,
+supports single-select or multi-select candidate choices, renders empty
+candidate states as neutral empty states, and stages selected child ids back
+through the existing `linkExisting` child-operation flow. Picker candidate
+sources may be the child object or a read model containing the child object.
+Candidate loading goes through `ApplicationRuntime.evaluateRelationshipPicker`,
+so policy and context scoping apply before search text, already-linked
+exclusion, and picker ordering. ADL source syntax for authored picker blocks is
+not implemented yet; JSON/TypeScript partial models can use the resolved
+contract.
+
 The generic browser shell renders application navigation through a hamburger
 drawer from resolved shell nav metadata rather than exposing a raw view selector
 in the top bar. The top bar is reserved for app identity, model-declared shell

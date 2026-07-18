@@ -204,6 +204,22 @@ Those paths continue to enforce validation, policy, constraints, sync, audit,
 and operation-log behavior. Cancelling a create/edit container discards the
 caller-held staged operation list.
 
+Relationship picker candidates evaluate through
+`ApplicationRuntime.evaluateRelationshipPicker`. The runtime loads candidates
+from the picker object source through policy-enforcing object search, or from
+the picker read-model source through read-model execution. Picker search,
+already-linked exclusion, and deterministic sorting run only after those
+runtime reads have applied context scoping and read policy. Object-backed
+pickers use the child object record id. Read-model-backed pickers use the
+source reference for the child object.
+
+`linkExisting` picker output is represented as explicit staged child operations.
+Multi-select output is ordered deterministically by picker sort, display label,
+and record id before the browser stages the selected child ids. Applying staged
+links rejects duplicate child ids in the same batch and rejects stale attempts
+to link a child row that is already linked to the same parent. Model-declared
+constraints are still enforced by the normal create/update transaction path.
+
 The deterministic formatter currently supports:
 
 - dates with `yyyy`, `yy`, `MMM`, `MM`, `M`, `dd`, `d`, and `EEE`

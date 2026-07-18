@@ -303,16 +303,18 @@ export class AdlAppElement extends HTMLElement {
         (operation) => operation.id !== detail.stagedOperationId,
       );
     } else {
+      const childIds =
+        detail.childIds ?? (detail.childId === undefined ? [undefined] : [detail.childId]);
       this.stagedChildChanges = [
         ...this.stagedChildChanges,
-        {
-          id: `child-${Date.now()}-${this.stagedChildChanges.length + 1}`,
+        ...childIds.map((childId, index) => ({
+          id: `child-${Date.now()}-${this.stagedChildChanges.length + index + 1}`,
           section: detail.section,
           operation: detail.operation,
           childObject: detail.childObject,
-          ...(detail.childId === undefined ? {} : { childId: detail.childId }),
+          ...(childId === undefined ? {} : { childId }),
           ...(detail.values === undefined ? {} : { values: detail.values }),
-        },
+        })),
       ];
     }
 

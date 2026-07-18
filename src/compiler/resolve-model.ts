@@ -46,6 +46,7 @@ import type {
   PartialObjectSyncPolicyModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
+  PartialRelationshipPickerModel,
   PartialPresentationControlModel,
   PartialPresentationEmptyStateModel,
   PartialPresentationFormatModel,
@@ -117,6 +118,7 @@ import type {
   ResolvedPresentationShell,
   ResolvedPresentationShellRegion,
   ResolvedPresentationState,
+  ResolvedRelationshipPicker,
   ResolvedPrincipalSelector,
   ResolvedReadModel,
   ResolvedReadModelField,
@@ -687,8 +689,31 @@ function resolveEditSections(
       emptyState: {
         text: section.emptyState?.text ?? "",
       },
+      ...(section.picker === undefined
+        ? {}
+        : { picker: resolveRelationshipPicker(section.picker, section) }),
     };
   });
+}
+
+function resolveRelationshipPicker(
+  input: PartialRelationshipPickerModel,
+  section: Extract<PartialEditSectionModel, { kind: "childCollection" }>,
+): ResolvedRelationshipPicker {
+  const sourceKind = input.sourceKind ?? "object";
+  return {
+    name: input.name ?? `${section.name}Picker`,
+    sourceKind,
+    source: input.source ?? (sourceKind === "object" ? section.childObject : ""),
+    selection: input.selection ?? "multiple",
+    displayFields: [...(input.displayFields ?? [])],
+    searchFields: [...(input.searchFields ?? [])],
+    sort: [...(input.sort ?? [])].map(resolveSort),
+    excludeAlreadyLinked: input.excludeAlreadyLinked ?? true,
+    emptyState: {
+      text: input.emptyState?.text ?? "No records available to link.",
+    },
+  };
 }
 
 function resolveViewPresentation(

@@ -4,19 +4,32 @@ import type {
   ResolvedApplicationModel,
   ResolvedEditChildCollectionSection,
   ResolvedEditFieldsSection,
+  ResolvedRelationshipPicker,
   ResolvedEditSection,
   ResolvedField,
   ResolvedObject,
+  ResolvedSort,
   ResolvedView,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { RuntimeModelError, RuntimeValidationError, cloneJson } from "./runtime-types.js";
 import type { PolicyDecision, RuntimeContext, RuntimeLogger } from "./runtime-types.js";
+import type { RuntimeReadModelResult, RuntimeReadModelRow } from "./runtime-types.js";
 
 export interface RuntimeEditSurfaceDataSource {
   read(objectName: string, id: string, context: RuntimeContext): Promise<StoredObjectRecord | null>;
   search(objectName: string, context: RuntimeContext): Promise<StoredObjectRecord[]>;
+  searchWithQuery(
+    objectName: string,
+    query: { text?: string; fields?: string[]; sort?: ResolvedSort[]; limit?: number },
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord[]>;
+  executeReadModel(
+    readModelName: string,
+    context: RuntimeContext,
+    query: { sort?: ResolvedSort[]; limit?: number },
+  ): Promise<RuntimeReadModelResult>;
   create(
     objectName: string,
     values: Record<string, JsonValue>,
@@ -87,8 +100,21 @@ export interface RuntimeEditChildCollectionSection {
   staged: boolean;
   orderField?: string;
   emptyState: { text: string };
+  picker?: RuntimeRelationshipPickerSummary;
   rows: RuntimeEditChildRow[];
   actions: RuntimeEditChildAction[];
+}
+
+export interface RuntimeRelationshipPickerSummary {
+  name: string;
+  sourceKind: ResolvedRelationshipPicker["sourceKind"];
+  source: string;
+  selection: ResolvedRelationshipPicker["selection"];
+  displayFields: string[];
+  searchFields: string[];
+  sort: ResolvedSort[];
+  excludeAlreadyLinked: boolean;
+  emptyState: { text: string };
 }
 
 export interface RuntimeEditChildRow {
@@ -115,6 +141,40 @@ export interface RuntimeStagedChildOperation {
   childId?: string;
   values?: Record<string, JsonValue>;
   position?: number;
+}
+
+export interface RuntimeRelationshipPickerEvaluationInput {
+  objectName: string;
+  viewName: string;
+  sectionName: string;
+  context: RuntimeContext;
+  recordId?: string;
+  stagedChanges?: RuntimeStagedChildOperation[];
+  query?: RuntimeRelationshipPickerQuery;
+}
+
+export interface RuntimeRelationshipPickerQuery {
+  text?: string;
+  limit?: number;
+}
+
+export interface RuntimeRelationshipPickerResult {
+  object: string;
+  view: string;
+  section: string;
+  picker: RuntimeRelationshipPickerSummary;
+  candidates: RuntimeRelationshipPickerCandidate[];
+  diagnostics: RuntimeEditSurfaceDiagnostic[];
+}
+
+export interface RuntimeRelationshipPickerCandidate {
+  id: string;
+  label: string;
+  values: Record<string, JsonValue>;
+  source:
+    | { kind: "object"; objectName: string; recordId: string }
+    | { kind: "readModel"; readModel: string; rowId: string; objectName: string; recordId: string };
+  alreadyLinked: boolean;
 }
 
 export interface RuntimeApplyStagedChildInput {
@@ -232,6 +292,7 @@ export class EditSurfaceRuntime {
         .map((section) => [section.name, section]),
     );
     const applied: RuntimeAppliedChildOperation[] = [];
+    this.requireNoDuplicateLinkOperations(input.stagedChanges, sectionsByName);
 
     for (const operation of input.stagedChanges.map(cloneStagedOperation)) {
       const section = sectionsByName.get(operation.section);
@@ -266,6 +327,75 @@ export class EditSurfaceRuntime {
     };
   }
 
+  async evaluateRelationshipPicker(
+    input: RuntimeRelationshipPickerEvaluationInput,
+  ): Promise<RuntimeRelationshipPickerResult> {
+    const parentObject = this.index.getObject(input.objectName);
+    const view = getView(parentObject, input.viewName);
+    const section = view.editSections.find(
+      (candidate): candidate is ResolvedEditChildCollectionSection =>
+        candidate.kind === "childCollection" && candidate.name === input.sectionName,
+    );
+    if (section === undefined) {
+      throw new RuntimeModelError(
+        `Edit child collection '${input.sectionName}' does not exist on view '${view.name}'.`,
+        { objectName: parentObject.name, viewName: view.name, sectionName: input.sectionName },
+      );
+    }
+
+    if (section.picker === undefined) {
+      throw new RuntimeModelError(
+        `Edit child collection '${section.name}' does not declare a relationship picker.`,
+        { objectName: parentObject.name, viewName: view.name, sectionName: section.name },
+      );
+    }
+
+    const parent =
+      input.recordId === undefined
+        ? undefined
+        : ((await this.dataSource.read(parentObject.name, input.recordId, input.context)) ??
+          undefined);
+    const childObject = this.index.getObject(section.childObject);
+    const stagedChanges = input.stagedChanges ?? [];
+    const diagnostics: RuntimeEditSurfaceDiagnostic[] = [];
+    const linkedIds = await this.getAlreadyLinkedChildIds(section, input.context, parent);
+    for (const staged of stagedChanges) {
+      if (
+        staged.section === section.name &&
+        staged.operation === "linkExisting" &&
+        staged.childId !== undefined
+      ) {
+        linkedIds.add(staged.childId);
+      }
+    }
+
+    const candidates = await this.loadPickerCandidates({
+      picker: section.picker,
+      childObject,
+      context: input.context,
+      query: input.query ?? {},
+      linkedIds,
+    });
+
+    if (candidates.length === 0) {
+      diagnostics.push({
+        severity: "warning",
+        code: "ADL_RUNTIME_RELATIONSHIP_PICKER_EMPTY",
+        message: section.picker.emptyState.text || "No records available to link.",
+        section: section.name,
+      });
+    }
+
+    return {
+      object: parentObject.name,
+      view: view.name,
+      section: section.name,
+      picker: summarizePicker(section.picker),
+      candidates,
+      diagnostics,
+    };
+  }
+
   private async evaluateChildCollectionSection(input: {
     section: ResolvedEditChildCollectionSection;
     parentObject: ResolvedObject;
@@ -286,23 +416,11 @@ export class EditSurfaceRuntime {
               (record) => record.values[input.section.parentField] === input.record?.meta.guid,
             )
             .map((record) => this.toPersistedChildRow(record, input.section, input.context));
-    const stagedRows = input.stagedChanges
-      .filter((operation) => operation.section === input.section.name)
-      .filter((operation) => operation.operation === "createChild")
-      .map((operation) => ({
-        id: operation.id,
-        source: "staged" as const,
-        values: cloneJson(operation.values ?? {}),
-        stagedOperationId: operation.id,
-        actions: [
-          {
-            operation: "remove" as const,
-            visible: true,
-            enabled: true,
-            reasons: [],
-          },
-        ],
-      }));
+    const stagedRows = await this.evaluateStagedChildRows(
+      input.section,
+      input.stagedChanges,
+      input.context,
+    );
 
     return {
       name: input.section.name,
@@ -316,6 +434,9 @@ export class EditSurfaceRuntime {
       staged: input.section.staged,
       ...(input.section.orderField === undefined ? {} : { orderField: input.section.orderField }),
       emptyState: { ...input.section.emptyState },
+      ...(input.section.picker === undefined
+        ? {}
+        : { picker: summarizePicker(input.section.picker) }),
       rows: [...persistedRows, ...stagedRows],
       actions: input.section.operations.map((operation) =>
         this.evaluateCollectionAction(
@@ -346,6 +467,44 @@ export class EditSurfaceRuntime {
           this.evaluateRowAction(operation, childObject, section, context, record),
         ),
     };
+  }
+
+  private async evaluateStagedChildRows(
+    section: ResolvedEditChildCollectionSection,
+    stagedChanges: RuntimeStagedChildOperation[],
+    context: RuntimeContext,
+  ): Promise<RuntimeEditChildRow[]> {
+    const rows: RuntimeEditChildRow[] = [];
+    for (const operation of stagedChanges) {
+      if (operation.section !== section.name) {
+        continue;
+      }
+
+      if (operation.operation === "createChild") {
+        rows.push({
+          id: operation.id,
+          source: "staged",
+          values: cloneJson(operation.values ?? {}),
+          stagedOperationId: operation.id,
+          actions: [removeStagedAction()],
+        });
+        continue;
+      }
+
+      if (operation.operation === "linkExisting" && operation.childId !== undefined) {
+        const child = await this.dataSource.read(section.childObject, operation.childId, context);
+        rows.push({
+          id: operation.id,
+          source: "staged",
+          values: cloneJson(child?.values ?? {}),
+          ...(child === null ? {} : { record: child }),
+          stagedOperationId: operation.id,
+          actions: [removeStagedAction()],
+        });
+      }
+    }
+
+    return rows;
   }
 
   private evaluateCollectionAction(
@@ -438,6 +597,14 @@ export class EditSurfaceRuntime {
     }
 
     if (operation.operation === "linkExisting") {
+      const existing = await this.dataSource.read(section.childObject, operation.childId, context);
+      if (existing !== null && existing.values[section.parentField] === parent.meta.guid) {
+        throw duplicateLinkOperation(
+          operation,
+          `Child record '${operation.childId}' is already linked to parent record '${parent.meta.guid}'.`,
+        );
+      }
+
       const linked = await this.dataSource.update(
         section.childObject,
         operation.childId,
@@ -493,6 +660,136 @@ export class EditSurfaceRuntime {
       `Staged child operation '${operation.operation}' is not supported.`,
     );
   }
+
+  private requireNoDuplicateLinkOperations(
+    operations: RuntimeStagedChildOperation[],
+    sectionsByName: Map<string, ResolvedEditChildCollectionSection>,
+  ): void {
+    const seen = new Set<string>();
+    for (const operation of operations) {
+      if (operation.operation !== "linkExisting" || operation.childId === undefined) {
+        continue;
+      }
+
+      const section = sectionsByName.get(operation.section);
+      const key = `${operation.section}\0${section?.childObject ?? operation.childObject}\0${operation.childId}`;
+      if (seen.has(key)) {
+        throw duplicateLinkOperation(
+          operation,
+          `Staged link operation '${operation.id}' duplicates child record '${operation.childId}' in section '${operation.section}'.`,
+        );
+      }
+      seen.add(key);
+    }
+  }
+
+  private async getAlreadyLinkedChildIds(
+    section: ResolvedEditChildCollectionSection,
+    context: RuntimeContext,
+    parent: StoredObjectRecord | undefined,
+  ): Promise<Set<string>> {
+    if (parent === undefined) {
+      return new Set();
+    }
+
+    const childRecords = await this.dataSource.search(section.childObject, context);
+    return new Set(
+      childRecords
+        .filter((record) => record.values[section.parentField] === parent.meta.guid)
+        .map((record) => record.meta.guid),
+    );
+  }
+
+  private async loadPickerCandidates(input: {
+    picker: ResolvedRelationshipPicker;
+    childObject: ResolvedObject;
+    context: RuntimeContext;
+    query: RuntimeRelationshipPickerQuery;
+    linkedIds: Set<string>;
+  }): Promise<RuntimeRelationshipPickerCandidate[]> {
+    const candidates =
+      input.picker.sourceKind === "object"
+        ? await this.loadObjectPickerCandidates(input)
+        : await this.loadReadModelPickerCandidates(input);
+    const filtered = input.picker.excludeAlreadyLinked
+      ? candidates.filter((candidate) => !input.linkedIds.has(candidate.id))
+      : candidates;
+    const sorted = sortPickerCandidates(filtered, input.picker.sort);
+    return input.query.limit === undefined || input.query.limit < 0
+      ? sorted
+      : sorted.slice(0, input.query.limit);
+  }
+
+  private async loadObjectPickerCandidates(input: {
+    picker: ResolvedRelationshipPicker;
+    childObject: ResolvedObject;
+    context: RuntimeContext;
+    query: RuntimeRelationshipPickerQuery;
+    linkedIds: Set<string>;
+  }): Promise<RuntimeRelationshipPickerCandidate[]> {
+    const searchFields = pickerSearchFields(input.picker, input.childObject);
+    const records = await this.dataSource.searchWithQuery(
+      input.childObject.name,
+      {
+        ...(input.query.text === undefined ? {} : { text: input.query.text }),
+        fields: searchFields,
+        sort: input.picker.sort,
+      },
+      input.context,
+    );
+
+    return records.map((record) => ({
+      id: record.meta.guid,
+      label: pickerCandidateLabel(input.picker, input.childObject, record.values, record.meta.guid),
+      values: cloneJson(record.values),
+      source: { kind: "object", objectName: input.childObject.name, recordId: record.meta.guid },
+      alreadyLinked: input.linkedIds.has(record.meta.guid),
+    }));
+  }
+
+  private async loadReadModelPickerCandidates(input: {
+    picker: ResolvedRelationshipPicker;
+    childObject: ResolvedObject;
+    context: RuntimeContext;
+    query: RuntimeRelationshipPickerQuery;
+    linkedIds: Set<string>;
+  }): Promise<RuntimeRelationshipPickerCandidate[]> {
+    const result = await this.dataSource.executeReadModel(input.picker.source, input.context, {
+      sort: input.picker.sort,
+    });
+    const rows =
+      input.query.text === undefined || input.query.text.trim().length === 0
+        ? result.rows
+        : filterReadModelPickerRows(result.rows, input.picker, input.query.text);
+
+    return rows
+      .map((row) => {
+        const source = Object.values(row.sources).find(
+          (candidate) => candidate.objectName === input.childObject.name,
+        );
+        if (source === undefined) {
+          return undefined;
+        }
+
+        const candidate: RuntimeRelationshipPickerCandidate = {
+          id: source.recordId,
+          label: pickerCandidateLabel(input.picker, input.childObject, row.values, source.recordId),
+          values: cloneJson(row.values),
+          source: {
+            kind: "readModel" as const,
+            readModel: result.readModel.name,
+            rowId: row.id,
+            objectName: source.objectName,
+            recordId: source.recordId,
+          },
+          alreadyLinked: input.linkedIds.has(source.recordId),
+        };
+        return candidate;
+      })
+      .filter(
+        (candidate): candidate is RuntimeRelationshipPickerCandidate => candidate !== undefined,
+      );
+  }
 }
 
 function evaluateFieldsSection(
@@ -537,11 +834,141 @@ function getView(object: ResolvedObject, viewName: string): ResolvedView {
   return view;
 }
 
+function removeStagedAction(): RuntimeEditChildAction {
+  return {
+    operation: "remove",
+    visible: true,
+    enabled: true,
+    reasons: [],
+  };
+}
+
 function cloneStagedOperation(operation: RuntimeStagedChildOperation): RuntimeStagedChildOperation {
   return {
     ...operation,
     ...(operation.values === undefined ? {} : { values: cloneJson(operation.values) }),
   };
+}
+
+function summarizePicker(picker: ResolvedRelationshipPicker): RuntimeRelationshipPickerSummary {
+  return {
+    name: picker.name,
+    sourceKind: picker.sourceKind,
+    source: picker.source,
+    selection: picker.selection,
+    displayFields: [...picker.displayFields],
+    searchFields: [...picker.searchFields],
+    sort: picker.sort.map((sort) => ({ ...sort })),
+    excludeAlreadyLinked: picker.excludeAlreadyLinked,
+    emptyState: { ...picker.emptyState },
+  };
+}
+
+function pickerSearchFields(
+  picker: ResolvedRelationshipPicker,
+  childObject: ResolvedObject,
+): string[] {
+  if (picker.searchFields.length > 0) {
+    return [...picker.searchFields];
+  }
+
+  const defaults = pickerDisplayFields(picker, childObject).filter((fieldName) =>
+    childObject.fields.some((field) => field.name === fieldName && field.type === "text"),
+  );
+  if (defaults.length > 0) {
+    return defaults;
+  }
+
+  const firstTextField = childObject.fields.find((field) => field.type === "text");
+  return firstTextField === undefined ? [] : [firstTextField.name];
+}
+
+function pickerDisplayFields(
+  picker: ResolvedRelationshipPicker,
+  childObject: ResolvedObject,
+): string[] {
+  if (picker.displayFields.length > 0) {
+    return [...picker.displayFields];
+  }
+
+  return [childObject.displayField, childObject.businessKey, childObject.fields[0]?.name].filter(
+    (field): field is string => field !== undefined,
+  );
+}
+
+function pickerCandidateLabel(
+  picker: ResolvedRelationshipPicker,
+  childObject: ResolvedObject,
+  values: Record<string, JsonValue>,
+  fallback: string,
+): string {
+  const parts = pickerDisplayFields(picker, childObject)
+    .map((field) => values[field])
+    .filter((value): value is Exclude<JsonValue, null | undefined> => {
+      return (
+        value !== undefined && value !== null && !Array.isArray(value) && typeof value !== "object"
+      );
+    })
+    .map((value) => String(value).trim())
+    .filter((value) => value.length > 0);
+
+  return parts.length === 0 ? fallback : parts.join(" - ");
+}
+
+function filterReadModelPickerRows(
+  rows: RuntimeReadModelRow[],
+  picker: ResolvedRelationshipPicker,
+  text: string,
+): RuntimeReadModelRow[] {
+  const needle = text.trim().toLowerCase();
+  if (needle.length === 0) {
+    return rows;
+  }
+
+  const fields = picker.searchFields.length > 0 ? picker.searchFields : picker.displayFields;
+  return rows.filter((row) => {
+    const values =
+      fields.length === 0 ? Object.values(row.values) : fields.map((field) => row.values[field]);
+    return values.some((value) => primitiveText(value).toLowerCase().includes(needle));
+  });
+}
+
+function sortPickerCandidates(
+  candidates: RuntimeRelationshipPickerCandidate[],
+  sort: ResolvedSort[],
+): RuntimeRelationshipPickerCandidate[] {
+  return [...candidates].sort((left, right) => {
+    for (const item of sort) {
+      const comparison = compareJsonValues(left.values[item.field], right.values[item.field]);
+      if (comparison !== 0) {
+        return item.direction === "desc" ? -comparison : comparison;
+      }
+    }
+
+    const labelComparison = left.label.localeCompare(right.label, "en");
+    return labelComparison === 0 ? left.id.localeCompare(right.id, "en") : labelComparison;
+  });
+}
+
+function compareJsonValues(left: JsonValue | undefined, right: JsonValue | undefined): number {
+  const leftText = primitiveText(left);
+  const rightText = primitiveText(right);
+  const leftNumber = typeof left === "number" ? left : Number.NaN;
+  const rightNumber = typeof right === "number" ? right : Number.NaN;
+  if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber)) {
+    return leftNumber - rightNumber;
+  }
+  return leftText.localeCompare(rightText, "en", { numeric: true });
+}
+
+function primitiveText(value: JsonValue | undefined): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (Array.isArray(value) || typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
 }
 
 function appliedOperation(
@@ -560,6 +987,16 @@ function unsupportedOperation(operation: RuntimeStagedChildOperation, message: s
   throw new RuntimeValidationError("Staged child changes could not be applied.", [
     {
       code: "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED",
+      message,
+      path: `stagedChanges.${operation.id}`,
+    },
+  ]);
+}
+
+function duplicateLinkOperation(operation: RuntimeStagedChildOperation, message: string): never {
+  throw new RuntimeValidationError("Staged relationship links could not be applied.", [
+    {
+      code: "ADL_RUNTIME_RELATIONSHIP_PICKER_DUPLICATE",
       message,
       path: `stagedChanges.${operation.id}`,
     },

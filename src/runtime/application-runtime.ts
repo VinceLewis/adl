@@ -18,6 +18,8 @@ import type {
   RuntimeApplyStagedChildResult,
   RuntimeEditSurface,
   RuntimeEditSurfaceEvaluationInput,
+  RuntimeRelationshipPickerEvaluationInput,
+  RuntimeRelationshipPickerResult,
 } from "./edit-surface-runtime.js";
 import { LifecycleEngine } from "./lifecycle-engine.js";
 import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
@@ -139,6 +141,9 @@ export class ApplicationRuntime {
       {
         read: (objectName, id, context) => this.read(objectName, id, context),
         search: (objectName, context) => this.search(objectName, {}, context),
+        searchWithQuery: (objectName, query, context) => this.search(objectName, query, context),
+        executeReadModel: (readModelName, context, query) =>
+          this.executeReadModel(readModelName, context, query),
         create: (objectName, values, context) => this.create(objectName, values, context),
         update: (objectName, id, patch, context) => this.update(objectName, id, patch, context),
         delete: (objectName, id, context) => this.delete(objectName, id, context),
@@ -458,6 +463,26 @@ export class ApplicationRuntime {
       objectName: input.objectName,
       viewName: input.viewName,
       count: result.applied.length,
+    });
+    return result;
+  }
+
+  async evaluateRelationshipPicker(
+    input: RuntimeRelationshipPickerEvaluationInput,
+  ): Promise<RuntimeRelationshipPickerResult> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.evaluateRelationshipPicker", {
+      objectName: input.objectName,
+      viewName: input.viewName,
+      sectionName: input.sectionName,
+      context: safeContextLog(input.context),
+    });
+    const result = await this.editSurfaceRuntime.evaluateRelationshipPicker(input);
+    this.logger.debug("EXIT ApplicationRuntime.evaluateRelationshipPicker", {
+      objectName: input.objectName,
+      viewName: input.viewName,
+      sectionName: input.sectionName,
+      count: result.candidates.length,
     });
     return result;
   }

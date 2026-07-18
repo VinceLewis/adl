@@ -114,8 +114,24 @@ child lookup field that points at the parent object, an optional child view for
 display fields, supported operations, staged-change behavior, optional order
 field, and empty-state text. The implemented child operation names are
 `createChild`, `linkExisting`, `updateChild`, `unlink`, `remove`, and
-`reorder`. These declarations are renderer-neutral; they describe edit
-composition and relationship intent, not browser components or storage tables.
+`reorder`.
+
+Child collections that support `linkExisting` may declare a renderer-neutral
+`picker`:
+
+- `sourceKind`: `object` or `readModel`
+- `source`: child object name for object sources, or read-model name for
+  read-model sources
+- `selection`: `single` or `multiple`
+- `displayFields`, `searchFields`, and `sort` over candidate fields
+- `excludeAlreadyLinked`, which defaults to true
+- picker `emptyState.text`
+
+Object picker sources must be the child object. Read-model picker sources must
+include the child object as one source so each candidate can resolve to a
+deterministic child record id. These declarations are renderer-neutral; they
+describe edit composition and relationship intent, not browser components or
+storage tables.
 
 Resolved views may include an optional `presentation` contract. This is
 renderer-neutral JSON-compatible data consumed by UI runtimes, not parser AST

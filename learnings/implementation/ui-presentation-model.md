@@ -88,6 +88,20 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   parent exists, in caller-supplied order, through normal runtime create/update/
   delete APIs. Cancelling a browser form clears the staged list without writing
   child records.
+- Phase 34 added relationship pickers to child collection edit sections.
+  `ResolvedEditChildCollectionSection.picker` is optional and supports object
+  or read-model candidate sources, single or multiple selection, display/search
+  fields, sort, already-linked exclusion, and picker empty text. Runtime
+  candidate evaluation is exposed through
+  `ApplicationRuntime.evaluateRelationshipPicker(...)` and must run before
+  browser rendering or staging.
+- Picker candidates are policy and context scoped first because object sources
+  call runtime `search` and read-model sources call `executeReadModel`.
+  Picker-specific search text, exclusion of already-linked rows, and stable
+  sorting run only after those authorized reads. Applying staged links still
+  goes through `applyStagedChildChanges(...)`, which now rejects duplicate
+  `linkExisting` operations and stale links to the same parent before normal
+  update constraints run.
 
 ## Practical Guidance
 
@@ -102,6 +116,10 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - Browser parent-child rendering should consume evaluated edit surfaces and
   dispatch staged child operations back to the app container. It should not
   write child objects directly from child-section DOM handlers.
+- Browser relationship picker rendering should consume
+  `ApplicationRuntime.evaluateRelationshipPicker(...)` output and dispatch
+  selected candidates as staged `linkExisting` child operations. It should not
+  query candidate objects directly or infer already-linked rows from DOM state.
 - Browser toggle controls should update view-local presentation state and
   request re-evaluation. They are not durable fields and should not call object
   create/update APIs unless a future model declaration explicitly binds them to
