@@ -163,9 +163,13 @@ Implemented presentation declarations include:
 - sections with headings, controls, and lists
 - resource/date matrices with row sources, date column axes, cell sources,
   unset status handling, and optional edit behavior
+- month calendars with object/read-model sources, date fields, week-start
+  metadata, local-state month navigation, cell summaries, semantic statuses,
+  and cell actions
 - toggle, select, action, and context-selector controls
 - action placement metadata for primary, secondary, and row-level controls
-- command and navigation action bindings with renderer-neutral command inputs
+- command, navigation, and create-form action bindings with renderer-neutral
+  inputs
 - read-model-backed or object-backed presentation lists
 - list render style, density, fields, sort, filters, and empty states
 - optional list status bindings with one or more direct or mapped status
@@ -177,13 +181,14 @@ Implemented presentation declarations include:
 - optional shell regions such as top bar, bottom bar, and sidebar in resolved
   JSON/TypeScript partial models
 
-Presentation references are validated against the resolved model. Lists and
-matrices must reference known read models or objects. Row fragments, list
-fields, matrix row and cell fields, matrix edit targets, sort fields, filters,
-icon maps, controls, local state, commands, command action inputs, action
-visibility predicates, target views, contexts, status maps, status names,
-status map fields, legends, and shell controls produce structured diagnostics
-when invalid.
+Presentation references are validated against the resolved model. Lists,
+matrices, and calendars must reference known read models or objects. Row
+fragments, list fields, matrix row and cell fields, matrix edit targets,
+calendar date/title/summary fields, sort fields, filters, icon maps, controls,
+local state, commands, command action inputs, action visibility predicates,
+target views, create targets, contexts, status maps, status names, status map
+fields, legends, and shell controls produce structured diagnostics when
+invalid.
 
 ## Shell
 

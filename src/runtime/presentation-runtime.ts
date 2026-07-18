@@ -9,6 +9,7 @@ import type {
   ResolvedExpression,
   PresentationRowLayout,
   ResolvedApplicationModel,
+  ResolvedPresentationCalendar,
   ResolvedPresentationControl,
   ResolvedPresentationEmptyState,
   ResolvedPresentationFormat,
@@ -24,6 +25,7 @@ import type {
   ResolvedPresentationStatusCandidate,
   ResolvedPresentationStatusMap,
   ResolvedPresentationState,
+  PresentationCalendarWeekStart,
   ResolvedSort,
   ResolvedView,
   StoredObjectRecord,
@@ -50,6 +52,8 @@ export interface RuntimePresentationDiagnostic {
     | "ADL_PRESENTATION_STATE_UNKNOWN"
     | "ADL_PRESENTATION_STATE_TYPE_MISMATCH"
     | "ADL_PRESENTATION_LIST_BINDING_FAILED"
+    | "ADL_PRESENTATION_CALENDAR_BINDING_FAILED"
+    | "ADL_PRESENTATION_CALENDAR_DATE_INVALID"
     | "ADL_PRESENTATION_MATRIX_BINDING_FAILED"
     | "ADL_PRESENTATION_MATRIX_COLUMN_INVALID"
     | "ADL_PRESENTATION_MATRIX_EDIT_UNAVAILABLE"
@@ -103,6 +107,7 @@ export interface RuntimePresentationSection {
   controls: RuntimePresentationControl[];
   lists: RuntimePresentationList[];
   matrices: RuntimePresentationMatrix[];
+  calendars: RuntimePresentationCalendar[];
 }
 
 export type RuntimePresentationControl =
@@ -146,6 +151,10 @@ export interface RuntimePresentationActionControl extends RuntimePresentationCon
   input: Record<string, JsonValue>;
   command?: string;
   view?: string;
+  create?: {
+    object?: string;
+    view?: string;
+  };
 }
 
 export interface RuntimePresentationContextSelectorControl extends RuntimePresentationControlBase {
@@ -220,6 +229,57 @@ export interface RuntimePresentationMatrixEditMetadata {
   unsetValue?: JsonPrimitive | null;
   unsetAsAbsence: boolean;
   bulkBehavior: ResolvedPresentationMatrixEdit["bulkBehavior"];
+}
+
+export interface RuntimePresentationCalendar {
+  name: string;
+  density: ResolvedPresentationCalendar["density"];
+  sourceKind: ResolvedPresentationCalendar["sourceKind"];
+  source: string;
+  month: RuntimePresentationCalendarMonth;
+  weekdays: RuntimePresentationCalendarWeekday[];
+  cells: RuntimePresentationCalendarCell[];
+  emptyState?: RuntimePresentationEmptyState;
+}
+
+export interface RuntimePresentationCalendarMonth {
+  value: string;
+  label: string;
+  state?: string;
+  previous?: string;
+  next?: string;
+  canNavigatePrevious: boolean;
+  canNavigateNext: boolean;
+}
+
+export interface RuntimePresentationCalendarWeekday {
+  key: PresentationCalendarWeekStart;
+  label: string;
+}
+
+export interface RuntimePresentationCalendarCell {
+  date: string;
+  day: number;
+  inMonth: boolean;
+  withinRange: boolean;
+  isToday: boolean;
+  values: Record<string, JsonValue>;
+  status?: RuntimePresentationStatus;
+  statusCounts: Record<string, number>;
+  eventCount: number;
+  hasConflict: boolean;
+  accessibleLabel: string;
+  items: RuntimePresentationCalendarItem[];
+  actions: RuntimePresentationActionControl[];
+}
+
+export interface RuntimePresentationCalendarItem {
+  id: string;
+  title: string;
+  summary: string;
+  values: Record<string, JsonValue>;
+  sources: RuntimePresentationRowSource[];
+  status?: RuntimePresentationStatus;
 }
 
 export interface RuntimePresentationEmptyState {
@@ -521,6 +581,7 @@ export class PresentationRuntime {
     );
     const lists: RuntimePresentationList[] = [];
     const matrices: RuntimePresentationMatrix[] = [];
+    const calendars: RuntimePresentationCalendar[] = [];
 
     for (const [listIndex, list] of section.lists.entries()) {
       lists.push(
@@ -550,6 +611,20 @@ export class PresentationRuntime {
       );
     }
 
+    for (const [calendarIndex, calendar] of section.calendars.entries()) {
+      calendars.push(
+        await this.evaluateCalendar(
+          calendar,
+          view,
+          state,
+          context,
+          diagnostics,
+          `${path}.calendars[${calendarIndex}]`,
+          section.name,
+        ),
+      );
+    }
+
     return {
       name: section.name,
       ...(section.heading === undefined ? {} : { heading: section.heading }),
@@ -558,6 +633,7 @@ export class PresentationRuntime {
       controls,
       lists,
       matrices,
+      calendars,
     };
   }
 
@@ -667,6 +743,223 @@ export class PresentationRuntime {
       density: list.density,
       rows,
       ...(emptyState === undefined ? {} : { emptyState }),
+    };
+  }
+
+  private async evaluateCalendar(
+    calendar: ResolvedPresentationCalendar,
+    view: ResolvedView,
+    state: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    path: string,
+    section: string,
+  ): Promise<RuntimePresentationCalendar> {
+    const boundRows = sortPresentationRows(
+      await this.bindCalendarRows(calendar, context, diagnostics, path, section),
+      calendar.sort,
+    );
+    const month = resolveCalendarMonth(calendar, state, context, diagnostics, path, section);
+    const cells = buildCalendarCells(calendar, month.value, context, diagnostics, path, section);
+    const rowsByDate = groupCalendarRowsByDate(calendar, boundRows, diagnostics, path, section);
+
+    const evaluatedCells = cells.map((cell, index) =>
+      this.evaluateCalendarCell(
+        calendar,
+        view,
+        cell,
+        rowsByDate.get(cell.date) ?? [],
+        state,
+        context,
+        diagnostics,
+        {
+          path: `${path}.cells[${index}]`,
+          section,
+        },
+      ),
+    );
+    const hasEvents = evaluatedCells.some((cell) => cell.eventCount > 0);
+    const emptyState =
+      hasEvents || calendar.emptyState.text.length === 0
+        ? undefined
+        : this.evaluateEmptyState(calendar.emptyState, view, state, diagnostics, {
+            path: `${path}.emptyState`,
+            section,
+          });
+
+    return {
+      name: calendar.name,
+      density: calendar.density,
+      sourceKind: calendar.sourceKind,
+      source: calendar.source,
+      month,
+      weekdays: calendarWeekdays(calendar.month.weekStart),
+      cells: evaluatedCells,
+      ...(emptyState === undefined ? {} : { emptyState }),
+    };
+  }
+
+  private async bindCalendarRows(
+    calendar: ResolvedPresentationCalendar,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    path: string,
+    section: string,
+  ): Promise<BoundPresentationRow[]> {
+    try {
+      if (calendar.sourceKind === "readModel") {
+        const result = await this.dataSource.executeReadModel(calendar.source, context, {
+          sort: calendar.sort,
+        });
+        return result.rows.map(readModelRowToPresentationRow);
+      }
+
+      const records = await this.dataSource.search(
+        calendar.source,
+        { sort: calendar.sort },
+        context,
+      );
+      return records.map(objectRecordToPresentationRow);
+    } catch (error) {
+      diagnostics.push({
+        severity: "error",
+        code: "ADL_PRESENTATION_CALENDAR_BINDING_FAILED",
+        message: `Calendar '${calendar.name}' could not bind source '${calendar.source}'.`,
+        path,
+        section,
+      });
+      this.logger.debug("PresentationRuntime calendar binding failed", {
+        calendar: calendar.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private evaluateCalendarCell(
+    calendar: ResolvedPresentationCalendar,
+    view: ResolvedView,
+    cell: CalendarGridCell,
+    rows: BoundPresentationRow[],
+    state: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationCalendarCell {
+    const items = rows.map((row, index) =>
+      this.evaluateCalendarItem(calendar, view, row, state, diagnostics, {
+        ...location,
+        path: `${location.path}.items[${index}]`,
+      }),
+    );
+    const statusCounts = countCalendarStatuses(items);
+    const hasConflict = items.some((item) => item.status?.name === "conflict");
+    const cellStatus =
+      items.length === 0
+        ? undefined
+        : chooseEffectiveStatus(
+            items
+              .map((item) => item.status)
+              .filter((status): status is RuntimePresentationStatus => status !== undefined),
+            view,
+          );
+    const values: Record<string, JsonValue> = {
+      Date: cell.date,
+      EventCount: items.length,
+      HasEvents: items.length > 0,
+      HasConflict: hasConflict,
+    };
+    const actions = cell.withinRange
+      ? calendar.actions
+          .map((action, index) => {
+            const actionIcon = this.resolveIcon(action.icon, view, state, values, diagnostics, {
+              ...location,
+              path: `${location.path}.actions[${index}].icon`,
+            });
+            return this.evaluateActionControl(
+              action,
+              {
+                name: action.name,
+                kind: "action",
+                ...(action.label === undefined ? {} : { label: action.label }),
+                ...(actionIcon === undefined ? {} : { icon: actionIcon }),
+              },
+              view,
+              state,
+              values,
+              context,
+              diagnostics,
+              {
+                ...location,
+                path: `${location.path}.actions[${index}]`,
+              },
+            );
+          })
+          .filter((action) => action.visible)
+      : [];
+    const accessibleLabel =
+      items.length === 0
+        ? `${cell.date}: no events`
+        : `${cell.date}: ${items.length} event${items.length === 1 ? "" : "s"}${
+            hasConflict ? ", conflict" : ""
+          }`;
+
+    return {
+      date: cell.date,
+      day: cell.day,
+      inMonth: cell.inMonth,
+      withinRange: cell.withinRange,
+      isToday: cell.isToday,
+      values,
+      ...(cellStatus === undefined ? {} : { status: cellStatus }),
+      statusCounts,
+      eventCount: items.length,
+      hasConflict,
+      accessibleLabel,
+      items,
+      actions,
+    };
+  }
+
+  private evaluateCalendarItem(
+    calendar: ResolvedPresentationCalendar,
+    view: ResolvedView,
+    row: BoundPresentationRow,
+    state: Record<string, JsonValue>,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationCalendarItem {
+    const status =
+      calendar.status === undefined
+        ? undefined
+        : this.evaluateStatusCandidates(
+            calendar.name,
+            calendar.status.candidates,
+            view,
+            row.values,
+            state,
+            diagnostics,
+            location,
+          );
+    const titleValue =
+      calendar.titleField === undefined ? row.id : (row.values[calendar.titleField] ?? row.id);
+    const title = primitiveToText(titleValue, diagnostics, {
+      ...location,
+      field: calendar.titleField,
+    });
+    const summary = calendar.summaryFields
+      .map((field) => row.values[field])
+      .filter((value) => value !== undefined && value !== null && value !== "")
+      .map((value) => primitiveToText(value, diagnostics, location))
+      .join(" ");
+
+    return {
+      id: row.id,
+      title,
+      summary,
+      values: cloneJson(row.values),
+      sources: row.sources.map((source) => ({ ...source })),
+      ...(status === undefined ? {} : { status }),
     };
   }
 
@@ -1260,6 +1553,14 @@ export class PresentationRuntime {
       input: actionInput.input,
       ...(control.command === undefined ? {} : { command: control.command }),
       ...(control.view === undefined ? {} : { view: control.view }),
+      ...(control.create === undefined
+        ? {}
+        : {
+            create: {
+              ...(control.create.object === undefined ? {} : { object: control.create.object }),
+              ...(control.create.view === undefined ? {} : { view: control.create.view }),
+            },
+          }),
     };
   }
 
@@ -1696,6 +1997,18 @@ export class PresentationRuntime {
           }
         }
       }
+      for (const calendar of section.calendars) {
+        for (const cell of calendar.cells) {
+          if (cell.status !== undefined) {
+            presentStatuses.add(cell.status.name);
+          }
+          for (const item of cell.items) {
+            if (item.status !== undefined) {
+              presentStatuses.add(item.status.name);
+            }
+          }
+        }
+      }
     }
 
     return presentation.legends
@@ -1910,6 +2223,231 @@ interface DiagnosticLocation {
   section?: string | undefined;
   list?: string | undefined;
   field?: string | undefined;
+}
+
+interface CalendarGridCell {
+  date: string;
+  day: number;
+  inMonth: boolean;
+  withinRange: boolean;
+  isToday: boolean;
+}
+
+const CALENDAR_WEEKDAYS: PresentationCalendarWeekStart[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+const CALENDAR_MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function resolveCalendarMonth(
+  calendar: ResolvedPresentationCalendar,
+  state: Record<string, JsonValue>,
+  context: RuntimeContext,
+  diagnostics: RuntimePresentationDiagnostic[],
+  path: string,
+  section?: string,
+): RuntimePresentationCalendarMonth {
+  const stateValue = calendar.month.state === undefined ? undefined : state[calendar.month.state];
+  const rawMonth =
+    typeof stateValue === "string" && stateValue.trim().length > 0
+      ? stateValue
+      : calendar.month.value;
+  const month = normaliseCalendarMonth(rawMonth) ?? "1970-01";
+  if (rawMonth !== undefined && normaliseCalendarMonth(rawMonth) === undefined) {
+    diagnostics.push({
+      severity: "warning",
+      code: "ADL_PRESENTATION_CALENDAR_DATE_INVALID",
+      message: `Calendar '${calendar.name}' month value '${rawMonth}' is not an ISO month or date.`,
+      path: `${path}.month`,
+      section,
+    });
+  }
+
+  const previous = shiftIsoMonth(month, -1);
+  const next = shiftIsoMonth(month, 1);
+  const minMonth = normaliseCalendarMonth(calendar.month.minDate);
+  const maxMonth = normaliseCalendarMonth(calendar.month.maxDate);
+  const labelDate = `${month}-01`;
+
+  return {
+    value: month,
+    label:
+      calendar.month.labelFormat === undefined
+        ? defaultMonthLabel(month)
+        : formatPresentationValue(labelDate, calendar.month.labelFormat, diagnostics, {
+            path: `${path}.month.labelFormat`,
+            section,
+          }),
+    ...(calendar.month.state === undefined ? {} : { state: calendar.month.state }),
+    previous,
+    next,
+    canNavigatePrevious: minMonth === undefined || previous >= minMonth,
+    canNavigateNext: maxMonth === undefined || next <= maxMonth,
+  };
+}
+
+function buildCalendarCells(
+  calendar: ResolvedPresentationCalendar,
+  month: string,
+  context: RuntimeContext,
+  diagnostics: RuntimePresentationDiagnostic[],
+  path: string,
+  section?: string,
+): CalendarGridCell[] {
+  const firstOfMonth = parseIsoDate(`${month}-01`);
+  if (firstOfMonth === undefined) {
+    diagnostics.push({
+      severity: "error",
+      code: "ADL_PRESENTATION_CALENDAR_DATE_INVALID",
+      message: `Calendar '${calendar.name}' has an invalid month '${month}'.`,
+      path: `${path}.month`,
+      section,
+    });
+    return [];
+  }
+
+  const weekStartIndex = CALENDAR_WEEKDAYS.indexOf(calendar.month.weekStart);
+  const offset = (firstOfMonth.getUTCDay() - weekStartIndex + 7) % 7;
+  const gridStart = addUtcDays(firstOfMonth, -offset);
+  const minDate = normaliseCalendarDate(calendar.month.minDate);
+  const maxDate = normaliseCalendarDate(calendar.month.maxDate);
+  const today =
+    context.now === undefined || Number.isNaN(context.now.getTime())
+      ? undefined
+      : context.now.toISOString().slice(0, 10);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = addUtcDays(gridStart, index).toISOString().slice(0, 10);
+    return {
+      date,
+      day: Number(date.slice(8, 10)),
+      inMonth: date.startsWith(`${month}-`),
+      withinRange:
+        (minDate === undefined || date >= minDate) && (maxDate === undefined || date <= maxDate),
+      isToday: today === date,
+    };
+  });
+}
+
+function groupCalendarRowsByDate(
+  calendar: ResolvedPresentationCalendar,
+  rows: BoundPresentationRow[],
+  diagnostics: RuntimePresentationDiagnostic[],
+  path: string,
+  section?: string,
+): Map<string, BoundPresentationRow[]> {
+  const rowsByDate = new Map<string, BoundPresentationRow[]>();
+  for (const row of rows) {
+    const date = normaliseCalendarDate(row.values[calendar.dateField]);
+    if (date === undefined) {
+      diagnostics.push({
+        severity: "warning",
+        code: "ADL_PRESENTATION_CALENDAR_DATE_INVALID",
+        message: `Calendar '${calendar.name}' row has invalid date field '${calendar.dateField}'.`,
+        path: `${path}.dateField`,
+        section,
+        field: calendar.dateField,
+      });
+      continue;
+    }
+    rowsByDate.set(date, [...(rowsByDate.get(date) ?? []), row]);
+  }
+  return rowsByDate;
+}
+
+function calendarWeekdays(
+  weekStart: PresentationCalendarWeekStart,
+): RuntimePresentationCalendarWeekday[] {
+  const start = CALENDAR_WEEKDAYS.indexOf(weekStart);
+  return Array.from({ length: 7 }, (_, index) => {
+    const key = CALENDAR_WEEKDAYS[(start + index) % 7] ?? "monday";
+    return {
+      key,
+      label: titleCaseWord(key).slice(0, 3),
+    };
+  });
+}
+
+function countCalendarStatuses(items: RuntimePresentationCalendarItem[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    if (item.status !== undefined) {
+      counts[item.status.name] = (counts[item.status.name] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+function chooseEffectiveStatus(
+  statuses: RuntimePresentationStatus[],
+  view: ResolvedView,
+): RuntimePresentationStatus | undefined {
+  if (statuses.length === 0) {
+    return undefined;
+  }
+  const statusOrder = new Map(
+    (view.presentation?.statuses ?? []).map((status, index) => [status.name, index]),
+  );
+  return [...statuses].sort((left, right) => {
+    if (left.precedence !== right.precedence) {
+      return right.precedence - left.precedence;
+    }
+    return (statusOrder.get(left.name) ?? 0) - (statusOrder.get(right.name) ?? 0);
+  })[0];
+}
+
+function normaliseCalendarMonth(value: JsonValue | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  if (/^\d{4}-\d{2}$/.test(value) && parseIsoDate(`${value}-01`) !== undefined) {
+    return value;
+  }
+  const date = normaliseCalendarDate(value);
+  return date?.slice(0, 7);
+}
+
+function normaliseCalendarDate(value: JsonValue | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const date = /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : value.slice(0, 10);
+  return parseIsoDate(date) === undefined ? undefined : date;
+}
+
+function shiftIsoMonth(month: string, delta: number): string {
+  const year = Number(month.slice(0, 4));
+  const monthIndex = Number(month.slice(5, 7)) - 1 + delta;
+  const shifted = new Date(Date.UTC(year, monthIndex, 1));
+  return shifted.toISOString().slice(0, 7);
+}
+
+function defaultMonthLabel(month: string): string {
+  const monthIndex = Number(month.slice(5, 7)) - 1;
+  return `${CALENDAR_MONTH_NAMES[monthIndex] ?? month.slice(5, 7)} ${month.slice(0, 4)}`;
+}
+
+function titleCaseWord(value: string): string {
+  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }
 
 function buildDateColumns(

@@ -6,6 +6,8 @@ import type {
   PresentationDensity,
   PresentationFormatKind,
   PresentationFragmentStyle,
+  PresentationCalendarSourceKind,
+  PresentationCalendarWeekStart,
   PresentationLegendInclude,
   PresentationLayout,
   PresentationActionPlacement,
@@ -65,6 +67,7 @@ export type BlockName =
   | "SECTION"
   | "TOGGLE"
   | "LIST"
+  | "CALENDAR"
   | "ROW"
   | "ICON_MAP"
   | "STATUS_MAP"
@@ -435,6 +438,7 @@ export interface PresentationSectionDeclarationAst {
   density?: PresentationDensity;
   controls: PresentationControlDeclarationAst[];
   lists: PresentationListDeclarationAst[];
+  calendars: PresentationCalendarDeclarationAst[];
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -461,6 +465,8 @@ export interface PresentationActionControlDeclarationAst {
   placement?: PresentationActionPlacement;
   command?: string;
   view?: string;
+  createObject?: string;
+  createView?: string;
   input: PresentationActionInputDeclarationAst[];
   visibleWhen?: ResolvedExpression;
   end: EndMarkerNode;
@@ -487,6 +493,29 @@ export interface PresentationListDeclarationAst {
   statusCandidates: PresentationStatusCandidateDeclarationAst[];
   actions: PresentationActionControlDeclarationAst[];
   row?: PresentationRowTemplateDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationCalendarDeclarationAst {
+  kind: "PresentationCalendarDeclaration";
+  name: string;
+  sourceKind?: PresentationCalendarSourceKind;
+  source: string;
+  dateField?: string;
+  titleField?: string;
+  summaryFields: string[];
+  fields: string[];
+  sort: SortDeclarationAst[];
+  density?: PresentationDensity;
+  monthValue?: string;
+  monthState?: string;
+  weekStart?: PresentationCalendarWeekStart;
+  minDate?: string;
+  maxDate?: string;
+  statusCandidates: PresentationStatusCandidateDeclarationAst[];
+  actions: PresentationActionControlDeclarationAst[];
+  emptyText?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }

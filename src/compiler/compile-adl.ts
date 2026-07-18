@@ -15,6 +15,7 @@ import type {
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
   PresentationActionControlDeclarationAst,
+  PresentationCalendarDeclarationAst,
   PresentationControlDeclarationAst,
   PresentationIconMapDeclarationAst,
   PresentationIconRefDeclarationAst,
@@ -53,6 +54,7 @@ import type {
   PartialPolicyModel,
   PartialPolicyRuleModel,
   PartialPresentationControlModel,
+  PartialPresentationCalendarModel,
   PartialPresentationIconMapModel,
   PartialPresentationIconRefModel,
   PartialPresentationLegendModel,
@@ -624,6 +626,7 @@ function presentationSectionToPartial(
     ...(section.density === undefined ? {} : { density: section.density }),
     controls: section.controls.map(presentationControlToPartial),
     lists: section.lists.map(presentationListToPartial),
+    calendars: section.calendars.map(presentationCalendarToPartial),
   };
 }
 
@@ -654,6 +657,14 @@ function presentationActionToPartial(
     ...(action.placement === undefined ? {} : { placement: action.placement }),
     ...(action.command === undefined ? {} : { command: action.command }),
     ...(action.view === undefined ? {} : { view: action.view }),
+    ...(action.createObject === undefined && action.createView === undefined
+      ? {}
+      : {
+          create: {
+            ...(action.createObject === undefined ? {} : { object: action.createObject }),
+            ...(action.createView === undefined ? {} : { view: action.createView }),
+          },
+        }),
     ...(action.input.length === 0
       ? {}
       : {
@@ -687,6 +698,43 @@ function presentationListToPartial(
       ? {}
       : { actions: list.actions.map((action) => presentationActionToPartial(action)) }),
     ...(list.row === undefined ? {} : { row: presentationRowTemplateToPartial(list.row) }),
+  };
+}
+
+function presentationCalendarToPartial(
+  calendar: PresentationCalendarDeclarationAst,
+): PartialPresentationCalendarModel {
+  return {
+    name: calendar.name,
+    ...(calendar.sourceKind === undefined ? {} : { sourceKind: calendar.sourceKind }),
+    source: calendar.source,
+    dateField: calendar.dateField ?? "Date",
+    ...(calendar.titleField === undefined ? {} : { titleField: calendar.titleField }),
+    ...(calendar.summaryFields.length === 0 ? {} : { summaryFields: [...calendar.summaryFields] }),
+    ...(calendar.fields.length === 0 ? {} : { fields: [...calendar.fields] }),
+    sort: calendar.sort.map((sort) => ({
+      field: sort.field,
+      direction: sort.direction,
+    })),
+    ...(calendar.density === undefined ? {} : { density: calendar.density }),
+    month: {
+      ...(calendar.monthValue === undefined ? {} : { value: calendar.monthValue }),
+      ...(calendar.monthState === undefined ? {} : { state: calendar.monthState }),
+      ...(calendar.weekStart === undefined ? {} : { weekStart: calendar.weekStart }),
+      ...(calendar.minDate === undefined ? {} : { minDate: calendar.minDate }),
+      ...(calendar.maxDate === undefined ? {} : { maxDate: calendar.maxDate }),
+    },
+    ...(calendar.statusCandidates.length === 0
+      ? {}
+      : {
+          status: {
+            candidates: calendar.statusCandidates.map(presentationStatusCandidateToPartial),
+          },
+        }),
+    ...(calendar.actions.length === 0
+      ? {}
+      : { actions: calendar.actions.map((action) => presentationActionToPartial(action)) }),
+    ...(calendar.emptyText === undefined ? {} : { emptyState: { text: calendar.emptyText } }),
   };
 }
 

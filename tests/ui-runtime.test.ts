@@ -612,6 +612,54 @@ describe("browser UI runtime", () => {
     );
   });
 
+  it("renders composed calendars and opens date-prefilled create forms", async () => {
+    const model = createCalendarUiModel();
+    const runtime = new ApplicationRuntime(model);
+    const context: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "ui",
+      now: new Date("2026-08-02T09:00:00.000Z"),
+    };
+    await runtime.create(
+      "Event",
+      { Date: "2026-08-01", StartTime: "18:00", EventType: "Gig", Title: "First set" },
+      context,
+    );
+    await runtime.create(
+      "Event",
+      { Date: "2026-08-01", StartTime: "19:00", EventType: "Rehearsal", Title: "Warm up" },
+      context,
+    );
+    await runtime.create(
+      "Event",
+      { Date: "2026-08-01", StartTime: "20:00", EventType: "Gig", Title: "Headline" },
+      context,
+    );
+
+    const app = await mountApp(model, runtime, context);
+
+    expect(app.querySelector("[data-presentation-calendar='MonthPlanner']")).not.toBeNull();
+    expect(app.textContent).toContain("August 2026");
+    expect(app.querySelector("[data-calendar-cell='2026-08-01'] details")).not.toBeNull();
+    expect(app.querySelector("[data-calendar-agenda-day='2026-08-01']")).not.toBeNull();
+
+    requireElement<HTMLButtonElement>(app, "button[aria-label='Next month']").click();
+    await waitForText(app, "September 2026");
+
+    requireElement<HTMLButtonElement>(
+      app,
+      "[data-calendar-cell='2026-09-04'] button[data-create-object='Event']",
+    ).click();
+    await waitForText(app, "New Event");
+
+    expect(app.querySelector(".adl-edit-container-modal adl-form-view")).not.toBeNull();
+    expect(
+      requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='Date'] input")
+        .value,
+    ).toBe("2026-09-04");
+  });
+
   it("renders policy-shaped CRUD row actions from view action metadata", async () => {
     const model = createBrowserDemoModel();
     const userList = model.objects
@@ -1167,6 +1215,123 @@ function createMatrixUiModel(): ResolvedApplicationModel {
         rules: [
           {
             name: "allowAdminAllAvailability",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createCalendarUiModel(): ResolvedApplicationModel {
+  return resolveApplicationModel({
+    app: { name: "CalendarUi", startView: "Calendar" },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Event",
+        fields: [
+          { name: "Date", type: "date", required: true },
+          { name: "StartTime", type: "time" },
+          { name: "EventType", type: "text", required: true },
+          { name: "Title", type: "text", required: true },
+        ],
+        views: [
+          {
+            name: "Calendar",
+            kind: "composite",
+            fields: ["Date", "StartTime", "EventType", "Title"],
+            presentation: {
+              state: [{ name: "visibleMonth", type: "date", defaultValue: "2026-08-01" }],
+              iconMaps: [
+                {
+                  name: "EventIcon",
+                  field: "EventType",
+                  values: [
+                    { value: "Gig", icon: "music" },
+                    { value: "Rehearsal", icon: "microphone" },
+                  ],
+                  defaultIcon: "calendar",
+                },
+              ],
+              statuses: [
+                {
+                  name: "event",
+                  label: "Gig",
+                  icon: { kind: "map", map: "EventIcon", value: "Gig" },
+                },
+                {
+                  name: "rehearsal",
+                  label: "Rehearsal",
+                  icon: { kind: "map", map: "EventIcon", value: "Rehearsal" },
+                },
+              ],
+              statusMaps: [
+                {
+                  name: "EventTypeStatus",
+                  field: "EventType",
+                  values: [
+                    { value: "Gig", status: "event" },
+                    { value: "Rehearsal", status: "rehearsal" },
+                  ],
+                },
+              ],
+              sections: [
+                {
+                  name: "Calendar",
+                  calendars: [
+                    {
+                      name: "MonthPlanner",
+                      sourceKind: "object",
+                      source: "Event",
+                      dateField: "Date",
+                      titleField: "Title",
+                      summaryFields: ["StartTime"],
+                      sort: [
+                        { field: "Date", direction: "asc" },
+                        { field: "StartTime", direction: "asc" },
+                      ],
+                      month: { state: "visibleMonth", weekStart: "monday" },
+                      status: { candidates: [{ kind: "map", map: "EventTypeStatus" }] },
+                      actions: [
+                        {
+                          name: "addEventOnDate",
+                          kind: "action",
+                          label: "Add Event",
+                          create: { object: "Event" },
+                          input: { Date: { kind: "field", field: "Date" } },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            name: "EventList",
+            kind: "list",
+            fields: ["Date", "StartTime", "EventType", "Title"],
+            actions: ["create", "read", "update", "delete"],
+          },
+          {
+            name: "EventForm",
+            kind: "form",
+            fields: ["Date", "StartTime", "EventType", "Title"],
+            actions: ["save"],
+          },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "EventPolicy",
+        object: "Event",
+        rules: [
+          {
+            name: "allowAdminAllEventActions",
             effect: "allow",
             principal: { match: "specific", roles: ["Admin"] },
             action: "*",

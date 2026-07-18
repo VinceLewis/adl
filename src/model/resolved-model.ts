@@ -51,8 +51,17 @@ export type PresentationControlKind = "toggle" | "select" | "action" | "contextS
 export type PresentationActionPlacement = "primary" | "secondary" | "row";
 export type PresentationListSourceKind = "readModel" | "object";
 export type PresentationMatrixSourceKind = "readModel" | "object";
+export type PresentationCalendarSourceKind = "readModel" | "object";
 export type PresentationMatrixColumnKind = "dateRange";
 export type PresentationMatrixBulkBehavior = "sequentialValidatedWrites";
+export type PresentationCalendarWeekStart =
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
 export type RelationshipPickerSourceKind = "object" | "readModel";
 export type RelationshipPickerSelectionMode = "single" | "multiple";
 export type PresentationListRenderStyle = "table" | "feed" | "compactFeed" | "cards";
@@ -637,6 +646,7 @@ export interface ResolvedPresentationSection {
   controls: ResolvedPresentationControl[];
   lists: ResolvedPresentationList[];
   matrices: ResolvedPresentationMatrix[];
+  calendars: ResolvedPresentationCalendar[];
 }
 
 export type ResolvedPresentationControl =
@@ -674,8 +684,14 @@ export interface ResolvedPresentationActionControl extends ResolvedPresentationC
   placement: PresentationActionPlacement;
   command?: string;
   view?: string;
+  create?: ResolvedPresentationCreateTarget;
   input: Record<string, ResolvedExpression>;
   visibleWhen?: ResolvedExpression;
+}
+
+export interface ResolvedPresentationCreateTarget {
+  object?: string;
+  view?: string;
 }
 
 export interface ResolvedPresentationContextSelectorControl
@@ -751,6 +767,31 @@ export interface ResolvedPresentationMatrixEdit {
   unsetValue?: JsonPrimitive | null;
   unsetAsAbsence: boolean;
   bulkBehavior: PresentationMatrixBulkBehavior;
+}
+
+export interface ResolvedPresentationCalendar {
+  name: string;
+  density: PresentationDensity;
+  sourceKind: PresentationCalendarSourceKind;
+  source: string;
+  dateField: string;
+  titleField?: string;
+  summaryFields: string[];
+  fields: string[];
+  sort: ResolvedSort[];
+  month: ResolvedPresentationCalendarMonth;
+  status?: ResolvedPresentationStatusBinding;
+  actions: ResolvedPresentationActionControl[];
+  emptyState: ResolvedPresentationEmptyState;
+}
+
+export interface ResolvedPresentationCalendarMonth {
+  value?: string;
+  state?: string;
+  weekStart: PresentationCalendarWeekStart;
+  minDate?: string;
+  maxDate?: string;
+  labelFormat?: ResolvedPresentationFormat;
 }
 
 export interface ResolvedPresentationStatusBinding {
@@ -1429,6 +1470,7 @@ export interface PartialPresentationSectionModel {
   controls?: PartialPresentationControlModel[];
   lists?: PartialPresentationListModel[];
   matrices?: PartialPresentationMatrixModel[];
+  calendars?: PartialPresentationCalendarModel[];
 }
 
 export type PartialPresentationControlModel =
@@ -1466,8 +1508,14 @@ export interface PartialPresentationActionControlModel extends PartialPresentati
   placement?: PresentationActionPlacement;
   command?: string;
   view?: string;
+  create?: PartialPresentationCreateTargetModel;
   input?: Record<string, ResolvedExpression>;
   visibleWhen?: PartialPolicyConditionModel;
+}
+
+export interface PartialPresentationCreateTargetModel {
+  object?: string;
+  view?: string;
 }
 
 export interface PartialPresentationContextSelectorControlModel
@@ -1543,6 +1591,31 @@ export interface PartialPresentationMatrixEditModel {
   unsetValue?: JsonPrimitive | null;
   unsetAsAbsence?: boolean;
   bulkBehavior?: PresentationMatrixBulkBehavior;
+}
+
+export interface PartialPresentationCalendarModel {
+  name: string;
+  density?: PresentationDensity;
+  sourceKind?: PresentationCalendarSourceKind;
+  source: string;
+  dateField: string;
+  titleField?: string;
+  summaryFields?: string[];
+  fields?: string[];
+  sort?: ResolvedSort[];
+  month?: PartialPresentationCalendarMonthModel;
+  status?: PartialPresentationStatusBindingModel;
+  actions?: PartialPresentationActionControlModel[];
+  emptyState?: PartialPresentationEmptyStateModel;
+}
+
+export interface PartialPresentationCalendarMonthModel {
+  value?: string;
+  state?: string;
+  weekStart?: PresentationCalendarWeekStart;
+  minDate?: string;
+  maxDate?: string;
+  labelFormat?: PartialPresentationFormatModel;
 }
 
 export interface PartialPresentationStatusBindingModel {

@@ -1,5 +1,7 @@
 import type {
   RuntimePresentationActionControl,
+  RuntimePresentationCalendar,
+  RuntimePresentationCalendarCell,
   RuntimePresentationControl,
   RuntimePresentationFragment,
   RuntimePresentationIcon,
@@ -21,7 +23,17 @@ export interface PresentationActionDetail {
   name: string;
   command?: string;
   view?: string;
+  create?: {
+    object?: string;
+    view?: string;
+  };
   input: Record<string, unknown>;
+}
+
+export interface PresentationCalendarNavigateDetail {
+  calendar: string;
+  state: string;
+  value: string;
 }
 
 export interface PresentationMatrixCellCycleDetail {
@@ -66,7 +78,36 @@ export class AdlComposedViewElement extends HTMLElement {
             name: action.dataset.actionName ?? "",
             ...(action.dataset.command === undefined ? {} : { command: action.dataset.command }),
             ...(action.dataset.view === undefined ? {} : { view: action.dataset.view }),
+            ...(action.dataset.createObject === undefined && action.dataset.createView === undefined
+              ? {}
+              : {
+                  create: {
+                    ...(action.dataset.createObject === undefined
+                      ? {}
+                      : { object: action.dataset.createObject }),
+                    ...(action.dataset.createView === undefined
+                      ? {}
+                      : { view: action.dataset.createView }),
+                  },
+                }),
             input: JSON.parse(action.dataset.input ?? "{}") as Record<string, unknown>,
+          },
+        }),
+      );
+      return;
+    }
+
+    const calendarNav = target.closest<HTMLButtonElement>(
+      "button[data-presentation-calendar-nav='true']",
+    );
+    if (calendarNav !== null && !calendarNav.disabled) {
+      this.dispatchEvent(
+        new CustomEvent<PresentationCalendarNavigateDetail>("adl-presentation-calendar-nav", {
+          bubbles: true,
+          detail: {
+            calendar: calendarNav.dataset.calendarName ?? "",
+            state: calendarNav.dataset.state ?? "",
+            value: calendarNav.dataset.value ?? "",
           },
         }),
       );
@@ -203,6 +244,7 @@ export class AdlComposedViewElement extends HTMLElement {
         ${this.renderControls(section)}
         ${section.lists.map((list) => this.renderList(list)).join("")}
         ${section.matrices.map((matrix) => this.renderMatrix(matrix)).join("")}
+        ${section.calendars.map((calendar) => this.renderCalendar(calendar)).join("")}
       </section>
     `;
   }
@@ -268,6 +310,16 @@ export class AdlComposedViewElement extends HTMLElement {
             data-action-name="${escapeHtml(control.name)}"
             ${control.command === undefined ? "" : `data-command="${escapeHtml(control.command)}"`}
             ${control.view === undefined ? "" : `data-view="${escapeHtml(control.view)}"`}
+            ${
+              control.create?.object === undefined
+                ? ""
+                : `data-create-object="${escapeHtml(control.create.object)}"`
+            }
+            ${
+              control.create?.view === undefined
+                ? ""
+                : `data-create-view="${escapeHtml(control.create.view)}"`
+            }
             data-input="${escapeHtml(JSON.stringify(control.input))}"
             ${control.enabled ? "" : "disabled"}
             ${control.reasons.length === 0 ? "" : `title="${escapeHtml(control.reasons.join(" "))}"`}
@@ -354,6 +406,156 @@ export class AdlComposedViewElement extends HTMLElement {
       <div class="adl-presentation-empty" data-presentation-empty="${escapeHtml(list.name)}">
         ${this.renderIcon(emptyState.icon, emptyState.text)}
         <span>${escapeHtml(emptyState.text)}</span>
+      </div>
+    `;
+  }
+
+  private renderCalendar(calendar: RuntimePresentationCalendar): string {
+    return `
+      <div
+        class="adl-presentation-calendar adl-density-${escapeHtml(calendar.density)}"
+        data-presentation-calendar="${escapeHtml(calendar.name)}"
+      >
+        <div class="adl-calendar-toolbar">
+          <button
+            type="button"
+            class="adl-calendar-nav"
+            data-presentation-calendar-nav="true"
+            data-calendar-name="${escapeHtml(calendar.name)}"
+            data-state="${escapeHtml(calendar.month.state ?? "")}"
+            data-value="${escapeHtml(calendar.month.previous ?? "")}"
+            aria-label="Previous month"
+            ${calendar.month.state === undefined || !calendar.month.canNavigatePrevious ? "disabled" : ""}
+          >‹</button>
+          <h3>${escapeHtml(calendar.month.label)}</h3>
+          <button
+            type="button"
+            class="adl-calendar-nav"
+            data-presentation-calendar-nav="true"
+            data-calendar-name="${escapeHtml(calendar.name)}"
+            data-state="${escapeHtml(calendar.month.state ?? "")}"
+            data-value="${escapeHtml(calendar.month.next ?? "")}"
+            aria-label="Next month"
+            ${calendar.month.state === undefined || !calendar.month.canNavigateNext ? "disabled" : ""}
+          >›</button>
+        </div>
+        ${
+          calendar.emptyState === undefined
+            ? ""
+            : `<div class="adl-presentation-empty" data-presentation-empty="${escapeHtml(
+                calendar.name,
+              )}">${this.renderIcon(calendar.emptyState.icon, calendar.emptyState.text)}<span>${escapeHtml(
+                calendar.emptyState.text,
+              )}</span></div>`
+        }
+        <div class="adl-calendar-grid" role="grid" aria-label="${escapeHtml(calendar.month.label)}">
+          ${calendar.weekdays
+            .map(
+              (weekday) => `
+                <div class="adl-calendar-weekday" role="columnheader">${escapeHtml(
+                  weekday.label,
+                )}</div>
+              `,
+            )
+            .join("")}
+          ${calendar.cells.map((cell) => this.renderCalendarCell(calendar, cell)).join("")}
+        </div>
+        <div class="adl-calendar-agenda">
+          ${calendar.cells
+            .filter((cell) => cell.inMonth && (cell.eventCount > 0 || cell.actions.length > 0))
+            .map((cell) => this.renderCalendarAgendaCell(cell))
+            .join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderCalendarCell(
+    calendar: RuntimePresentationCalendar,
+    cell: RuntimePresentationCalendarCell,
+  ): string {
+    const style =
+      cell.status === undefined ? "" : `style="${escapeHtml(this.statusStyle(cell.status))}"`;
+    return `
+      <div
+        class="adl-calendar-cell ${cell.inMonth ? "in-month" : "out-month"} ${
+          cell.isToday ? "today" : ""
+        }"
+        role="gridcell"
+        data-calendar-cell="${escapeHtml(cell.date)}"
+        data-status="${escapeHtml(cell.status?.name ?? "unset")}"
+        aria-label="${escapeHtml(cell.accessibleLabel)}"
+        ${style}
+      >
+        <div class="adl-calendar-cell-head">
+          <span class="adl-calendar-day">${escapeHtml(cell.day)}</span>
+          ${this.renderStatusIndicator(cell.status)}
+          ${
+            cell.eventCount === 0
+              ? ""
+              : `<span class="adl-calendar-count" aria-label="${escapeHtml(
+                  `${cell.eventCount} events`,
+                )}">${escapeHtml(cell.eventCount)}</span>`
+          }
+        </div>
+        <div class="adl-calendar-items">
+          ${cell.items
+            .slice(0, 2)
+            .map((item) => this.renderCalendarItem(item.title, item.summary, item.status))
+            .join("")}
+          ${
+            cell.items.length <= 2
+              ? ""
+              : `<details class="adl-calendar-more"><summary>${escapeHtml(
+                  `${cell.items.length - 2} more`,
+                )}</summary>${cell.items
+                  .slice(2)
+                  .map((item) => this.renderCalendarItem(item.title, item.summary, item.status))
+                  .join("")}</details>`
+          }
+        </div>
+        ${this.renderCalendarActions(cell.actions)}
+      </div>
+    `;
+  }
+
+  private renderCalendarAgendaCell(cell: RuntimePresentationCalendarCell): string {
+    return `
+      <section class="adl-calendar-agenda-day" data-calendar-agenda-day="${escapeHtml(cell.date)}">
+        <div class="adl-calendar-agenda-date">
+          <strong>${escapeHtml(cell.date)}</strong>
+          <span>${escapeHtml(`${cell.eventCount} event${cell.eventCount === 1 ? "" : "s"}`)}</span>
+        </div>
+        ${cell.items
+          .map((item) => this.renderCalendarItem(item.title, item.summary, item.status))
+          .join("")}
+        ${this.renderCalendarActions(cell.actions)}
+      </section>
+    `;
+  }
+
+  private renderCalendarItem(
+    title: string,
+    summary: string,
+    status: RuntimePresentationStatus | undefined,
+  ): string {
+    return `
+      <div class="adl-calendar-item" ${status === undefined ? "" : `data-status="${escapeHtml(status.name)}"`}>
+        ${this.renderStatusIndicator(status)}
+        <span class="adl-calendar-item-title">${escapeHtml(title)}</span>
+        ${summary.length === 0 ? "" : `<span class="adl-calendar-item-summary">${escapeHtml(summary)}</span>`}
+      </div>
+    `;
+  }
+
+  private renderCalendarActions(actions: RuntimePresentationActionControl[]): string {
+    const visibleActions = actions.filter((action) => action.visible);
+    if (visibleActions.length === 0) {
+      return "";
+    }
+    return `
+      <div class="adl-calendar-actions">
+        ${visibleActions.map((action) => this.renderControl(action)).join("")}
       </div>
     `;
   }

@@ -38,6 +38,7 @@ import type {
 } from "../types.js";
 import type {
   AdlComposedViewElement,
+  PresentationCalendarNavigateDetail,
   PresentationActionDetail,
   PresentationMatrixCellCycleDetail,
   PresentationStateChangeDetail,
@@ -446,6 +447,11 @@ export class AdlAppElement extends HTMLElement {
       return;
     }
 
+    if (detail.create !== undefined) {
+      void this.openCreateFromPresentationAction(detail);
+      return;
+    }
+
     if (detail.view !== undefined) {
       this.navigateToView(detail.view);
       return;
@@ -471,6 +477,54 @@ export class AdlAppElement extends HTMLElement {
       this.render();
     });
   };
+
+  private readonly handlePresentationCalendarNavigate = (event: Event): void => {
+    const detail = (event as CustomEvent<PresentationCalendarNavigateDetail>).detail;
+    if (detail === undefined || detail.state.length === 0 || detail.value.length === 0) {
+      return;
+    }
+
+    void this.runCommand(async () => {
+      await this.refreshPresentationView({ [detail.state]: `${detail.value}-01` });
+      this.render();
+    });
+  };
+
+  private async openCreateFromPresentationAction(detail: PresentationActionDetail): Promise<void> {
+    await this.runCommand(async () => {
+      const targetView =
+        detail.create?.view === undefined ? undefined : this.findView(detail.create.view)?.view;
+      const targetObject =
+        detail.create?.object === undefined
+          ? undefined
+          : this._model.objects.find((object) => object.name === detail.create?.object);
+      const targetObjectView =
+        targetObject === undefined
+          ? undefined
+          : (targetObject.views.find((view) => view.kind === "list") ?? targetObject.views[0]);
+
+      if (targetView !== undefined) {
+        this.viewName = targetView.name;
+      } else if (targetObjectView !== undefined && targetObject?.name !== this.activeObject.name) {
+        this.viewName = targetObjectView.name;
+      }
+
+      this.mode = "create";
+      this.selectedRecord = undefined;
+      this.editContainerOpen = true;
+      this.draftValues = detail.input as Record<string, JsonValue>;
+      this.stagedChildChanges = [];
+      this.fieldIssues = [];
+      this.messages = [];
+      if (this.activeView.presentation === undefined) {
+        await this.refreshRecords();
+      } else {
+        await this.refreshPresentationView();
+      }
+      await this.refreshEditSurface();
+      this.render();
+    });
+  }
 
   private readonly handlePresentationMatrixCycle = (event: Event): void => {
     const detail = (event as CustomEvent<PresentationMatrixCellCycleDetail>).detail;
@@ -585,6 +639,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-select-context", this.handleContextSelection);
     this.addEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.addEventListener("adl-presentation-action", this.handlePresentationAction);
+    this.addEventListener("adl-presentation-calendar-nav", this.handlePresentationCalendarNavigate);
     this.addEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.addEventListener("change", this.handleChange);
     this.addEventListener("click", this.handleClick);
@@ -606,6 +661,10 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-select-context", this.handleContextSelection);
     this.removeEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.removeEventListener("adl-presentation-action", this.handlePresentationAction);
+    this.removeEventListener(
+      "adl-presentation-calendar-nav",
+      this.handlePresentationCalendarNavigate,
+    );
     this.removeEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.removeEventListener("change", this.handleChange);
     this.removeEventListener("click", this.handleClick);
@@ -880,6 +939,13 @@ export class AdlAppElement extends HTMLElement {
               ? `
                 <div class="adl-composed-workspace">
                   <adl-composed-view></adl-composed-view>
+                  ${
+                    this.editContainerOpen &&
+                    this.activeEditContainer !== "page" &&
+                    this.activeEditContainer !== "splitPane"
+                      ? this.renderEditContainer(this.activeEditContainer)
+                      : ""
+                  }
                 </div>
               `
               : readModel === undefined

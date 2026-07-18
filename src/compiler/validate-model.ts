@@ -17,6 +17,8 @@ import type {
   FieldType,
   PresentationDensity,
   PresentationActionPlacement,
+  PresentationCalendarSourceKind,
+  PresentationCalendarWeekStart,
   PresentationFormatKind,
   PresentationFragmentStyle,
   PresentationLegendInclude,
@@ -57,6 +59,7 @@ import type {
   ResolvedExpression,
   ResolvedPolicyRule,
   ResolvedPresentationControl,
+  ResolvedPresentationCalendar,
   ResolvedPresentationIconRef,
   ResolvedPresentationLegend,
   ResolvedPresentationList,
@@ -268,6 +271,16 @@ export const MODEL_VALIDATION_CODES = {
   PRESENTATION_CONTROL_VISIBILITY_TYPE: "ADL_PRESENTATION_CONTROL_VISIBILITY_TYPE",
   PRESENTATION_CONTROL_STATE_UNKNOWN: "ADL_PRESENTATION_CONTROL_STATE_UNKNOWN",
   PRESENTATION_CONTROL_VIEW_UNKNOWN: "ADL_PRESENTATION_CONTROL_VIEW_UNKNOWN",
+  PRESENTATION_CALENDAR_DATE_INVALID: "ADL_PRESENTATION_CALENDAR_DATE_INVALID",
+  PRESENTATION_CALENDAR_DUPLICATE: "ADL_PRESENTATION_CALENDAR_DUPLICATE",
+  PRESENTATION_CALENDAR_FIELD_UNKNOWN: "ADL_PRESENTATION_CALENDAR_FIELD_UNKNOWN",
+  PRESENTATION_CALENDAR_SOURCE_KIND_INVALID: "ADL_PRESENTATION_CALENDAR_SOURCE_KIND_INVALID",
+  PRESENTATION_CALENDAR_SOURCE_UNKNOWN: "ADL_PRESENTATION_CALENDAR_SOURCE_UNKNOWN",
+  PRESENTATION_CALENDAR_STATUS_MAP_UNKNOWN: "ADL_PRESENTATION_CALENDAR_STATUS_MAP_UNKNOWN",
+  PRESENTATION_CALENDAR_STATUS_UNKNOWN: "ADL_PRESENTATION_CALENDAR_STATUS_UNKNOWN",
+  PRESENTATION_CALENDAR_WEEK_START_INVALID: "ADL_PRESENTATION_CALENDAR_WEEK_START_INVALID",
+  PRESENTATION_CREATE_OBJECT_UNKNOWN: "ADL_PRESENTATION_CREATE_OBJECT_UNKNOWN",
+  PRESENTATION_CREATE_VIEW_UNKNOWN: "ADL_PRESENTATION_CREATE_VIEW_UNKNOWN",
   PRESENTATION_DENSITY_INVALID: "ADL_PRESENTATION_DENSITY_INVALID",
   PRESENTATION_FILTER_FIELD_UNKNOWN: "ADL_PRESENTATION_FILTER_FIELD_UNKNOWN",
   PRESENTATION_FILTER_INVALID: "ADL_PRESENTATION_FILTER_INVALID",
@@ -434,6 +447,19 @@ const PRESENTATION_ACTION_PLACEMENTS = new Set<PresentationActionPlacement>([
   "row",
 ]);
 const PRESENTATION_LIST_SOURCE_KINDS = new Set<PresentationListSourceKind>(["readModel", "object"]);
+const PRESENTATION_CALENDAR_SOURCE_KINDS = new Set<PresentationCalendarSourceKind>([
+  "readModel",
+  "object",
+]);
+const PRESENTATION_CALENDAR_WEEK_STARTS = new Set<PresentationCalendarWeekStart>([
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+]);
 const PRESENTATION_MATRIX_SOURCE_KINDS = new Set<PresentationMatrixSourceKind>([
   "readModel",
   "object",
@@ -2971,8 +2997,11 @@ function validateViewPresentation(
   const controlsByName = indexPresentationControls(presentation.sections);
   const viewFieldRefs = getViewFieldReferences(view, targetObject, indexes);
   const statusMapFieldRefs = mergeFieldReferences(
-    viewFieldRefs,
-    getPresentationMatrixStatusMapFieldReferences(presentation, indexes),
+    mergeFieldReferences(
+      viewFieldRefs,
+      getPresentationMatrixStatusMapFieldReferences(presentation, indexes),
+    ),
+    getPresentationCalendarStatusMapFieldReferences(presentation, indexes),
   );
 
   validatePresentationLayout(presentation.layout, `${presentationPath}.layout`, diagnostics);
@@ -3345,6 +3374,13 @@ function validatePresentationSection(
     diagnostics,
     `Presentation matrix names must be unique within section '${section.name}'.`,
   );
+  reportDuplicateNames(
+    section.calendars,
+    `${sectionPath}.calendars`,
+    MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_DUPLICATE,
+    diagnostics,
+    `Presentation calendar names must be unique within section '${section.name}'.`,
+  );
 
   for (let controlIndex = 0; controlIndex < section.controls.length; controlIndex += 1) {
     const control = section.controls[controlIndex];
@@ -3389,6 +3425,24 @@ function validatePresentationSection(
     validatePresentationMatrix(
       matrix,
       `${sectionPath}.matrices[${matrixIndex}]`,
+      statusByName,
+      statusMapByName,
+      indexes,
+      diagnostics,
+    );
+  }
+
+  for (let calendarIndex = 0; calendarIndex < section.calendars.length; calendarIndex += 1) {
+    const calendar = section.calendars[calendarIndex];
+    if (calendar === undefined) {
+      continue;
+    }
+    validatePresentationCalendar(
+      calendar,
+      `${sectionPath}.calendars[${calendarIndex}]`,
+      view,
+      stateByName,
+      iconMapByName,
       statusByName,
       statusMapByName,
       indexes,
@@ -4037,6 +4091,258 @@ function validatePresentationMatrixEdit(
   }
 }
 
+function validatePresentationCalendar(
+  calendar: ResolvedPresentationCalendar,
+  calendarPath: string,
+  view: ResolvedView,
+  stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  validatePresentationDensity(calendar.density, `${calendarPath}.density`, diagnostics);
+  const fieldsByName = getPresentationCalendarFieldReferences(
+    calendar,
+    calendarPath,
+    indexes,
+    diagnostics,
+  );
+  const actionFieldsByName = mergePresentationExpressionFields(
+    mergeFieldReferences(fieldsByName, createCalendarActionFieldReferences()),
+    stateByName,
+  );
+
+  if (!fieldsByName.has(calendar.dateField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+        `Presentation calendar '${calendar.name}' references unknown date field '${calendar.dateField}'.`,
+        `${calendarPath}.dateField`,
+      ),
+    );
+  }
+  if (calendar.titleField !== undefined && !fieldsByName.has(calendar.titleField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+        `Presentation calendar '${calendar.name}' references unknown title field '${calendar.titleField}'.`,
+        `${calendarPath}.titleField`,
+      ),
+    );
+  }
+  for (let fieldIndex = 0; fieldIndex < calendar.fields.length; fieldIndex += 1) {
+    const field = calendar.fields[fieldIndex];
+    if (field !== undefined && !fieldsByName.has(field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+          `Presentation calendar '${calendar.name}' references unknown field '${field}'.`,
+          `${calendarPath}.fields[${fieldIndex}]`,
+        ),
+      );
+    }
+  }
+  for (let fieldIndex = 0; fieldIndex < calendar.summaryFields.length; fieldIndex += 1) {
+    const field = calendar.summaryFields[fieldIndex];
+    if (field !== undefined && !fieldsByName.has(field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+          `Presentation calendar '${calendar.name}' references unknown summary field '${field}'.`,
+          `${calendarPath}.summaryFields[${fieldIndex}]`,
+        ),
+      );
+    }
+  }
+  for (let sortIndex = 0; sortIndex < calendar.sort.length; sortIndex += 1) {
+    const sort = calendar.sort[sortIndex];
+    if (sort !== undefined && !fieldsByName.has(sort.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+          `Presentation calendar '${calendar.name}' sorts by unknown field '${sort.field}'.`,
+          `${calendarPath}.sort[${sortIndex}].field`,
+        ),
+      );
+    }
+  }
+
+  if (calendar.status !== undefined) {
+    validatePresentationCalendarStatusBinding(
+      calendar.name,
+      calendar.status,
+      `${calendarPath}.status`,
+      fieldsByName,
+      statusByName,
+      statusMapByName,
+      diagnostics,
+    );
+  }
+
+  validatePresentationCalendarMonth(calendar, calendarPath, stateByName, diagnostics);
+  validatePresentationIconRef(
+    calendar.emptyState.icon,
+    `${calendarPath}.emptyState.icon`,
+    view,
+    iconMapByName,
+    fieldsByName,
+    diagnostics,
+  );
+
+  reportDuplicateNames(
+    calendar.actions,
+    `${calendarPath}.actions`,
+    MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_DUPLICATE,
+    diagnostics,
+    `Presentation calendar action names must be unique within calendar '${calendar.name}'.`,
+  );
+
+  for (let actionIndex = 0; actionIndex < calendar.actions.length; actionIndex += 1) {
+    const action = calendar.actions[actionIndex];
+    if (action === undefined) {
+      continue;
+    }
+    validatePresentationActionControl(
+      action,
+      `${calendarPath}.actions[${actionIndex}]`,
+      actionFieldsByName,
+      indexes,
+      diagnostics,
+    );
+    validatePresentationIconRef(
+      action.icon,
+      `${calendarPath}.actions[${actionIndex}].icon`,
+      view,
+      iconMapByName,
+      fieldsByName,
+      diagnostics,
+    );
+  }
+}
+
+function validatePresentationCalendarMonth(
+  calendar: ResolvedPresentationCalendar,
+  calendarPath: string,
+  stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_CALENDAR_WEEK_STARTS.has(calendar.month.weekStart)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_WEEK_START_INVALID,
+        `Presentation calendar '${calendar.name}' has unsupported week start '${String(
+          calendar.month.weekStart,
+        )}'.`,
+        `${calendarPath}.month.weekStart`,
+      ),
+    );
+  }
+  for (const [fieldName, pathSuffix] of [
+    [calendar.month.value, "value"],
+    [calendar.month.minDate, "minDate"],
+    [calendar.month.maxDate, "maxDate"],
+  ] as const) {
+    if (fieldName !== undefined && !isValidIsoMonthOrDate(fieldName)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_DATE_INVALID,
+          `Presentation calendar '${calendar.name}' month ${pathSuffix} must be an ISO month or date.`,
+          `${calendarPath}.month.${pathSuffix}`,
+        ),
+      );
+    }
+  }
+  if (calendar.month.state !== undefined) {
+    const state = stateByName.get(calendar.month.state)?.item;
+    if (state === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_STATE_UNKNOWN,
+          `Presentation calendar '${calendar.name}' references unknown month state '${calendar.month.state}'.`,
+          `${calendarPath}.month.state`,
+        ),
+      );
+    } else if (state.type !== "date" && state.type !== "text") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_STATE_TYPE_INVALID,
+          `Presentation calendar '${calendar.name}' month state must be date or text.`,
+          `${calendarPath}.month.state`,
+        ),
+      );
+    }
+  }
+  validatePresentationFormat(
+    calendar.month.labelFormat,
+    `${calendarPath}.month.labelFormat`,
+    diagnostics,
+  );
+}
+
+function validatePresentationCalendarStatusBinding(
+  calendarName: string,
+  binding: ResolvedPresentationStatusBinding,
+  bindingPath: string,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
+  diagnostics: Diagnostic[],
+): void {
+  for (let candidateIndex = 0; candidateIndex < binding.candidates.length; candidateIndex += 1) {
+    const candidate = binding.candidates[candidateIndex];
+    if (candidate === undefined) {
+      continue;
+    }
+    const candidatePath = `${bindingPath}.candidates[${candidateIndex}]`;
+    if (candidate.kind === "status") {
+      if (!statusByName.has(candidate.status)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_STATUS_UNKNOWN,
+            `Presentation calendar '${calendarName}' references unknown status '${candidate.status}'.`,
+            `${candidatePath}.status`,
+          ),
+        );
+      }
+      continue;
+    }
+    const statusMapRef = statusMapByName.get(candidate.map);
+    if (statusMapRef === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_STATUS_MAP_UNKNOWN,
+          `Presentation calendar '${calendarName}' references unknown status map '${candidate.map}'.`,
+          `${candidatePath}.map`,
+        ),
+      );
+    }
+    if (
+      candidate.field === undefined &&
+      statusMapRef !== undefined &&
+      !fieldsByName.has(statusMapRef.item.field)
+    ) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+          `Presentation status map '${statusMapRef.item.name}' references field '${statusMapRef.item.field}' that is not available in calendar '${calendarName}'.`,
+          `${candidatePath}.map`,
+        ),
+      );
+    }
+    if (candidate.field !== undefined && !fieldsByName.has(candidate.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+          `Presentation calendar '${calendarName}' status candidate references unknown field '${candidate.field}'.`,
+          `${candidatePath}.field`,
+        ),
+      );
+    }
+  }
+}
+
 function validatePresentationActionControl(
   control: Extract<ResolvedPresentationControl, { kind: "action" }>,
   controlPath: string,
@@ -4072,6 +4378,27 @@ function validatePresentationActionControl(
         `${controlPath}.view`,
       ),
     );
+  }
+
+  if (control.create !== undefined) {
+    if (control.create.object !== undefined && !indexes.objectsByName.has(control.create.object)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CREATE_OBJECT_UNKNOWN,
+          `Presentation action '${control.name}' creates unknown object '${control.create.object}'.`,
+          `${controlPath}.create.object`,
+        ),
+      );
+    }
+    if (control.create.view !== undefined && !indexes.viewNames.has(control.create.view)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CREATE_VIEW_UNKNOWN,
+          `Presentation action '${control.name}' opens unknown create view '${control.create.view}'.`,
+          `${controlPath}.create.view`,
+        ),
+      );
+    }
   }
 
   for (const [inputName, expression] of Object.entries(control.input)) {
@@ -4444,6 +4771,54 @@ function getPresentationMatrixSourceFieldReferences(
   return indexReadModelExpressionFields(readModel);
 }
 
+function getPresentationCalendarFieldReferences(
+  calendar: ResolvedPresentationCalendar,
+  calendarPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  if (!PRESENTATION_CALENDAR_SOURCE_KINDS.has(calendar.sourceKind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_SOURCE_KIND_INVALID,
+        `Presentation calendar '${calendar.name}' has unsupported source kind '${String(
+          calendar.sourceKind,
+        )}'.`,
+        `${calendarPath}.sourceKind`,
+      ),
+    );
+    return new Map();
+  }
+
+  if (calendar.sourceKind === "object") {
+    const object = indexes.objectsByName.get(calendar.source)?.item;
+    if (object === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_SOURCE_UNKNOWN,
+          `Presentation calendar '${calendar.name}' references unknown object '${calendar.source}'.`,
+          `${calendarPath}.source`,
+        ),
+      );
+      return new Map();
+    }
+    return indexObjectExpressionFields(object);
+  }
+
+  const readModel = indexes.readModelsByName.get(calendar.source)?.item;
+  if (readModel === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_SOURCE_UNKNOWN,
+        `Presentation calendar '${calendar.name}' references unknown read model '${calendar.source}'.`,
+        `${calendarPath}.source`,
+      ),
+    );
+    return new Map();
+  }
+  return indexReadModelExpressionFields(readModel);
+}
+
 function getPresentationMatrixStatusMapFieldReferences(
   presentation: ResolvedViewPresentation,
   indexes: ModelIndexes,
@@ -4464,6 +4839,26 @@ function getPresentationMatrixStatusMapFieldReferences(
   return fields;
 }
 
+function getPresentationCalendarStatusMapFieldReferences(
+  presentation: ResolvedViewPresentation,
+  indexes: ModelIndexes,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  let fields = new Map<string, NamedReference<ExpressionFieldReference>>();
+  for (const section of presentation.sections) {
+    for (const calendar of section.calendars) {
+      fields = mergeFieldReferences(
+        fields,
+        getPresentationCalendarFieldReferencesWithoutDiagnostics(
+          calendar.sourceKind,
+          calendar.source,
+          indexes,
+        ),
+      );
+    }
+  }
+  return fields;
+}
+
 function getPresentationMatrixSourceFieldReferencesWithoutDiagnostics(
   sourceKind: PresentationMatrixSourceKind,
   source: string,
@@ -4475,6 +4870,31 @@ function getPresentationMatrixSourceFieldReferencesWithoutDiagnostics(
   }
   const readModel = indexes.readModelsByName.get(source)?.item;
   return readModel === undefined ? new Map() : indexReadModelExpressionFields(readModel);
+}
+
+function getPresentationCalendarFieldReferencesWithoutDiagnostics(
+  sourceKind: PresentationCalendarSourceKind,
+  source: string,
+  indexes: ModelIndexes,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  if (sourceKind === "object") {
+    const object = indexes.objectsByName.get(source)?.item;
+    return object === undefined ? new Map() : indexObjectExpressionFields(object);
+  }
+  const readModel = indexes.readModelsByName.get(source)?.item;
+  return readModel === undefined ? new Map() : indexReadModelExpressionFields(readModel);
+}
+
+function createCalendarActionFieldReferences(): Map<
+  string,
+  NamedReference<ExpressionFieldReference>
+> {
+  return indexByName([
+    expressionTypeField("Date", "date"),
+    expressionTypeField("EventCount", "number"),
+    expressionTypeField("HasEvents", "boolean"),
+    expressionTypeField("HasConflict", "boolean"),
+  ]);
 }
 
 function mergeFieldReferences(
@@ -4510,6 +4930,13 @@ function isValidIsoDate(value: string): boolean {
   }
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function isValidIsoMonthOrDate(value: string): boolean {
+  if (/^\d{4}-\d{2}$/.test(value)) {
+    return isValidIsoDate(`${value}-01`);
+  }
+  return isValidIsoDate(value);
 }
 
 function indexPresentationControls(

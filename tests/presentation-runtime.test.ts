@@ -471,6 +471,114 @@ describe("presentation runtime", () => {
       (await runtime.search("Availability", {}, musician)).map((record) => record.values.Date),
     ).toEqual(["2026-08-01"]);
   });
+
+  it("evaluates calendar month planning cells with statuses, conflicts, and actions", async () => {
+    const context: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "api",
+      now: new Date("2026-08-02T09:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(createCalendarPlanningModel());
+    await runtime.create(
+      "Event",
+      {
+        Date: "2026-08-01",
+        StartTime: "20:00",
+        EventType: "Gig",
+        Title: "Canal Street headline",
+      },
+      context,
+    );
+    await runtime.create(
+      "Event",
+      {
+        Date: "2026-08-01",
+        StartTime: "18:00",
+        EventType: "Rehearsal",
+        Title: "Warm-up rehearsal",
+      },
+      context,
+    );
+    await runtime.create(
+      "Event",
+      {
+        Date: "2026-08-02",
+        StartTime: "19:00",
+        EventType: "Conflict",
+        Title: "Double booking",
+      },
+      context,
+    );
+
+    const view = await runtime.evaluatePresentationView("Event", "Calendar", context);
+    const calendar = view.sections[0]?.calendars[0];
+    const augustFirst = calendar?.cells.find((cell) => cell.date === "2026-08-01");
+    const conflict = calendar?.cells.find((cell) => cell.date === "2026-08-02");
+    const empty = calendar?.cells.find((cell) => cell.date === "2026-08-04");
+
+    expect(view.diagnostics).toEqual([]);
+    expect(calendar?.month).toMatchObject({
+      value: "2026-08",
+      label: "August 2026",
+      state: "visibleMonth",
+      previous: "2026-07",
+      next: "2026-09",
+      canNavigatePrevious: false,
+      canNavigateNext: false,
+    });
+    expect(calendar?.weekdays.map((weekday) => weekday.label)).toEqual([
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun",
+    ]);
+    expect(calendar?.cells).toHaveLength(42);
+    expect(calendar?.cells[0]?.date).toBe("2026-07-27");
+    expect(augustFirst).toMatchObject({
+      eventCount: 2,
+      status: expect.objectContaining({ name: "event" }),
+      statusCounts: { event: 1, rehearsal: 1 },
+      values: { Date: "2026-08-01", EventCount: 2, HasEvents: true, HasConflict: false },
+    });
+    expect(augustFirst?.items.map((item) => item.title)).toEqual([
+      "Warm-up rehearsal",
+      "Canal Street headline",
+    ]);
+    expect(augustFirst?.actions).toEqual([
+      expect.objectContaining({
+        name: "addEventOnDate",
+        create: { object: "Event" },
+        input: { Date: "2026-08-01" },
+      }),
+      expect.objectContaining({
+        name: "viewEventsOnDate",
+        view: "EventList",
+        input: { Date: "2026-08-01" },
+      }),
+    ]);
+    expect(conflict).toMatchObject({
+      eventCount: 1,
+      hasConflict: true,
+      status: expect.objectContaining({ name: "conflict" }),
+    });
+    expect(empty?.eventCount).toBe(0);
+    expect(empty?.actions).toEqual([
+      expect.objectContaining({
+        name: "addEventOnDate",
+        create: { object: "Event" },
+        input: { Date: "2026-08-04" },
+      }),
+    ]);
+    expect(view.legends[0]?.items.map((item) => item.status.name)).toEqual([
+      "event",
+      "rehearsal",
+      "conflict",
+    ]);
+  });
 });
 
 async function createSeededPresentationRuntime() {
@@ -754,6 +862,119 @@ function createStatusPresentationModel() {
         rules: [
           {
             name: "allowAdminAllSlotActions",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createCalendarPlanningModel() {
+  return resolveApplicationModel({
+    app: {
+      name: "CalendarDemo",
+      startView: "Calendar",
+    },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Event",
+        fields: [
+          { name: "Date", type: "date", required: true },
+          { name: "StartTime", type: "time" },
+          {
+            name: "EventType",
+            type: "text",
+            required: true,
+            validators: [{ kind: "in", value: ["Gig", "Rehearsal", "Conflict"] }],
+          },
+          { name: "Title", type: "text", required: true },
+        ],
+        views: [
+          {
+            name: "Calendar",
+            kind: "composite",
+            fields: ["Date", "StartTime", "EventType", "Title"],
+            presentation: {
+              state: [{ name: "visibleMonth", type: "date", defaultValue: "2026-08-01" }],
+              statuses: [
+                { name: "event", label: "Gig", precedence: 10 },
+                { name: "rehearsal", label: "Rehearsal", precedence: 10 },
+                { name: "conflict", label: "Conflict", precedence: 100 },
+              ],
+              statusMaps: [
+                {
+                  name: "EventTypeStatus",
+                  field: "EventType",
+                  values: [
+                    { value: "Gig", status: "event" },
+                    { value: "Rehearsal", status: "rehearsal" },
+                    { value: "Conflict", status: "conflict" },
+                  ],
+                },
+              ],
+              legends: [{ name: "CalendarLegend", statuses: ["event", "rehearsal", "conflict"] }],
+              sections: [
+                {
+                  name: "Calendar",
+                  calendars: [
+                    {
+                      name: "MonthPlanner",
+                      sourceKind: "object",
+                      source: "Event",
+                      dateField: "Date",
+                      titleField: "Title",
+                      summaryFields: ["StartTime"],
+                      sort: [
+                        { field: "Date", direction: "asc" },
+                        { field: "StartTime", direction: "asc" },
+                      ],
+                      month: {
+                        state: "visibleMonth",
+                        weekStart: "monday",
+                        minDate: "2026-08-01",
+                        maxDate: "2026-08-31",
+                      },
+                      status: {
+                        candidates: [{ kind: "map", map: "EventTypeStatus" }],
+                      },
+                      actions: [
+                        {
+                          name: "addEventOnDate",
+                          kind: "action",
+                          label: "Add Event",
+                          create: { object: "Event" },
+                          input: { Date: { kind: "field", field: "Date" } },
+                        },
+                        {
+                          name: "viewEventsOnDate",
+                          kind: "action",
+                          label: "View Events",
+                          view: "EventList",
+                          visibleWhen: { kind: "field", field: "HasEvents" },
+                          input: { Date: { kind: "field", field: "Date" } },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          { name: "EventList", kind: "list", fields: ["Date", "StartTime", "EventType", "Title"] },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "EventPolicy",
+        object: "Event",
+        rules: [
+          {
+            name: "allowAdminAllEventActions",
             effect: "allow",
             principal: { match: "specific", roles: ["Admin"] },
             action: "*",

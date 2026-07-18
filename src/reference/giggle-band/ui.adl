@@ -1,10 +1,11 @@
 SHELL
   NAV HomeDashboard LABEL 'Home' ICON home GROUP Main ORDER 10
   NAV BandEventList LABEL 'Gigs' ICON calendar GROUP Main ORDER 20
-  NAV MyAvailabilityList LABEL 'Availability' ICON calendar GROUP Main ORDER 30 VISIBLE WHEN CONTEXT Band SELECTED
-  NAV SongLibrary LABEL 'Songs' ICON music GROUP Library ORDER 40
-  NAV SetListList LABEL 'Set Lists' ICON list GROUP Library ORDER 50
-  NAV BandDirectory LABEL 'Bands' ICON users GROUP Admin ORDER 60
+  NAV BandEventCalendar LABEL 'Calendar' ICON calendar GROUP Main ORDER 30 VISIBLE WHEN CONTEXT Band SELECTED
+  NAV MyAvailabilityList LABEL 'Availability' ICON calendar GROUP Main ORDER 40 VISIBLE WHEN CONTEXT Band SELECTED
+  NAV SongLibrary LABEL 'Songs' ICON music GROUP Library ORDER 50
+  NAV SetListList LABEL 'Set Lists' ICON list GROUP Library ORDER 60
+  NAV BandDirectory LABEL 'Bands' ICON users GROUP Admin ORDER 70
   CONTROL contextSelector KIND contextSelector PLACEMENT topBar
   CONTROL syncStatus KIND syncStatus PLACEMENT topBar
   TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector syncStatus
@@ -44,6 +45,9 @@ OBJECT Event
 
     SECTION Welcome
       HEADING 'Welcome Back!'
+
+      ACTION addEvent CREATE Event LABEL 'Add Event' ICON calendar PLACEMENT primary
+      END.ACTION
     END.SECTION
 
     SECTION Filters
@@ -108,6 +112,61 @@ OBJECT Event
           TEXT SentAt FORMAT date 'EEE d MMM'
         END.ROW
       END.LIST
+    END.SECTION
+  END.VIEW
+
+  VIEW BandEventCalendar DASHBOARD
+    CONTEXT REQUIRED Band
+    FIELDS Date StartTime EventType Title VenueName
+    ACTIONS read search
+    LAYOUT stack
+    DENSITY compact
+
+    STATE visibleMonth DATE DEFAULT '2026-08-01'
+
+    ICON_MAP CalendarEventTypeIcon FOR EventType DEFAULT calendar
+      Gig -> music
+      Rehearsal -> microphone
+      Unavailable -> x
+    END.ICON_MAP
+
+    STATUS event LABEL 'Gig' ARIA_LABEL 'Gig event' ICON CalendarEventTypeIcon(Gig) THEME colorStatusEvent PRECEDENCE 10
+    STATUS rehearsal LABEL 'Rehearsal' ARIA_LABEL 'Rehearsal event' ICON CalendarEventTypeIcon(Rehearsal) THEME colorStatusRehearsal PRECEDENCE 10
+    STATUS unavailable LABEL 'Unavailable' ARIA_LABEL 'Unavailable block' ICON CalendarEventTypeIcon(Unavailable) THEME colorStatusUnavailable PRECEDENCE 20
+    STATUS conflict LABEL 'Conflict' ARIA_LABEL 'Scheduling conflict' ICON calendar THEME colorStatusConflict PRECEDENCE 100
+
+    STATUS_MAP CalendarEventTypeStatus FOR EventType DEFAULT event
+      Gig -> event
+      Rehearsal -> rehearsal
+      Unavailable -> unavailable
+    END.STATUS_MAP
+
+    LEGEND CalendarStatus TITLE 'Calendar status' STATUSES event rehearsal unavailable conflict
+
+    SECTION PlanningCalendar
+      HEADING 'Calendar'
+
+      CALENDAR MonthPlanner FROM OBJECT Event
+        MONTH_STATE visibleMonth
+        WEEK_START monday
+        RANGE '2026-08-01' TO '2026-08-31'
+        DATE_FIELD Date
+        TITLE_FIELD Title
+        SUMMARY_FIELDS StartTime VenueName
+        FIELDS Date StartTime EventType Title VenueName
+        ORDER BY Date ASC, StartTime ASC
+        DENSITY compact
+        STATUS CalendarEventTypeStatus(EventType)
+        EMPTY_TEXT 'No events in this month'
+
+        ACTION addEventOnDate CREATE Event LABEL 'Add Event' ICON calendar PLACEMENT primary
+          INPUT Date FROM Date
+        END.ACTION
+
+        ACTION viewEventsOnDate VIEW BandEventList LABEL 'View Events' ICON calendar PLACEMENT secondary WHEN HasEvents == true
+          INPUT Date FROM Date
+        END.ACTION
+      END.CALENDAR
     END.SECTION
   END.VIEW
 END.OBJECT

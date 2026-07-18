@@ -570,6 +570,7 @@ The implemented presentation model resolves to structured data for:
 - controls
 - action placement and command/navigation bindings
 - list bindings
+- calendar month planning bindings
 - row actions
 - row template fragments
 - icon maps
@@ -587,6 +588,8 @@ Implemented defaults are explicit in the resolved model:
 - view, section, list, and row density: `comfortable`
 - list source kind: `readModel`
 - list render style: `table`
+- calendar source kind: `readModel`
+- calendar week start: `monday`
 - section action placement: `secondary`
 - list action placement: `row`
 - row layout: `inline`
@@ -606,8 +609,8 @@ Implemented defaults are explicit in the resolved model:
 Implemented validation reports structured diagnostics for invalid references to
 read models, objects, fields, local state, icon maps, known fragment styles,
 formats, commands, command action inputs, action visibility predicates, target
-views, contexts, status maps, status names, status map fields, legends, shell
-regions, and shell controls.
+views, create targets, contexts, status maps, status names, status map fields,
+legends, shell regions, and shell controls.
 
 Conformance cases under `conformance/presentation/` cover resolution defaults,
 validation diagnostics, local state defaults, toggle-controlled filters,
@@ -628,7 +631,10 @@ Parser/compiler support is implemented for the smallest useful subset:
 7. `TEXT` literals and fields with `FORMAT` and `STYLE bold`
 8. `ICON`
 9. `ICON_MAP`
-10. `STATUS`, `STATUS_MAP`, `LEGEND`, and list `STATUS` candidates
+10. `STATUS`, `STATUS_MAP`, `LEGEND`, and list/calendar `STATUS` candidates
+11. `CALENDAR ... FROM ...` with `DATE_FIELD`, `TITLE_FIELD`,
+    `SUMMARY_FIELDS`, `MONTH`, `MONTH_STATE`, `WEEK_START`, `RANGE`,
+    `EMPTY_TEXT`, and cell `ACTION`
 
 Unsupported source constructs include `SELECT`, `CONTEXT_SELECTOR`, arbitrary
 CSS, raw SVG, framework component names, host callbacks, procedural render
@@ -655,27 +661,28 @@ declaration of the same name, which allows `domain.adl` to define fields and
 
 Runtime evaluation is implemented by `ApplicationRuntime.evaluatePresentationView`.
 It initializes resolved local state defaults, applies local state updates, binds
-lists through policy-enforcing runtime reads or read models, applies
-presentation filters and ordering, resolves semantic statuses by deterministic
-precedence, resolves row templates and icon maps, formats primitive display
-values, evaluates matrices, evaluates legends, and returns empty states when no
-visible rows remain.
+lists and calendars through policy-enforcing runtime reads or read models,
+applies presentation filters and ordering, resolves semantic statuses by
+deterministic precedence, resolves row templates and icon maps, formats
+primitive display values, evaluates matrices and month calendars, evaluates
+legends, and returns empty states when no visible rows remain.
 
 The evaluator returns renderer-neutral data only. It does not return DOM nodes,
 HTML strings, CSS selectors, framework component names, JavaScript callbacks,
 or SVG payloads. Action controls include intent, label, icon, placement,
-target command/view, resolved input, and visible/enabled state. Presentation
+target command/view/create flow, resolved input, and visible/enabled state. Presentation
 filters run after read authorization, context scoping, and read-model shaping;
 they are not a policy or storage boundary.
 
 The browser renderer consumes this evaluator output. It renders sections,
 headings, legends, semantic status indicators, local toggle controls,
 command/navigation actions, compact feed rows, row actions, resource/date
-matrices, inline text fragments, bold fragments, semantic icons, diagnostics,
-and empty states.
+matrices, month calendars with mobile agenda fallback, inline text fragments,
+bold fragments, semantic icons, diagnostics, and empty states.
 Toggle interaction updates view-local
 presentation state and re-evaluates the view; it does not write object-store
-records. Action clicks dispatch to model navigation or `ApplicationRuntime`
+records. Calendar month navigation also updates view-local state. Action clicks
+dispatch to model navigation, shared create forms, or `ApplicationRuntime`
 command execution.
 
 For non-composed CRUD object views, the browser renderer is list-first by

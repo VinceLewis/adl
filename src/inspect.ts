@@ -4,6 +4,7 @@ import type {
   PartialApplicationModel,
   PartialEditSectionModel,
   PartialObjectModel,
+  PartialPresentationCalendarModel,
   PartialPresentationLegendModel,
   PartialPresentationListModel,
   PartialRelationshipPickerModel,
@@ -18,6 +19,7 @@ import type {
   ResolvedApplicationModel,
   ResolvedEditSection,
   ResolvedObject,
+  ResolvedPresentationCalendar,
   ResolvedPresentationControl,
   ResolvedPresentationLegend,
   ResolvedPresentationList,
@@ -900,6 +902,13 @@ function explainPresentationSectionDefaults(
         source?.lists?.find((item) => item.name === list.name),
       ),
     ),
+    ...section.calendars.flatMap((calendar, calendarIndex) =>
+      explainPresentationCalendarDefaults(
+        calendar,
+        `${sectionPath}.calendars[${calendarIndex}]`,
+        source?.calendars?.find((item) => item.name === calendar.name),
+      ),
+    ),
   ];
 }
 
@@ -947,6 +956,23 @@ function explainPresentationControlReferences(
       value: control.view,
       origin: "source",
       note: `Presentation action '${control.name}' resolves view '${control.view}'.`,
+    });
+  }
+
+  if (control.kind === "action" && control.create !== undefined) {
+    if (!entries.some((entry) => entry.path === `${controlPath}.placement`)) {
+      entries.push({
+        path: `${controlPath}.placement`,
+        value: control.placement,
+        origin: "source",
+        note: `Presentation action '${control.name}' is placed as '${control.placement}'.`,
+      });
+    }
+    entries.push({
+      path: `${controlPath}.create`,
+      value: control.create as unknown as JsonValue,
+      origin: "source",
+      note: `Presentation action '${control.name}' opens a shared create flow.`,
     });
   }
 
@@ -1067,6 +1093,76 @@ function explainPresentationListDefaults(
     ),
     ...list.actions.flatMap((action, actionIndex) =>
       explainPresentationControlReferences(action, `${listPath}.actions[${actionIndex}]`),
+    ),
+  ];
+}
+
+function explainPresentationCalendarDefaults(
+  calendar: ResolvedPresentationCalendar,
+  calendarPath: string,
+  source: PartialPresentationCalendarModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${calendarPath}.source`,
+      value: calendar.source,
+      origin: "source",
+      note: `Presentation calendar '${calendar.name}' resolves ${calendar.sourceKind} source '${calendar.source}'.`,
+    },
+    {
+      path: `${calendarPath}.sourceKind`,
+      value: calendar.sourceKind,
+      origin: source?.sourceKind === undefined ? "platformDefault" : "source",
+      note:
+        source?.sourceKind === undefined
+          ? "Presentation calendar source kind defaulted to readModel."
+          : "Presentation calendar source kind was supplied by the source model.",
+    },
+    {
+      path: `${calendarPath}.density`,
+      value: calendar.density,
+      origin: source?.density === undefined ? "platformDefault" : "source",
+      note:
+        source?.density === undefined
+          ? "Presentation calendar density inherited the comfortable default."
+          : "Presentation calendar density was supplied by the source model.",
+    },
+    {
+      path: `${calendarPath}.dateField`,
+      value: calendar.dateField,
+      origin: "source",
+      note: `Presentation calendar '${calendar.name}' groups source rows by '${calendar.dateField}'.`,
+    },
+    {
+      path: `${calendarPath}.month.weekStart`,
+      value: calendar.month.weekStart,
+      origin: source?.month?.weekStart === undefined ? "platformDefault" : "source",
+      note:
+        source?.month?.weekStart === undefined
+          ? "Presentation calendar week start defaulted to Monday."
+          : "Presentation calendar week start was supplied by the source model.",
+    },
+    {
+      path: `${calendarPath}.month.state`,
+      value: calendar.month.state ?? null,
+      origin: calendar.month.state === undefined ? "platformDefault" : "source",
+      note:
+        calendar.month.state === undefined
+          ? "Presentation calendar uses a fixed resolved month when no state is supplied."
+          : `Presentation calendar month navigation updates local state '${calendar.month.state}'.`,
+    },
+    ...(calendar.status === undefined
+      ? []
+      : [
+          {
+            path: `${calendarPath}.status.candidates`,
+            value: calendar.status.candidates as unknown as JsonValue,
+            origin: "source" as const,
+            note: `Presentation calendar '${calendar.name}' resolves semantic status candidates for event rows and cells.`,
+          },
+        ]),
+    ...calendar.actions.flatMap((action, actionIndex) =>
+      explainPresentationControlReferences(action, `${calendarPath}.actions[${actionIndex}]`),
     ),
   ];
 }

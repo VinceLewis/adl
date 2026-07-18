@@ -15,6 +15,8 @@ import type {
   PresentationLegendInclude,
   PresentationLayout,
   PresentationActionPlacement,
+  PresentationCalendarSourceKind,
+  PresentationCalendarWeekStart,
   PresentationListRenderStyle,
   PresentationListSourceKind,
   PresentationRowLayout,
@@ -76,6 +78,7 @@ import type {
   PresentationIconMapValueDeclarationAst,
   PresentationIconRefDeclarationAst,
   PresentationLegendDeclarationAst,
+  PresentationCalendarDeclarationAst,
   PresentationListDeclarationAst,
   PresentationRowFragmentDeclarationAst,
   PresentationRowTemplateDeclarationAst,
@@ -1503,6 +1506,7 @@ class AdlParser {
     let density: PresentationDensity | undefined;
     const controls: PresentationControlDeclarationAst[] = [];
     const lists: PresentationListDeclarationAst[] = [];
+    const calendars: PresentationCalendarDeclarationAst[] = [];
     this.consumeLineEnd("SECTION declaration");
 
     while (true) {
@@ -1522,6 +1526,7 @@ class AdlParser {
           ...(density === undefined ? {} : { density }),
           controls,
           lists,
+          calendars,
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -1542,9 +1547,11 @@ class AdlParser {
         controls.push(this.parsePresentationAction());
       } else if (this.checkWord("LIST")) {
         lists.push(this.parsePresentationList());
+      } else if (this.checkWord("CALENDAR")) {
+        calendars.push(this.parsePresentationCalendar());
       } else {
         this.failUnexpected(
-          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, ACTION, LIST, or END.SECTION",
+          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, ACTION, LIST, CALENDAR, or END.SECTION",
         );
       }
     }
@@ -1687,6 +1694,118 @@ class AdlParser {
     }
   }
 
+  private parsePresentationCalendar(): PresentationCalendarDeclarationAst {
+    const startToken = this.expectWord("CALENDAR", "CALENDAR declaration");
+    const name = this.consumeName("calendar name");
+    this.expectWord("FROM", "CALENDAR FROM clause");
+    let sourceKind: PresentationCalendarSourceKind | undefined;
+
+    if (this.matchWord("OBJECT")) {
+      sourceKind = "object";
+    } else if (this.matchWord("READ_MODEL") || this.matchDottedWord("READ", "MODEL")) {
+      sourceKind = "readModel";
+    }
+
+    const source = this.consumeName("calendar source");
+    let dateField: string | undefined;
+    let titleField: string | undefined;
+    let density: PresentationDensity | undefined;
+    let monthValue: string | undefined;
+    let monthState: string | undefined;
+    let weekStart: PresentationCalendarWeekStart | undefined;
+    let minDate: string | undefined;
+    let maxDate: string | undefined;
+    let emptyText: string | undefined;
+    const summaryFields: string[] = [];
+    const fields: string[] = [];
+    const sort: SortDeclarationAst[] = [];
+    const statusCandidates: PresentationStatusCandidateDeclarationAst[] = [];
+    const actions: PresentationActionControlDeclarationAst[] = [];
+    this.consumeLineEnd("CALENDAR declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.CALENDAR", this.current());
+      }
+
+      if (this.checkEnd("CALENDAR")) {
+        const end = this.parseEnd("CALENDAR");
+        return {
+          kind: "PresentationCalendarDeclaration",
+          name,
+          ...(sourceKind === undefined ? {} : { sourceKind }),
+          source,
+          ...(dateField === undefined ? {} : { dateField }),
+          ...(titleField === undefined ? {} : { titleField }),
+          summaryFields,
+          fields,
+          sort,
+          ...(density === undefined ? {} : { density }),
+          ...(monthValue === undefined ? {} : { monthValue }),
+          ...(monthState === undefined ? {} : { monthState }),
+          ...(weekStart === undefined ? {} : { weekStart }),
+          ...(minDate === undefined ? {} : { minDate }),
+          ...(maxDate === undefined ? {} : { maxDate }),
+          statusCandidates,
+          actions,
+          ...(emptyText === undefined ? {} : { emptyText }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("DATE_FIELD") || this.matchDottedWord("DATE", "FIELD")) {
+        dateField = this.consumeName("CALENDAR DATE_FIELD value");
+        this.consumeLineEnd("CALENDAR DATE_FIELD directive");
+      } else if (this.matchWord("TITLE_FIELD") || this.matchDottedWord("TITLE", "FIELD")) {
+        titleField = this.consumeName("CALENDAR TITLE_FIELD value");
+        this.consumeLineEnd("CALENDAR TITLE_FIELD directive");
+      } else if (this.matchWord("SUMMARY_FIELDS") || this.matchDottedWord("SUMMARY", "FIELDS")) {
+        summaryFields.push(...this.consumeNameListUntilLine("calendar summary fields"));
+        this.consumeLineEnd("CALENDAR SUMMARY_FIELDS directive");
+      } else if (this.matchWord("FIELDS")) {
+        fields.push(...this.consumeNameListUntilLine("calendar fields"));
+        this.consumeLineEnd("CALENDAR FIELDS directive");
+      } else if (this.matchWord("ORDER")) {
+        this.expectWord("BY", "CALENDAR ORDER BY clause");
+        sort.push(...this.parseSortList());
+        this.consumeLineEnd("CALENDAR ORDER BY directive");
+      } else if (this.matchWord("DENSITY")) {
+        density = this.parsePresentationDensity();
+        this.consumeLineEnd("CALENDAR DENSITY directive");
+      } else if (this.matchWord("MONTH")) {
+        monthValue = String(this.consumeLiteral("CALENDAR MONTH value"));
+        this.consumeLineEnd("CALENDAR MONTH directive");
+      } else if (this.matchWord("MONTH_STATE") || this.matchDottedWord("MONTH", "STATE")) {
+        monthState = this.consumeName("CALENDAR MONTH_STATE value");
+        this.consumeLineEnd("CALENDAR MONTH_STATE directive");
+      } else if (this.matchWord("WEEK_START") || this.matchDottedWord("WEEK", "START")) {
+        weekStart = this.parsePresentationCalendarWeekStart();
+        this.consumeLineEnd("CALENDAR WEEK_START directive");
+      } else if (this.matchWord("RANGE")) {
+        minDate = String(this.consumeLiteral("CALENDAR RANGE start"));
+        this.expectWord("TO", "CALENDAR RANGE TO clause");
+        maxDate = String(this.consumeLiteral("CALENDAR RANGE end"));
+        this.consumeLineEnd("CALENDAR RANGE directive");
+      } else if (this.matchWord("EMPTY_TEXT")) {
+        emptyText = String(this.consumeLiteral("CALENDAR EMPTY_TEXT value"));
+        this.consumeLineEnd("CALENDAR EMPTY_TEXT directive");
+      } else if (this.checkWord("STATUS")) {
+        statusCandidates.push(this.parsePresentationStatusCandidate());
+      } else if (this.checkWord("ACTION")) {
+        actions.push(this.parsePresentationAction("secondary"));
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.CALENDAR", this.current());
+      } else {
+        this.failUnexpected(
+          "CALENDAR directive DATE_FIELD, TITLE_FIELD, SUMMARY_FIELDS, FIELDS, ORDER BY, DENSITY, MONTH, MONTH_STATE, WEEK_START, RANGE, EMPTY_TEXT, STATUS, ACTION, or END.CALENDAR",
+        );
+      }
+    }
+  }
+
   private parsePresentationStatusCandidate(): PresentationStatusCandidateDeclarationAst {
     const startToken = this.expectWord("STATUS", "LIST STATUS directive");
     const name = this.consumeName("presentation status name or map");
@@ -1758,6 +1877,8 @@ class AdlParser {
     let placement: PresentationActionPlacement | undefined = defaultPlacement;
     let command: string | undefined;
     let view: string | undefined;
+    let createObject: string | undefined;
+    let createView: string | undefined;
     let visibleWhen: ResolvedExpression | undefined;
     const input: PresentationActionInputDeclarationAst[] = [];
 
@@ -1772,11 +1893,15 @@ class AdlParser {
         command = this.consumeName("presentation action command");
       } else if (this.matchWord("VIEW")) {
         view = this.consumeName("presentation action target view");
+      } else if (this.matchWord("CREATE")) {
+        createObject = this.consumeName("presentation action create object");
+      } else if (this.matchWord("FORM")) {
+        createView = this.consumeName("presentation action create form view");
       } else if (this.matchWord("WHEN")) {
         visibleWhen = this.parseExpressionUntil(new Set());
       } else {
         this.failUnexpected(
-          "ACTION header option LABEL, ICON, PLACEMENT, COMMAND, VIEW, WHEN, or end of line",
+          "ACTION header option LABEL, ICON, PLACEMENT, COMMAND, VIEW, CREATE, FORM, WHEN, or end of line",
         );
       }
     }
@@ -1799,6 +1924,8 @@ class AdlParser {
           ...(placement === undefined ? {} : { placement }),
           ...(command === undefined ? {} : { command }),
           ...(view === undefined ? {} : { view }),
+          ...(createObject === undefined ? {} : { createObject }),
+          ...(createView === undefined ? {} : { createView }),
           input,
           ...(visibleWhen === undefined ? {} : { visibleWhen }),
           end,
@@ -1821,6 +1948,12 @@ class AdlParser {
       } else if (this.matchWord("VIEW")) {
         view = this.consumeName("presentation action target view");
         this.consumeLineEnd("ACTION VIEW directive");
+      } else if (this.matchWord("CREATE")) {
+        createObject = this.consumeName("presentation action create object");
+        this.consumeLineEnd("ACTION CREATE directive");
+      } else if (this.matchWord("FORM")) {
+        createView = this.consumeName("presentation action create form view");
+        this.consumeLineEnd("ACTION FORM directive");
       } else if (this.matchWord("INPUT")) {
         input.push(this.parsePresentationActionInput());
       } else if (this.matchWord("WHEN")) {
@@ -1828,7 +1961,7 @@ class AdlParser {
         this.consumeLineEnd("ACTION WHEN directive");
       } else {
         this.failUnexpected(
-          "ACTION directive LABEL, ICON, PLACEMENT, COMMAND, VIEW, INPUT, WHEN, or END.ACTION",
+          "ACTION directive LABEL, ICON, PLACEMENT, COMMAND, VIEW, CREATE, FORM, INPUT, WHEN, or END.ACTION",
         );
       }
     }
@@ -2968,6 +3101,32 @@ class AdlParser {
         return "local";
       default:
         this.failExpected("presentation state persistence MEMORY, SESSION, or LOCAL", token);
+    }
+  }
+
+  private parsePresentationCalendarWeekStart(): PresentationCalendarWeekStart {
+    const token = this.consumeWordToken("calendar week start");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "sunday":
+        return "sunday";
+      case "monday":
+        return "monday";
+      case "tuesday":
+        return "tuesday";
+      case "wednesday":
+        return "wednesday";
+      case "thursday":
+        return "thursday";
+      case "friday":
+        return "friday";
+      case "saturday":
+        return "saturday";
+      default:
+        this.failExpected(
+          "calendar week start SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, or SATURDAY",
+          token,
+        );
     }
   }
 
