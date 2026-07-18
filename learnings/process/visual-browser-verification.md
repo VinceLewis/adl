@@ -10,7 +10,8 @@ screens, or browser verification.
   wrapping, or viewport-specific composition issues.
 - `npm run test:visual` is the Playwright visual smoke suite. It starts or reuses
   the Vite dev server, opens the Giggle Band app, visits every shell navigation
-  page, and captures desktop and mobile screenshots.
+  page, and captures desktop and mobile screenshots. It also captures important
+  interaction surfaces such as Event create and edit forms.
 - `npm run verify:push` is the pre-push command for UI-affecting changes. It
   runs typecheck, format check, Vitest, build, and the Playwright visual suite.
 - Playwright screenshots are generated under `test-results/visual/` and are not
@@ -31,3 +32,5 @@ screens, or browser verification.
 - When adding a new Giggle page or shell nav item, add it to
   `tests/visual/giggle-band.visual.spec.ts` so desktop and mobile screenshots
   continue to cover every page.
+- When changing list or form interaction patterns, add screenshots and layout
+  assertions for both the resting page and the opened create/edit surface.

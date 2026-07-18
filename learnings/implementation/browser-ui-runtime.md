@@ -45,6 +45,13 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   Row clicks and create actions open the resolved view's `editContainer`.
   Non-split containers close back to the originating list after save, cancel,
   delete, close, or lifecycle transition.
+- CRUD list rows are the primary open/edit target. Do not render redundant
+  row-level Edit buttons when selecting the row opens the same record. Keep
+  destructive Delete actions in the opened form/edit surface by default, where
+  record context is clearer and policy-shaped form actions already exist.
+- On mobile, generic CRUD lists should collapse table rows into labeled,
+  card-like records instead of showing a horizontally cramped table with row
+  action buttons.
 - `editContainer: "splitPane"` is the explicit compatibility path for dense
   back-office workflows. It preserves the old list/form workspace and may
   auto-select the first available row.

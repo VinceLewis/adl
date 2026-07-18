@@ -755,7 +755,7 @@ describe("browser UI runtime", () => {
     ).toBe("2026-09-04");
   });
 
-  it("renders policy-shaped CRUD row actions from view action metadata", async () => {
+  it("opens CRUD rows directly and keeps destructive actions inside the form", async () => {
     const model = createBrowserDemoModel();
     const userList = model.objects
       .find((object) => object.name === "User")
@@ -766,14 +766,16 @@ describe("browser UI runtime", () => {
     userList.actions = ["create", "read", "update", "delete"];
     const app = await mountApp(model);
 
-    expect(app.querySelector("button[data-row-action='edit']")).not.toBeNull();
-    expect(app.querySelector("button[data-row-action='delete']")).not.toBeNull();
+    expect(app.querySelector("button[data-row-action='edit']")).toBeNull();
+    expect(app.querySelector("button[data-row-action='delete']")).toBeNull();
 
-    const firstRecord = requireElement<HTMLButtonElement>(app, "button[data-row-action='edit']");
-    firstRecord.click();
+    const firstRecord = requireElement<HTMLTableRowElement>(app, "tr[data-record-id]");
+    expect(firstRecord.getAttribute("tabindex")).toBe("0");
+    firstRecord.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await flushUi();
 
     expect(app.querySelector(".adl-edit-container-modal adl-form-view")).not.toBeNull();
+    expect(app.querySelector("button[data-action-name='delete']")).not.toBeNull();
   });
 
   it("rejects invalid persisted and route-provided contexts", async () => {

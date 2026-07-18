@@ -36,40 +36,29 @@ export class AdlListViewElement extends HTMLElement {
       return;
     }
 
-    const rowAction = target.closest<HTMLButtonElement>("button[data-row-action]");
-    if (rowAction?.dataset.recordId !== undefined) {
-      const record = this._records.find(
-        (candidate) => candidate.meta.guid === rowAction.dataset.recordId,
-      );
-      if (rowAction.dataset.rowAction === "edit") {
-        this.dispatchEvent(
-          new CustomEvent<{ recordId: string }>("adl-select-record", {
-            bubbles: true,
-            detail: { recordId: rowAction.dataset.recordId },
-          }),
-        );
-        return;
-      }
+    const row = target.closest<HTMLTableRowElement>("tr[data-record-id]");
+    if (row?.dataset.recordId !== undefined) {
+      this.selectRecord(row.dataset.recordId);
+    }
+  };
 
-      if (rowAction.dataset.rowAction === "delete" && record !== undefined) {
-        this.dispatchEvent(
-          new CustomEvent<{ record: StoredObjectRecord }>("adl-delete-record", {
-            bubbles: true,
-            detail: { record },
-          }),
-        );
-        return;
-      }
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    const target = event.target;
+    if (
+      !(target instanceof HTMLElement) ||
+      target.closest("button, input, select, textarea") !== null
+    ) {
+      return;
     }
 
     const row = target.closest<HTMLTableRowElement>("tr[data-record-id]");
     if (row?.dataset.recordId !== undefined) {
-      this.dispatchEvent(
-        new CustomEvent<{ recordId: string }>("adl-select-record", {
-          bubbles: true,
-          detail: { recordId: row.dataset.recordId },
-        }),
-      );
+      event.preventDefault();
+      this.selectRecord(row.dataset.recordId);
     }
   };
 
@@ -131,6 +120,7 @@ export class AdlListViewElement extends HTMLElement {
   connectedCallback(): void {
     this.addEventListener("click", this.handleClick);
     this.addEventListener("input", this.handleInput);
+    this.addEventListener("keydown", this.handleKeyDown);
     this.queueLookupLabelLoads();
     this.render();
   }
@@ -138,6 +128,7 @@ export class AdlListViewElement extends HTMLElement {
   disconnectedCallback(): void {
     this.removeEventListener("click", this.handleClick);
     this.removeEventListener("input", this.handleInput);
+    this.removeEventListener("keydown", this.handleKeyDown);
   }
 
   private render(): void {
@@ -157,8 +148,6 @@ export class AdlListViewElement extends HTMLElement {
     const canCreate =
       this._view.actions.includes("create") &&
       canRunCommand(this._runtime, this._object, "create", this._context);
-    const hasRowActions =
-      this._view.actions.includes("update") || this._view.actions.includes("delete");
 
     this.innerHTML = `
       <section class="adl-panel">
@@ -179,12 +168,12 @@ export class AdlListViewElement extends HTMLElement {
             }
           </div>
         </header>
-        ${this.renderRows(fields, hasRowActions)}
+        ${this.renderRows(fields)}
       </section>
     `;
   }
 
-  private renderRows(fields: ResolvedField[], hasRowActions: boolean): string {
+  private renderRows(fields: ResolvedField[]): string {
     if (this._records.length === 0) {
       return `<div class="adl-empty">No records found.</div>`;
     }
@@ -195,77 +184,33 @@ export class AdlListViewElement extends HTMLElement {
           <thead>
             <tr>
               ${fields.map((field) => `<th>${escapeHtml(titleCaseIdentifier(field.name))}</th>`).join("")}
-              ${hasRowActions ? '<th aria-label="Row actions"></th>' : ""}
             </tr>
           </thead>
           <tbody>
-            ${this._records.map((record) => this.renderRow(record, fields, hasRowActions)).join("")}
+            ${this._records.map((record) => this.renderRow(record, fields)).join("")}
           </tbody>
         </table>
       </div>
     `;
   }
 
-  private renderRow(
-    record: StoredObjectRecord,
-    fields: ResolvedField[],
-    hasRowActions: boolean,
-  ): string {
+  private renderRow(record: StoredObjectRecord, fields: ResolvedField[]): string {
     return `
       <tr
         data-record-id="${escapeHtml(record.meta.guid)}"
+        tabindex="0"
+        aria-label="Open ${escapeHtml(this.recordLabel(record, fields))}"
         aria-selected="${record.meta.guid === this._selectedRecordId ? "true" : "false"}"
       >
         ${fields.map((field) => this.renderCell(record, field)).join("")}
-        ${hasRowActions ? this.renderRowActions(record) : ""}
       </tr>
     `;
   }
 
-  private renderRowActions(record: StoredObjectRecord): string {
-    if (
-      this._runtime === undefined ||
-      this._object === undefined ||
-      this._context === undefined ||
-      this._view === undefined
-    ) {
-      return "<td></td>";
-    }
-
-    const canEdit =
-      this._view.actions.includes("update") &&
-      canRunCommand(this._runtime, this._object, "update", this._context, record);
-    const canDelete =
-      this._view.actions.includes("delete") &&
-      canRunCommand(this._runtime, this._object, "delete", this._context, record);
-
-    if (!canEdit && !canDelete) {
-      return "<td></td>";
-    }
-
-    return `
-      <td class="adl-row-actions">
-        ${
-          canEdit
-            ? `<button type="button" data-row-action="edit" data-record-id="${escapeHtml(
-                record.meta.guid,
-              )}">Edit</button>`
-            : ""
-        }
-        ${
-          canDelete
-            ? `<button type="button" data-row-action="delete" data-record-id="${escapeHtml(
-                record.meta.guid,
-              )}">Delete</button>`
-            : ""
-        }
-      </td>
-    `;
-  }
-
   private renderCell(record: StoredObjectRecord, field: ResolvedField): string {
+    const label = titleCaseIdentifier(field.name);
     if (this._runtime === undefined || this._object === undefined || this._context === undefined) {
-      return "<td></td>";
+      return `<td data-label="${escapeHtml(label)}"></td>`;
     }
 
     const presentation = resolveFieldPresentation({
@@ -278,21 +223,41 @@ export class AdlListViewElement extends HTMLElement {
     });
 
     if (presentation.hidden) {
-      return "<td></td>";
+      return `<td data-label="${escapeHtml(label)}"></td>`;
     }
 
     if (presentation.masked) {
-      return `<td aria-label="${escapeHtml(field.name)} masked">••••••</td>`;
+      return `<td data-label="${escapeHtml(label)}" aria-label="${escapeHtml(field.name)} masked">••••••</td>`;
     }
 
     const value = record.values[field.name];
     if (this._object.lifecycle?.stateField === field.name) {
-      return `<td><span class="adl-state-pill">${escapeHtml(
+      return `<td data-label="${escapeHtml(label)}"><span class="adl-state-pill">${escapeHtml(
         getRecordLifecycleState(this._object, record) ?? value ?? "",
       )}</span></td>`;
     }
 
-    return `<td>${escapeHtml(this.formatCellValue(field, value))}</td>`;
+    return `<td data-label="${escapeHtml(label)}">${escapeHtml(this.formatCellValue(field, value))}</td>`;
+  }
+
+  private selectRecord(recordId: string): void {
+    this.dispatchEvent(
+      new CustomEvent<{ recordId: string }>("adl-select-record", {
+        bubbles: true,
+        detail: { recordId },
+      }),
+    );
+  }
+
+  private recordLabel(record: StoredObjectRecord, fields: ResolvedField[]): string {
+    const displayField =
+      fields.find((field) => field.name === this._object?.displayField) ?? fields[0];
+    if (displayField === undefined) {
+      return "record";
+    }
+
+    const value = this.formatCellValue(displayField, record.values[displayField.name]);
+    return value.length === 0 ? "record" : value;
   }
 
   private formatCellValue(field: ResolvedField, value: JsonValue | undefined): string {

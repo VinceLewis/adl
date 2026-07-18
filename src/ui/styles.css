@@ -576,6 +576,11 @@ button:disabled {
   cursor: pointer;
 }
 
+.adl-table tr:focus-visible {
+  outline: 2px solid var(--adl-color-primary);
+  outline-offset: -2px;
+}
+
 .adl-table tr[aria-selected="true"] {
   background: var(--adl-color-surface-alt);
 }
@@ -1727,5 +1732,70 @@ textarea.adl-field-control {
   .adl-list-tools .adl-search-input {
     flex: 1;
     min-width: 0;
+  }
+
+  .adl-table-wrap {
+    overflow-x: visible;
+  }
+
+  .adl-table,
+  .adl-table thead,
+  .adl-table tbody,
+  .adl-table tr,
+  .adl-table td {
+    display: block;
+  }
+
+  .adl-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 0;
+  }
+
+  .adl-table thead {
+    border: 0;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+  }
+
+  .adl-table tbody {
+    display: grid;
+    gap: var(--adl-space-sm);
+    padding: var(--adl-space-sm);
+  }
+
+  .adl-table tr {
+    background: var(--adl-color-surface);
+    border: 1px solid var(--adl-color-border);
+    border-radius: var(--adl-radius);
+    padding: var(--adl-space-sm);
+  }
+
+  .adl-table td {
+    border-bottom: 0;
+    display: grid;
+    gap: var(--adl-space-xs);
+    grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
+    min-width: 0;
+    overflow: visible;
+    padding: var(--adl-space-xs) 0;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .adl-table td:empty {
+    display: none;
+  }
+
+  .adl-table td::before {
+    color: var(--adl-color-text-muted);
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 650;
   }
 }

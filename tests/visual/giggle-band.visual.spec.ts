@@ -43,8 +43,46 @@ test.describe("Giggle Band visual smoke", () => {
       if (pageSpec.navItem === "HomeDashboard") {
         await expectHomeFeedSpacing(page);
       }
+      if (pageSpec.navItem === "BandEventList") {
+        await expect(page.locator("button[data-row-action]")).toHaveCount(0);
+      }
     });
   }
+
+  test("captures event create and edit surfaces on every configured viewport", async ({
+    page,
+  }, testInfo) => {
+    await openGiggleApp(page);
+    await selectBandContext(page);
+    await navigateTo(page, {
+      name: "gigs",
+      navItem: "BandEventList",
+      expectedText: "Canal Street headline",
+    });
+
+    await page.locator("button[data-list-action='new']").click();
+    await expect(page.locator(".adl-edit-container adl-form-view")).toBeVisible();
+    await expect(page.locator("button[data-action-name='delete']")).toHaveCount(0);
+    await expectNoDocumentHorizontalOverflow(page);
+    await expectNoVisibleElementOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`giggle-${testInfo.project.name}-event-create.png`),
+      fullPage: true,
+    });
+
+    await page.locator("button[aria-label='Close form']").click();
+    await expect(page.locator(".adl-edit-container")).toHaveCount(0);
+
+    await page.locator("tr[data-record-id]").first().click();
+    await expect(page.locator(".adl-edit-container adl-form-view")).toBeVisible();
+    await expect(page.locator("button[data-action-name='delete']")).toBeVisible();
+    await expectNoDocumentHorizontalOverflow(page);
+    await expectNoVisibleElementOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`giggle-${testInfo.project.name}-event-edit.png`),
+      fullPage: true,
+    });
+  });
 });
 
 async function openGiggleApp(page: Page): Promise<void> {
