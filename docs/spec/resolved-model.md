@@ -14,6 +14,8 @@ nodes or ADL source text.
   source model declares those features.
 - Optional `presentation` declarations on resolved views when the source model
   declares composed UI structure.
+- An `editContainer` hint on resolved views for generic CRUD create/edit
+  surfaces.
 - No wall-clock `generatedAt` value by default.
 
 All defaults must be visible in the resolved model and explainable by inspection
@@ -34,6 +36,8 @@ Resolution applies platform defaults consistently:
   deny-all rule.
 - Objects without explicit views receive list and form views over business and
   computed fields.
+- View edit containers default to `modal`; `splitPane` is available only when
+  explicitly selected.
 - View presentation defaults, when a view declares presentation, are `stack`
   layout, `comfortable` density, `table` list rendering, `inline` row layout,
   `plain` text fragments, memory-backed local state, and empty list text.
@@ -89,6 +93,14 @@ are backend-neutral: `all`, `currentContext`, `allAvailableContexts`, and
 `currentUser`. Expression fields evaluate over already-projected row values.
 
 ## View Presentation
+
+Resolved views include `editContainer`, a renderer-neutral CRUD presentation
+hint with values `modal`, `drawer`, `page`, and `splitPane`. Browser runtimes
+use it when a list row or create control opens an object form. The default is
+`modal`, making normal CRUD views list-first. `splitPane` preserves the older
+dense back-office list/form layout as an explicit option. This property is
+model-level only in the current implementation; ADL source syntax for choosing
+it is not implemented yet.
 
 Resolved views may include an optional `presentation` contract. This is
 renderer-neutral JSON-compatible data consumed by UI runtimes, not parser AST

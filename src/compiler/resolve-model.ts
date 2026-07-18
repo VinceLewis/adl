@@ -486,6 +486,7 @@ function createDefaultViews(
       name: `${input.name}List`,
       object: input.name,
       kind: "list",
+      editContainer: "modal",
       fields: fieldNames,
       searchFields,
       sort: [],
@@ -495,6 +496,7 @@ function createDefaultViews(
       name: `${input.name}Form`,
       object: input.name,
       kind: "form",
+      editContainer: "modal",
       fields: fieldNames,
       searchFields: [],
       sort: [],
@@ -529,6 +531,7 @@ function resolveView(
     kind: input.kind,
     ...(input.context === undefined ? {} : { context: resolveViewContext(input.context) }),
     ...(input.readModel === undefined ? {} : { readModel: input.readModel }),
+    editContainer: input.editContainer ?? "modal",
     fields: [
       ...(input.fields ?? [
         ...fields.map((field) => field.name),

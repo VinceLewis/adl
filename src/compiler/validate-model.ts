@@ -8,6 +8,7 @@ import type {
   ContextSelectionMode,
   ContextSelectionPersistence,
   ContextSelectionSource,
+  EditContainerMode,
   ExpressionBinaryOperator,
   ExpressionRuntimeProperty,
   ExpressionUnaryOperator,
@@ -274,6 +275,7 @@ export const MODEL_VALIDATION_CODES = {
   THEME_BASE_UNKNOWN: "ADL_THEME_BASE_UNKNOWN",
   THEME_DUPLICATE: "ADL_THEME_DUPLICATE",
   THEME_TOKEN_INVALID: "ADL_THEME_TOKEN_INVALID",
+  VIEW_EDIT_CONTAINER_INVALID: "ADL_VIEW_EDIT_CONTAINER_INVALID",
   VIEW_FIELD_UNKNOWN: "ADL_VIEW_FIELD_UNKNOWN",
   VIEW_CONTEXT_MODE_INVALID: "ADL_VIEW_CONTEXT_MODE_INVALID",
   VIEW_CONTEXT_REQUIRED: "ADL_VIEW_CONTEXT_REQUIRED",
@@ -307,6 +309,7 @@ const VIEW_KINDS = new Set<ViewKind>([
   "grid",
   "composite",
 ]);
+const EDIT_CONTAINER_MODES = new Set<EditContainerMode>(["modal", "drawer", "page", "splitPane"]);
 const PRESENTATION_LAYOUTS = new Set<PresentationLayout>(["stack", "grid", "split", "sidebar"]);
 const PRESENTATION_DENSITIES = new Set<PresentationDensity>(["compact", "comfortable", "spacious"]);
 const PRESENTATION_STATE_TYPES = new Set<PresentationStateType>([
@@ -2112,6 +2115,7 @@ function validateView(
   }
 
   validateViewContext(view.context, `${viewPath}.context`, indexes, diagnostics);
+  validateEditContainerMode(view.editContainer, `${viewPath}.editContainer`, diagnostics);
 
   if (targetObject === undefined) {
     diagnostics.push(
@@ -2196,6 +2200,22 @@ function validateView(
 
   if (view.presentation !== undefined) {
     validateViewPresentation(view.presentation, view, viewPath, targetObject, indexes, diagnostics);
+  }
+}
+
+function validateEditContainerMode(
+  editContainer: EditContainerMode,
+  path: string,
+  diagnostics: Diagnostic[],
+): void {
+  if (!EDIT_CONTAINER_MODES.has(editContainer)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_EDIT_CONTAINER_INVALID,
+        `View has invalid edit container '${String(editContainer)}'.`,
+        path,
+      ),
+    );
   }
 }
 

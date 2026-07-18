@@ -345,13 +345,24 @@ function explainViewDefaults(
   viewPath: string,
   source: PartialViewModel | undefined,
 ): ResolvedModelExplanationEntry[] {
+  const editContainerEntry: ResolvedModelExplanationEntry = {
+    path: `${viewPath}.editContainer`,
+    value: view.editContainer,
+    origin: source?.editContainer === undefined ? "platformDefault" : "source",
+    note:
+      source?.editContainer === undefined
+        ? "CRUD edit container default was applied."
+        : "CRUD edit container was supplied by the source model.",
+  };
+
   if (view.presentation === undefined) {
-    return [];
+    return [editContainerEntry];
   }
 
   const sourcePresentation = source?.presentation;
   const presentationPath = `${viewPath}.presentation`;
   return [
+    editContainerEntry,
     {
       path: `${presentationPath}.layout`,
       value: view.presentation.layout,

@@ -42,6 +42,7 @@ export type ViewKind =
   | "masterDetail"
   | "grid"
   | "composite";
+export type EditContainerMode = "modal" | "drawer" | "page" | "splitPane";
 export type PresentationLayout = "stack" | "grid" | "split" | "sidebar";
 export type PresentationDensity = "compact" | "comfortable" | "spacious";
 export type PresentationStateType = Exclude<FieldType, "attachment">;
@@ -423,6 +424,7 @@ export interface ResolvedView {
   kind: ViewKind;
   context?: ResolvedViewContext;
   readModel?: string;
+  editContainer: EditContainerMode;
   fields: string[];
   searchFields: string[];
   sort: ResolvedSort[];
@@ -1014,6 +1016,7 @@ export interface PartialViewModel {
   kind: ViewKind;
   context?: PartialViewContextModel;
   readModel?: string;
+  editContainer?: EditContainerMode;
   fields?: string[];
   searchFields?: string[];
   sort?: ResolvedSort[];

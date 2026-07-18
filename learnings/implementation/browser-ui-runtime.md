@@ -33,10 +33,20 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   back to `adl-app`. The app re-evaluates the presentation view with local
   state updates and does not write object-store records for those interactions.
 - UI tests use `happy-dom` with Vitest. They cover rendered workflows and direct runtime bypass enforcement for the same policy used by the UI.
+- Generic object CRUD views are list-first by default. `adl-app` should not
+  auto-select the first row or render a permanent form for normal list views.
+  Row clicks and create actions open the resolved view's `editContainer`.
+  Non-split containers close back to the originating list after save, cancel,
+  delete, close, or lifecycle transition.
+- `editContainer: "splitPane"` is the explicit compatibility path for dense
+  back-office workflows. It preserves the old list/form workspace and may
+  auto-select the first available row.
 
 ## Practical guidance
 
 - Keep UI behavior generic over `ResolvedObject` and `ResolvedView`; do not add per-object component forks.
+- CRUD form container decisions come from `ResolvedView.editContainer`, not raw
+  CSS class names or app-specific object checks.
 - Add new UI workflows through `ApplicationRuntime` first, then expose presentation decisions through the same policy engine.
 - When policy presentation blocks a field, make the UI skip that field in save patches so masked or readonly display values are not written back accidentally.
 - Presentation-language constructs for richer composed screens are documented

@@ -640,6 +640,9 @@ describe("band reference browser demo", () => {
     await flushUi();
     await waitForText(app, "Canal Street headline");
 
+    requireElement<HTMLTableRowElement>(app, "tr[data-record-id]").click();
+    await flushUi();
+
     const actionLabels = [...app.querySelectorAll("adl-action-bar button")].map((button) =>
       button.textContent?.trim(),
     );

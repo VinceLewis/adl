@@ -339,8 +339,21 @@ button:disabled {
 .adl-workspace {
   display: grid;
   gap: var(--adl-space-lg);
-  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.4fr);
+  grid-template-columns: 1fr;
   padding: var(--adl-space-lg);
+}
+
+.adl-workspace-split-pane {
+  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.4fr);
+}
+
+.adl-workspace-list-first {
+  position: relative;
+}
+
+.adl-workspace-page {
+  margin: 0 auto;
+  max-width: 760px;
 }
 
 .adl-dashboard-workspace {
@@ -462,6 +475,58 @@ button:disabled {
 .adl-empty {
   color: var(--adl-color-text-muted);
   padding: var(--adl-space-lg);
+}
+
+.adl-edit-scrim {
+  background: rgba(16, 24, 40, 0.42);
+  bottom: 0;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 850;
+}
+
+.adl-edit-container {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  box-shadow: 0 18px 48px rgba(16, 24, 40, 0.24);
+  box-sizing: border-box;
+  max-height: calc(100vh - (2 * var(--adl-space-lg)));
+  min-width: 0;
+  overflow-y: auto;
+  position: fixed;
+  z-index: 900;
+}
+
+.adl-edit-container .adl-panel {
+  border: 0;
+  border-radius: 0;
+}
+
+.adl-edit-container-modal {
+  border-radius: var(--adl-radius);
+  left: 50%;
+  max-width: min(720px, calc(100vw - (2 * var(--adl-space-lg))));
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 720px;
+}
+
+.adl-edit-container-drawer {
+  bottom: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  border-right: 0;
+  right: 0;
+  top: 0;
+  width: min(520px, 100vw);
+}
+
+.adl-edit-close {
+  justify-self: start;
+  margin: var(--adl-space-md);
+  width: max-content;
 }
 
 .adl-composed-view {
@@ -890,6 +955,32 @@ textarea.adl-field-control {
   .adl-workspace {
     grid-template-columns: 1fr;
     padding: var(--adl-space-md);
+  }
+
+  .adl-workspace-split-pane {
+    grid-template-columns: 1fr;
+  }
+
+  .adl-workspace-page {
+    margin: 0;
+    max-width: none;
+  }
+
+  .adl-edit-container {
+    max-height: none;
+  }
+
+  .adl-edit-container-modal,
+  .adl-edit-container-drawer {
+    border: 0;
+    border-radius: 0;
+    bottom: 0;
+    left: 0;
+    max-width: none;
+    right: 0;
+    top: 0;
+    transform: none;
+    width: 100vw;
   }
 
   .adl-dashboard-workspace {

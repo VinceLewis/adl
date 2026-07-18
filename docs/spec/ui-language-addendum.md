@@ -429,9 +429,19 @@ interface ResolvedView {
   name: string;
   object: string;
   kind: ViewKind;
+  editContainer: "modal" | "drawer" | "page" | "splitPane";
   presentation?: ResolvedViewPresentation;
 }
 ```
+
+`editContainer` is the implemented CRUD form-container hint for generic object
+views. Normal list views default to `modal`, so the list/table is the primary
+surface and create/edit forms open only from explicit user actions. `drawer`
+and `page` are also renderer-neutral hints consumed by the browser runtime.
+`splitPane` is supported as an explicit dense workflow that keeps list and form
+visible together. ADL source syntax for setting this property is not
+implemented yet; use JSON/TypeScript partial models or fixtures when a phase
+needs to exercise a non-default mode.
 
 The implemented presentation model resolves to structured data for:
 
@@ -462,6 +472,7 @@ Implemented defaults are explicit in the resolved model:
 - local state default values: `false` for Boolean, `0` for number, empty text
   for text, and `null` for date/time values
 - empty-state text: empty string
+- CRUD edit container: `modal`
 
 Implemented validation reports structured diagnostics for invalid references to
 read models, objects, fields, local state, icon maps, known fragment styles,
@@ -526,6 +537,13 @@ headings, local toggle controls, compact feed rows, inline text fragments, bold
 fragments, semantic icons, diagnostics, and empty states. Toggle interaction
 updates view-local presentation state and re-evaluates the view; it does not
 write object-store records.
+
+For non-composed CRUD object views, the browser renderer is list-first by
+default. It renders only the list/table at rest, opens create/edit forms from
+the list's explicit actions or row clicks, and closes non-split form containers
+back to the same list context after save, cancel, close, delete, or lifecycle
+transition. This path still uses runtime policy presentation for field
+visibility/editability and runtime services for all write enforcement.
 
 The generic browser shell renders application navigation through a hamburger
 drawer rather than exposing a raw view selector in the top bar. The top bar is

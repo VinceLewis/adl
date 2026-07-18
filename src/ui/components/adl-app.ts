@@ -1,6 +1,7 @@
 import { ApplicationRuntime } from "../../runtime/application-runtime.js";
 import { RuntimeValidationError } from "../../runtime/runtime-types.js";
 import type {
+  EditContainerMode,
   JsonValue,
   ResolvedApplicationModel,
   ResolvedBusinessContext,
@@ -60,6 +61,7 @@ export class AdlAppElement extends HTMLElement {
   private presentationView: RuntimePresentationView | undefined;
   private presentationStateByView = new Map<string, Record<string, JsonValue>>();
   private selectedRecord: StoredObjectRecord | undefined;
+  private editContainerOpen = false;
   private mode: UiMode = "edit";
   private draftValues: SaveRecordDetail["values"] = {};
   private messages: UiMessage[] = [];
@@ -96,6 +98,7 @@ export class AdlAppElement extends HTMLElement {
       if (record !== null) {
         this.mode = "edit";
         this.selectedRecord = record;
+        this.editContainerOpen = true;
         this.draftValues = {};
         this.fieldIssues = [];
         this.render();
@@ -106,6 +109,7 @@ export class AdlAppElement extends HTMLElement {
   private readonly handleNew = (): void => {
     this.mode = "create";
     this.selectedRecord = undefined;
+    this.editContainerOpen = true;
     this.draftValues = {};
     this.fieldIssues = [];
     this.messages = [];
@@ -143,7 +147,12 @@ export class AdlAppElement extends HTMLElement {
         this.messages = [successMessage(`${this.activeObject.name} created.`)];
         this.draftValues = {};
         this.fieldIssues = [];
-        await this.refreshRecords(created.meta.guid);
+        await this.refreshRecords(
+          this.activeEditContainer === "splitPane" ? created.meta.guid : undefined,
+        );
+        if (this.activeEditContainer !== "splitPane") {
+          this.closeEditContainer(false);
+        }
         this.render();
         return;
       }
@@ -155,6 +164,9 @@ export class AdlAppElement extends HTMLElement {
       if (Object.keys(detail.values).length === 0) {
         this.messages = [infoMessage("No changes to save.")];
         this.draftValues = {};
+        if (this.activeEditContainer !== "splitPane") {
+          this.closeEditContainer(false);
+        }
         this.render();
         return;
       }
@@ -169,6 +181,9 @@ export class AdlAppElement extends HTMLElement {
       this.draftValues = {};
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
+      if (this.activeEditContainer !== "splitPane") {
+        this.closeEditContainer(false);
+      }
       this.render();
     });
   };
@@ -185,6 +200,7 @@ export class AdlAppElement extends HTMLElement {
       this.messages = [successMessage(`${this.activeObject.name} deleted.`)];
       this.selectedRecord = undefined;
       this.mode = "create";
+      this.editContainerOpen = this.activeEditContainer === "splitPane";
       this.draftValues = {};
       await this.refreshRecords();
       this.render();
@@ -193,6 +209,12 @@ export class AdlAppElement extends HTMLElement {
 
   private readonly handleCancel = (): void => {
     this.fieldIssues = [];
+    if (this.activeEditContainer !== "splitPane") {
+      this.closeEditContainer(true);
+      this.render();
+      return;
+    }
+
     this.messages = [];
     this.draftValues = {};
     if (this.records[0] !== undefined) {
@@ -233,6 +255,9 @@ export class AdlAppElement extends HTMLElement {
       this.draftValues = {};
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
+      if (this.activeEditContainer !== "splitPane") {
+        this.closeEditContainer(false);
+      }
       this.render();
     });
   };
@@ -269,15 +294,28 @@ export class AdlAppElement extends HTMLElement {
     const viewName = navButton?.dataset.viewNav;
     if (viewName !== undefined) {
       this.navigateToView(viewName);
+      return;
+    }
+
+    if (target.closest("[data-edit-container-close='true']") !== null) {
+      this.closeEditContainer(true);
+      this.render();
     }
   };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape" || !this.navDrawerOpen) {
+    if (event.key !== "Escape") {
       return;
     }
 
-    this.navDrawerOpen = false;
+    if (this.navDrawerOpen) {
+      this.navDrawerOpen = false;
+    } else if (this.editContainerOpen && this.activeEditContainer !== "splitPane") {
+      this.closeEditContainer(true);
+    } else {
+      return;
+    }
+
     this.render();
   };
 
@@ -291,6 +329,7 @@ export class AdlAppElement extends HTMLElement {
     this.viewName = viewName;
     this.searchText = "";
     this.selectedRecord = undefined;
+    this.editContainerOpen = false;
     this.mode = "edit";
     this.draftValues = {};
     this.messages = [];
@@ -311,6 +350,7 @@ export class AdlAppElement extends HTMLElement {
     this.setSelectedContextId(detail.contextName, detail.contextId, true);
     this.searchText = "";
     this.selectedRecord = undefined;
+    this.editContainerOpen = false;
     this.mode = "edit";
     this.draftValues = {};
     this.messages = [];
@@ -359,6 +399,8 @@ export class AdlAppElement extends HTMLElement {
     this.seeded = false;
     this.presentationView = undefined;
     this.presentationStateByView = new Map();
+    this.editContainerOpen = false;
+    this.selectedRecord = undefined;
 
     if (this.initialized) {
       this.readyPromise = this.initialize();
@@ -376,6 +418,8 @@ export class AdlAppElement extends HTMLElement {
     this.seeded = runtime !== undefined;
     this.presentationView = undefined;
     this.presentationStateByView = new Map();
+    this.editContainerOpen = false;
+    this.selectedRecord = undefined;
   }
 
   get runtime(): ApplicationRuntime {
@@ -476,6 +520,7 @@ export class AdlAppElement extends HTMLElement {
       this.readModelRows = [];
       this.presentationView = undefined;
       this.selectedRecord = undefined;
+      this.editContainerOpen = false;
       this.mode = "create";
       return;
     }
@@ -485,6 +530,7 @@ export class AdlAppElement extends HTMLElement {
       this.records = [];
       this.readModelRows = [];
       this.selectedRecord = undefined;
+      this.editContainerOpen = false;
       this.mode = "edit";
       return;
     }
@@ -498,6 +544,7 @@ export class AdlAppElement extends HTMLElement {
       this.records = [];
       this.readModelRows = result.rows;
       this.selectedRecord = undefined;
+      this.editContainerOpen = false;
       this.mode = "edit";
       return;
     }
@@ -513,19 +560,50 @@ export class AdlAppElement extends HTMLElement {
       viewContext.context,
     );
 
-    const recordIds = new Set(this.records.map((record) => record.meta.guid));
-    const currentRecordId = this.selectedRecord?.meta.guid;
-    const retainedRecordId =
-      currentRecordId !== undefined && recordIds.has(currentRecordId) ? currentRecordId : undefined;
-    const nextRecordId = preferredRecordId ?? retainedRecordId;
-    const selected =
-      nextRecordId === undefined
-        ? this.records[0]
-        : ((await this.runtime.read(object.name, nextRecordId, viewContext.context)) ??
-          this.records[0]);
+    if (this.activeEditContainer === "splitPane") {
+      const recordIds = new Set(this.records.map((record) => record.meta.guid));
+      const currentRecordId = this.selectedRecord?.meta.guid;
+      const retainedRecordId =
+        currentRecordId !== undefined && recordIds.has(currentRecordId)
+          ? currentRecordId
+          : undefined;
+      const nextRecordId = preferredRecordId ?? retainedRecordId;
+      const selected =
+        nextRecordId === undefined
+          ? this.records[0]
+          : ((await this.runtime.read(object.name, nextRecordId, viewContext.context)) ??
+            this.records[0]);
 
-    this.selectedRecord = selected;
-    this.mode = selected === undefined ? "create" : "edit";
+      this.selectedRecord = selected;
+      this.editContainerOpen = true;
+      this.mode = selected === undefined ? "create" : "edit";
+      return;
+    }
+
+    if (preferredRecordId !== undefined) {
+      this.selectedRecord =
+        (await this.runtime.read(object.name, preferredRecordId, viewContext.context)) ?? undefined;
+      this.mode = this.selectedRecord === undefined ? "create" : "edit";
+      return;
+    }
+
+    if (!this.editContainerOpen) {
+      this.selectedRecord = undefined;
+      this.mode = "edit";
+      return;
+    }
+
+    if (this.mode === "edit" && this.selectedRecord !== undefined) {
+      this.selectedRecord =
+        (await this.runtime.read(
+          object.name,
+          this.selectedRecord.meta.guid,
+          viewContext.context,
+        )) ?? undefined;
+      if (this.selectedRecord === undefined) {
+        this.editContainerOpen = false;
+      }
+    }
   }
 
   private async refreshPresentationView(updates: Record<string, JsonValue> = {}): Promise<void> {
@@ -556,6 +634,21 @@ export class AdlAppElement extends HTMLElement {
       this.fieldIssues =
         error instanceof RuntimeValidationError ? [...error.issues] : this.fieldIssues;
       this.render();
+    }
+  }
+
+  private get activeEditContainer(): EditContainerMode {
+    return this.activeView.editContainer;
+  }
+
+  private closeEditContainer(clearMessages: boolean): void {
+    this.editContainerOpen = false;
+    this.selectedRecord = undefined;
+    this.mode = "edit";
+    this.draftValues = {};
+    this.fieldIssues = [];
+    if (clearMessages) {
+      this.messages = [];
     }
   }
 
@@ -616,12 +709,7 @@ export class AdlAppElement extends HTMLElement {
                 </div>
               `
               : readModel === undefined
-                ? `
-                <div class="adl-workspace">
-                  <adl-list-view></adl-list-view>
-                  <adl-form-view></adl-form-view>
-                </div>
-              `
+                ? this.renderCrudWorkspace(view)
                 : `
                 <div class="adl-dashboard-workspace">
                   <adl-dashboard-view></adl-dashboard-view>
@@ -697,6 +785,76 @@ export class AdlAppElement extends HTMLElement {
           `<adl-context-selector data-context-name="${escapeHtml(context.name)}"></adl-context-selector>`,
       )
       .join("");
+  }
+
+  private renderCrudWorkspace(view: ResolvedView): string {
+    const editContainer = view.editContainer;
+
+    if (editContainer === "splitPane") {
+      return `
+        <div class="adl-workspace adl-workspace-split-pane" data-edit-container="splitPane">
+          <adl-list-view></adl-list-view>
+          <adl-form-view></adl-form-view>
+        </div>
+      `;
+    }
+
+    if (editContainer === "page") {
+      if (this.editContainerOpen) {
+        return `
+          <div class="adl-workspace adl-workspace-page" data-edit-container="page">
+            ${this.renderContainerCloseButton("Back to list", "Back to list")}
+            <adl-form-view></adl-form-view>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="adl-workspace adl-workspace-list-first" data-edit-container="page">
+          <adl-list-view></adl-list-view>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="adl-workspace adl-workspace-list-first" data-edit-container="${escapeHtml(
+        editContainer,
+      )}">
+        <adl-list-view></adl-list-view>
+        ${this.editContainerOpen ? this.renderEditContainer(editContainer) : ""}
+      </div>
+    `;
+  }
+
+  private renderEditContainer(
+    editContainer: Exclude<EditContainerMode, "page" | "splitPane">,
+  ): string {
+    const title =
+      this.mode === "create" ? `New ${titleCaseIdentifier(this.activeObject.name)}` : "Edit record";
+
+    return `
+      <div class="adl-edit-scrim" data-edit-container-close="true"></div>
+      <aside
+        class="adl-edit-container adl-edit-container-${editContainer}"
+        role="dialog"
+        aria-modal="true"
+        aria-label="${escapeHtml(title)}"
+      >
+        ${this.renderContainerCloseButton("Close form", "x")}
+        <adl-form-view></adl-form-view>
+      </aside>
+    `;
+  }
+
+  private renderContainerCloseButton(ariaLabel: string, label: string): string {
+    return `
+      <button
+        class="adl-edit-close"
+        type="button"
+        aria-label="${escapeHtml(ariaLabel)}"
+        data-edit-container-close="true"
+      >${escapeHtml(label)}</button>
+    `;
   }
 
   private renderNavigationDrawer(activeView: ResolvedView): string {

@@ -111,6 +111,12 @@ READ_MODEL HomeUpcomingEvents
 END.READ_MODEL
 ```
 
+Generic CRUD views also resolve an `editContainer` hint with values `modal`,
+`drawer`, `page`, or `splitPane`. This is currently supported in
+JSON/TypeScript partial models and resolved-model fixtures, not ADL source
+syntax. In source-authored apps, normal object lists therefore use the platform
+default `modal` container until explicit syntax is added.
+
 ## Composed View Presentation
 
 Views may include renderer-neutral presentation declarations. Presentation is

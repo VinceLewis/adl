@@ -66,6 +66,19 @@ through read permission, context scope, computed fields, and read shaping.
 Delete persists a tombstone and excludes deleted records from normal read and
 search paths.
 
+Generic browser CRUD rendering is list-first by default. Object list views show
+the list/table as the primary surface. Row selection and create controls open a
+form using the resolved view's `editContainer` hint: `modal`, `drawer`, `page`,
+or `splitPane`. Saving, cancelling, closing, deleting, or completing a
+lifecycle transition from a non-split container returns to the originating list
+context. `splitPane` keeps the list and form visible together and may select the
+first available row, preserving the earlier dense workflow as an explicit
+configuration.
+
+CRUD container choices are presentation hints only. Runtime create, update,
+delete, transition, validation, policy, sync, audit, and operation-log behavior
+is unchanged and remains enforced by runtime services.
+
 ## Lifecycles
 
 Lifecycle transition is a first-class runtime operation. The implemented order

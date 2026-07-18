@@ -169,6 +169,7 @@ describe("validateApplicationModel", () => {
         MODEL_VALIDATION_CODES.SYNC_WINDOW_LIMIT_INVALID,
         MODEL_VALIDATION_CODES.THEME_BASE_UNKNOWN,
         MODEL_VALIDATION_CODES.THEME_TOKEN_INVALID,
+        MODEL_VALIDATION_CODES.VIEW_EDIT_CONTAINER_INVALID,
         MODEL_VALIDATION_CODES.VIEW_FIELD_UNKNOWN,
         MODEL_VALIDATION_CODES.VIEW_OBJECT_UNKNOWN,
         MODEL_VALIDATION_CODES.VIEW_SEARCH_FIELD_UNKNOWN,
@@ -644,6 +645,7 @@ function createInvalidResolvedModel(): ResolvedApplicationModel {
   }
 
   listView.object = "MissingViewObject";
+  (listView as unknown as { editContainer: string }).editContainer = "alwaysOpen";
   formView.fields.push("MissingViewField");
   formView.searchFields.push("MissingSearchField");
   formView.sort.push({ field: "MissingSortField", direction: "asc" });

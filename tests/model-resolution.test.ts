@@ -8,6 +8,7 @@ import {
   DEFAULT_SYNC_MODE,
   DEFAULT_THEME_NAME,
   SYSTEM_ID_FIELD,
+  explainResolvedModel,
   resolveApplicationModel,
   toStorageName,
 } from "../src/index.js";
@@ -113,6 +114,10 @@ describe("resolveApplicationModel", () => {
       ["PatientRecordList", "list"],
       ["PatientRecordForm", "form"],
     ]);
+    expect(patient?.views.map((view) => [view.name, view.editContainer])).toEqual([
+      ["PatientRecordList", "modal"],
+      ["PatientRecordForm", "modal"],
+    ]);
     expect(patient?.sync.mode).toBe(DEFAULT_SYNC_MODE);
     expect(patient?.policies).toEqual(["PatientRecordDefaultDeny", "PatientActivationPolicy"]);
     expect(resolved.policies[0]).toMatchObject({
@@ -139,6 +144,15 @@ describe("resolveApplicationModel", () => {
     expect(resolved.operationLog.operations).toEqual(["create", "update", "delete", "transition"]);
     expect("contexts" in resolved).toBe(false);
     expect("readModels" in resolved).toBe(false);
+
+    expect(
+      explainResolvedModel(resolved, minimalModel).entries.find(
+        (entry) => entry.path === "objects[0].views[0].editContainer",
+      ),
+    ).toMatchObject({
+      value: "modal",
+      origin: "platformDefault",
+    });
   });
 
   it("produces deterministic output for the same input", () => {
@@ -164,7 +178,9 @@ describe("resolveApplicationModel", () => {
           tableName: "support_ticket",
           fields: [{ name: "Ticket ID", storageName: "ticket_id", type: "text" }],
           policies: ["ExternallyDefinedTicketPolicy"],
-          views: [{ name: "TicketBoard", kind: "grid", fields: ["Ticket ID"] }],
+          views: [
+            { name: "TicketBoard", kind: "grid", fields: ["Ticket ID"], editContainer: "drawer" },
+          ],
           sync: { mode: "onlineRequired", scope: "assignedToUser", conflict: "serverWins" },
         },
       ],
@@ -176,7 +192,9 @@ describe("resolveApplicationModel", () => {
       schemaVersion: 3,
       tableName: "support_ticket",
       policies: ["TicketDefaultDeny", "ExternallyDefinedTicketPolicy"],
-      views: [{ name: "TicketBoard", kind: "grid", fields: ["Ticket ID"] }],
+      views: [
+        { name: "TicketBoard", kind: "grid", fields: ["Ticket ID"], editContainer: "drawer" },
+      ],
       sync: { mode: "onlineRequired", scope: "assignedToUser", conflict: "serverWins" },
     });
     expect(resolved.themes.find((theme) => theme.name === "OpsTheme")?.tokens).toMatchObject({

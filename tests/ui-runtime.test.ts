@@ -41,6 +41,10 @@ describe("browser UI runtime", () => {
   it("renders the model-driven User list and supports search", async () => {
     const app = await mountApp();
 
+    expect(app.querySelector("adl-form-view")).toBeNull();
+    expect(requireElement<HTMLElement>(app, "[data-edit-container]").dataset.editContainer).toBe(
+      "modal",
+    );
     expect(app.textContent).toContain("Ada Lovelace");
     expect(app.textContent).toContain("Grace Hopper");
     expect(app.textContent).not.toContain("ada@example.com");
@@ -58,6 +62,10 @@ describe("browser UI runtime", () => {
   it("uses field policy for masked, hidden, and readonly presentation", async () => {
     const app = await mountApp();
 
+    requireElement<HTMLTableRowElement>(app, "tr[data-record-id]").click();
+    await flushUi();
+
+    expect(app.querySelector(".adl-edit-container-modal")).not.toBeNull();
     const email = requireElement<HTMLInputElement>(
       app,
       "adl-field-renderer[data-field-name='Email'] input",
@@ -81,6 +89,8 @@ describe("browser UI runtime", () => {
     requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
     await flushUi();
 
+    expect(app.querySelector(".adl-edit-container-modal")).not.toBeNull();
+
     const name = requireElement<HTMLInputElement>(
       app,
       "adl-field-renderer[data-field-name='Name'] input",
@@ -103,10 +113,18 @@ describe("browser UI runtime", () => {
   it("filters lifecycle actions by policy and current state", async () => {
     const app = await mountApp();
 
+    requireElement<HTMLTableRowElement>(app, "tr[data-record-id]").click();
+    await flushUi();
+
     expect(app.textContent).toContain("Activate");
     expect(app.textContent).not.toContain("Suspend");
 
     requireElement<HTMLButtonElement>(app, "button[data-action-name='activate']").click();
+    await flushUi();
+
+    expect(app.querySelector("adl-form-view")).toBeNull();
+
+    requireElement<HTMLTableRowElement>(app, "tr[data-record-id]").click();
     await flushUi();
 
     expect(app.querySelector("button[data-action-name='activate']")).toBeNull();
@@ -115,6 +133,102 @@ describe("browser UI runtime", () => {
       requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='Status'] input")
         .value,
     ).toBe("Active");
+  });
+
+  it("opens default CRUD forms from explicit actions and returns to the list", async () => {
+    const app = await mountApp();
+
+    expect(app.querySelector("adl-form-view")).toBeNull();
+
+    requireElement<HTMLTableRowElement>(app, "tr[data-record-id]").click();
+    await flushUi();
+    expect(app.querySelector(".adl-edit-container-modal adl-form-view")).not.toBeNull();
+
+    requireElement<HTMLButtonElement>(app, "button[aria-label='Close form']").click();
+    await flushUi();
+    expect(app.querySelector("adl-form-view")).toBeNull();
+
+    requireElement<HTMLTableRowElement>(app, "tr[data-record-id]").click();
+    await flushUi();
+    expect(app.querySelector(".adl-edit-container-modal adl-form-view")).not.toBeNull();
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='cancel']").click();
+    await flushUi();
+    expect(app.querySelector("adl-form-view")).toBeNull();
+
+    requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
+    await flushUi();
+    expect(app.textContent).toContain("New User");
+
+    const name = requireElement<HTMLInputElement>(
+      app,
+      "adl-field-renderer[data-field-name='Name'] input",
+    );
+    name.value = "List First User";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    const email = requireElement<HTMLInputElement>(
+      app,
+      "adl-field-renderer[data-field-name='Email'] input",
+    );
+    email.value = "list-first@example.com";
+    email.dispatchEvent(new Event("input", { bubbles: true }));
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await waitForText(app, "List First User");
+
+    expect(app.textContent).toContain("User created.");
+    expect(app.querySelector("adl-form-view")).toBeNull();
+  });
+
+  it("preserves explicit split-pane CRUD behavior", async () => {
+    const model = createBrowserDemoModel();
+    setUserListEditContainer(model, "splitPane");
+
+    const app = await mountApp(model);
+
+    expect(requireElement<HTMLElement>(app, "[data-edit-container]").dataset.editContainer).toBe(
+      "splitPane",
+    );
+    expect(app.querySelector(".adl-workspace-split-pane adl-list-view")).not.toBeNull();
+    expect(app.querySelector(".adl-workspace-split-pane adl-form-view")).not.toBeNull();
+    expect(app.textContent).toContain("Ada Lovelace");
+    expect(app.textContent).toContain("Activate");
+
+    requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
+    await flushUi();
+
+    expect(app.textContent).toContain("New User");
+    expect(app.querySelector(".adl-workspace-split-pane adl-form-view")).not.toBeNull();
+  });
+
+  it("renders drawer and page edit containers from resolved view metadata", async () => {
+    const drawerModel = createBrowserDemoModel();
+    setUserListEditContainer(drawerModel, "drawer");
+    const drawerApp = await mountApp(drawerModel);
+
+    requireElement<HTMLTableRowElement>(drawerApp, "tr[data-record-id]").click();
+    await flushUi();
+
+    expect(drawerApp.querySelector(".adl-edit-container-drawer adl-form-view")).not.toBeNull();
+    expect(
+      requireElement<HTMLElement>(drawerApp, "[data-edit-container]").dataset.editContainer,
+    ).toBe("drawer");
+
+    document.body.innerHTML = "";
+
+    const pageModel = createBrowserDemoModel();
+    setUserListEditContainer(pageModel, "page");
+    const pageApp = await mountApp(pageModel);
+
+    requireElement<HTMLTableRowElement>(pageApp, "tr[data-record-id]").click();
+    await flushUi();
+
+    expect(pageApp.querySelector(".adl-workspace-page adl-form-view")).not.toBeNull();
+    expect(pageApp.querySelector("adl-list-view")).toBeNull();
+    requireElement<HTMLButtonElement>(pageApp, "button[aria-label='Back to list']").click();
+    await flushUi();
+    expect(pageApp.querySelector("adl-list-view")).not.toBeNull();
+    expect(pageApp.querySelector("adl-form-view")).toBeNull();
   });
 
   it("hides lifecycle actions when the shared policy engine denies them", async () => {
@@ -468,6 +582,19 @@ function setUserSyncMode(
 
   user.sync = { ...user.sync, mode };
   model.sync = model.sync.map((sync) => (sync.object === "User" ? { ...sync, mode } : sync));
+}
+
+function setUserListEditContainer(
+  model: ResolvedApplicationModel,
+  editContainer: "modal" | "drawer" | "page" | "splitPane",
+): void {
+  const user = model.objects.find((candidate) => candidate.name === "User");
+  const listView = user?.views.find((view) => view.name === "UserList");
+  if (listView === undefined) {
+    throw new Error("Expected UserList view in browser demo model.");
+  }
+
+  listView.editContainer = editContainer;
 }
 
 interface SeededBandUiRuntime {

@@ -7,6 +7,10 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 
 - Presentation is optional and lives on `ResolvedView.presentation`, not in a
   separate top-level model collection. Composed screens remain ordinary views.
+- CRUD form container selection lives on `ResolvedView.editContainer`, separate
+  from composed `ResolvedView.presentation`. It is renderer-neutral and
+  defaults to `modal`; supported values are `modal`, `drawer`, `page`, and
+  `splitPane`.
 - The presentation contract is renderer-neutral. It uses layout, density,
   sections, controls, list bindings, row fragments, icon maps, formatting, empty
   states, and shell regions, but no DOM tags, CSS selectors, framework
@@ -67,6 +71,9 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - Browser renderer work should consume `ApplicationRuntime.evaluatePresentationView`
   output. It should not query storage or execute read models directly to render
   composed presentation lists.
+- Browser CRUD renderer work should use `ResolvedView.editContainer` for
+  create/edit placement. Do not encode modal, drawer, page, or split-pane
+  choices through app-specific branches or DOM/CSS selector names in the model.
 - Browser toggle controls should update view-local presentation state and
   request re-evaluation. They are not durable fields and should not call object
   create/update APIs unless a future model declaration explicitly binds them to
