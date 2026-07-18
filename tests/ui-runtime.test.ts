@@ -575,6 +575,17 @@ describe("browser UI runtime", () => {
       requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='Notes'] input")
         .value,
     ).toBe("Unavailable - session prep");
+
+    requireElement<HTMLButtonElement>(app, "button[aria-label='Close form']").click();
+    await flushUi();
+
+    expect(app.querySelector(".adl-edit-container")).toBeNull();
+    expect(app.querySelector("adl-composed-view")).not.toBeNull();
+    expect(app.querySelector("[data-presentation-calendar='MonthPlanner']")).not.toBeNull();
+    expect(app.querySelector("adl-list-view")).toBeNull();
+    expect(
+      requireElement<HTMLElement>(app, "[data-nav-item='BandEventCalendar']").className,
+    ).toContain("active");
   });
 
   it("renders composed list empty states from the presentation evaluator", async () => {

@@ -23,6 +23,10 @@ or event-entry behavior.
   it does not write records directly from the calendar renderer.
 - The browser renderer presents the month grid for planning and also emits an
   agenda fallback from the same evaluated cells for mobile layouts.
+- Calendar item clicks may open records from a different object than the
+  calendar's owning view, such as an Availability row inside an Event calendar.
+  The browser app must preserve the current presentation view as the return
+  surface and target only the edit form at the clicked record's object.
 
 ## Practical Guidance
 

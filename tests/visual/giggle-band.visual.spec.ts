@@ -84,6 +84,36 @@ test.describe("Giggle Band visual smoke", () => {
     });
   });
 
+  test("opens calendar availability records modally and returns to calendar", async ({
+    page,
+  }, testInfo) => {
+    await openGiggleApp(page);
+    await selectBandContext(page);
+    await navigateTo(page, {
+      name: "calendar",
+      navItem: "BandEventCalendar",
+      expectedText: "August 2026",
+    });
+
+    await clickFirstVisible(page, "button[data-object-name='Availability'][data-record-id]");
+    await expect(page.locator(".adl-edit-container adl-form-view")).toBeVisible();
+    await expect(page.locator("adl-field-renderer[data-field-name='Notes']")).toContainText(
+      "Notes",
+    );
+    await expectNoDocumentHorizontalOverflow(page);
+    await expectNoVisibleElementOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`giggle-${testInfo.project.name}-calendar-availability-edit.png`),
+      fullPage: true,
+    });
+
+    await page.locator("button[aria-label='Close form']").click();
+    await expect(page.locator(".adl-edit-container")).toHaveCount(0);
+    await expect(page.locator("[data-presentation-calendar='MonthPlanner']")).toBeVisible();
+    await expect(page.locator("adl-list-view")).toHaveCount(0);
+    await expect(page.locator("[data-nav-item='BandEventCalendar']")).toHaveClass(/active/);
+  });
+
   test("keeps shell and list controls visible while app content scrolls", async ({
     page,
   }, testInfo) => {
@@ -219,6 +249,21 @@ async function seedExtraSongs(page: Page, count: number): Promise<void> {
       );
     }
   }, count);
+}
+
+async function clickFirstVisible(page: Page, selector: string): Promise<void> {
+  const matches = page.locator(selector);
+  const count = await matches.count();
+
+  for (let index = 0; index < count; index += 1) {
+    const candidate = matches.nth(index);
+    if (await candidate.isVisible()) {
+      await candidate.click();
+      return;
+    }
+  }
+
+  throw new Error(`No visible element matched '${selector}'.`);
 }
 
 async function boundingBox(

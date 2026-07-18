@@ -87,6 +87,8 @@ export class AdlAppElement extends HTMLElement {
   private selectedContextIds: Record<string, string> = {};
   private activeRuntimeContext: RuntimeContext | undefined;
   private activeViewEmptyState: string | undefined;
+  private editObjectName: string | undefined;
+  private editViewName: string | undefined;
   private navDrawerOpen = false;
 
   private readonly handleSearch = (event: Event): void => {
@@ -113,6 +115,7 @@ export class AdlAppElement extends HTMLElement {
       const record = await this.runtime.read(this.activeObject.name, detail.recordId, context);
       if (record !== null) {
         this.mode = "edit";
+        this.setEditTarget(this.activeObject.name);
         this.selectedRecord = record;
         this.editContainerOpen = true;
         this.draftValues = {};
@@ -126,6 +129,7 @@ export class AdlAppElement extends HTMLElement {
 
   private readonly handleNew = (): void => {
     this.mode = "create";
+    this.setEditTarget(this.activeObject.name);
     this.selectedRecord = undefined;
     this.editContainerOpen = true;
     this.draftValues = {};
@@ -159,22 +163,22 @@ export class AdlAppElement extends HTMLElement {
 
     void this.runCommand(async () => {
       const context = this.requireActiveRuntimeContext();
+      const editObject = this.editObject;
+      const editContainer = this.activeEditContainer;
       this.draftValues = { ...detail.values };
       if (detail.mode === "create") {
         const created = await this.runtime.create(
-          this.activeObject.name,
-          this.applySelectedScopeToCreateValues(detail.values),
+          editObject.name,
+          this.applySelectedScopeToCreateValues(detail.values, editObject),
           context,
         );
         await this.applyPendingChildChanges(created.meta.guid, context);
-        this.messages = [successMessage(`${this.activeObject.name} created.`)];
+        this.messages = [successMessage(`${editObject.name} created.`)];
         this.draftValues = {};
         this.stagedChildChanges = [];
         this.fieldIssues = [];
-        await this.refreshRecords(
-          this.activeEditContainer === "splitPane" ? created.meta.guid : undefined,
-        );
-        if (this.activeEditContainer !== "splitPane") {
+        await this.refreshRecords(editContainer === "splitPane" ? created.meta.guid : undefined);
+        if (editContainer !== "splitPane") {
           this.closeEditContainer(false);
         }
         this.render();
@@ -188,7 +192,7 @@ export class AdlAppElement extends HTMLElement {
       if (Object.keys(detail.values).length === 0 && this.stagedChildChanges.length === 0) {
         this.messages = [infoMessage("No changes to save.")];
         this.draftValues = {};
-        if (this.activeEditContainer !== "splitPane") {
+        if (editContainer !== "splitPane") {
           this.closeEditContainer(false);
         }
         this.render();
@@ -199,18 +203,18 @@ export class AdlAppElement extends HTMLElement {
         Object.keys(detail.values).length === 0
           ? detail.record
           : await this.runtime.update(
-              this.activeObject.name,
+              editObject.name,
               detail.record.meta.guid,
               detail.values,
               context,
             );
       await this.applyPendingChildChanges(updated.meta.guid, context);
-      this.messages = [successMessage(`${this.activeObject.name} saved.`)];
+      this.messages = [successMessage(`${editObject.name} saved.`)];
       this.draftValues = {};
       this.stagedChildChanges = [];
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
-      if (this.activeEditContainer !== "splitPane") {
+      if (editContainer !== "splitPane") {
         this.closeEditContainer(false);
       }
       this.render();
@@ -225,14 +229,19 @@ export class AdlAppElement extends HTMLElement {
 
     void this.runCommand(async () => {
       const context = this.requireActiveRuntimeContext();
-      await this.runtime.delete(this.activeObject.name, detail.record.meta.guid, context);
-      this.messages = [successMessage(`${this.activeObject.name} deleted.`)];
+      const editObject = this.editObject;
+      const editContainer = this.activeEditContainer;
+      await this.runtime.delete(editObject.name, detail.record.meta.guid, context);
+      this.messages = [successMessage(`${editObject.name} deleted.`)];
       this.selectedRecord = undefined;
       this.mode = "create";
-      this.editContainerOpen = this.activeEditContainer === "splitPane";
+      this.editContainerOpen = editContainer === "splitPane";
       this.draftValues = {};
       this.stagedChildChanges = [];
       await this.refreshRecords();
+      if (editContainer !== "splitPane") {
+        this.clearEditTarget();
+      }
       this.render();
     });
   };
@@ -267,18 +276,20 @@ export class AdlAppElement extends HTMLElement {
 
     void this.runCommand(async () => {
       const context = this.requireActiveRuntimeContext();
+      const editObject = this.editObject;
+      const editContainer = this.activeEditContainer;
       this.draftValues = { ...detail.values };
       const record =
         Object.keys(detail.values).length === 0
           ? detail.record
           : await this.runtime.update(
-              this.activeObject.name,
+              editObject.name,
               detail.record.meta.guid,
               detail.values,
               context,
             );
       const updated = await this.runtime.transition(
-        this.activeObject.name,
+        editObject.name,
         record.meta.guid,
         detail.actionName,
         context,
@@ -288,7 +299,7 @@ export class AdlAppElement extends HTMLElement {
       this.stagedChildChanges = [];
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
-      if (this.activeEditContainer !== "splitPane") {
+      if (editContainer !== "splitPane") {
         this.closeEditContainer(false);
       }
       this.render();
@@ -395,6 +406,7 @@ export class AdlAppElement extends HTMLElement {
     this.searchText = "";
     this.selectedRecord = undefined;
     this.editContainerOpen = false;
+    this.clearEditTarget();
     this.mode = "edit";
     this.draftValues = {};
     this.stagedChildChanges = [];
@@ -504,17 +516,7 @@ export class AdlAppElement extends HTMLElement {
         return;
       }
 
-      const activeObject = this.activeObject;
-      if (detail.objectName !== activeObject.name) {
-        const targetObject = this._model.objects.find(
-          (object) => object.name === detail.objectName,
-        );
-        const targetView =
-          targetObject?.views.find((view) => view.kind === "list") ?? targetObject?.views[0];
-        if (targetView !== undefined) {
-          this.viewName = targetView.name;
-        }
-      }
+      this.setEditTarget(detail.objectName);
 
       this.mode = "edit";
       this.selectedRecord = record;
@@ -615,6 +617,7 @@ export class AdlAppElement extends HTMLElement {
     this.stagedChildChanges = [];
     this.editContainerOpen = false;
     this.selectedRecord = undefined;
+    this.clearEditTarget();
 
     if (this.initialized) {
       this.readyPromise = this.initialize();
@@ -636,6 +639,7 @@ export class AdlAppElement extends HTMLElement {
     this.stagedChildChanges = [];
     this.editContainerOpen = false;
     this.selectedRecord = undefined;
+    this.clearEditTarget();
   }
 
   get runtime(): ApplicationRuntime {
@@ -867,9 +871,11 @@ export class AdlAppElement extends HTMLElement {
     }
 
     const context = this.requireActiveRuntimeContext();
+    const editObject = this.editObject;
+    const editFormView = this.editFormView;
     this.editSurface = await this.runtime.evaluateEditSurface(
-      this.activeObject.name,
-      this.formView.name,
+      editObject.name,
+      editFormView.name,
       context,
       {
         mode: this.mode,
@@ -888,8 +894,8 @@ export class AdlAppElement extends HTMLElement {
     }
 
     await this.runtime.applyStagedChildChanges({
-      objectName: this.activeObject.name,
-      viewName: this.formView.name,
+      objectName: this.editObject.name,
+      viewName: this.editFormView.name,
       parentRecordId,
       context,
       stagedChanges: this.stagedChildChanges,
@@ -918,6 +924,7 @@ export class AdlAppElement extends HTMLElement {
     this.draftValues = {};
     this.stagedChildChanges = [];
     this.editSurface = undefined;
+    this.clearEditTarget();
     this.fieldIssues = [];
     if (clearMessages) {
       this.messages = [];
@@ -941,7 +948,8 @@ export class AdlAppElement extends HTMLElement {
     const object = this.activeObject;
     const view = this.activeView;
     const readModel = this.activeReadModel;
-    const formView = this.formView;
+    const editObject = this.editObject;
+    const editFormView = this.editFormView;
     const isComposedView = view.presentation !== undefined;
     const shellClass = "adl-shell adl-shell-app";
     const topbarClass = "adl-topbar adl-topbar-app";
@@ -1019,8 +1027,8 @@ export class AdlAppElement extends HTMLElement {
     const form = this.querySelector<AdlFormViewElement>("adl-form-view");
     if (form !== null && this.activeRuntimeContext !== undefined) {
       form.runtime = this.runtime;
-      form.object = object;
-      form.view = formView;
+      form.object = editObject;
+      form.view = editFormView;
       form.context = this.activeRuntimeContext;
       form.record = this.selectedRecord;
       form.mode = this.mode;
@@ -1166,7 +1174,7 @@ export class AdlAppElement extends HTMLElement {
     editContainer: Exclude<EditContainerMode, "page" | "splitPane">,
   ): string {
     const title =
-      this.mode === "create" ? `New ${titleCaseIdentifier(this.activeObject.name)}` : "Edit record";
+      this.mode === "create" ? `New ${titleCaseIdentifier(this.editObject.name)}` : "Edit record";
 
     return `
       <div class="adl-edit-scrim" data-edit-container-close="true"></div>
@@ -1444,8 +1452,8 @@ export class AdlAppElement extends HTMLElement {
 
   private applySelectedScopeToCreateValues(
     values: SaveRecordDetail["values"],
+    object: ResolvedObject = this.editObject,
   ): SaveRecordDetail["values"] {
-    const object = this.activeObject;
     if (object.scope === undefined) {
       return values;
     }
@@ -1459,6 +1467,16 @@ export class AdlAppElement extends HTMLElement {
       ...values,
       [object.scope.field]: selectedContextId,
     };
+  }
+
+  private setEditTarget(objectName: string, viewName?: string): void {
+    this.editObjectName = objectName;
+    this.editViewName = viewName;
+  }
+
+  private clearEditTarget(): void {
+    this.editObjectName = undefined;
+    this.editViewName = undefined;
   }
 
   private baseRuntimeContext(): RuntimeContext {
@@ -1517,11 +1535,29 @@ export class AdlAppElement extends HTMLElement {
     return readModelName === undefined ? undefined : this.findReadModel(readModelName);
   }
 
-  private get formView(): ResolvedView {
+  private get editObject(): ResolvedObject {
+    if (this.editObjectName !== undefined) {
+      return (
+        this._model.objects.find((object) => object.name === this.editObjectName) ??
+        this.activeObject
+      );
+    }
+
+    return this.activeObject;
+  }
+
+  private get editFormView(): ResolvedView {
+    const editObject = this.editObject;
+    const explicitView =
+      this.editViewName === undefined ? undefined : this.findView(this.editViewName);
+    if (explicitView !== undefined && explicitView.object.name === editObject.name) {
+      return explicitView.view;
+    }
+
     return (
-      this.activeObject.views.find((view) => view.kind === "form" || view.kind === "detail") ??
-      this.activeObject.views[0] ??
-      failNoViews(this.activeObject.name)
+      editObject.views.find((view) => view.kind === "form" || view.kind === "detail") ??
+      editObject.views[0] ??
+      failNoViews(editObject.name)
     );
   }
 
