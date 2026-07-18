@@ -154,8 +154,9 @@ values, after source read policy shaping.
 
 Composed views evaluate through `ApplicationRuntime.evaluatePresentationView`.
 The runtime consumes `ResolvedView.presentation` and returns renderer-neutral
-view data: sections, controls, lists, rows, text/icon fragments, empty states,
-local state values, and structured diagnostics.
+view data: sections, controls, command/navigation actions, lists, rows, row
+actions, text/icon fragments, empty states, local state values, and structured
+diagnostics.
 
 Evaluation order is deterministic:
 
@@ -176,6 +177,15 @@ policy enforcement on writes, commands, sync replay, imports, or APIs.
 
 Row-template evaluation is read-only. It does not mutate stored records or local
 view state.
+
+Action-control evaluation is renderer-neutral. Runtime output includes action
+intent, label, semantic icon, placement, target command or view, resolved input,
+visible state, enabled state, and reasons. Action visibility predicates and
+command preconditions can shape presentation output, but a visible or enabled
+button is not authorization. Browser action dispatch routes navigation actions
+to model view navigation and command actions through
+`ApplicationRuntime.executeCommand`, where command preconditions, policy,
+validation, sync, audit, and operation-log behavior remain authoritative.
 
 The deterministic formatter currently supports:
 
@@ -230,10 +240,11 @@ request, context, winning decision, reasons, and precedence.
 Inspection includes presentation defaults and reference-bearing declarations
 when a view has `presentation`: layout, density, local state type/default/
 persistence, icon-map fields, control state/command/view/context references,
-list source and source kind, render style, density, empty-state text, row layout
-and density, row field references, icon-map references, and fragment style
-defaults. Invalid presentation references remain validation diagnostics with
-`ADL_PRESENTATION_*` codes rather than parser-AST explanations.
+action placement and input references, list source and source kind, render
+style, density, empty-state text, row actions, row layout and density, row
+field references, icon-map references, and fragment style defaults. Invalid
+presentation references remain validation diagnostics with `ADL_PRESENTATION_*`
+codes rather than parser-AST explanations.
 
 Inspection also includes shell defaults and references: top-bar context
 selector placement, mobile context selector behavior, top-bar controls, nav

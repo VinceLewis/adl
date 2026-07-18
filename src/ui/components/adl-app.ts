@@ -35,7 +35,11 @@ import type {
   UiMessage,
   UiMode,
 } from "../types.js";
-import type { AdlComposedViewElement, PresentationStateChangeDetail } from "./adl-composed-view.js";
+import type {
+  AdlComposedViewElement,
+  PresentationActionDetail,
+  PresentationStateChangeDetail,
+} from "./adl-composed-view.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
 import { AdlDashboardViewElement } from "./adl-dashboard-view.js";
 import { AdlFormViewElement } from "./adl-form-view.js";
@@ -375,6 +379,38 @@ export class AdlAppElement extends HTMLElement {
     });
   };
 
+  private readonly handlePresentationAction = (event: Event): void => {
+    const detail = (event as CustomEvent<PresentationActionDetail>).detail;
+    if (detail === undefined) {
+      return;
+    }
+
+    if (detail.view !== undefined) {
+      this.navigateToView(detail.view);
+      return;
+    }
+
+    if (detail.command === undefined) {
+      return;
+    }
+
+    void this.runCommand(async () => {
+      const context = this.requireActiveRuntimeContext();
+      const result = await this.runtime.executeCommand(
+        detail.command ?? "",
+        detail.input as Record<string, JsonValue>,
+        context,
+      );
+      this.messages = [
+        successMessage(
+          `${result.command.label ?? titleCaseIdentifier(result.command.name)} completed.`,
+        ),
+      ];
+      await this.refreshRecords();
+      this.render();
+    });
+  };
+
   private readonly handleOnlineStateChange = (): void => {
     this.applyBrowserOnlineState(true);
   };
@@ -460,6 +496,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-transition-record", this.handleTransition);
     this.addEventListener("adl-select-context", this.handleContextSelection);
     this.addEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
+    this.addEventListener("adl-presentation-action", this.handlePresentationAction);
     this.addEventListener("change", this.handleChange);
     this.addEventListener("click", this.handleClick);
     document.addEventListener("keydown", this.handleKeyDown);
@@ -478,6 +515,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-transition-record", this.handleTransition);
     this.removeEventListener("adl-select-context", this.handleContextSelection);
     this.removeEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
+    this.removeEventListener("adl-presentation-action", this.handlePresentationAction);
     this.removeEventListener("change", this.handleChange);
     this.removeEventListener("click", this.handleClick);
     document.removeEventListener("keydown", this.handleKeyDown);

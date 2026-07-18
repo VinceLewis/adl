@@ -41,6 +41,12 @@ Read this before changing browser UI components, runtime/UI policy integration, 
 - `editContainer: "splitPane"` is the explicit compatibility path for dense
   back-office workflows. It preserves the old list/form workspace and may
   auto-select the first available row.
+- Composed presentation actions render from `RuntimePresentationActionControl`.
+  Navigation actions use model view navigation, command actions call
+  `ApplicationRuntime.executeCommand`, and disabled/hidden state comes from the
+  presentation evaluator. CRUD list row edit/delete buttons are also
+  model-driven from view action metadata and gated by the shared policy/sync
+  presentation helpers.
 
 ## Practical guidance
 

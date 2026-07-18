@@ -36,6 +36,32 @@ export class AdlListViewElement extends HTMLElement {
       return;
     }
 
+    const rowAction = target.closest<HTMLButtonElement>("button[data-row-action]");
+    if (rowAction?.dataset.recordId !== undefined) {
+      const record = this._records.find(
+        (candidate) => candidate.meta.guid === rowAction.dataset.recordId,
+      );
+      if (rowAction.dataset.rowAction === "edit") {
+        this.dispatchEvent(
+          new CustomEvent<{ recordId: string }>("adl-select-record", {
+            bubbles: true,
+            detail: { recordId: rowAction.dataset.recordId },
+          }),
+        );
+        return;
+      }
+
+      if (rowAction.dataset.rowAction === "delete" && record !== undefined) {
+        this.dispatchEvent(
+          new CustomEvent<{ record: StoredObjectRecord }>("adl-delete-record", {
+            bubbles: true,
+            detail: { record },
+          }),
+        );
+        return;
+      }
+    }
+
     const row = target.closest<HTMLTableRowElement>("tr[data-record-id]");
     if (row?.dataset.recordId !== undefined) {
       this.dispatchEvent(
@@ -131,6 +157,8 @@ export class AdlListViewElement extends HTMLElement {
     const canCreate =
       this._view.actions.includes("create") &&
       canRunCommand(this._runtime, this._object, "create", this._context);
+    const hasRowActions =
+      this._view.actions.includes("update") || this._view.actions.includes("delete");
 
     this.innerHTML = `
       <section class="adl-panel">
@@ -151,12 +179,12 @@ export class AdlListViewElement extends HTMLElement {
             }
           </div>
         </header>
-        ${this.renderRows(fields)}
+        ${this.renderRows(fields, hasRowActions)}
       </section>
     `;
   }
 
-  private renderRows(fields: ResolvedField[]): string {
+  private renderRows(fields: ResolvedField[], hasRowActions: boolean): string {
     if (this._records.length === 0) {
       return `<div class="adl-empty">No records found.</div>`;
     }
@@ -167,24 +195,71 @@ export class AdlListViewElement extends HTMLElement {
           <thead>
             <tr>
               ${fields.map((field) => `<th>${escapeHtml(titleCaseIdentifier(field.name))}</th>`).join("")}
+              ${hasRowActions ? '<th aria-label="Row actions"></th>' : ""}
             </tr>
           </thead>
           <tbody>
-            ${this._records.map((record) => this.renderRow(record, fields)).join("")}
+            ${this._records.map((record) => this.renderRow(record, fields, hasRowActions)).join("")}
           </tbody>
         </table>
       </div>
     `;
   }
 
-  private renderRow(record: StoredObjectRecord, fields: ResolvedField[]): string {
+  private renderRow(
+    record: StoredObjectRecord,
+    fields: ResolvedField[],
+    hasRowActions: boolean,
+  ): string {
     return `
       <tr
         data-record-id="${escapeHtml(record.meta.guid)}"
         aria-selected="${record.meta.guid === this._selectedRecordId ? "true" : "false"}"
       >
         ${fields.map((field) => this.renderCell(record, field)).join("")}
+        ${hasRowActions ? this.renderRowActions(record) : ""}
       </tr>
+    `;
+  }
+
+  private renderRowActions(record: StoredObjectRecord): string {
+    if (
+      this._runtime === undefined ||
+      this._object === undefined ||
+      this._context === undefined ||
+      this._view === undefined
+    ) {
+      return "<td></td>";
+    }
+
+    const canEdit =
+      this._view.actions.includes("update") &&
+      canRunCommand(this._runtime, this._object, "update", this._context, record);
+    const canDelete =
+      this._view.actions.includes("delete") &&
+      canRunCommand(this._runtime, this._object, "delete", this._context, record);
+
+    if (!canEdit && !canDelete) {
+      return "<td></td>";
+    }
+
+    return `
+      <td class="adl-row-actions">
+        ${
+          canEdit
+            ? `<button type="button" data-row-action="edit" data-record-id="${escapeHtml(
+                record.meta.guid,
+              )}">Edit</button>`
+            : ""
+        }
+        ${
+          canDelete
+            ? `<button type="button" data-row-action="delete" data-record-id="${escapeHtml(
+                record.meta.guid,
+              )}">Delete</button>`
+            : ""
+        }
+      </td>
     `;
   }
 

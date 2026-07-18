@@ -7,6 +7,7 @@ import type {
   PresentationFormatKind,
   PresentationFragmentStyle,
   PresentationLayout,
+  PresentationActionPlacement,
   PresentationListRenderStyle,
   PresentationListSourceKind,
   PresentationRowLayout,
@@ -395,7 +396,9 @@ export interface PresentationSectionDeclarationAst {
   range: SourceRange;
 }
 
-export type PresentationControlDeclarationAst = PresentationToggleControlDeclarationAst;
+export type PresentationControlDeclarationAst =
+  | PresentationToggleControlDeclarationAst
+  | PresentationActionControlDeclarationAst;
 
 export interface PresentationToggleControlDeclarationAst {
   kind: "PresentationToggleControlDeclaration";
@@ -404,6 +407,27 @@ export interface PresentationToggleControlDeclarationAst {
   label?: string;
   icon?: PresentationIconRefDeclarationAst;
   end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationActionControlDeclarationAst {
+  kind: "PresentationActionControlDeclaration";
+  name: string;
+  label?: string;
+  icon?: PresentationIconRefDeclarationAst;
+  placement?: PresentationActionPlacement;
+  command?: string;
+  view?: string;
+  input: PresentationActionInputDeclarationAst[];
+  visibleWhen?: ResolvedExpression;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationActionInputDeclarationAst {
+  kind: "PresentationActionInputDeclaration";
+  name: string;
+  expression: ResolvedExpression;
   range: SourceRange;
 }
 
@@ -417,6 +441,7 @@ export interface PresentationListDeclarationAst {
   sort: SortDeclarationAst[];
   filter?: ResolvedExpression;
   emptyText?: string;
+  actions: PresentationActionControlDeclarationAst[];
   row?: PresentationRowTemplateDeclarationAst;
   end: EndMarkerNode;
   range: SourceRange;

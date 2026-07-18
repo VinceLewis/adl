@@ -63,6 +63,15 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - `explainResolvedModel` now walks composed view presentation declarations. It
   reports defaults and reference-bearing paths for layout, density, local state,
   icon maps, controls, list sources, row templates, and fragment styles.
+- Phase 32 added action placement to the presentation contract. Section actions
+  default to `secondary`, list actions default to `row`, and authored actions
+  carry renderer-neutral command/view targets, semantic icons, optional input
+  expressions, optional visibility predicates, and runtime-shaped visible/
+  enabled state.
+- Browser action dispatch is generic: navigation actions call model view
+  navigation, and command actions call `ApplicationRuntime.executeCommand`.
+  Runtime command services remain the enforcement boundary for command
+  preconditions, policy, validation, sync, audit, and operation logging.
 
 ## Practical Guidance
 
@@ -78,6 +87,9 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   request re-evaluation. They are not durable fields and should not call object
   create/update APIs unless a future model declaration explicitly binds them to
   a persistent command.
+- Browser action controls should consume evaluated `RuntimePresentationAction`
+  data. Do not attach host callbacks or mutate storage directly from the
+  renderer; command actions must flow through `ApplicationRuntime`.
 - Keep read models responsible for data shape and authorization; keep
   presentation responsible for display composition such as row text, icons,
   formatting, empty states, and section layout.

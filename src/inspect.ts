@@ -639,6 +639,12 @@ function explainPresentationControlReferences(
 
   if (control.kind === "action" && control.command !== undefined) {
     entries.push({
+      path: `${controlPath}.placement`,
+      value: control.placement,
+      origin: "source",
+      note: `Presentation action '${control.name}' is placed as '${control.placement}'.`,
+    });
+    entries.push({
       path: `${controlPath}.command`,
       value: control.command,
       origin: "source",
@@ -647,12 +653,40 @@ function explainPresentationControlReferences(
   }
 
   if (control.kind === "action" && control.view !== undefined) {
+    if (!entries.some((entry) => entry.path === `${controlPath}.placement`)) {
+      entries.push({
+        path: `${controlPath}.placement`,
+        value: control.placement,
+        origin: "source",
+        note: `Presentation action '${control.name}' is placed as '${control.placement}'.`,
+      });
+    }
     entries.push({
       path: `${controlPath}.view`,
       value: control.view,
       origin: "source",
       note: `Presentation action '${control.name}' resolves view '${control.view}'.`,
     });
+  }
+
+  if (control.kind === "action") {
+    for (const [inputName, expression] of Object.entries(control.input)) {
+      entries.push({
+        path: `${controlPath}.input.${inputName}`,
+        value: expression as unknown as JsonValue,
+        origin: "source",
+        note: `Presentation action '${control.name}' resolves command input '${inputName}' from renderer-neutral data.`,
+      });
+    }
+
+    if (control.visibleWhen !== undefined) {
+      entries.push({
+        path: `${controlPath}.visibleWhen`,
+        value: control.visibleWhen as unknown as JsonValue,
+        origin: "source",
+        note: `Presentation action '${control.name}' has a renderer-neutral visibility predicate.`,
+      });
+    }
   }
 
   if (control.kind === "contextSelector" && control.context !== undefined) {
@@ -739,6 +773,9 @@ function explainPresentationListDefaults(
         `${listPath}.row.fragments[${fragmentIndex}]`,
         source?.row?.fragments?.[fragmentIndex],
       ),
+    ),
+    ...list.actions.flatMap((action, actionIndex) =>
+      explainPresentationControlReferences(action, `${listPath}.actions[${actionIndex}]`),
     ),
   ];
 }

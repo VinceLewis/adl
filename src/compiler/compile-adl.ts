@@ -14,6 +14,8 @@ import type {
   ObjectDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
+  PresentationActionControlDeclarationAst,
+  PresentationControlDeclarationAst,
   PresentationIconMapDeclarationAst,
   PresentationIconRefDeclarationAst,
   PresentationListDeclarationAst,
@@ -580,14 +582,38 @@ function presentationSectionToPartial(
 }
 
 function presentationControlToPartial(
-  control: PresentationToggleControlDeclarationAst,
+  control: PresentationControlDeclarationAst,
 ): PartialPresentationControlModel {
+  if (control.kind === "PresentationActionControlDeclaration") {
+    return presentationActionToPartial(control);
+  }
+
   return {
     name: control.name,
     kind: "toggle",
     state: control.state,
     ...(control.label === undefined ? {} : { label: control.label }),
     ...(control.icon === undefined ? {} : { icon: presentationIconRefToPartial(control.icon) }),
+  };
+}
+
+function presentationActionToPartial(
+  action: PresentationActionControlDeclarationAst,
+): Extract<PartialPresentationControlModel, { kind: "action" }> {
+  return {
+    name: action.name,
+    kind: "action",
+    ...(action.label === undefined ? {} : { label: action.label }),
+    ...(action.icon === undefined ? {} : { icon: presentationIconRefToPartial(action.icon) }),
+    ...(action.placement === undefined ? {} : { placement: action.placement }),
+    ...(action.command === undefined ? {} : { command: action.command }),
+    ...(action.view === undefined ? {} : { view: action.view }),
+    ...(action.input.length === 0
+      ? {}
+      : {
+          input: Object.fromEntries(action.input.map((input) => [input.name, input.expression])),
+        }),
+    ...(action.visibleWhen === undefined ? {} : { visibleWhen: action.visibleWhen }),
   };
 }
 
@@ -606,6 +632,9 @@ function presentationListToPartial(
     })),
     ...(list.filter === undefined ? {} : { filter: list.filter }),
     ...(list.emptyText === undefined ? {} : { emptyState: { text: list.emptyText } }),
+    ...(list.actions.length === 0
+      ? {}
+      : { actions: list.actions.map((action) => presentationActionToPartial(action)) }),
     ...(list.row === undefined ? {} : { row: presentationRowTemplateToPartial(list.row) }),
   };
 }

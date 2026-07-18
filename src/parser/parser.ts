@@ -13,6 +13,7 @@ import type {
   PresentationFormatKind,
   PresentationFragmentStyle,
   PresentationLayout,
+  PresentationActionPlacement,
   PresentationListRenderStyle,
   PresentationListSourceKind,
   PresentationRowLayout,
@@ -66,6 +67,9 @@ import type {
   ObjectScopeDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
+  PresentationActionControlDeclarationAst,
+  PresentationActionInputDeclarationAst,
+  PresentationControlDeclarationAst,
   PresentationIconMapDeclarationAst,
   PresentationIconMapValueDeclarationAst,
   PresentationIconRefDeclarationAst,
@@ -1340,7 +1344,7 @@ class AdlParser {
     let heading: string | undefined;
     let layout: PresentationLayout | undefined;
     let density: PresentationDensity | undefined;
-    const controls: PresentationToggleControlDeclarationAst[] = [];
+    const controls: PresentationControlDeclarationAst[] = [];
     const lists: PresentationListDeclarationAst[] = [];
     this.consumeLineEnd("SECTION declaration");
 
@@ -1377,11 +1381,13 @@ class AdlParser {
         this.consumeLineEnd("SECTION DENSITY directive");
       } else if (this.checkWord("TOGGLE")) {
         controls.push(this.parsePresentationToggle());
+      } else if (this.checkWord("ACTION")) {
+        controls.push(this.parsePresentationAction());
       } else if (this.checkWord("LIST")) {
         lists.push(this.parsePresentationList());
       } else {
         this.failUnexpected(
-          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, LIST, or END.SECTION",
+          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, ACTION, LIST, or END.SECTION",
         );
       }
     }
@@ -1460,6 +1466,7 @@ class AdlParser {
     const sort: SortDeclarationAst[] = [];
     let filter: ResolvedExpression | undefined;
     let emptyText: string | undefined;
+    const actions: PresentationActionControlDeclarationAst[] = [];
     let row: PresentationRowTemplateDeclarationAst | undefined;
     this.consumeLineEnd("LIST declaration");
 
@@ -1482,6 +1489,7 @@ class AdlParser {
           sort,
           ...(filter === undefined ? {} : { filter }),
           ...(emptyText === undefined ? {} : { emptyText }),
+          actions,
           ...(row === undefined ? {} : { row }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
@@ -1504,16 +1512,118 @@ class AdlParser {
       } else if (this.matchWord("EMPTY_TEXT")) {
         emptyText = String(this.consumeLiteral("LIST EMPTY_TEXT value"));
         this.consumeLineEnd("LIST EMPTY_TEXT directive");
+      } else if (this.checkWord("ACTION")) {
+        actions.push(this.parsePresentationAction("row"));
       } else if (this.checkWord("ROW")) {
         row = this.parsePresentationRowTemplate();
       } else if (this.checkWord("END")) {
         this.failExpected("END.LIST", this.current());
       } else {
         this.failUnexpected(
-          "LIST directive ORDER BY, WHERE, RENDER_AS, DENSITY, EMPTY_TEXT, ROW, or END.LIST",
+          "LIST directive ORDER BY, WHERE, RENDER_AS, DENSITY, EMPTY_TEXT, ACTION, ROW, or END.LIST",
         );
       }
     }
+  }
+
+  private parsePresentationAction(
+    defaultPlacement?: PresentationActionPlacement,
+  ): PresentationActionControlDeclarationAst {
+    const startToken = this.expectWord("ACTION", "presentation ACTION declaration");
+    const name = this.consumeName("presentation action name");
+    let label: string | undefined;
+    let icon: PresentationIconRefDeclarationAst | undefined;
+    let placement: PresentationActionPlacement | undefined = defaultPlacement;
+    let command: string | undefined;
+    let view: string | undefined;
+    let visibleWhen: ResolvedExpression | undefined;
+    const input: PresentationActionInputDeclarationAst[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("presentation action label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+      } else if (this.matchWord("PLACEMENT")) {
+        placement = this.parsePresentationActionPlacement();
+      } else if (this.matchWord("COMMAND")) {
+        command = this.consumeName("presentation action command");
+      } else if (this.matchWord("VIEW")) {
+        view = this.consumeName("presentation action target view");
+      } else if (this.matchWord("WHEN")) {
+        visibleWhen = this.parseExpressionUntil(new Set());
+      } else {
+        this.failUnexpected(
+          "ACTION header option LABEL, ICON, PLACEMENT, COMMAND, VIEW, WHEN, or end of line",
+        );
+      }
+    }
+    this.consumeLineEnd("presentation ACTION declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.ACTION", this.current());
+      }
+
+      if (this.checkEnd("ACTION")) {
+        const end = this.parseEnd("ACTION");
+        return {
+          kind: "PresentationActionControlDeclaration",
+          name,
+          ...(label === undefined ? {} : { label }),
+          ...(icon === undefined ? {} : { icon }),
+          ...(placement === undefined ? {} : { placement }),
+          ...(command === undefined ? {} : { command }),
+          ...(view === undefined ? {} : { view }),
+          input,
+          ...(visibleWhen === undefined ? {} : { visibleWhen }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("presentation action label"));
+        this.consumeLineEnd("ACTION LABEL directive");
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+        this.consumeLineEnd("ACTION ICON directive");
+      } else if (this.matchWord("PLACEMENT")) {
+        placement = this.parsePresentationActionPlacement();
+        this.consumeLineEnd("ACTION PLACEMENT directive");
+      } else if (this.matchWord("COMMAND")) {
+        command = this.consumeName("presentation action command");
+        this.consumeLineEnd("ACTION COMMAND directive");
+      } else if (this.matchWord("VIEW")) {
+        view = this.consumeName("presentation action target view");
+        this.consumeLineEnd("ACTION VIEW directive");
+      } else if (this.matchWord("INPUT")) {
+        input.push(this.parsePresentationActionInput());
+      } else if (this.matchWord("WHEN")) {
+        visibleWhen = this.parseExpressionUntil(new Set());
+        this.consumeLineEnd("ACTION WHEN directive");
+      } else {
+        this.failUnexpected(
+          "ACTION directive LABEL, ICON, PLACEMENT, COMMAND, VIEW, INPUT, WHEN, or END.ACTION",
+        );
+      }
+    }
+  }
+
+  private parsePresentationActionInput(): PresentationActionInputDeclarationAst {
+    const startToken = this.previous();
+    const name = this.consumeName("presentation action input name");
+    this.expectWord("FROM", "ACTION INPUT FROM clause");
+    const expression = this.parseExpressionUntil(new Set());
+    this.consumeLineEnd("ACTION INPUT directive");
+    return {
+      kind: "PresentationActionInputDeclaration",
+      name,
+      expression,
+      range: this.rangeFrom(startToken),
+    };
   }
 
   private parsePresentationRowTemplate(): PresentationRowTemplateDeclarationAst {
@@ -2669,6 +2779,20 @@ class AdlParser {
         return "stack";
       default:
         this.failExpected("presentation row layout INLINE or STACK", token);
+    }
+  }
+
+  private parsePresentationActionPlacement(): PresentationActionPlacement {
+    const token = this.consumeWordToken("presentation action placement");
+    switch (normaliseKeyword(token.lexeme)) {
+      case "primary":
+        return "primary";
+      case "secondary":
+        return "secondary";
+      case "row":
+        return "row";
+      default:
+        this.failExpected("presentation action placement PRIMARY, SECONDARY, or ROW", token);
     }
   }
 

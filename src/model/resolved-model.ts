@@ -48,6 +48,7 @@ export type PresentationDensity = "compact" | "comfortable" | "spacious";
 export type PresentationStateType = Exclude<FieldType, "attachment">;
 export type PresentationStatePersistence = "memory" | "session" | "local";
 export type PresentationControlKind = "toggle" | "select" | "action" | "contextSelector";
+export type PresentationActionPlacement = "primary" | "secondary" | "row";
 export type PresentationListSourceKind = "readModel" | "object";
 export type PresentationListRenderStyle = "table" | "feed" | "compactFeed" | "cards";
 export type PresentationRowLayout = "inline" | "stack";
@@ -569,8 +570,11 @@ export interface ResolvedPresentationSelectOption {
 
 export interface ResolvedPresentationActionControl extends ResolvedPresentationControlBase {
   kind: "action";
+  placement: PresentationActionPlacement;
   command?: string;
   view?: string;
+  input: Record<string, ResolvedExpression>;
+  visibleWhen?: ResolvedExpression;
 }
 
 export interface ResolvedPresentationContextSelectorControl
@@ -589,6 +593,7 @@ export interface ResolvedPresentationList {
   sort: ResolvedSort[];
   filter?: ResolvedExpression;
   emptyState: ResolvedPresentationEmptyState;
+  actions: ResolvedPresentationActionControl[];
   row: ResolvedPresentationRowTemplate;
 }
 
@@ -1199,8 +1204,11 @@ export interface PartialPresentationSelectOptionModel {
 
 export interface PartialPresentationActionControlModel extends PartialPresentationControlBaseModel {
   kind: "action";
+  placement?: PresentationActionPlacement;
   command?: string;
   view?: string;
+  input?: Record<string, ResolvedExpression>;
+  visibleWhen?: PartialPolicyConditionModel;
 }
 
 export interface PartialPresentationContextSelectorControlModel
@@ -1219,6 +1227,7 @@ export interface PartialPresentationListModel {
   sort?: ResolvedSort[];
   filter?: PartialPolicyConditionModel;
   emptyState?: PartialPresentationEmptyStateModel;
+  actions?: PartialPresentationActionControlModel[];
   row?: PartialPresentationRowTemplateModel;
 }
 

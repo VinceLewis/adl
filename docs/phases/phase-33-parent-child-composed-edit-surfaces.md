@@ -18,7 +18,7 @@ Add parent-child edit composition:
 - Child collection display inside modal, drawer, page, or split-pane edit
   containers from Phase 30.
 - Child add, edit, remove, unlink, and reorder placeholders where supported by
-  existing relationships and commands.
+  existing relationships, commands, and Phase 32 action placement controls.
 - Staged child changes for a new unsaved parent when immediate child writes are
   impossible.
 - Renderer-neutral runtime output for composed edit surfaces.
@@ -37,6 +37,9 @@ are covered in later phases.
 - Staged child state must be explicit and inspectable; it must not silently write
   records before the parent save succeeds.
 - Policy must be evaluated for both the parent action and each child operation.
+- Parent-child action buttons should reuse Phase 32 command/navigation action
+  placement and runtime-shaped visible/enabled state rather than adding a
+  second action-control contract.
 
 ## Expected Deliverables
 

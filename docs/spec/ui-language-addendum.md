@@ -7,10 +7,10 @@ because these constructs describe UI composition and rendering intent, not core
 business object semantics.
 
 Implemented behavior covers composed view presentation blocks, local state,
-sections, toggles, lists, row templates, icon maps, formatting, empty states,
-renderer-neutral runtime evaluation, browser rendering through generic Web
-Components, and data-driven conformance coverage. Future proposals are called
-out explicitly below.
+sections, toggles, action controls, lists, row actions, row templates, icon
+maps, formatting, empty states, renderer-neutral runtime evaluation, browser
+rendering through generic Web Components, and data-driven conformance coverage.
+Future proposals are called out explicitly below.
 
 ## Purpose
 
@@ -137,10 +137,30 @@ TOGGLE showGigs
 END.TOGGLE
 ```
 
-Implemented source syntax includes `TOGGLE` for Boolean local state. The
-resolved model also has generic `select`, `action`, and `contextSelector`
-control shapes for JSON/TypeScript partial models, but ADL source syntax for
-those controls is not implemented yet.
+Implemented source syntax includes `TOGGLE` for Boolean local state and
+`ACTION` for command or navigation controls. The resolved model also has
+generic `select` and `contextSelector` control shapes for JSON/TypeScript
+partial models, but ADL source syntax for those controls is not implemented
+yet.
+
+Action controls declare renderer-neutral intent, not host callbacks:
+
+```adl
+ACTION addEvent COMMAND CreateEvent LABEL "Add Event" ICON calendar PLACEMENT primary
+END.ACTION
+
+ACTION openEvent VIEW EventList LABEL "Open" PLACEMENT row
+  INPUT title FROM Title
+END.ACTION
+```
+
+Supported placements are `primary`, `secondary`, and `row`. Section actions
+default to `secondary`; actions declared inside a `LIST` default to `row`.
+Command actions may map inputs from local presentation state or row fields.
+`WHEN` predicates can hide an action from presentation output, and command
+preconditions shape the renderer-neutral enabled state. Runtime command
+services still enforce command preconditions, policy, validation, sync, audit,
+and operation-log behavior when the action is attempted.
 
 ### Lists In Composed Views
 
@@ -459,7 +479,9 @@ The implemented presentation model resolves to structured data for:
 - sections
 - local state declarations
 - controls
+- action placement and command/navigation bindings
 - list bindings
+- row actions
 - row template fragments
 - icon maps
 - format declarations
@@ -475,6 +497,8 @@ Implemented defaults are explicit in the resolved model:
 - view, section, list, and row density: `comfortable`
 - list source kind: `readModel`
 - list render style: `table`
+- section action placement: `secondary`
+- list action placement: `row`
 - row layout: `inline`
 - text and field fragment style: `plain`
 - local state type: `boolean`
@@ -486,7 +510,8 @@ Implemented defaults are explicit in the resolved model:
 
 Implemented validation reports structured diagnostics for invalid references to
 read models, objects, fields, local state, icon maps, known fragment styles,
-formats, commands, target views, contexts, shell regions, and shell controls.
+formats, commands, command action inputs, action visibility predicates, target
+views, contexts, shell regions, and shell controls.
 
 Conformance cases under `conformance/presentation/` cover resolution defaults,
 validation diagnostics, local state defaults, toggle-controlled filters,
@@ -508,9 +533,9 @@ Parser/compiler support is implemented for the smallest useful subset:
 8. `ICON`
 9. `ICON_MAP`
 
-Unsupported source constructs include `SHELL`, `TOP_BAR`, `SELECT`, `ACTION`,
-`CONTEXT_SELECTOR`, arbitrary CSS, raw SVG, framework component names, host
-callbacks, procedural render loops, and DOM-specific declarations.
+Unsupported source constructs include `SELECT`, `CONTEXT_SELECTOR`, arbitrary
+CSS, raw SVG, framework component names, host callbacks, procedural render
+loops, and DOM-specific declarations.
 
 The first implementation target is the Giggle Band home dashboard source in
 `src/reference/giggle-band/ui.adl`. It proves that non-CRUD presentation can be
@@ -538,15 +563,19 @@ presentation filters and ordering, resolves row templates and icon maps, formats
 primitive display values, and returns empty states when no visible rows remain.
 
 The evaluator returns renderer-neutral data only. It does not return DOM nodes,
-HTML strings, CSS selectors, framework component names, or SVG payloads.
-Presentation filters run after read authorization, context scoping, and
-read-model shaping; they are not a policy or storage boundary.
+HTML strings, CSS selectors, framework component names, JavaScript callbacks,
+or SVG payloads. Action controls include intent, label, icon, placement,
+target command/view, resolved input, and visible/enabled state. Presentation
+filters run after read authorization, context scoping, and read-model shaping;
+they are not a policy or storage boundary.
 
 The browser renderer consumes this evaluator output. It renders sections,
-headings, local toggle controls, compact feed rows, inline text fragments, bold
-fragments, semantic icons, diagnostics, and empty states. Toggle interaction
-updates view-local presentation state and re-evaluates the view; it does not
-write object-store records.
+headings, local toggle controls, command/navigation actions, compact feed rows,
+row actions, inline text fragments, bold fragments, semantic icons,
+diagnostics, and empty states. Toggle interaction updates view-local
+presentation state and re-evaluates the view; it does not write object-store
+records. Action clicks dispatch to model navigation or `ApplicationRuntime`
+command execution.
 
 For non-composed CRUD object views, the browser renderer is list-first by
 default. It renders only the list/table at rest, opens create/edit forms from

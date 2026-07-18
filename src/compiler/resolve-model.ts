@@ -135,6 +135,7 @@ import type {
   ResolvedViewContext,
   ResolvedViewPresentation,
   PresentationStateType,
+  PresentationActionPlacement,
 } from "../model/resolved-model.js";
 
 export function resolveApplicationModel(input: PartialApplicationModel): ResolvedApplicationModel {
@@ -744,8 +745,21 @@ function resolvePresentationControl(
     return {
       ...base,
       kind: "action",
+      placement: input.placement ?? "secondary",
       ...(input.command === undefined ? {} : { command: input.command }),
       ...(input.view === undefined ? {} : { view: input.view }),
+      input:
+        input.input === undefined
+          ? {}
+          : Object.fromEntries(
+              Object.entries(input.input).map(([name, expression]) => [
+                name,
+                resolveExpression(expression),
+              ]),
+            ),
+      ...(input.visibleWhen === undefined
+        ? {}
+        : { visibleWhen: resolveExpression(input.visibleWhen) }),
     };
   }
 
@@ -767,8 +781,22 @@ function resolvePresentationList(input: PartialPresentationListModel): ResolvedP
     sort: [...(input.sort ?? [])].map(resolveSort),
     ...(input.filter === undefined ? {} : { filter: resolveExpression(input.filter) }),
     emptyState: resolvePresentationEmptyState(input.emptyState),
+    actions: (input.actions ?? []).map((action) =>
+      resolvePresentationAction(action, action.placement ?? "row"),
+    ),
     row: resolvePresentationRowTemplate(input.row),
   };
+}
+
+function resolvePresentationAction(
+  input: Extract<PartialPresentationControlModel, { kind: "action" }>,
+  placement: PresentationActionPlacement,
+): Extract<ResolvedPresentationControl, { kind: "action" }> {
+  const resolved = resolvePresentationControl({ ...input, placement });
+  if (resolved.kind !== "action") {
+    throw new Error("Expected presentation action control.");
+  }
+  return resolved;
 }
 
 function resolvePresentationEmptyState(

@@ -235,6 +235,115 @@
           ]
         }
       ]
+    },
+    "actionPresentation": {
+      "app": { "name": "ActionPresentation", "startView": "Home" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            { "name": "Title", "type": "text", "required": true },
+            { "name": "Pinned", "type": "boolean", "defaultValue": false }
+          ],
+          "views": [
+            {
+              "name": "Home",
+              "kind": "composite",
+              "fields": ["Title", "Pinned"],
+              "presentation": {
+                "sections": [
+                  {
+                    "name": "Main",
+                    "controls": [
+                      {
+                        "name": "quickAdd",
+                        "kind": "action",
+                        "label": "Add Note",
+                        "placement": "primary",
+                        "command": "CreateQuickNote"
+                      },
+                      {
+                        "name": "blockedAdd",
+                        "kind": "action",
+                        "label": "Blocked",
+                        "command": "BlockedCommand"
+                      },
+                      {
+                        "name": "openList",
+                        "kind": "action",
+                        "label": "Open List",
+                        "view": "NoteList"
+                      }
+                    ],
+                    "lists": [
+                      {
+                        "name": "Notes",
+                        "sourceKind": "object",
+                        "source": "Note",
+                        "fields": ["Title", "Pinned"],
+                        "actions": [
+                          {
+                            "name": "openRow",
+                            "kind": "action",
+                            "label": "Open",
+                            "view": "NoteList",
+                            "input": { "title": { "kind": "field", "field": "Title" } }
+                          }
+                        ],
+                        "row": { "fragments": [{ "kind": "field", "field": "Title" }] }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            { "name": "NoteList", "kind": "list", "fields": ["Title"], "actions": ["read"] }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "CreateQuickNote",
+          "steps": [
+            {
+              "name": "createNote",
+              "action": "create",
+              "object": "Note",
+              "authority": "command",
+              "values": {
+                "Title": { "kind": "literal", "value": "Quick note" },
+                "Pinned": { "kind": "literal", "value": false }
+              }
+            }
+          ]
+        },
+        {
+          "name": "BlockedCommand",
+          "preconditions": [
+            {
+              "name": "blocked",
+              "expression": { "kind": "literal", "value": false },
+              "message": "Blocked for this user."
+            }
+          ],
+          "steps": []
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAdminAllNoteActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
     }
   },
   "cases": [
@@ -435,6 +544,87 @@
                   "name": "PendingInvitations",
                   "rows": [],
                   "emptyState": { "text": "No pending invitations" }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.evaluate-actions",
+      "title": "Presentation evaluation emits renderer-neutral action placement and state",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "actionPresentation",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note-existing",
+          "objectName": "Note",
+          "values": { "Title": "Existing", "Pinned": true },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "viewName": "Home",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "name": "Main",
+              "controls": [
+                {
+                  "name": "quickAdd",
+                  "kind": "action",
+                  "placement": "primary",
+                  "command": "CreateQuickNote",
+                  "visible": true,
+                  "enabled": true,
+                  "input": {}
+                },
+                {
+                  "name": "blockedAdd",
+                  "kind": "action",
+                  "placement": "secondary",
+                  "command": "BlockedCommand",
+                  "visible": true,
+                  "enabled": false,
+                  "reasons": ["Blocked for this user."]
+                },
+                {
+                  "name": "openList",
+                  "kind": "action",
+                  "placement": "secondary",
+                  "view": "NoteList",
+                  "visible": true,
+                  "enabled": true
+                }
+              ],
+              "lists": [
+                {
+                  "name": "Notes",
+                  "rows": [
+                    {
+                      "values": { "Title": "Existing" },
+                      "actions": [
+                        {
+                          "name": "openRow",
+                          "kind": "action",
+                          "placement": "row",
+                          "view": "NoteList",
+                          "input": { "title": "Existing" },
+                          "visible": true,
+                          "enabled": true
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             }

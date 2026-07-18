@@ -1,9 +1,11 @@
 import type {
   JsonPrimitive,
   JsonValue,
+  ResolvedCommand,
   PresentationDensity,
   PresentationFragmentStyle,
   PresentationLayout,
+  ResolvedExpression,
   PresentationRowLayout,
   ResolvedApplicationModel,
   ResolvedPresentationControl,
@@ -19,7 +21,7 @@ import type {
   ResolvedView,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
-import { evaluateExpressionAsBoolean } from "./expression-evaluator.js";
+import { evaluateExpression, evaluateExpressionAsBoolean } from "./expression-evaluator.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { cloneJson, noopRuntimeLogger, safeContextLog } from "./runtime-types.js";
 import type {
@@ -44,6 +46,8 @@ export interface RuntimePresentationDiagnostic {
     | "ADL_PRESENTATION_FIELD_MISSING"
     | "ADL_PRESENTATION_ICON_MAP_MISSING"
     | "ADL_PRESENTATION_ICON_VALUE_MISSING"
+    | "ADL_PRESENTATION_ACTION_INPUT_FAILED"
+    | "ADL_PRESENTATION_ACTION_VISIBILITY_FAILED"
     | "ADL_PRESENTATION_FORMAT_UNSUPPORTED"
     | "ADL_PRESENTATION_FORMAT_INVALID_VALUE";
   message: string;
@@ -106,6 +110,11 @@ export interface RuntimePresentationSelectOption {
 
 export interface RuntimePresentationActionControl extends RuntimePresentationControlBase {
   kind: "action";
+  placement: Extract<ResolvedPresentationControl, { kind: "action" }>["placement"];
+  visible: boolean;
+  enabled: boolean;
+  reasons: string[];
+  input: Record<string, JsonValue>;
   command?: string;
   view?: string;
 }
@@ -146,6 +155,7 @@ export interface RuntimePresentationRow {
   layout: PresentationRowLayout;
   density: ResolvedPresentationList["density"];
   fragments: RuntimePresentationFragment[];
+  actions: RuntimePresentationActionControl[];
 }
 
 export interface RuntimePresentationRowSource {
@@ -299,6 +309,7 @@ export class PresentationRuntime {
         control,
         view,
         state,
+        context,
         diagnostics,
         `${path}.controls[${index}]`,
         section.name,
@@ -334,6 +345,7 @@ export class PresentationRuntime {
     control: ResolvedPresentationControl,
     view: ResolvedView,
     state: Record<string, JsonValue>,
+    context: RuntimeContext,
     diagnostics: RuntimePresentationDiagnostic[],
     path: string,
     section: string,
@@ -376,12 +388,19 @@ export class PresentationRuntime {
           }),
         };
       case "action":
-        return {
-          ...base,
-          kind: "action",
-          ...(control.command === undefined ? {} : { command: control.command }),
-          ...(control.view === undefined ? {} : { view: control.view }),
-        };
+        return this.evaluateActionControl(
+          control,
+          base,
+          view,
+          state,
+          undefined,
+          context,
+          diagnostics,
+          {
+            path,
+            section,
+          },
+        );
       case "contextSelector":
         return {
           ...base,
@@ -519,7 +538,178 @@ export class PresentationRuntime {
         diagnostics,
         { ...location, list: list.name },
       ),
+      actions: list.actions
+        .map((action, index) => {
+          const actionIcon = this.resolveIcon(action.icon, view, state, row.values, diagnostics, {
+            ...location,
+            path: `${location.path}.actions[${index}].icon`,
+            list: list.name,
+          });
+          return this.evaluateActionControl(
+            action,
+            {
+              name: action.name,
+              kind: "action",
+              ...(action.label === undefined ? {} : { label: action.label }),
+              ...(actionIcon === undefined ? {} : { icon: actionIcon }),
+            },
+            view,
+            state,
+            row.values,
+            context,
+            diagnostics,
+            { ...location, path: `${location.path}.actions[${index}]`, list: list.name },
+          );
+        })
+        .filter((action) => action.visible),
     };
+  }
+
+  private evaluateActionControl(
+    control: Extract<ResolvedPresentationControl, { kind: "action" }>,
+    base: RuntimePresentationControlBase,
+    view: ResolvedView,
+    state: Record<string, JsonValue>,
+    values: Record<string, JsonValue> | undefined,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationActionControl {
+    const actionInput = this.evaluateActionInput(
+      control.input,
+      values,
+      state,
+      context,
+      diagnostics,
+      {
+        ...location,
+        path: `${location.path}.input`,
+      },
+    );
+    const reasons: string[] = [...actionInput.reasons];
+    const visibility = this.evaluateActionVisibility(control, values, state, context, diagnostics, {
+      ...location,
+      path: `${location.path}.visibleWhen`,
+    });
+    const commandState =
+      control.command === undefined
+        ? { enabled: true, reasons: [] }
+        : this.evaluateCommandActionState(control.command, actionInput.input, context);
+    reasons.push(...commandState.reasons);
+
+    return {
+      ...base,
+      kind: "action",
+      placement: control.placement,
+      visible: visibility.visible,
+      enabled: actionInput.ok && visibility.enabled && commandState.enabled,
+      reasons,
+      input: actionInput.input,
+      ...(control.command === undefined ? {} : { command: control.command }),
+      ...(control.view === undefined ? {} : { view: control.view }),
+    };
+  }
+
+  private evaluateActionInput(
+    input: Record<string, ResolvedExpression>,
+    values: Record<string, JsonValue> | undefined,
+    state: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): { ok: boolean; input: Record<string, JsonValue>; reasons: string[] } {
+    const output: Record<string, JsonValue> = {};
+    const reasons: string[] = [];
+    let ok = true;
+    for (const [name, expression] of Object.entries(input)) {
+      const result = evaluateExpression(expression, {
+        values: { ...(values ?? {}), ...state },
+        context,
+      });
+      if (!result.ok) {
+        ok = false;
+        reasons.push(result.error.message);
+        diagnostics.push({
+          severity: "error",
+          code: "ADL_PRESENTATION_ACTION_INPUT_FAILED",
+          message: result.error.message,
+          path: `${location.path}.${name}`,
+          section: location.section,
+          list: location.list,
+        });
+        continue;
+      }
+      output[name] = cloneJson(result.value.value);
+    }
+    return { ok, input: output, reasons };
+  }
+
+  private evaluateActionVisibility(
+    control: Extract<ResolvedPresentationControl, { kind: "action" }>,
+    values: Record<string, JsonValue> | undefined,
+    state: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): { visible: boolean; enabled: boolean } {
+    if (control.visibleWhen === undefined) {
+      return { visible: true, enabled: true };
+    }
+
+    const result = evaluateExpressionAsBoolean(control.visibleWhen, {
+      values: { ...(values ?? {}), ...state },
+      context,
+    });
+    if (result.ok) {
+      return { visible: result.value.value === true, enabled: true };
+    }
+
+    diagnostics.push({
+      severity: "error",
+      code: "ADL_PRESENTATION_ACTION_VISIBILITY_FAILED",
+      message: result.error.message,
+      path: location.path,
+      section: location.section,
+      list: location.list,
+    });
+    return { visible: false, enabled: false };
+  }
+
+  private evaluateCommandActionState(
+    commandName: string,
+    input: Record<string, JsonValue>,
+    context: RuntimeContext,
+  ): { enabled: boolean; reasons: string[] } {
+    let command: ResolvedCommand;
+    try {
+      command = this.index.getCommand(commandName);
+    } catch {
+      return { enabled: false, reasons: [`Command '${commandName}' is not available.`] };
+    }
+
+    const reasons: string[] = [];
+    for (const commandInput of command.inputs) {
+      if (
+        commandInput.required &&
+        (input[commandInput.name] === undefined ||
+          input[commandInput.name] === null ||
+          input[commandInput.name] === "")
+      ) {
+        reasons.push(`Command '${commandName}' requires input '${commandInput.name}'.`);
+      }
+    }
+
+    for (const precondition of command.preconditions) {
+      const result = evaluateExpressionAsBoolean(precondition.expression, {
+        values: input,
+        context,
+      });
+      if (!result.ok || result.value.value !== true) {
+        reasons.push(precondition.message);
+      }
+    }
+
+    return { enabled: reasons.length === 0, reasons };
   }
 
   private evaluateFragments(

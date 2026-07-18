@@ -15,6 +15,7 @@ import type {
   ExpressionValueType,
   FieldType,
   PresentationDensity,
+  PresentationActionPlacement,
   PresentationFormatKind,
   PresentationFragmentStyle,
   PresentationLayout,
@@ -237,6 +238,17 @@ export const MODEL_VALIDATION_CODES = {
   PRESENTATION_CONTROL_CONTEXT_UNKNOWN: "ADL_PRESENTATION_CONTROL_CONTEXT_UNKNOWN",
   PRESENTATION_CONTROL_DUPLICATE: "ADL_PRESENTATION_CONTROL_DUPLICATE",
   PRESENTATION_CONTROL_KIND_INVALID: "ADL_PRESENTATION_CONTROL_KIND_INVALID",
+  PRESENTATION_CONTROL_PLACEMENT_INVALID: "ADL_PRESENTATION_CONTROL_PLACEMENT_INVALID",
+  PRESENTATION_CONTROL_INPUT_FIELD_UNKNOWN: "ADL_PRESENTATION_CONTROL_INPUT_FIELD_UNKNOWN",
+  PRESENTATION_CONTROL_INPUT_INVALID: "ADL_PRESENTATION_CONTROL_INPUT_INVALID",
+  PRESENTATION_CONTROL_INPUT_RUNTIME_PROPERTY_INVALID:
+    "ADL_PRESENTATION_CONTROL_INPUT_RUNTIME_PROPERTY_INVALID",
+  PRESENTATION_CONTROL_VISIBILITY_FIELD_UNKNOWN:
+    "ADL_PRESENTATION_CONTROL_VISIBILITY_FIELD_UNKNOWN",
+  PRESENTATION_CONTROL_VISIBILITY_INVALID: "ADL_PRESENTATION_CONTROL_VISIBILITY_INVALID",
+  PRESENTATION_CONTROL_VISIBILITY_RUNTIME_PROPERTY_INVALID:
+    "ADL_PRESENTATION_CONTROL_VISIBILITY_RUNTIME_PROPERTY_INVALID",
+  PRESENTATION_CONTROL_VISIBILITY_TYPE: "ADL_PRESENTATION_CONTROL_VISIBILITY_TYPE",
   PRESENTATION_CONTROL_STATE_UNKNOWN: "ADL_PRESENTATION_CONTROL_STATE_UNKNOWN",
   PRESENTATION_CONTROL_VIEW_UNKNOWN: "ADL_PRESENTATION_CONTROL_VIEW_UNKNOWN",
   PRESENTATION_DENSITY_INVALID: "ADL_PRESENTATION_DENSITY_INVALID",
@@ -350,6 +362,11 @@ const PRESENTATION_STATE_PERSISTENCE = new Set<PresentationStatePersistence>([
   "local",
 ]);
 const PRESENTATION_CONTROL_KINDS = new Set(["toggle", "select", "action", "contextSelector"]);
+const PRESENTATION_ACTION_PLACEMENTS = new Set<PresentationActionPlacement>([
+  "primary",
+  "secondary",
+  "row",
+]);
 const PRESENTATION_LIST_SOURCE_KINDS = new Set<PresentationListSourceKind>(["readModel", "object"]);
 const PRESENTATION_LIST_RENDER_STYLES = new Set<PresentationListRenderStyle>([
   "table",
@@ -2669,6 +2686,7 @@ function validatePresentationSection(
 ): void {
   validatePresentationLayout(section.layout, `${sectionPath}.layout`, diagnostics);
   validatePresentationDensity(section.density, `${sectionPath}.density`, diagnostics);
+  const sectionExpressionFields = mergePresentationExpressionFields(new Map(), stateByName);
   reportDuplicateNames(
     section.controls,
     `${sectionPath}.controls`,
@@ -2695,6 +2713,7 @@ function validatePresentationSection(
       view,
       stateByName,
       iconMapByName,
+      sectionExpressionFields,
       indexes,
       diagnostics,
     );
@@ -2723,6 +2742,7 @@ function validatePresentationControl(
   view: ResolvedView,
   stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
   iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  expressionFieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
@@ -2747,24 +2767,13 @@ function validatePresentationControl(
   }
 
   if (control.kind === "action") {
-    if (control.command !== undefined && !indexes.commandsByName.has(control.command)) {
-      diagnostics.push(
-        diagnostic(
-          MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_COMMAND_UNKNOWN,
-          `Presentation action '${control.name}' references unknown command '${control.command}'.`,
-          `${controlPath}.command`,
-        ),
-      );
-    }
-    if (control.view !== undefined && !indexes.viewNames.has(control.view)) {
-      diagnostics.push(
-        diagnostic(
-          MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VIEW_UNKNOWN,
-          `Presentation action '${control.name}' references unknown view '${control.view}'.`,
-          `${controlPath}.view`,
-        ),
-      );
-    }
+    validatePresentationActionControl(
+      control,
+      controlPath,
+      expressionFieldsByName,
+      indexes,
+      diagnostics,
+    );
   }
 
   if (control.kind === "contextSelector" && control.context !== undefined) {
@@ -2909,6 +2918,113 @@ function validatePresentationList(
     iconMapByName,
     diagnostics,
   );
+
+  reportDuplicateNames(
+    list.actions,
+    `${listPath}.actions`,
+    MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_DUPLICATE,
+    diagnostics,
+    `Presentation row action names must be unique within list '${list.name}'.`,
+  );
+
+  for (let actionIndex = 0; actionIndex < list.actions.length; actionIndex += 1) {
+    const action = list.actions[actionIndex];
+    if (action === undefined) {
+      continue;
+    }
+    validatePresentationActionControl(
+      action,
+      `${listPath}.actions[${actionIndex}]`,
+      expressionFieldsByName,
+      indexes,
+      diagnostics,
+    );
+    validatePresentationIconRef(
+      action.icon,
+      `${listPath}.actions[${actionIndex}].icon`,
+      view,
+      iconMapByName,
+      fieldsByName,
+      diagnostics,
+    );
+  }
+}
+
+function validatePresentationActionControl(
+  control: Extract<ResolvedPresentationControl, { kind: "action" }>,
+  controlPath: string,
+  expressionFieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_ACTION_PLACEMENTS.has(control.placement)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_PLACEMENT_INVALID,
+        `Presentation action '${control.name}' has invalid placement '${String(control.placement)}'.`,
+        `${controlPath}.placement`,
+      ),
+    );
+  }
+
+  if (control.command !== undefined && !indexes.commandsByName.has(control.command)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_COMMAND_UNKNOWN,
+        `Presentation action '${control.name}' references unknown command '${control.command}'.`,
+        `${controlPath}.command`,
+      ),
+    );
+  }
+
+  if (control.view !== undefined && !indexes.viewNames.has(control.view)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VIEW_UNKNOWN,
+        `Presentation action '${control.name}' references unknown view '${control.view}'.`,
+        `${controlPath}.view`,
+      ),
+    );
+  }
+
+  for (const [inputName, expression] of Object.entries(control.input)) {
+    validateExpression(
+      expression,
+      `${controlPath}.input.${inputName}`,
+      expressionFieldsByName,
+      {
+        invalid: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_INPUT_INVALID,
+        field: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_INPUT_FIELD_UNKNOWN,
+        runtime: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_INPUT_RUNTIME_PROPERTY_INVALID,
+        type: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_INPUT_INVALID,
+      },
+      diagnostics,
+    );
+  }
+
+  if (control.visibleWhen !== undefined) {
+    const visibilityType = validateExpression(
+      control.visibleWhen,
+      `${controlPath}.visibleWhen`,
+      expressionFieldsByName,
+      {
+        invalid: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VISIBILITY_INVALID,
+        field: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VISIBILITY_FIELD_UNKNOWN,
+        runtime: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VISIBILITY_RUNTIME_PROPERTY_INVALID,
+        type: MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VISIBILITY_TYPE,
+      },
+      diagnostics,
+    );
+    if (visibilityType !== "boolean" && visibilityType !== "unknown") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_CONTROL_VISIBILITY_TYPE,
+          `Presentation action '${control.name}' visibility must resolve to boolean, not ${visibilityType}.`,
+          `${controlPath}.visibleWhen`,
+        ),
+      );
+    }
+  }
 }
 
 function validatePresentationRowTemplate(

@@ -118,8 +118,11 @@ Implemented presentation declarations include:
 - icon maps from semantic values to icon names
 - sections with headings, controls, and lists
 - toggle, select, action, and context-selector controls
+- action placement metadata for primary, secondary, and row-level controls
+- command and navigation action bindings with renderer-neutral command inputs
 - read-model-backed or object-backed presentation lists
 - list render style, density, fields, sort, filters, and empty states
+- list row actions
 - row templates with literal text, field text, icon, and conditional fragments
 - fragment styles limited to `plain`, `bold`, `muted`, and `caption`
 - display-only format declarations for text, number, date, datetime, and time
@@ -128,8 +131,9 @@ Implemented presentation declarations include:
 
 Presentation references are validated against the resolved model. Lists must
 reference known read models or objects. Row fragments, list fields, sort fields,
-filters, icon maps, controls, local state, commands, target views, contexts, and
-shell controls produce structured diagnostics when invalid.
+filters, icon maps, controls, local state, commands, command action inputs,
+action visibility predicates, target views, contexts, and shell controls
+produce structured diagnostics when invalid.
 
 ## Shell
 

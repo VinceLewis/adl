@@ -528,6 +528,61 @@ describe("browser UI runtime", () => {
     expect(app.textContent).toContain("No pending invitations");
   });
 
+  it("dispatches composed command and navigation actions through runtime services", async () => {
+    const model = createActionUiModel();
+    const runtime = new ApplicationRuntime(model);
+    const app = await mountApp(model, runtime, {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "ui",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    });
+
+    const add = requireElement<HTMLButtonElement>(
+      app,
+      "button[data-presentation-action='true'][data-command='CreateQuickNote']",
+    );
+    expect(add.disabled).toBe(false);
+    add.click();
+    await waitForText(app, "Quick note");
+
+    const blocked = requireElement<HTMLButtonElement>(
+      app,
+      "button[data-presentation-action='true'][data-command='BlockedCommand']",
+    );
+    expect(blocked.disabled).toBe(true);
+
+    requireElement<HTMLButtonElement>(
+      app,
+      "button[data-presentation-action='true'][data-view='NoteList']",
+    ).click();
+    await flushUi();
+
+    expect(app.querySelector("adl-list-view")).not.toBeNull();
+    expect(app.querySelector("adl-composed-view")).toBeNull();
+  });
+
+  it("renders policy-shaped CRUD row actions from view action metadata", async () => {
+    const model = createBrowserDemoModel();
+    const userList = model.objects
+      .find((object) => object.name === "User")
+      ?.views.find((view) => view.name === "UserList");
+    if (userList === undefined) {
+      throw new Error("Expected UserList view in browser demo model.");
+    }
+    userList.actions = ["create", "read", "update", "delete"];
+    const app = await mountApp(model);
+
+    expect(app.querySelector("button[data-row-action='edit']")).not.toBeNull();
+    expect(app.querySelector("button[data-row-action='delete']")).not.toBeNull();
+
+    const firstRecord = requireElement<HTMLButtonElement>(app, "button[data-row-action='edit']");
+    firstRecord.click();
+    await flushUi();
+
+    expect(app.querySelector(".adl-edit-container-modal adl-form-view")).not.toBeNull();
+  });
+
   it("rejects invalid persisted and route-provided contexts", async () => {
     const persisted = await createSeededBandUiRuntime({
       selection: { persistence: "local" },
@@ -851,6 +906,117 @@ function createBandUiPartialModel(
       },
     ],
   };
+}
+
+function createActionUiModel(): ResolvedApplicationModel {
+  return resolveApplicationModel({
+    app: { name: "ActionUi", startView: "Home" },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Note",
+        fields: [
+          { name: "Title", type: "text", required: true },
+          { name: "Pinned", type: "boolean", defaultValue: false },
+        ],
+        views: [
+          {
+            name: "Home",
+            kind: "composite",
+            fields: ["Title", "Pinned"],
+            presentation: {
+              sections: [
+                {
+                  name: "Main",
+                  heading: "Notes",
+                  controls: [
+                    {
+                      name: "quickAdd",
+                      kind: "action",
+                      label: "Add Note",
+                      placement: "primary",
+                      command: "CreateQuickNote",
+                    },
+                    {
+                      name: "blockedAdd",
+                      kind: "action",
+                      label: "Blocked",
+                      command: "BlockedCommand",
+                    },
+                    {
+                      name: "openList",
+                      kind: "action",
+                      label: "Open List",
+                      view: "NoteList",
+                    },
+                  ],
+                  lists: [
+                    {
+                      name: "Notes",
+                      sourceKind: "object",
+                      source: "Note",
+                      fields: ["Title", "Pinned"],
+                      emptyState: { text: "No notes yet" },
+                      row: { fragments: [{ kind: "field", field: "Title" }] },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            name: "NoteList",
+            kind: "list",
+            fields: ["Title", "Pinned"],
+            actions: ["create", "read", "update", "delete"],
+          },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "CreateQuickNote",
+        label: "Add Note",
+        steps: [
+          {
+            name: "createNote",
+            action: "create",
+            object: "Note",
+            authority: "command",
+            values: {
+              Title: { kind: "literal", value: "Quick note" },
+              Pinned: { kind: "literal", value: false },
+            },
+          },
+        ],
+      },
+      {
+        name: "BlockedCommand",
+        preconditions: [
+          {
+            name: "blocked",
+            expression: { kind: "literal", value: false },
+            message: "Blocked for this user.",
+          },
+        ],
+        steps: [],
+      },
+    ],
+    policies: [
+      {
+        name: "NotePolicy",
+        object: "Note",
+        rules: [
+          {
+            name: "allowAdminAllNoteActions",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
 }
 
 function bandContext(context: RuntimeContext, bandId: string): RuntimeContext {

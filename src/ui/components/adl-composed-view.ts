@@ -1,4 +1,5 @@
 import type {
+  RuntimePresentationActionControl,
   RuntimePresentationControl,
   RuntimePresentationFragment,
   RuntimePresentationIcon,
@@ -13,6 +14,13 @@ export interface PresentationStateChangeDetail {
   value: boolean;
 }
 
+export interface PresentationActionDetail {
+  name: string;
+  command?: string;
+  view?: string;
+  input: Record<string, unknown>;
+}
+
 export class AdlComposedViewElement extends HTMLElement {
   private _presentation: RuntimePresentationView | undefined;
 
@@ -23,16 +31,32 @@ export class AdlComposedViewElement extends HTMLElement {
     }
 
     const toggle = target.closest<HTMLButtonElement>("button[data-presentation-toggle='true']");
-    if (toggle === null || toggle.dataset.state === undefined) {
+    if (toggle !== null && toggle.dataset.state !== undefined) {
+      this.dispatchEvent(
+        new CustomEvent<PresentationStateChangeDetail>("adl-presentation-state-change", {
+          bubbles: true,
+          detail: {
+            state: toggle.dataset.state,
+            value: toggle.getAttribute("aria-checked") !== "true",
+          },
+        }),
+      );
+      return;
+    }
+
+    const action = target.closest<HTMLButtonElement>("button[data-presentation-action='true']");
+    if (action === null || action.disabled) {
       return;
     }
 
     this.dispatchEvent(
-      new CustomEvent<PresentationStateChangeDetail>("adl-presentation-state-change", {
+      new CustomEvent<PresentationActionDetail>("adl-presentation-action", {
         bubbles: true,
         detail: {
-          state: toggle.dataset.state,
-          value: toggle.getAttribute("aria-checked") !== "true",
+          name: action.dataset.actionName ?? "",
+          ...(action.dataset.command === undefined ? {} : { command: action.dataset.command }),
+          ...(action.dataset.view === undefined ? {} : { view: action.dataset.view }),
+          input: JSON.parse(action.dataset.input ?? "{}") as Record<string, unknown>,
         },
       }),
     );
@@ -162,12 +186,21 @@ export class AdlComposedViewElement extends HTMLElement {
           </label>
         `;
       case "action":
+        if (!control.visible) {
+          return "";
+        }
         return `
           <button
             type="button"
-            class="adl-presentation-action"
+            class="adl-presentation-action adl-presentation-action-${escapeHtml(control.placement)}"
+            data-presentation-action="true"
             data-control-name="${escapeHtml(control.name)}"
-            disabled
+            data-action-name="${escapeHtml(control.name)}"
+            ${control.command === undefined ? "" : `data-command="${escapeHtml(control.command)}"`}
+            ${control.view === undefined ? "" : `data-view="${escapeHtml(control.view)}"`}
+            data-input="${escapeHtml(JSON.stringify(control.input))}"
+            ${control.enabled ? "" : "disabled"}
+            ${control.reasons.length === 0 ? "" : `title="${escapeHtml(control.reasons.join(" "))}"`}
           >
             ${this.renderIcon(control.icon, control.label)}
             <span>${escapeHtml(control.label ?? titleCaseIdentifier(control.name))}</span>
@@ -209,6 +242,7 @@ export class AdlComposedViewElement extends HTMLElement {
                         data-presentation-row="${escapeHtml(row.id)}"
                       >
                         ${row.fragments.map((fragment) => this.renderFragment(fragment)).join("")}
+                        ${this.renderRowActions(row.actions)}
                       </li>
                     `,
                   )
@@ -216,6 +250,19 @@ export class AdlComposedViewElement extends HTMLElement {
               </ol>
             `
         }
+      </div>
+    `;
+  }
+
+  private renderRowActions(actions: RuntimePresentationActionControl[]): string {
+    const visibleActions = actions.filter((action) => action.visible);
+    if (visibleActions.length === 0) {
+      return "";
+    }
+
+    return `
+      <div class="adl-presentation-row-actions">
+        ${visibleActions.map((action) => this.renderControl(action)).join("")}
       </div>
     `;
   }

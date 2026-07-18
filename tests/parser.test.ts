@@ -163,12 +163,19 @@ OBJECT Event
         ICON EventTypeIcon(Gig)
       END.TOGGLE
 
+      ACTION addEvent COMMAND CreateEvent LABEL 'Add Event' ICON calendar PLACEMENT primary
+      END.ACTION
+
       LIST UpcomingEvents FROM HomeUpcomingEvents
         ORDER BY EventDate ASC
         WHERE EventType == 'Gig' AND showGigs == true
         RENDER_AS compactFeed
         DENSITY compact
         EMPTY_TEXT 'No upcoming events'
+
+        ACTION openEvent VIEW EventList LABEL 'Open' PLACEMENT row
+          INPUT title FROM Title
+        END.ACTION
 
         ROW
           ICON EventTypeIcon(EventType)
@@ -198,8 +205,21 @@ END.OBJECT
       sections: [
         expect.objectContaining({
           name: "Schedule",
-          controls: [expect.objectContaining({ name: "showGigsToggle", state: "showGigs" })],
-          lists: [expect.objectContaining({ name: "UpcomingEvents", renderAs: "compactFeed" })],
+          controls: [
+            expect.objectContaining({ name: "showGigsToggle", state: "showGigs" }),
+            expect.objectContaining({
+              name: "addEvent",
+              command: "CreateEvent",
+              placement: "primary",
+            }),
+          ],
+          lists: [
+            expect.objectContaining({
+              name: "UpcomingEvents",
+              renderAs: "compactFeed",
+              actions: [expect.objectContaining({ name: "openEvent", view: "EventList" })],
+            }),
+          ],
         }),
       ],
     });

@@ -512,12 +512,19 @@ OBJECT Event
         ICON EventTypeIcon(Gig)
       END.TOGGLE
 
+      ACTION addEvent COMMAND CreateEvent LABEL 'Add Event' ICON calendar PLACEMENT primary
+      END.ACTION
+
       LIST UpcomingEvents FROM HomeUpcomingEvents
         ORDER BY EventDate ASC, StartTime ASC
         WHERE EventType == 'Gig' AND showGigs == true
         RENDER_AS compactFeed
         DENSITY compact
         EMPTY_TEXT 'No upcoming events'
+
+        ACTION openEvent VIEW EventList LABEL 'Open' PLACEMENT row
+          INPUT title FROM Title
+        END.ACTION
 
         ROW
           ICON EventTypeIcon(EventType)
@@ -528,6 +535,11 @@ OBJECT Event
       END.LIST
     END.SECTION
   END.VIEW
+
+  VIEW EventList LIST
+    FIELDS EventDate StartTime EventType Title
+    ACTIONS read
+  END.VIEW
 END.OBJECT
 
 READ_MODEL HomeUpcomingEvents
@@ -537,6 +549,9 @@ READ_MODEL HomeUpcomingEvents
   FIELD EventType FROM event.EventType
   FIELD Title FROM event.Title
 END.READ_MODEL
+
+COMMAND CreateEvent
+END.COMMAND
 `);
 
     const home = result.model.objects[0]?.views.find((view) => view.name === "HomeDashboard");
@@ -565,12 +580,31 @@ END.READ_MODEL
               label: "Gigs",
               icon: { kind: "map", map: "EventTypeIcon", value: "Gig" },
             },
+            {
+              name: "addEvent",
+              kind: "action",
+              label: "Add Event",
+              icon: { kind: "named", name: "calendar" },
+              placement: "primary",
+              command: "CreateEvent",
+              input: {},
+            },
           ],
           lists: [
             expect.objectContaining({
               name: "UpcomingEvents",
               source: "HomeUpcomingEvents",
               renderAs: "compactFeed",
+              actions: [
+                {
+                  name: "openEvent",
+                  kind: "action",
+                  label: "Open",
+                  placement: "row",
+                  view: "EventList",
+                  input: { title: { kind: "field", field: "Title" } },
+                },
+              ],
               row: expect.objectContaining({
                 fragments: [
                   { kind: "icon", icon: { kind: "map", map: "EventTypeIcon", field: "EventType" } },

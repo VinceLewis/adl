@@ -179,6 +179,60 @@ describe("presentation runtime", () => {
       }),
     ]);
   });
+
+  it("evaluates command, navigation, and row actions with renderer-neutral state", async () => {
+    const context: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "api",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(createActionPresentationModel());
+    await runtime.create("Note", { Title: "Existing", Pinned: true }, context);
+
+    const view = await runtime.evaluatePresentationView("Note", "Home", context);
+    const actions = view.sections[0]?.controls.filter((control) => control.kind === "action");
+    const rowActions = view.sections[0]?.lists[0]?.rows[0]?.actions;
+
+    expect(actions).toEqual([
+      expect.objectContaining({
+        name: "quickAdd",
+        kind: "action",
+        placement: "primary",
+        command: "CreateQuickNote",
+        visible: true,
+        enabled: true,
+        input: {},
+      }),
+      expect.objectContaining({
+        name: "blockedAdd",
+        kind: "action",
+        placement: "secondary",
+        command: "BlockedCommand",
+        visible: true,
+        enabled: false,
+        reasons: ["Blocked for this user."],
+      }),
+      expect.objectContaining({
+        name: "openList",
+        kind: "action",
+        view: "NoteList",
+        visible: true,
+        enabled: true,
+      }),
+    ]);
+    expect(rowActions).toEqual([
+      expect.objectContaining({
+        name: "openRow",
+        kind: "action",
+        placement: "row",
+        view: "NoteList",
+        input: { title: "Existing" },
+        visible: true,
+        enabled: true,
+      }),
+    ]);
+  });
 });
 
 async function createSeededPresentationRuntime() {
@@ -252,6 +306,123 @@ function createObjectBackedPresentationModel() {
         rules: [
           {
             name: "allowAdminAllArticleActions",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createActionPresentationModel() {
+  return resolveApplicationModel({
+    app: {
+      name: "ActionDemo",
+      startView: "Home",
+    },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Note",
+        fields: [
+          { name: "Title", type: "text", required: true },
+          { name: "Pinned", type: "boolean", defaultValue: false },
+        ],
+        views: [
+          {
+            name: "Home",
+            kind: "composite",
+            fields: ["Title", "Pinned"],
+            presentation: {
+              sections: [
+                {
+                  name: "Main",
+                  controls: [
+                    {
+                      name: "quickAdd",
+                      kind: "action",
+                      label: "Add Note",
+                      placement: "primary",
+                      command: "CreateQuickNote",
+                    },
+                    {
+                      name: "blockedAdd",
+                      kind: "action",
+                      label: "Blocked",
+                      command: "BlockedCommand",
+                    },
+                    {
+                      name: "openList",
+                      kind: "action",
+                      label: "Open List",
+                      view: "NoteList",
+                    },
+                  ],
+                  lists: [
+                    {
+                      name: "Notes",
+                      sourceKind: "object",
+                      source: "Note",
+                      fields: ["Title", "Pinned"],
+                      actions: [
+                        {
+                          name: "openRow",
+                          kind: "action",
+                          label: "Open",
+                          view: "NoteList",
+                          input: { title: { kind: "field", field: "Title" } },
+                        },
+                      ],
+                      row: {
+                        fragments: [{ kind: "field", field: "Title" }],
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          { name: "NoteList", kind: "list", fields: ["Title", "Pinned"], actions: ["read"] },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "CreateQuickNote",
+        steps: [
+          {
+            name: "createNote",
+            action: "create",
+            object: "Note",
+            authority: "command",
+            values: {
+              Title: { kind: "literal", value: "Quick note" },
+              Pinned: { kind: "literal", value: false },
+            },
+          },
+        ],
+      },
+      {
+        name: "BlockedCommand",
+        preconditions: [
+          {
+            name: "blocked",
+            expression: { kind: "literal", value: false },
+            message: "Blocked for this user.",
+          },
+        ],
+        steps: [],
+      },
+    ],
+    policies: [
+      {
+        name: "NotePolicy",
+        object: "Note",
+        rules: [
+          {
+            name: "allowAdminAllNoteActions",
             effect: "allow",
             principal: { match: "specific", roles: ["Admin"] },
             action: "*",
