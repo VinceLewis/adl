@@ -633,6 +633,47 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  it("reports invalid presentation matrix declarations", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPresentationMatrixPartialModel()));
+    const matrix = invalid.objects[0]?.views[0]?.presentation?.sections[0]?.matrices[0];
+    if (matrix === undefined || matrix.edit === undefined) {
+      throw new Error("Expected matrix fixture.");
+    }
+
+    (matrix.rowSource as unknown as { sourceKind: string }).sourceKind = "query";
+    matrix.rowSource.labelField = "MissingName";
+    matrix.columnAxis.start = "soon";
+    matrix.columnAxis.stepDays = 0;
+    matrix.cellSource.rowField = "MissingUser";
+    matrix.cell.status = {
+      candidates: [
+        { kind: "status", status: "missingStatus" },
+        { kind: "map", map: "MissingStatusMap" },
+        { kind: "map", map: "AvailabilityStatus", field: "MissingCellField" },
+      ],
+    };
+    matrix.edit.rowField = "MissingUser";
+    matrix.edit.cycle = [];
+    matrix.edit.unsetAsAbsence = false;
+    (matrix.edit as unknown as { bulkBehavior: string }).bulkBehavior = "singleTransaction";
+
+    const diagnostics = validateApplicationModel(invalid);
+    const codes = diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_BULK_BEHAVIOR_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_COLUMN_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_EDIT_CYCLE_EMPTY,
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_EDIT_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_SOURCE_KIND_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_STATUS_MAP_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_STATUS_UNKNOWN,
+      ]),
+    );
+  });
+
   it("reports invalid theme tokens and base-theme cycles", () => {
     const resolved = resolveApplicationModel({
       ...validPartialModel,
@@ -1030,6 +1071,86 @@ function createPresentationStatusPartialModel(): PartialApplicationModel {
               ],
             },
           },
+        ],
+      },
+    ],
+  };
+}
+
+function createPresentationMatrixPartialModel(): PartialApplicationModel {
+  return {
+    app: { name: "MatrixValidation", startView: "Planner" },
+    objects: [
+      {
+        name: "Member",
+        fields: [
+          { name: "User", type: "text" },
+          { name: "Name", type: "text" },
+        ],
+        views: [
+          {
+            name: "Planner",
+            kind: "composite",
+            fields: ["User", "Name"],
+            presentation: {
+              statuses: [
+                { name: "available", label: "Available", precedence: 10 },
+                { name: "unset", label: "Unset", precedence: 0 },
+              ],
+              statusMaps: [
+                {
+                  name: "AvailabilityStatus",
+                  field: "Status",
+                  values: [{ value: "Available", status: "available" }],
+                  defaultStatus: "unset",
+                },
+              ],
+              sections: [
+                {
+                  name: "Planner",
+                  matrices: [
+                    {
+                      name: "AvailabilityMatrix",
+                      rowSource: {
+                        sourceKind: "object",
+                        source: "Member",
+                        keyField: "User",
+                        labelField: "Name",
+                      },
+                      columnAxis: { start: "2026-08-01", end: "2026-08-03" },
+                      cellSource: {
+                        sourceKind: "object",
+                        source: "Availability",
+                        rowField: "User",
+                        columnField: "Date",
+                        fields: ["User", "Date", "Status"],
+                      },
+                      cell: {
+                        unsetStatus: "unset",
+                        status: { candidates: [{ kind: "map", map: "AvailabilityStatus" }] },
+                      },
+                      edit: {
+                        object: "Availability",
+                        rowField: "User",
+                        columnField: "Date",
+                        valueField: "Status",
+                        cycle: ["Available"],
+                        unsetAsAbsence: true,
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        name: "Availability",
+        fields: [
+          { name: "User", type: "text" },
+          { name: "Date", type: "date" },
+          { name: "Status", type: "text" },
         ],
       },
     ],

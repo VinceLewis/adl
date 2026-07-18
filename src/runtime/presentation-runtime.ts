@@ -1,6 +1,7 @@
 import type {
   JsonPrimitive,
   JsonValue,
+  LocalOperationKind,
   ResolvedCommand,
   PresentationDensity,
   PresentationFragmentStyle,
@@ -15,6 +16,8 @@ import type {
   ResolvedPresentationIconRef,
   ResolvedPresentationLegend,
   ResolvedPresentationList,
+  ResolvedPresentationMatrix,
+  ResolvedPresentationMatrixEdit,
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
   ResolvedPresentationStatus,
@@ -29,12 +32,14 @@ import { evaluateExpression, evaluateExpressionAsBoolean } from "./expression-ev
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { cloneJson, noopRuntimeLogger, safeContextLog } from "./runtime-types.js";
 import type {
+  PolicyDecision,
   RuntimeContext,
   RuntimeLogger,
   RuntimeReadModelResult,
   RuntimeReadModelRow,
   RuntimeSearchInput,
 } from "./runtime-types.js";
+import type { SyncWriteDecision } from "./sync-policy-service.js";
 
 export type RuntimePresentationDiagnosticSeverity = "warning" | "error";
 
@@ -45,6 +50,9 @@ export interface RuntimePresentationDiagnostic {
     | "ADL_PRESENTATION_STATE_UNKNOWN"
     | "ADL_PRESENTATION_STATE_TYPE_MISMATCH"
     | "ADL_PRESENTATION_LIST_BINDING_FAILED"
+    | "ADL_PRESENTATION_MATRIX_BINDING_FAILED"
+    | "ADL_PRESENTATION_MATRIX_COLUMN_INVALID"
+    | "ADL_PRESENTATION_MATRIX_EDIT_UNAVAILABLE"
     | "ADL_PRESENTATION_FILTER_EVALUATION_FAILED"
     | "ADL_PRESENTATION_CONDITIONAL_EVALUATION_FAILED"
     | "ADL_PRESENTATION_FIELD_MISSING"
@@ -94,6 +102,7 @@ export interface RuntimePresentationSection {
   density: ResolvedPresentationSection["density"];
   controls: RuntimePresentationControl[];
   lists: RuntimePresentationList[];
+  matrices: RuntimePresentationMatrix[];
 }
 
 export type RuntimePresentationControl =
@@ -163,6 +172,56 @@ export interface RuntimePresentationList {
   emptyState?: RuntimePresentationEmptyState;
 }
 
+export interface RuntimePresentationMatrix {
+  name: string;
+  density: ResolvedPresentationMatrix["density"];
+  columns: RuntimePresentationMatrixColumn[];
+  rows: RuntimePresentationMatrixRow[];
+  edit?: RuntimePresentationMatrixEditMetadata;
+}
+
+export interface RuntimePresentationMatrixColumn {
+  key: string;
+  value: string;
+  label: string;
+}
+
+export interface RuntimePresentationMatrixRow {
+  key: string;
+  label: string;
+  values: Record<string, JsonValue>;
+  sources: RuntimePresentationRowSource[];
+  cells: RuntimePresentationMatrixCell[];
+}
+
+export interface RuntimePresentationMatrixCell {
+  rowKey: string;
+  columnKey: string;
+  values: Record<string, JsonValue>;
+  sources: RuntimePresentationRowSource[];
+  status?: RuntimePresentationStatus;
+  accessibleLabel: string;
+  edit?: RuntimePresentationMatrixCellEdit;
+}
+
+export interface RuntimePresentationMatrixCellEdit {
+  enabled: boolean;
+  reasons: string[];
+  nextValue: JsonPrimitive | null;
+  operation: "create" | "update" | "delete";
+  syncMode: SyncWriteDecision["mode"];
+  bulkBehavior: ResolvedPresentationMatrixEdit["bulkBehavior"];
+}
+
+export interface RuntimePresentationMatrixEditMetadata {
+  object: string;
+  valueField: string;
+  cycle: JsonPrimitive[];
+  unsetValue?: JsonPrimitive | null;
+  unsetAsAbsence: boolean;
+  bulkBehavior: ResolvedPresentationMatrixEdit["bulkBehavior"];
+}
+
 export interface RuntimePresentationEmptyState {
   text: string;
   icon?: RuntimePresentationIcon;
@@ -223,6 +282,39 @@ export interface RuntimePresentationEvaluationInput {
   updates?: Record<string, JsonValue>;
 }
 
+export interface RuntimePresentationMatrixCellCycleInput {
+  objectName: string;
+  viewName: string;
+  matrixName: string;
+  rowKey: string;
+  columnKey: string;
+  context: RuntimeContext;
+}
+
+export interface RuntimePresentationMatrixRangeEditInput {
+  objectName: string;
+  viewName: string;
+  matrixName: string;
+  rowKeys: string[];
+  startColumnKey: string;
+  endColumnKey: string;
+  value: JsonPrimitive | null;
+  context: RuntimeContext;
+}
+
+export interface RuntimePresentationMatrixEditResult {
+  matrix: string;
+  applied: RuntimePresentationMatrixEditedCell[];
+}
+
+export interface RuntimePresentationMatrixEditedCell {
+  rowKey: string;
+  columnKey: string;
+  operation: "create" | "update" | "delete" | "noop";
+  recordId?: string;
+  record?: StoredObjectRecord;
+}
+
 export interface RuntimePresentationDataSource {
   search(
     objectName: string,
@@ -234,6 +326,30 @@ export interface RuntimePresentationDataSource {
     context: RuntimeContext,
     query?: { sort?: ResolvedSort[] },
   ): Promise<RuntimeReadModelResult>;
+  create(
+    objectName: string,
+    values: Record<string, JsonValue>,
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord>;
+  update(
+    objectName: string,
+    id: string,
+    patch: Record<string, JsonValue>,
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord>;
+  delete(objectName: string, id: string, context: RuntimeContext): Promise<StoredObjectRecord>;
+  getRecordForRuntime(objectName: string, id: string): Promise<StoredObjectRecord | null>;
+  evaluatePolicy(
+    objectName: string,
+    action: "create" | "update" | "delete",
+    context: RuntimeContext,
+    options?: { record?: StoredObjectRecord; patch?: Record<string, JsonValue> },
+  ): PolicyDecision;
+  canWrite(
+    objectName: string,
+    operation: Extract<LocalOperationKind, "create" | "update" | "delete">,
+    context: RuntimeContext,
+  ): SyncWriteDecision;
 }
 
 export class PresentationRuntime {
@@ -333,6 +449,57 @@ export class PresentationRuntime {
     };
   }
 
+  async cycleMatrixCell(
+    input: RuntimePresentationMatrixCellCycleInput,
+  ): Promise<RuntimePresentationMatrixEditResult> {
+    const operation = await this.planMatrixCellWrite({
+      objectName: input.objectName,
+      viewName: input.viewName,
+      matrixName: input.matrixName,
+      rowKey: input.rowKey,
+      columnKey: input.columnKey,
+      value: undefined,
+      useNextCycleValue: true,
+      context: input.context,
+    });
+    const applied = await this.applyMatrixCellWrite(operation, input.context);
+    return { matrix: input.matrixName, applied: [applied] };
+  }
+
+  async applyMatrixRangeEdit(
+    input: RuntimePresentationMatrixRangeEditInput,
+  ): Promise<RuntimePresentationMatrixEditResult> {
+    const { view, matrix } = this.requireMatrix(input.objectName, input.viewName, input.matrixName);
+    const edit = matrix.edit;
+    if (edit === undefined) {
+      throw new Error(`Presentation matrix '${matrix.name}' does not declare edit behavior.`);
+    }
+
+    const columns = buildDateColumns(matrix, []);
+    const startIndex = columns.findIndex((column) => column.key === input.startColumnKey);
+    const endIndex = columns.findIndex((column) => column.key === input.endColumnKey);
+    if (startIndex < 0 || endIndex < 0) {
+      throw new Error(`Presentation matrix '${matrix.name}' range references an unknown column.`);
+    }
+
+    const [first, last] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+    const applied: RuntimePresentationMatrixEditedCell[] = [];
+    for (const rowKey of input.rowKeys) {
+      for (const column of columns.slice(first, last + 1)) {
+        const operation = await this.planMatrixCellWriteFor(view, matrix, edit, {
+          rowKey,
+          columnKey: column.key,
+          value: input.value,
+          useNextCycleValue: false,
+          context: input.context,
+        });
+        applied.push(await this.applyMatrixCellWrite(operation, input.context));
+      }
+    }
+
+    return { matrix: input.matrixName, applied };
+  }
+
   private async evaluateSection(
     section: ResolvedPresentationSection,
     view: ResolvedView,
@@ -353,6 +520,7 @@ export class PresentationRuntime {
       ),
     );
     const lists: RuntimePresentationList[] = [];
+    const matrices: RuntimePresentationMatrix[] = [];
 
     for (const [listIndex, list] of section.lists.entries()) {
       lists.push(
@@ -368,6 +536,20 @@ export class PresentationRuntime {
       );
     }
 
+    for (const [matrixIndex, matrix] of section.matrices.entries()) {
+      matrices.push(
+        await this.evaluateMatrix(
+          matrix,
+          view,
+          state,
+          context,
+          diagnostics,
+          `${path}.matrices[${matrixIndex}]`,
+          section.name,
+        ),
+      );
+    }
+
     return {
       name: section.name,
       ...(section.heading === undefined ? {} : { heading: section.heading }),
@@ -375,6 +557,7 @@ export class PresentationRuntime {
       density: section.density,
       controls,
       lists,
+      matrices,
     };
   }
 
@@ -484,6 +667,429 @@ export class PresentationRuntime {
       density: list.density,
       rows,
       ...(emptyState === undefined ? {} : { emptyState }),
+    };
+  }
+
+  private async evaluateMatrix(
+    matrix: ResolvedPresentationMatrix,
+    view: ResolvedView,
+    state: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    path: string,
+    section: string,
+  ): Promise<RuntimePresentationMatrix> {
+    const rows = sortPresentationRows(
+      await this.bindMatrixSourceRows(
+        matrix.name,
+        matrix.rowSource.sourceKind,
+        matrix.rowSource.source,
+        matrix.rowSource.sort,
+        context,
+        diagnostics,
+        `${path}.rowSource`,
+        section,
+      ),
+      matrix.rowSource.sort,
+    );
+    const cells = await this.bindMatrixSourceRows(
+      matrix.name,
+      matrix.cellSource.sourceKind,
+      matrix.cellSource.source,
+      [],
+      context,
+      diagnostics,
+      `${path}.cellSource`,
+      section,
+    );
+    const columns = buildDateColumns(matrix, diagnostics, path, section);
+    const cellByCoordinate = new Map<string, BoundPresentationRow>();
+    for (const cell of cells) {
+      const rowKey = primitiveKey(cell.values[matrix.cellSource.rowField]);
+      const columnKey = primitiveKey(cell.values[matrix.cellSource.columnField]);
+      if (rowKey !== undefined && columnKey !== undefined) {
+        cellByCoordinate.set(matrixCellKey(rowKey, columnKey), cell);
+      }
+    }
+
+    return {
+      name: matrix.name,
+      density: matrix.density,
+      columns,
+      rows: rows.map((row, rowIndex) => {
+        const rowKey = this.resolveMatrixRowKey(matrix, row);
+        const label = primitiveToText(
+          row.values[matrix.rowSource.labelField] ?? rowKey,
+          diagnostics,
+          {
+            path: `${path}.rows[${rowIndex}].label`,
+            section,
+          },
+        );
+        return {
+          key: rowKey,
+          label,
+          values: cloneJson(row.values),
+          sources: row.sources.map((source) => ({ ...source })),
+          cells: columns.map((column, columnIndex) =>
+            this.evaluateMatrixCell(
+              matrix,
+              view,
+              row,
+              rowKey,
+              column,
+              cellByCoordinate.get(matrixCellKey(rowKey, column.key)),
+              state,
+              context,
+              diagnostics,
+              {
+                path: `${path}.rows[${rowIndex}].cells[${columnIndex}]`,
+                section,
+              },
+            ),
+          ),
+        };
+      }),
+      ...(matrix.edit === undefined
+        ? {}
+        : {
+            edit: {
+              object: matrix.edit.object,
+              valueField: matrix.edit.valueField,
+              cycle: matrix.edit.cycle.map((value) => cloneJson(value)),
+              ...(matrix.edit.unsetValue === undefined
+                ? {}
+                : { unsetValue: cloneJson(matrix.edit.unsetValue) }),
+              unsetAsAbsence: matrix.edit.unsetAsAbsence,
+              bulkBehavior: matrix.edit.bulkBehavior,
+            },
+          }),
+    };
+  }
+
+  private async bindMatrixSourceRows(
+    matrixName: string,
+    sourceKind: ResolvedPresentationMatrix["rowSource"]["sourceKind"],
+    source: string,
+    sort: ResolvedSort[],
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    path: string,
+    section: string,
+  ): Promise<BoundPresentationRow[]> {
+    try {
+      if (sourceKind === "readModel") {
+        const result = await this.dataSource.executeReadModel(source, context, { sort });
+        return result.rows.map(readModelRowToPresentationRow);
+      }
+
+      const records = await this.dataSource.search(source, { sort }, context);
+      return records.map(objectRecordToPresentationRow);
+    } catch (error) {
+      diagnostics.push({
+        severity: "error",
+        code: "ADL_PRESENTATION_MATRIX_BINDING_FAILED",
+        message: `Matrix '${matrixName}' could not bind source '${source}'.`,
+        path,
+        section,
+      });
+      this.logger.debug("PresentationRuntime matrix binding failed", {
+        matrix: matrixName,
+        source,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private resolveMatrixRowKey(
+    matrix: ResolvedPresentationMatrix,
+    row: BoundPresentationRow,
+  ): string {
+    const keyField = matrix.rowSource.keyField;
+    if (keyField === undefined) {
+      return row.id;
+    }
+    return primitiveKey(row.values[keyField]) ?? row.id;
+  }
+
+  private evaluateMatrixCell(
+    matrix: ResolvedPresentationMatrix,
+    view: ResolvedView,
+    row: BoundPresentationRow,
+    rowKey: string,
+    column: RuntimePresentationMatrixColumn,
+    cell: BoundPresentationRow | undefined,
+    state: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationMatrixCell {
+    const values = cloneJson(cell?.values ?? {});
+    const statusBinding = matrix.cell.status ?? matrix.cellSource.status;
+    const status =
+      cell === undefined && matrix.cell.unsetStatus !== undefined
+        ? this.resolveStatus(matrix.cell.unsetStatus, view, state, diagnostics, location, {
+            kind: "direct",
+          })
+        : statusBinding === undefined
+          ? undefined
+          : this.evaluateStatusCandidates(
+              matrix.name,
+              statusBinding.candidates,
+              view,
+              values,
+              state,
+              diagnostics,
+              location,
+            );
+    const edit =
+      matrix.edit === undefined
+        ? undefined
+        : this.evaluateMatrixCellEdit(matrix, row, rowKey, column.key, cell, context);
+    const accessibleLabel =
+      matrix.cell.accessibleLabel ??
+      `${row.values[matrix.rowSource.labelField] ?? rowKey}, ${column.label}: ${
+        status?.accessibleLabel ?? "Unset"
+      }`;
+
+    return {
+      rowKey,
+      columnKey: column.key,
+      values,
+      sources: cell?.sources.map((source) => ({ ...source })) ?? [],
+      ...(status === undefined ? {} : { status }),
+      accessibleLabel,
+      ...(edit === undefined ? {} : { edit }),
+    };
+  }
+
+  private evaluateMatrixCellEdit(
+    matrix: ResolvedPresentationMatrix,
+    row: BoundPresentationRow,
+    rowKey: string,
+    columnKey: string,
+    cell: BoundPresentationRow | undefined,
+    context: RuntimeContext,
+  ): RuntimePresentationMatrixCellEdit {
+    const edit = matrix.edit;
+    if (edit === undefined) {
+      throw new Error(`Presentation matrix '${matrix.name}' does not declare edit behavior.`);
+    }
+    const currentValue = cell?.values[edit.valueField];
+    const nextValue = nextMatrixCycleValue(edit, currentValue);
+    const operation = matrixEditOperation(edit, cell, nextValue);
+    const patch = matrixEditPatch(edit, rowKey, columnKey, nextValue);
+    const sync = this.dataSource.canWrite(edit.object, operation, context);
+    const reasons: string[] = [];
+    let policy: PolicyDecision;
+
+    try {
+      const record = cell === undefined ? undefined : this.matrixCellRecord(edit.object, cell);
+      policy = this.dataSource.evaluatePolicy(
+        edit.object,
+        operation,
+        context,
+        record === undefined ? { patch } : { record, patch },
+      );
+    } catch (error) {
+      policy = {
+        effect: "deny",
+        reasons: [
+          {
+            policyName: `PresentationMatrix:${matrix.name}`,
+            effect: "deny",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        ],
+      };
+    }
+
+    if (policy.effect !== "allow") {
+      reasons.push(...policy.reasons.map((reason) => reason.message));
+    }
+    if (!sync.allowed) {
+      reasons.push(sync.reason);
+    }
+
+    return {
+      enabled: policy.effect === "allow" && sync.allowed,
+      reasons,
+      nextValue,
+      operation,
+      syncMode: sync.mode,
+      bulkBehavior: edit.bulkBehavior,
+    };
+  }
+
+  private matrixCellRecord(
+    objectName: string,
+    cell: BoundPresentationRow,
+  ): StoredObjectRecord | undefined {
+    const source = cell.sources.find((candidate) => candidate.objectName === objectName);
+    if (source === undefined) {
+      return undefined;
+    }
+    return {
+      meta: {
+        guid: source.recordId,
+        object: objectName,
+        schemaVersion: 1,
+        revision: "",
+        createdAt: "",
+        createdBy: "",
+        updatedAt: "",
+        updatedBy: "",
+        syncStatus: "local",
+      },
+      values: cloneJson(cell.values),
+    };
+  }
+
+  private requireMatrix(
+    objectName: string,
+    viewName: string,
+    matrixName: string,
+  ): { view: ResolvedView; matrix: ResolvedPresentationMatrix } {
+    const object = this.index.getObject(objectName);
+    const view = object.views.find((candidate) => candidate.name === viewName);
+    const matrix = view?.presentation?.sections
+      .flatMap((section) => section.matrices)
+      .find((candidate) => candidate.name === matrixName);
+    if (view === undefined || matrix === undefined) {
+      throw new Error(`Presentation matrix '${matrixName}' does not exist on view '${viewName}'.`);
+    }
+    return { view, matrix };
+  }
+
+  private async planMatrixCellWrite(input: {
+    objectName: string;
+    viewName: string;
+    matrixName: string;
+    rowKey: string;
+    columnKey: string;
+    value: JsonPrimitive | null | undefined;
+    useNextCycleValue: boolean;
+    context: RuntimeContext;
+  }): Promise<PlannedMatrixCellWrite> {
+    const { view, matrix } = this.requireMatrix(input.objectName, input.viewName, input.matrixName);
+    const edit = matrix.edit;
+    if (edit === undefined) {
+      throw new Error(`Presentation matrix '${matrix.name}' does not declare edit behavior.`);
+    }
+    return this.planMatrixCellWriteFor(view, matrix, edit, input);
+  }
+
+  private async planMatrixCellWriteFor(
+    view: ResolvedView,
+    matrix: ResolvedPresentationMatrix,
+    edit: ResolvedPresentationMatrixEdit,
+    input: {
+      rowKey: string;
+      columnKey: string;
+      value: JsonPrimitive | null | undefined;
+      useNextCycleValue: boolean;
+      context: RuntimeContext;
+    },
+  ): Promise<PlannedMatrixCellWrite> {
+    void view;
+    const existing = await this.findMatrixEditRecord(
+      edit,
+      input.rowKey,
+      input.columnKey,
+      input.context,
+    );
+    const currentValue = existing?.values[edit.valueField];
+    const value = input.useNextCycleValue ? nextMatrixCycleValue(edit, currentValue) : input.value;
+    const operation = matrixEditOperationForRecord(edit, existing, value);
+    const patch = matrixEditPatch(edit, input.rowKey, input.columnKey, value);
+    const sync = this.dataSource.canWrite(edit.object, operation, input.context);
+    const policy = this.dataSource.evaluatePolicy(edit.object, operation, input.context, {
+      ...(existing === null ? {} : { record: existing }),
+      patch,
+    });
+    if (policy.effect !== "allow" || !sync.allowed) {
+      throw new Error(
+        `Presentation matrix '${matrix.name}' edit is not permitted for row '${input.rowKey}' and column '${input.columnKey}'.`,
+      );
+    }
+    return {
+      edit,
+      rowKey: input.rowKey,
+      columnKey: input.columnKey,
+      value: value ?? null,
+      operation,
+      existing,
+      patch,
+    };
+  }
+
+  private async findMatrixEditRecord(
+    edit: ResolvedPresentationMatrixEdit,
+    rowKey: string,
+    columnKey: string,
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord | null> {
+    const records = await this.dataSource.search(edit.object, {}, context);
+    const match = records.find(
+      (record) =>
+        record.values[edit.rowField] === rowKey && record.values[edit.columnField] === columnKey,
+    );
+    if (match === undefined) {
+      return null;
+    }
+    return this.dataSource.getRecordForRuntime(edit.object, match.meta.guid);
+  }
+
+  private async applyMatrixCellWrite(
+    planned: PlannedMatrixCellWrite,
+    context: RuntimeContext,
+  ): Promise<RuntimePresentationMatrixEditedCell> {
+    if (planned.operation === "delete") {
+      if (planned.existing === null) {
+        return {
+          rowKey: planned.rowKey,
+          columnKey: planned.columnKey,
+          operation: "noop",
+        };
+      }
+      const record = await this.dataSource.delete(
+        planned.edit.object,
+        planned.existing.meta.guid,
+        context,
+      );
+      return {
+        rowKey: planned.rowKey,
+        columnKey: planned.columnKey,
+        operation: "delete",
+        recordId: record.meta.guid,
+        record,
+      };
+    }
+
+    if (planned.existing === null || planned.operation === "create") {
+      const record = await this.dataSource.create(planned.edit.object, planned.patch, context);
+      return {
+        rowKey: planned.rowKey,
+        columnKey: planned.columnKey,
+        operation: "create",
+        recordId: record.meta.guid,
+        record,
+      };
+    }
+
+    const record = await this.dataSource.update(
+      planned.edit.object,
+      planned.existing.meta.guid,
+      { [planned.edit.valueField]: planned.value },
+      context,
+    );
+    return {
+      rowKey: planned.rowKey,
+      columnKey: planned.columnKey,
+      operation: "update",
+      recordId: record.meta.guid,
+      record,
     };
   }
 
@@ -893,11 +1499,32 @@ export class PresentationRuntime {
     diagnostics: RuntimePresentationDiagnostic[],
     location: DiagnosticLocation,
   ): RuntimePresentationStatus | undefined {
-    const candidates = (list.status?.candidates ?? [])
+    return this.evaluateStatusCandidates(
+      list.name,
+      list.status?.candidates ?? [],
+      view,
+      values,
+      state,
+      diagnostics,
+      location,
+    );
+  }
+
+  private evaluateStatusCandidates(
+    ownerName: string,
+    statusCandidates: ResolvedPresentationStatusCandidate[],
+    view: ResolvedView,
+    values: Record<string, JsonValue>,
+    state: Record<string, JsonValue>,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationStatus | undefined {
+    const candidates = statusCandidates
       .map((candidate, index) =>
         this.evaluateStatusCandidate(candidate, view, values, state, diagnostics, {
           ...location,
           path: `${location.path}.candidates[${index}]`,
+          list: location.list ?? ownerName,
         }),
       )
       .filter((status): status is RuntimePresentationStatus => status !== undefined);
@@ -1057,6 +1684,15 @@ export class PresentationRuntime {
         for (const row of list.rows) {
           if (row.status !== undefined) {
             presentStatuses.add(row.status.name);
+          }
+        }
+      }
+      for (const matrix of section.matrices) {
+        for (const row of matrix.rows) {
+          for (const cell of row.cells) {
+            if (cell.status !== undefined) {
+              presentStatuses.add(cell.status.name);
+            }
           }
         }
       }
@@ -1259,11 +1895,153 @@ interface BoundPresentationRow {
   sources: RuntimePresentationRowSource[];
 }
 
+interface PlannedMatrixCellWrite {
+  edit: ResolvedPresentationMatrixEdit;
+  rowKey: string;
+  columnKey: string;
+  value: JsonPrimitive | null;
+  operation: "create" | "update" | "delete";
+  existing: StoredObjectRecord | null;
+  patch: Record<string, JsonValue>;
+}
+
 interface DiagnosticLocation {
   path: string;
   section?: string | undefined;
   list?: string | undefined;
   field?: string | undefined;
+}
+
+function buildDateColumns(
+  matrix: ResolvedPresentationMatrix,
+  diagnostics: RuntimePresentationDiagnostic[] = [],
+  path = "presentation.matrix.columnAxis",
+  section?: string,
+): RuntimePresentationMatrixColumn[] {
+  const start = parseIsoDate(matrix.columnAxis.start);
+  const end = parseIsoDate(matrix.columnAxis.end);
+  if (start === undefined || end === undefined || start.getTime() > end.getTime()) {
+    diagnostics.push({
+      severity: "error",
+      code: "ADL_PRESENTATION_MATRIX_COLUMN_INVALID",
+      message: `Matrix '${matrix.name}' has an invalid date column range.`,
+      path,
+      section,
+    });
+    return [];
+  }
+
+  const columns: RuntimePresentationMatrixColumn[] = [];
+  for (
+    let current = start;
+    current.getTime() <= end.getTime();
+    current = addUtcDays(current, matrix.columnAxis.stepDays)
+  ) {
+    const value = current.toISOString().slice(0, 10);
+    columns.push({
+      key: value,
+      value,
+      label:
+        matrix.columnAxis.labelFormat === undefined
+          ? value
+          : formatPresentationValue(value, matrix.columnAxis.labelFormat, diagnostics, {
+              path: `${path}.labelFormat`,
+              section,
+            }),
+    });
+  }
+  return columns;
+}
+
+function parseIsoDate(value: string): Date | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return undefined;
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
+    ? undefined
+    : date;
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function matrixCellKey(rowKey: string, columnKey: string): string {
+  return `${rowKey}\u0000${columnKey}`;
+}
+
+function primitiveKey(value: JsonValue | undefined): string | undefined {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return undefined;
+}
+
+function nextMatrixCycleValue(
+  edit: ResolvedPresentationMatrixEdit,
+  currentValue: JsonValue | undefined,
+): JsonPrimitive | null {
+  const currentIndex = edit.cycle.findIndex((value) => value === currentValue);
+  if (currentIndex < 0) {
+    return edit.cycle[0] ?? edit.unsetValue ?? null;
+  }
+  const next = edit.cycle[currentIndex + 1];
+  if (next !== undefined) {
+    return next;
+  }
+  return edit.unsetAsAbsence ? null : (edit.unsetValue ?? edit.cycle[0] ?? null);
+}
+
+function matrixEditOperation(
+  edit: ResolvedPresentationMatrixEdit,
+  cell: BoundPresentationRow | undefined,
+  value: JsonPrimitive | null,
+): "create" | "update" | "delete" {
+  return matrixEditOperationForRecord(
+    edit,
+    cell === undefined
+      ? null
+      : {
+          meta: {
+            guid: cell.id,
+            object: edit.object,
+            schemaVersion: 1,
+            revision: "",
+            createdAt: "",
+            createdBy: "",
+            updatedAt: "",
+            updatedBy: "",
+            syncStatus: "local",
+          },
+          values: cell.values,
+        },
+    value,
+  );
+}
+
+function matrixEditOperationForRecord(
+  edit: ResolvedPresentationMatrixEdit,
+  existing: StoredObjectRecord | null,
+  value: JsonPrimitive | null | undefined,
+): "create" | "update" | "delete" {
+  if (edit.unsetAsAbsence && (value === null || value === edit.unsetValue)) {
+    return "delete";
+  }
+  return existing === null ? "create" : "update";
+}
+
+function matrixEditPatch(
+  edit: ResolvedPresentationMatrixEdit,
+  rowKey: string,
+  columnKey: string,
+  value: JsonPrimitive | null | undefined,
+): Record<string, JsonValue> {
+  return {
+    [edit.rowField]: rowKey,
+    [edit.columnField]: columnKey,
+    [edit.valueField]: value ?? null,
+  };
 }
 
 function readModelRowToPresentationRow(row: RuntimeReadModelRow): BoundPresentationRow {

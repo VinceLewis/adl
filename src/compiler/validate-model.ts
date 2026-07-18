@@ -23,6 +23,9 @@ import type {
   PresentationLayout,
   PresentationListRenderStyle,
   PresentationListSourceKind,
+  PresentationMatrixBulkBehavior,
+  PresentationMatrixColumnKind,
+  PresentationMatrixSourceKind,
   PresentationRowLayout,
   PresentationShellRegion,
   PresentationStatusThemeToken,
@@ -57,9 +60,13 @@ import type {
   ResolvedPresentationIconRef,
   ResolvedPresentationLegend,
   ResolvedPresentationList,
+  ResolvedPresentationMatrix,
+  ResolvedPresentationMatrixAxisSource,
+  ResolvedPresentationMatrixCellSource,
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
   ResolvedPresentationStatus,
+  ResolvedPresentationStatusBinding,
   ResolvedPresentationStatusMap,
   ResolvedPresentationState,
   ResolvedRelationshipPicker,
@@ -276,6 +283,17 @@ export const MODEL_VALIDATION_CODES = {
   PRESENTATION_LIST_RENDER_STYLE_INVALID: "ADL_PRESENTATION_LIST_RENDER_STYLE_INVALID",
   PRESENTATION_LIST_SOURCE_KIND_INVALID: "ADL_PRESENTATION_LIST_SOURCE_KIND_INVALID",
   PRESENTATION_LIST_SOURCE_UNKNOWN: "ADL_PRESENTATION_LIST_SOURCE_UNKNOWN",
+  PRESENTATION_MATRIX_BULK_BEHAVIOR_INVALID: "ADL_PRESENTATION_MATRIX_BULK_BEHAVIOR_INVALID",
+  PRESENTATION_MATRIX_COLUMN_INVALID: "ADL_PRESENTATION_MATRIX_COLUMN_INVALID",
+  PRESENTATION_MATRIX_DUPLICATE: "ADL_PRESENTATION_MATRIX_DUPLICATE",
+  PRESENTATION_MATRIX_EDIT_CYCLE_EMPTY: "ADL_PRESENTATION_MATRIX_EDIT_CYCLE_EMPTY",
+  PRESENTATION_MATRIX_EDIT_FIELD_UNKNOWN: "ADL_PRESENTATION_MATRIX_EDIT_FIELD_UNKNOWN",
+  PRESENTATION_MATRIX_EDIT_OBJECT_UNKNOWN: "ADL_PRESENTATION_MATRIX_EDIT_OBJECT_UNKNOWN",
+  PRESENTATION_MATRIX_FIELD_UNKNOWN: "ADL_PRESENTATION_MATRIX_FIELD_UNKNOWN",
+  PRESENTATION_MATRIX_SOURCE_KIND_INVALID: "ADL_PRESENTATION_MATRIX_SOURCE_KIND_INVALID",
+  PRESENTATION_MATRIX_SOURCE_UNKNOWN: "ADL_PRESENTATION_MATRIX_SOURCE_UNKNOWN",
+  PRESENTATION_MATRIX_STATUS_MAP_UNKNOWN: "ADL_PRESENTATION_MATRIX_STATUS_MAP_UNKNOWN",
+  PRESENTATION_MATRIX_STATUS_UNKNOWN: "ADL_PRESENTATION_MATRIX_STATUS_UNKNOWN",
   PRESENTATION_ROW_CONDITION_FIELD_UNKNOWN: "ADL_PRESENTATION_ROW_CONDITION_FIELD_UNKNOWN",
   PRESENTATION_ROW_CONDITION_INVALID: "ADL_PRESENTATION_ROW_CONDITION_INVALID",
   PRESENTATION_ROW_CONDITION_RUNTIME_PROPERTY_INVALID:
@@ -416,6 +434,14 @@ const PRESENTATION_ACTION_PLACEMENTS = new Set<PresentationActionPlacement>([
   "row",
 ]);
 const PRESENTATION_LIST_SOURCE_KINDS = new Set<PresentationListSourceKind>(["readModel", "object"]);
+const PRESENTATION_MATRIX_SOURCE_KINDS = new Set<PresentationMatrixSourceKind>([
+  "readModel",
+  "object",
+]);
+const PRESENTATION_MATRIX_COLUMN_KINDS = new Set<PresentationMatrixColumnKind>(["dateRange"]);
+const PRESENTATION_MATRIX_BULK_BEHAVIORS = new Set<PresentationMatrixBulkBehavior>([
+  "sequentialValidatedWrites",
+]);
 const RELATIONSHIP_PICKER_SOURCE_KINDS = new Set<RelationshipPickerSourceKind>([
   "object",
   "readModel",
@@ -2944,6 +2970,10 @@ function validateViewPresentation(
   const statusMapByName = indexByName(presentation.statusMaps);
   const controlsByName = indexPresentationControls(presentation.sections);
   const viewFieldRefs = getViewFieldReferences(view, targetObject, indexes);
+  const statusMapFieldRefs = mergeFieldReferences(
+    viewFieldRefs,
+    getPresentationMatrixStatusMapFieldReferences(presentation, indexes),
+  );
 
   validatePresentationLayout(presentation.layout, `${presentationPath}.layout`, diagnostics);
   validatePresentationDensity(presentation.density, `${presentationPath}.density`, diagnostics);
@@ -3041,7 +3071,7 @@ function validateViewPresentation(
       statusMap,
       `${presentationPath}.statusMaps[${statusMapIndex}]`,
       view,
-      viewFieldRefs,
+      statusMapFieldRefs,
       statusByName,
       diagnostics,
     );
@@ -3308,6 +3338,13 @@ function validatePresentationSection(
     diagnostics,
     `Presentation list names must be unique within section '${section.name}'.`,
   );
+  reportDuplicateNames(
+    section.matrices,
+    `${sectionPath}.matrices`,
+    MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_DUPLICATE,
+    diagnostics,
+    `Presentation matrix names must be unique within section '${section.name}'.`,
+  );
 
   for (let controlIndex = 0; controlIndex < section.controls.length; controlIndex += 1) {
     const control = section.controls[controlIndex];
@@ -3337,6 +3374,21 @@ function validatePresentationSection(
       view,
       stateByName,
       iconMapByName,
+      statusByName,
+      statusMapByName,
+      indexes,
+      diagnostics,
+    );
+  }
+
+  for (let matrixIndex = 0; matrixIndex < section.matrices.length; matrixIndex += 1) {
+    const matrix = section.matrices[matrixIndex];
+    if (matrix === undefined) {
+      continue;
+    }
+    validatePresentationMatrix(
+      matrix,
+      `${sectionPath}.matrices[${matrixIndex}]`,
       statusByName,
       statusMapByName,
       indexes,
@@ -3605,7 +3657,8 @@ function validatePresentationStatusBinding(
       continue;
     }
 
-    if (!statusMapByName.has(candidate.map)) {
+    const statusMapRef = statusMapByName.get(candidate.map);
+    if (statusMapRef === undefined) {
       diagnostics.push(
         diagnostic(
           MODEL_VALIDATION_CODES.PRESENTATION_LIST_STATUS_MAP_UNKNOWN,
@@ -3624,6 +3677,363 @@ function validatePresentationStatusBinding(
         ),
       );
     }
+
+    if (
+      candidate.field === undefined &&
+      statusMapRef !== undefined &&
+      !fieldsByName.has(statusMapRef.item.field)
+    ) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_FIELD_UNKNOWN,
+          `Presentation status map '${statusMapRef.item.name}' references field '${statusMapRef.item.field}' that is not available in list '${list.name}'.`,
+          `${candidatePath}.map`,
+        ),
+      );
+    }
+  }
+}
+
+function validatePresentationMatrix(
+  matrix: ResolvedPresentationMatrix,
+  matrixPath: string,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  validatePresentationDensity(matrix.density, `${matrixPath}.density`, diagnostics);
+  const rowFields = validatePresentationMatrixAxisSource(
+    matrix,
+    matrix.rowSource,
+    `${matrixPath}.rowSource`,
+    indexes,
+    diagnostics,
+  );
+  const cellFields = validatePresentationMatrixCellSource(
+    matrix,
+    matrix.cellSource,
+    `${matrixPath}.cellSource`,
+    statusByName,
+    statusMapByName,
+    indexes,
+    diagnostics,
+  );
+
+  if (!PRESENTATION_MATRIX_COLUMN_KINDS.has(matrix.columnAxis.kind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_COLUMN_INVALID,
+        `Presentation matrix '${matrix.name}' has unsupported column axis kind '${String(
+          matrix.columnAxis.kind,
+        )}'.`,
+        `${matrixPath}.columnAxis.kind`,
+      ),
+    );
+  }
+  if (!isValidIsoDate(matrix.columnAxis.start)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_COLUMN_INVALID,
+        `Presentation matrix '${matrix.name}' column start must be an ISO date.`,
+        `${matrixPath}.columnAxis.start`,
+      ),
+    );
+  }
+  if (!isValidIsoDate(matrix.columnAxis.end)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_COLUMN_INVALID,
+        `Presentation matrix '${matrix.name}' column end must be an ISO date.`,
+        `${matrixPath}.columnAxis.end`,
+      ),
+    );
+  }
+  if (!Number.isInteger(matrix.columnAxis.stepDays) || matrix.columnAxis.stepDays < 1) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_COLUMN_INVALID,
+        `Presentation matrix '${matrix.name}' column stepDays must be a positive integer.`,
+        `${matrixPath}.columnAxis.stepDays`,
+      ),
+    );
+  }
+  validatePresentationFormat(
+    matrix.columnAxis.labelFormat,
+    `${matrixPath}.columnAxis.labelFormat`,
+    diagnostics,
+  );
+
+  const statusBinding = matrix.cell.status ?? matrix.cellSource.status;
+  if (statusBinding !== undefined) {
+    validatePresentationMatrixStatusBinding(
+      matrix.name,
+      statusBinding,
+      `${matrixPath}.${matrix.cell.status === undefined ? "cellSource.status" : "cell.status"}`,
+      cellFields,
+      statusByName,
+      statusMapByName,
+      diagnostics,
+    );
+  }
+  if (matrix.cell.unsetStatus !== undefined && !statusByName.has(matrix.cell.unsetStatus)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_STATUS_UNKNOWN,
+        `Presentation matrix '${matrix.name}' references unknown unset status '${matrix.cell.unsetStatus}'.`,
+        `${matrixPath}.cell.unsetStatus`,
+      ),
+    );
+  }
+
+  validatePresentationMatrixEdit(matrix, matrixPath, rowFields, indexes, diagnostics);
+}
+
+function validatePresentationMatrixAxisSource(
+  matrix: ResolvedPresentationMatrix,
+  source: ResolvedPresentationMatrixAxisSource,
+  sourcePath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  const fields = getPresentationMatrixSourceFieldReferences(
+    matrix.name,
+    source.sourceKind,
+    source.source,
+    sourcePath,
+    indexes,
+    diagnostics,
+  );
+  if (!fields.has(source.labelField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+        `Presentation matrix '${matrix.name}' row source references unknown label field '${source.labelField}'.`,
+        `${sourcePath}.labelField`,
+      ),
+    );
+  }
+  if (source.keyField !== undefined && !fields.has(source.keyField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+        `Presentation matrix '${matrix.name}' row source references unknown key field '${source.keyField}'.`,
+        `${sourcePath}.keyField`,
+      ),
+    );
+  }
+  for (let fieldIndex = 0; fieldIndex < source.fields.length; fieldIndex += 1) {
+    const field = source.fields[fieldIndex];
+    if (field !== undefined && !fields.has(field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+          `Presentation matrix '${matrix.name}' row source references unknown field '${field}'.`,
+          `${sourcePath}.fields[${fieldIndex}]`,
+        ),
+      );
+    }
+  }
+  for (let sortIndex = 0; sortIndex < source.sort.length; sortIndex += 1) {
+    const sort = source.sort[sortIndex];
+    if (sort !== undefined && !fields.has(sort.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+          `Presentation matrix '${matrix.name}' row source sorts by unknown field '${sort.field}'.`,
+          `${sourcePath}.sort[${sortIndex}].field`,
+        ),
+      );
+    }
+  }
+  return fields;
+}
+
+function validatePresentationMatrixCellSource(
+  matrix: ResolvedPresentationMatrix,
+  source: ResolvedPresentationMatrixCellSource,
+  sourcePath: string,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  const fields = getPresentationMatrixSourceFieldReferences(
+    matrix.name,
+    source.sourceKind,
+    source.source,
+    sourcePath,
+    indexes,
+    diagnostics,
+  );
+  for (const [fieldName, pathSuffix] of [
+    [source.rowField, "rowField"],
+    [source.columnField, "columnField"],
+  ] as const) {
+    if (!fields.has(fieldName)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+          `Presentation matrix '${matrix.name}' cell source references unknown field '${fieldName}'.`,
+          `${sourcePath}.${pathSuffix}`,
+        ),
+      );
+    }
+  }
+  for (let fieldIndex = 0; fieldIndex < source.fields.length; fieldIndex += 1) {
+    const field = source.fields[fieldIndex];
+    if (field !== undefined && !fields.has(field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+          `Presentation matrix '${matrix.name}' cell source references unknown field '${field}'.`,
+          `${sourcePath}.fields[${fieldIndex}]`,
+        ),
+      );
+    }
+  }
+  if (source.status !== undefined) {
+    validatePresentationMatrixStatusBinding(
+      matrix.name,
+      source.status,
+      `${sourcePath}.status`,
+      fields,
+      statusByName,
+      statusMapByName,
+      diagnostics,
+    );
+  }
+  return fields;
+}
+
+function validatePresentationMatrixStatusBinding(
+  matrixName: string,
+  binding: ResolvedPresentationStatusBinding,
+  bindingPath: string,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
+  diagnostics: Diagnostic[],
+): void {
+  for (let candidateIndex = 0; candidateIndex < binding.candidates.length; candidateIndex += 1) {
+    const candidate = binding.candidates[candidateIndex];
+    if (candidate === undefined) {
+      continue;
+    }
+    const candidatePath = `${bindingPath}.candidates[${candidateIndex}]`;
+    if (candidate.kind === "status") {
+      if (!statusByName.has(candidate.status)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_STATUS_UNKNOWN,
+            `Presentation matrix '${matrixName}' references unknown status '${candidate.status}'.`,
+            `${candidatePath}.status`,
+          ),
+        );
+      }
+      continue;
+    }
+    const statusMapRef = statusMapByName.get(candidate.map);
+    if (statusMapRef === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_STATUS_MAP_UNKNOWN,
+          `Presentation matrix '${matrixName}' references unknown status map '${candidate.map}'.`,
+          `${candidatePath}.map`,
+        ),
+      );
+    }
+    if (
+      candidate.field === undefined &&
+      statusMapRef !== undefined &&
+      !fieldsByName.has(statusMapRef.item.field)
+    ) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+          `Presentation status map '${statusMapRef.item.name}' references field '${statusMapRef.item.field}' that is not available in matrix '${matrixName}'.`,
+          `${candidatePath}.map`,
+        ),
+      );
+    }
+    if (candidate.field !== undefined && !fieldsByName.has(candidate.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+          `Presentation matrix '${matrixName}' status candidate references unknown field '${candidate.field}'.`,
+          `${candidatePath}.field`,
+        ),
+      );
+    }
+  }
+}
+
+function validatePresentationMatrixEdit(
+  matrix: ResolvedPresentationMatrix,
+  matrixPath: string,
+  rowFields: Map<string, NamedReference<ExpressionFieldReference>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const edit = matrix.edit;
+  if (edit === undefined) {
+    return;
+  }
+  const object = indexes.objectsByName.get(edit.object)?.item;
+  if (object === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_EDIT_OBJECT_UNKNOWN,
+        `Presentation matrix '${matrix.name}' edit references unknown object '${edit.object}'.`,
+        `${matrixPath}.edit.object`,
+      ),
+    );
+    return;
+  }
+  const objectFields = indexByName(object.fields);
+  for (const [fieldName, pathSuffix] of [
+    [edit.rowField, "rowField"],
+    [edit.columnField, "columnField"],
+    [edit.valueField, "valueField"],
+  ] as const) {
+    if (!objectFields.has(fieldName)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_EDIT_FIELD_UNKNOWN,
+          `Presentation matrix '${matrix.name}' edit references unknown field '${fieldName}' on object '${edit.object}'.`,
+          `${matrixPath}.edit.${pathSuffix}`,
+        ),
+      );
+    }
+  }
+  if (matrix.rowSource.keyField !== undefined && !rowFields.has(matrix.rowSource.keyField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_FIELD_UNKNOWN,
+        `Presentation matrix '${matrix.name}' edit cannot use unknown row key field '${matrix.rowSource.keyField}'.`,
+        `${matrixPath}.rowSource.keyField`,
+      ),
+    );
+  }
+  if (edit.cycle.length === 0 && edit.unsetValue === undefined && !edit.unsetAsAbsence) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_EDIT_CYCLE_EMPTY,
+        `Presentation matrix '${matrix.name}' edit must declare cycle values or a clear behavior.`,
+        `${matrixPath}.edit.cycle`,
+      ),
+    );
+  }
+  if (!PRESENTATION_MATRIX_BULK_BEHAVIORS.has(edit.bulkBehavior)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_BULK_BEHAVIOR_INVALID,
+        `Presentation matrix '${matrix.name}' edit has unsupported bulk behavior '${String(
+          edit.bulkBehavior,
+        )}'.`,
+        `${matrixPath}.edit.bulkBehavior`,
+      ),
+    );
   }
 }
 
@@ -3986,6 +4396,100 @@ function getPresentationListFieldReferences(
   return new Map();
 }
 
+function getPresentationMatrixSourceFieldReferences(
+  matrixName: string,
+  sourceKind: PresentationMatrixSourceKind,
+  source: string,
+  sourcePath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  if (!PRESENTATION_MATRIX_SOURCE_KINDS.has(sourceKind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_SOURCE_KIND_INVALID,
+        `Presentation matrix '${matrixName}' has unsupported source kind '${String(sourceKind)}'.`,
+        `${sourcePath}.sourceKind`,
+      ),
+    );
+    return new Map();
+  }
+
+  if (sourceKind === "object") {
+    const object = indexes.objectsByName.get(source)?.item;
+    if (object === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_SOURCE_UNKNOWN,
+          `Presentation matrix '${matrixName}' references unknown object '${source}'.`,
+          `${sourcePath}.source`,
+        ),
+      );
+      return new Map();
+    }
+    return indexObjectExpressionFields(object);
+  }
+
+  const readModel = indexes.readModelsByName.get(source)?.item;
+  if (readModel === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_MATRIX_SOURCE_UNKNOWN,
+        `Presentation matrix '${matrixName}' references unknown read model '${source}'.`,
+        `${sourcePath}.source`,
+      ),
+    );
+    return new Map();
+  }
+  return indexReadModelExpressionFields(readModel);
+}
+
+function getPresentationMatrixStatusMapFieldReferences(
+  presentation: ResolvedViewPresentation,
+  indexes: ModelIndexes,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  let fields = new Map<string, NamedReference<ExpressionFieldReference>>();
+  for (const section of presentation.sections) {
+    for (const matrix of section.matrices) {
+      fields = mergeFieldReferences(
+        fields,
+        getPresentationMatrixSourceFieldReferencesWithoutDiagnostics(
+          matrix.cellSource.sourceKind,
+          matrix.cellSource.source,
+          indexes,
+        ),
+      );
+    }
+  }
+  return fields;
+}
+
+function getPresentationMatrixSourceFieldReferencesWithoutDiagnostics(
+  sourceKind: PresentationMatrixSourceKind,
+  source: string,
+  indexes: ModelIndexes,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  if (sourceKind === "object") {
+    const object = indexes.objectsByName.get(source)?.item;
+    return object === undefined ? new Map() : indexObjectExpressionFields(object);
+  }
+  const readModel = indexes.readModelsByName.get(source)?.item;
+  return readModel === undefined ? new Map() : indexReadModelExpressionFields(readModel);
+}
+
+function mergeFieldReferences(
+  left: Map<string, NamedReference<ExpressionFieldReference>>,
+  right: Map<string, NamedReference<ExpressionFieldReference>>,
+): Map<string, NamedReference<ExpressionFieldReference>> {
+  const result = new Map(left);
+  for (const [name, reference] of right) {
+    if (!result.has(name)) {
+      result.set(name, reference);
+    }
+  }
+  return result;
+}
+
 function mergePresentationExpressionFields(
   fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
   stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
@@ -3998,6 +4502,14 @@ function mergePresentationExpressionFields(
     });
   }
   return result;
+}
+
+function isValidIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function indexPresentationControls(

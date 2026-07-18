@@ -39,6 +39,7 @@ import type {
 import type {
   AdlComposedViewElement,
   PresentationActionDetail,
+  PresentationMatrixCellCycleDetail,
   PresentationStateChangeDetail,
 } from "./adl-composed-view.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
@@ -471,6 +472,28 @@ export class AdlAppElement extends HTMLElement {
     });
   };
 
+  private readonly handlePresentationMatrixCycle = (event: Event): void => {
+    const detail = (event as CustomEvent<PresentationMatrixCellCycleDetail>).detail;
+    if (detail === undefined) {
+      return;
+    }
+
+    void this.runCommand(async () => {
+      const context = this.requireActiveRuntimeContext();
+      await this.runtime.cyclePresentationMatrixCell({
+        objectName: this.activeObject.name,
+        viewName: this.activeView.name,
+        matrixName: detail.matrix,
+        rowKey: detail.rowKey,
+        columnKey: detail.columnKey,
+        context,
+      });
+      await this.refreshRecords();
+      await this.refreshPresentationView();
+      this.render();
+    });
+  };
+
   private readonly handleOnlineStateChange = (): void => {
     this.applyBrowserOnlineState(true);
   };
@@ -562,6 +585,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-select-context", this.handleContextSelection);
     this.addEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.addEventListener("adl-presentation-action", this.handlePresentationAction);
+    this.addEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.addEventListener("change", this.handleChange);
     this.addEventListener("click", this.handleClick);
     document.addEventListener("keydown", this.handleKeyDown);
@@ -582,6 +606,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-select-context", this.handleContextSelection);
     this.removeEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.removeEventListener("adl-presentation-action", this.handlePresentationAction);
+    this.removeEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.removeEventListener("change", this.handleChange);
     this.removeEventListener("click", this.handleClick);
     document.removeEventListener("keydown", this.handleKeyDown);

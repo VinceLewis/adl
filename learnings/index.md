@@ -92,6 +92,7 @@ or presentation renderer behavior, also read:
 
 - `implementation/ui-presentation-model.md`
 - `implementation/semantic-status-presentation.md`
+- `implementation/presentation-matrix-runtime.md`
 
 Before tasks that change shell navigation metadata, drawer rendering, top-bar
 controls, or mobile business-context selectors, also read:
@@ -156,4 +157,5 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases.
 - `implementation/ui-presentation-model.md`: read before changing composed UI presentation declarations, presentation defaults, UI syntax for composed views, presentation validation, or presentation renderer behavior.
 - `implementation/semantic-status-presentation.md`: read before changing status maps, status precedence, legends, status theme tokens, or status-colored browser presentation.
+- `implementation/presentation-matrix-runtime.md`: read before changing resource/date matrices, availability presentation, matrix cell cycling, range editing, or future calendar work that reuses matrix status semantics.
 - `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors.

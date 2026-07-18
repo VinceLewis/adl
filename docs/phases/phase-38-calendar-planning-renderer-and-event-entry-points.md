@@ -36,6 +36,9 @@ calendar a planning view over the same business model and commands.
 - The calendar should remain optional. A list/feed-only app must still be valid.
 - Mobile behavior must avoid dense desktop-only grids where a list or agenda view
   is more usable.
+- Reuse Phase 37 date/status/action patterns where useful, but keep calendars as
+  a distinct month-planning presentation shape rather than overloading
+  resource/date matrices.
 
 ## Expected Deliverables
 

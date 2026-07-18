@@ -578,6 +578,40 @@ describe("browser UI runtime", () => {
     expect(app.querySelector("adl-composed-view")).toBeNull();
   });
 
+  it("renders composed matrix cells and dispatches cell cycling through runtime services", async () => {
+    const model = createMatrixUiModel();
+    const runtime = new ApplicationRuntime(model);
+    const context: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "ui",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    await runtime.create("Member", { User: "user-1", Name: "Avery" }, context);
+    await runtime.create(
+      "Availability",
+      { User: "user-1", Date: "2026-08-01", Status: "Available" },
+      context,
+    );
+
+    const app = await mountApp(model, runtime, context);
+    const cell = requireElement<HTMLButtonElement>(
+      app,
+      "button[data-presentation-matrix-cell='true'][data-row-key='user-1'][data-column-key='2026-08-01']",
+    );
+
+    expect(app.querySelector("[data-presentation-matrix='AvailabilityMatrix']")).not.toBeNull();
+    expect(cell.disabled).toBe(false);
+    expect(cell.getAttribute("aria-label")).toContain("Available");
+
+    cell.click();
+    await waitForText(app, "Unavailable");
+
+    expect((await runtime.search("Availability", {}, context))[0]?.values.Status).toBe(
+      "Unavailable",
+    );
+  });
+
   it("renders policy-shaped CRUD row actions from view action metadata", async () => {
     const model = createBrowserDemoModel();
     const userList = model.objects
@@ -1025,6 +1059,114 @@ function createActionUiModel(): ResolvedApplicationModel {
         rules: [
           {
             name: "allowAdminAllNoteActions",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createMatrixUiModel(): ResolvedApplicationModel {
+  return resolveApplicationModel({
+    app: { name: "MatrixUi", startView: "AvailabilityPlanner" },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Member",
+        fields: [
+          { name: "User", type: "text", required: true },
+          { name: "Name", type: "text", required: true },
+        ],
+        views: [
+          {
+            name: "AvailabilityPlanner",
+            kind: "composite",
+            fields: ["User", "Name"],
+            presentation: {
+              statuses: [
+                { name: "available", label: "Available", precedence: 10 },
+                { name: "unavailable", label: "Unavailable", precedence: 20 },
+              ],
+              statusMaps: [
+                {
+                  name: "AvailabilityStatus",
+                  field: "Status",
+                  values: [
+                    { value: "Available", status: "available" },
+                    { value: "Unavailable", status: "unavailable" },
+                  ],
+                },
+              ],
+              sections: [
+                {
+                  name: "Availability",
+                  matrices: [
+                    {
+                      name: "AvailabilityMatrix",
+                      rowSource: {
+                        sourceKind: "object",
+                        source: "Member",
+                        keyField: "User",
+                        labelField: "Name",
+                        fields: ["User", "Name"],
+                      },
+                      columnAxis: { start: "2026-08-01", end: "2026-08-01" },
+                      cellSource: {
+                        sourceKind: "object",
+                        source: "Availability",
+                        rowField: "User",
+                        columnField: "Date",
+                        fields: ["User", "Date", "Status"],
+                      },
+                      cell: {
+                        status: { candidates: [{ kind: "map", map: "AvailabilityStatus" }] },
+                      },
+                      edit: {
+                        object: "Availability",
+                        rowField: "User",
+                        columnField: "Date",
+                        valueField: "Status",
+                        cycle: ["Available", "Unavailable"],
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        name: "Availability",
+        fields: [
+          { name: "User", type: "text", required: true },
+          { name: "Date", type: "date", required: true },
+          { name: "Status", type: "text", required: true },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "MemberPolicy",
+        object: "Member",
+        rules: [
+          {
+            name: "allowAdminAllMembers",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+      {
+        name: "AvailabilityPolicy",
+        object: "Availability",
+        rules: [
+          {
+            name: "allowAdminAllAvailability",
             effect: "allow",
             principal: { match: "specific", roles: ["Admin"] },
             action: "*",

@@ -50,6 +50,9 @@ export type PresentationStatePersistence = "memory" | "session" | "local";
 export type PresentationControlKind = "toggle" | "select" | "action" | "contextSelector";
 export type PresentationActionPlacement = "primary" | "secondary" | "row";
 export type PresentationListSourceKind = "readModel" | "object";
+export type PresentationMatrixSourceKind = "readModel" | "object";
+export type PresentationMatrixColumnKind = "dateRange";
+export type PresentationMatrixBulkBehavior = "sequentialValidatedWrites";
 export type RelationshipPickerSourceKind = "object" | "readModel";
 export type RelationshipPickerSelectionMode = "single" | "multiple";
 export type PresentationListRenderStyle = "table" | "feed" | "compactFeed" | "cards";
@@ -633,6 +636,7 @@ export interface ResolvedPresentationSection {
   density: PresentationDensity;
   controls: ResolvedPresentationControl[];
   lists: ResolvedPresentationList[];
+  matrices: ResolvedPresentationMatrix[];
 }
 
 export type ResolvedPresentationControl =
@@ -693,6 +697,60 @@ export interface ResolvedPresentationList {
   status?: ResolvedPresentationStatusBinding;
   actions: ResolvedPresentationActionControl[];
   row: ResolvedPresentationRowTemplate;
+}
+
+export interface ResolvedPresentationMatrix {
+  name: string;
+  density: PresentationDensity;
+  rowSource: ResolvedPresentationMatrixAxisSource;
+  columnAxis: ResolvedPresentationMatrixDateColumnAxis;
+  cellSource: ResolvedPresentationMatrixCellSource;
+  cell: ResolvedPresentationMatrixCell;
+  edit?: ResolvedPresentationMatrixEdit;
+}
+
+export interface ResolvedPresentationMatrixAxisSource {
+  sourceKind: PresentationMatrixSourceKind;
+  source: string;
+  keyField?: string;
+  labelField: string;
+  fields: string[];
+  sort: ResolvedSort[];
+}
+
+export interface ResolvedPresentationMatrixDateColumnAxis {
+  kind: "dateRange";
+  start: string;
+  end: string;
+  stepDays: number;
+  labelFormat?: ResolvedPresentationFormat;
+}
+
+export interface ResolvedPresentationMatrixCellSource {
+  sourceKind: PresentationMatrixSourceKind;
+  source: string;
+  rowField: string;
+  columnField: string;
+  fields: string[];
+  status?: ResolvedPresentationStatusBinding;
+  recordSource?: string;
+}
+
+export interface ResolvedPresentationMatrixCell {
+  status?: ResolvedPresentationStatusBinding;
+  unsetStatus?: string;
+  accessibleLabel?: string;
+}
+
+export interface ResolvedPresentationMatrixEdit {
+  object: string;
+  rowField: string;
+  columnField: string;
+  valueField: string;
+  cycle: JsonPrimitive[];
+  unsetValue?: JsonPrimitive | null;
+  unsetAsAbsence: boolean;
+  bulkBehavior: PresentationMatrixBulkBehavior;
 }
 
 export interface ResolvedPresentationStatusBinding {
@@ -1370,6 +1428,7 @@ export interface PartialPresentationSectionModel {
   density?: PresentationDensity;
   controls?: PartialPresentationControlModel[];
   lists?: PartialPresentationListModel[];
+  matrices?: PartialPresentationMatrixModel[];
 }
 
 export type PartialPresentationControlModel =
@@ -1430,6 +1489,60 @@ export interface PartialPresentationListModel {
   status?: PartialPresentationStatusBindingModel;
   actions?: PartialPresentationActionControlModel[];
   row?: PartialPresentationRowTemplateModel;
+}
+
+export interface PartialPresentationMatrixModel {
+  name: string;
+  density?: PresentationDensity;
+  rowSource: PartialPresentationMatrixAxisSourceModel;
+  columnAxis: PartialPresentationMatrixDateColumnAxisModel;
+  cellSource: PartialPresentationMatrixCellSourceModel;
+  cell?: PartialPresentationMatrixCellModel;
+  edit?: PartialPresentationMatrixEditModel;
+}
+
+export interface PartialPresentationMatrixAxisSourceModel {
+  sourceKind?: PresentationMatrixSourceKind;
+  source: string;
+  keyField?: string;
+  labelField: string;
+  fields?: string[];
+  sort?: ResolvedSort[];
+}
+
+export interface PartialPresentationMatrixDateColumnAxisModel {
+  kind?: PresentationMatrixColumnKind;
+  start: string;
+  end: string;
+  stepDays?: number;
+  labelFormat?: PartialPresentationFormatModel;
+}
+
+export interface PartialPresentationMatrixCellSourceModel {
+  sourceKind?: PresentationMatrixSourceKind;
+  source: string;
+  rowField: string;
+  columnField: string;
+  fields?: string[];
+  status?: PartialPresentationStatusBindingModel;
+  recordSource?: string;
+}
+
+export interface PartialPresentationMatrixCellModel {
+  status?: PartialPresentationStatusBindingModel;
+  unsetStatus?: string;
+  accessibleLabel?: string;
+}
+
+export interface PartialPresentationMatrixEditModel {
+  object: string;
+  rowField: string;
+  columnField: string;
+  valueField: string;
+  cycle?: JsonPrimitive[];
+  unsetValue?: JsonPrimitive | null;
+  unsetAsAbsence?: boolean;
+  bulkBehavior?: PresentationMatrixBulkBehavior;
 }
 
 export interface PartialPresentationStatusBindingModel {

@@ -312,6 +312,165 @@ describe("presentation runtime", () => {
       }),
     ]);
   });
+
+  it("evaluates availability matrices with policy-shaped editability and derived statuses", async () => {
+    const admin: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "api",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const musician: RuntimeContext = {
+      userId: "user-1",
+      roles: ["Musician"],
+      channel: "ui",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(createAvailabilityMatrixModel());
+    await runtime.create("Member", { User: "user-1", Name: "Avery" }, admin);
+    await runtime.create("Member", { User: "user-2", Name: "Blair" }, admin);
+    await runtime.create(
+      "Availability",
+      {
+        User: "user-1",
+        Date: "2026-08-01",
+        Status: "Available",
+        BusyElsewhere: false,
+        Conflict: false,
+        BusyDetail: "",
+      },
+      admin,
+    );
+    await runtime.create(
+      "Availability",
+      {
+        User: "user-2",
+        Date: "2026-08-01",
+        Status: "Available",
+        BusyElsewhere: true,
+        Conflict: false,
+        BusyDetail: "Other band booking",
+      },
+      admin,
+    );
+
+    const view = await runtime.evaluatePresentationView("Member", "AvailabilityPlanner", musician);
+    const matrix = view.sections[0]?.matrices[0];
+    const ownFirst = matrix?.rows[0]?.cells[0];
+    const ownUnset = matrix?.rows[0]?.cells[1];
+    const otherBusy = matrix?.rows[1]?.cells[0];
+
+    expect(view.diagnostics).toEqual([]);
+    expect(matrix?.columns.map((column) => column.key)).toEqual([
+      "2026-08-01",
+      "2026-08-02",
+      "2026-08-03",
+    ]);
+    expect(matrix?.rows.map((row) => row.label)).toEqual(["Avery", "Blair"]);
+    expect(ownFirst?.status?.name).toBe("available");
+    expect(ownFirst?.edit).toMatchObject({
+      enabled: true,
+      nextValue: "Unavailable",
+      operation: "update",
+      syncMode: "localFirst",
+      bulkBehavior: "sequentialValidatedWrites",
+    });
+    expect(ownUnset?.status?.name).toBe("unset");
+    expect(ownUnset?.edit).toMatchObject({
+      enabled: true,
+      nextValue: "Available",
+      operation: "create",
+    });
+    expect(otherBusy?.status?.name).toBe("busyElsewhere");
+    expect(otherBusy?.values.Status).toBe("Available");
+    expect(otherBusy?.values.BusyDetail).toBeUndefined();
+    expect(otherBusy?.edit?.enabled).toBe(false);
+    expect(view.legends[0]?.items.map((item) => item.status.name)).toEqual([
+      "unset",
+      "available",
+      "busyElsewhere",
+    ]);
+  });
+
+  it("cycles matrix cells and applies range edits through validated object operations", async () => {
+    const admin: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "api",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const musician: RuntimeContext = {
+      userId: "user-1",
+      roles: ["Musician"],
+      channel: "ui",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(createAvailabilityMatrixModel());
+    await runtime.create("Member", { User: "user-1", Name: "Avery" }, admin);
+    await runtime.create("Member", { User: "user-2", Name: "Blair" }, admin);
+    await runtime.create(
+      "Availability",
+      {
+        User: "user-1",
+        Date: "2026-08-01",
+        Status: "Available",
+        BusyElsewhere: false,
+        Conflict: false,
+        BusyDetail: "",
+      },
+      admin,
+    );
+
+    const cycle = await runtime.cyclePresentationMatrixCell({
+      objectName: "Member",
+      viewName: "AvailabilityPlanner",
+      matrixName: "AvailabilityMatrix",
+      rowKey: "user-1",
+      columnKey: "2026-08-01",
+      context: musician,
+    });
+    expect(cycle.applied).toEqual([
+      expect.objectContaining({ rowKey: "user-1", columnKey: "2026-08-01", operation: "update" }),
+    ]);
+    expect((await runtime.search("Availability", {}, musician))[0]?.values.Status).toBe(
+      "Unavailable",
+    );
+
+    await runtime.applyPresentationMatrixRangeEdit({
+      objectName: "Member",
+      viewName: "AvailabilityPlanner",
+      matrixName: "AvailabilityMatrix",
+      rowKeys: ["user-1"],
+      startColumnKey: "2026-08-02",
+      endColumnKey: "2026-08-03",
+      value: "Available",
+      context: musician,
+    });
+    expect(
+      (await runtime.search("Availability", {}, musician)).map((record) => [
+        record.values.Date,
+        record.values.Status,
+      ]),
+    ).toEqual([
+      ["2026-08-01", "Unavailable"],
+      ["2026-08-02", "Available"],
+      ["2026-08-03", "Available"],
+    ]);
+
+    await runtime.applyPresentationMatrixRangeEdit({
+      objectName: "Member",
+      viewName: "AvailabilityPlanner",
+      matrixName: "AvailabilityMatrix",
+      rowKeys: ["user-1"],
+      startColumnKey: "2026-08-02",
+      endColumnKey: "2026-08-03",
+      value: null,
+      context: musician,
+    });
+    expect(
+      (await runtime.search("Availability", {}, musician)).map((record) => record.values.Date),
+    ).toEqual(["2026-08-01"]);
+  });
 });
 
 async function createSeededPresentationRuntime() {
@@ -598,6 +757,219 @@ function createStatusPresentationModel() {
             effect: "allow",
             principal: { match: "specific", roles: ["Admin"] },
             action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createAvailabilityMatrixModel() {
+  const ownsAvailability = {
+    kind: "binary" as const,
+    operator: "==" as const,
+    left: { kind: "field" as const, field: "User" },
+    right: { kind: "runtime" as const, property: "userId" as const },
+  };
+
+  return resolveApplicationModel({
+    app: {
+      name: "Availability",
+      startView: "AvailabilityPlanner",
+    },
+    roles: [{ name: "Admin" }, { name: "Musician" }],
+    objects: [
+      {
+        name: "Member",
+        fields: [
+          { name: "User", type: "text", required: true },
+          { name: "Name", type: "text", required: true },
+        ],
+        views: [
+          {
+            name: "AvailabilityPlanner",
+            kind: "composite",
+            fields: ["User", "Name"],
+            presentation: {
+              statuses: [
+                { name: "unset", label: "Unset", precedence: 0 },
+                { name: "available", label: "Available", precedence: 10 },
+                { name: "unavailable", label: "Unavailable", precedence: 20 },
+                { name: "busyElsewhere", label: "Busy Elsewhere", precedence: 50 },
+                { name: "conflict", label: "Conflict", precedence: 100 },
+              ],
+              statusMaps: [
+                {
+                  name: "AvailabilityStatus",
+                  field: "Status",
+                  values: [
+                    { value: "Available", status: "available" },
+                    { value: "Unavailable", status: "unavailable" },
+                  ],
+                  defaultStatus: "unset",
+                },
+                {
+                  name: "BusyStatus",
+                  field: "BusyElsewhere",
+                  values: [{ value: true, status: "busyElsewhere" }],
+                  defaultStatus: "unset",
+                },
+                {
+                  name: "ConflictStatus",
+                  field: "Conflict",
+                  values: [{ value: true, status: "conflict" }],
+                  defaultStatus: "unset",
+                },
+              ],
+              legends: [{ name: "AvailabilityLegend" }],
+              sections: [
+                {
+                  name: "Availability",
+                  matrices: [
+                    {
+                      name: "AvailabilityMatrix",
+                      rowSource: {
+                        sourceKind: "object",
+                        source: "Member",
+                        keyField: "User",
+                        labelField: "Name",
+                        fields: ["User", "Name"],
+                        sort: [{ field: "Name", direction: "asc" }],
+                      },
+                      columnAxis: {
+                        start: "2026-08-01",
+                        end: "2026-08-03",
+                        labelFormat: { kind: "date", pattern: "EEE d MMM" },
+                      },
+                      cellSource: {
+                        sourceKind: "object",
+                        source: "Availability",
+                        rowField: "User",
+                        columnField: "Date",
+                        fields: [
+                          "User",
+                          "Date",
+                          "Status",
+                          "BusyElsewhere",
+                          "Conflict",
+                          "BusyDetail",
+                        ],
+                      },
+                      cell: {
+                        unsetStatus: "unset",
+                        status: {
+                          candidates: [
+                            { kind: "map", map: "AvailabilityStatus" },
+                            { kind: "map", map: "BusyStatus" },
+                            { kind: "map", map: "ConflictStatus" },
+                          ],
+                        },
+                      },
+                      edit: {
+                        object: "Availability",
+                        rowField: "User",
+                        columnField: "Date",
+                        valueField: "Status",
+                        cycle: ["Available", "Unavailable"],
+                        unsetAsAbsence: true,
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        name: "Availability",
+        fields: [
+          { name: "User", type: "text", required: true },
+          { name: "Date", type: "date", required: true },
+          { name: "Status", type: "text", required: true },
+          { name: "BusyElsewhere", type: "boolean", defaultValue: false },
+          { name: "Conflict", type: "boolean", defaultValue: false },
+          { name: "BusyDetail", type: "text" },
+        ],
+        constraints: [
+          { name: "oneAvailabilityPerUserDate", kind: "unique", fields: ["User", "Date"] },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "MemberPolicy",
+        object: "Member",
+        rules: [
+          {
+            name: "allowAdminAllMembers",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+          {
+            name: "allowMusicianReadMembers",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "read",
+          },
+          {
+            name: "allowMusicianSearchMembers",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "search",
+          },
+        ],
+      },
+      {
+        name: "AvailabilityPolicy",
+        object: "Availability",
+        rules: [
+          {
+            name: "allowAdminAllAvailability",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+          {
+            name: "allowMusicianSearchAvailability",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "search",
+          },
+          {
+            name: "allowMusicianReadAvailability",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "read",
+          },
+          {
+            name: "hideBusyDetail",
+            effect: "hidden",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "read",
+            fields: ["BusyDetail"],
+          },
+          {
+            name: "allowOwnAvailabilityCreate",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "create",
+            condition: ownsAvailability,
+          },
+          {
+            name: "allowOwnAvailabilityUpdate",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "update",
+            condition: ownsAvailability,
+          },
+          {
+            name: "allowOwnAvailabilityDelete",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Musician"] },
+            action: "delete",
+            condition: ownsAvailability,
           },
         ],
       },

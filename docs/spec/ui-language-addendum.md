@@ -334,6 +334,38 @@ Unsupported or missing status maps, fields, values, or status names produce
 structured `ADL_PRESENTATION_*` diagnostics where runtime evaluation can detect
 them.
 
+### Resource/Date Matrices
+
+Composed sections may include matrix declarations for availability-style
+planning. A matrix has a row source, a regular date column axis, a cell source,
+cell status binding, and optional edit behavior:
+
+```text
+MATRIX AvailabilityMatrix
+  ROWS FROM Members KEY User LABEL Name
+  COLUMNS DATE_RANGE 2026-08-01 TO 2026-08-14 STEP_DAYS 1
+  CELLS FROM AvailabilityCells ROW User COLUMN Date
+  STATUS AvailabilityStatus(Status), BusyStatus(BusyElsewhere)
+  UNSET_STATUS unset
+  EDIT Availability VALUE Status CYCLE Available Unavailable UNSET_AS_ABSENCE
+END.MATRIX
+```
+
+The implemented resolved-model shape is available to JSON/TypeScript partial
+models. ADL source syntax for `MATRIX` is documented here as intended language
+direction, but parser support remains future work.
+
+Rows and cells bind through object search or read-model execution, so policy,
+context scope, field shaping, and read-model projection apply before the
+renderer sees data. A blank cell may resolve to an `unset` status without
+persisting a fake enum value. Derived cell facts such as `busyElsewhere` should
+come from read-model or runtime-shaped fields, then map to semantic statuses.
+
+Matrix edit behavior supports per-cell cycling and range application. Edits use
+validated runtime object operations and declare `bulkBehavior:
+sequentialValidatedWrites`, making sync/offline behavior explicit per affected
+object write.
+
 ### Empty States
 
 Lists should declare empty states:
@@ -626,7 +658,8 @@ It initializes resolved local state defaults, applies local state updates, binds
 lists through policy-enforcing runtime reads or read models, applies
 presentation filters and ordering, resolves semantic statuses by deterministic
 precedence, resolves row templates and icon maps, formats primitive display
-values, evaluates legends, and returns empty states when no visible rows remain.
+values, evaluates matrices, evaluates legends, and returns empty states when no
+visible rows remain.
 
 The evaluator returns renderer-neutral data only. It does not return DOM nodes,
 HTML strings, CSS selectors, framework component names, JavaScript callbacks,
@@ -637,8 +670,9 @@ they are not a policy or storage boundary.
 
 The browser renderer consumes this evaluator output. It renders sections,
 headings, legends, semantic status indicators, local toggle controls,
-command/navigation actions, compact feed rows, row actions, inline text
-fragments, bold fragments, semantic icons, diagnostics, and empty states.
+command/navigation actions, compact feed rows, row actions, resource/date
+matrices, inline text fragments, bold fragments, semantic icons, diagnostics,
+and empty states.
 Toggle interaction updates view-local
 presentation state and re-evaluates the view; it does not write object-store
 records. Action clicks dispatch to model navigation or `ApplicationRuntime`

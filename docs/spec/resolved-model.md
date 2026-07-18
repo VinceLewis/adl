@@ -161,6 +161,8 @@ Implemented presentation declarations include:
 - status maps from row values to semantic status names
 - legends with ordered status names and `present` or `all` include behavior
 - sections with headings, controls, and lists
+- resource/date matrices with row sources, date column axes, cell sources,
+  unset status handling, and optional edit behavior
 - toggle, select, action, and context-selector controls
 - action placement metadata for primary, secondary, and row-level controls
 - command and navigation action bindings with renderer-neutral command inputs
@@ -175,12 +177,13 @@ Implemented presentation declarations include:
 - optional shell regions such as top bar, bottom bar, and sidebar in resolved
   JSON/TypeScript partial models
 
-Presentation references are validated against the resolved model. Lists must
-reference known read models or objects. Row fragments, list fields, sort fields,
-filters, icon maps, controls, local state, commands, command action inputs,
-action visibility predicates, target views, contexts, status maps, status
-names, status map fields, legends, and shell controls produce structured
-diagnostics when invalid.
+Presentation references are validated against the resolved model. Lists and
+matrices must reference known read models or objects. Row fragments, list
+fields, matrix row and cell fields, matrix edit targets, sort fields, filters,
+icon maps, controls, local state, commands, command action inputs, action
+visibility predicates, target views, contexts, status maps, status names,
+status map fields, legends, and shell controls produce structured diagnostics
+when invalid.
 
 ## Shell
 

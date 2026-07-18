@@ -4,6 +4,8 @@ import type {
   RuntimePresentationFragment,
   RuntimePresentationIcon,
   RuntimePresentationList,
+  RuntimePresentationMatrix,
+  RuntimePresentationMatrixCell,
   RuntimePresentationSection,
   RuntimePresentationStatus,
   RuntimePresentationView,
@@ -20,6 +22,12 @@ export interface PresentationActionDetail {
   command?: string;
   view?: string;
   input: Record<string, unknown>;
+}
+
+export interface PresentationMatrixCellCycleDetail {
+  matrix: string;
+  rowKey: string;
+  columnKey: string;
 }
 
 export class AdlComposedViewElement extends HTMLElement {
@@ -46,18 +54,37 @@ export class AdlComposedViewElement extends HTMLElement {
     }
 
     const action = target.closest<HTMLButtonElement>("button[data-presentation-action='true']");
-    if (action === null || action.disabled) {
+    if (action !== null) {
+      if (action.disabled) {
+        return;
+      }
+
+      this.dispatchEvent(
+        new CustomEvent<PresentationActionDetail>("adl-presentation-action", {
+          bubbles: true,
+          detail: {
+            name: action.dataset.actionName ?? "",
+            ...(action.dataset.command === undefined ? {} : { command: action.dataset.command }),
+            ...(action.dataset.view === undefined ? {} : { view: action.dataset.view }),
+            input: JSON.parse(action.dataset.input ?? "{}") as Record<string, unknown>,
+          },
+        }),
+      );
+      return;
+    }
+
+    const cell = target.closest<HTMLButtonElement>("button[data-presentation-matrix-cell='true']");
+    if (cell === null || cell.disabled) {
       return;
     }
 
     this.dispatchEvent(
-      new CustomEvent<PresentationActionDetail>("adl-presentation-action", {
+      new CustomEvent<PresentationMatrixCellCycleDetail>("adl-presentation-matrix-cycle", {
         bubbles: true,
         detail: {
-          name: action.dataset.actionName ?? "",
-          ...(action.dataset.command === undefined ? {} : { command: action.dataset.command }),
-          ...(action.dataset.view === undefined ? {} : { view: action.dataset.view }),
-          input: JSON.parse(action.dataset.input ?? "{}") as Record<string, unknown>,
+          matrix: cell.dataset.matrixName ?? "",
+          rowKey: cell.dataset.rowKey ?? "",
+          columnKey: cell.dataset.columnKey ?? "",
         },
       }),
     );
@@ -175,6 +202,7 @@ export class AdlComposedViewElement extends HTMLElement {
         }
         ${this.renderControls(section)}
         ${section.lists.map((list) => this.renderList(list)).join("")}
+        ${section.matrices.map((matrix) => this.renderMatrix(matrix)).join("")}
       </section>
     `;
   }
@@ -327,6 +355,74 @@ export class AdlComposedViewElement extends HTMLElement {
         ${this.renderIcon(emptyState.icon, emptyState.text)}
         <span>${escapeHtml(emptyState.text)}</span>
       </div>
+    `;
+  }
+
+  private renderMatrix(matrix: RuntimePresentationMatrix): string {
+    return `
+      <div
+        class="adl-presentation-matrix adl-density-${escapeHtml(matrix.density)}"
+        data-presentation-matrix="${escapeHtml(matrix.name)}"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              ${matrix.columns
+                .map((column) => `<th scope="col">${escapeHtml(column.label)}</th>`)
+                .join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${matrix.rows
+              .map(
+                (row) => `
+                  <tr data-matrix-row="${escapeHtml(row.key)}">
+                    <th scope="row">${escapeHtml(row.label)}</th>
+                    ${row.cells.map((cell) => this.renderMatrixCell(matrix, cell)).join("")}
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  private renderMatrixCell(
+    matrix: RuntimePresentationMatrix,
+    cell: RuntimePresentationMatrixCell,
+  ): string {
+    const content = `${this.renderStatusIndicator(cell.status)}<span class="adl-matrix-cell-label">${escapeHtml(
+      cell.status?.label ?? "Unset",
+    )}</span>`;
+    const style =
+      cell.status === undefined ? "" : `style="${escapeHtml(this.statusStyle(cell.status))}"`;
+    const dataset = `
+      data-presentation-matrix-cell="true"
+      data-matrix-name="${escapeHtml(matrix.name)}"
+      data-row-key="${escapeHtml(cell.rowKey)}"
+      data-column-key="${escapeHtml(cell.columnKey)}"
+    `;
+    return `
+      <td
+        data-status="${escapeHtml(cell.status?.name ?? "unset")}"
+        ${style}
+      >
+        ${
+          cell.edit === undefined
+            ? `<div class="adl-matrix-cell" aria-label="${escapeHtml(cell.accessibleLabel)}">${content}</div>`
+            : `<button
+                type="button"
+                class="adl-matrix-cell adl-matrix-cell-button"
+                ${dataset}
+                aria-label="${escapeHtml(cell.accessibleLabel)}"
+                title="${escapeHtml(cell.edit.reasons.join(" "))}"
+                ${cell.edit.enabled ? "" : "disabled"}
+              >${content}</button>`
+        }
+      </td>
     `;
   }
 

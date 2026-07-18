@@ -31,7 +31,10 @@ import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
 import { PresentationRuntime } from "./presentation-runtime.js";
 import type {
+  RuntimePresentationMatrixCellCycleInput,
+  RuntimePresentationMatrixEditResult,
   RuntimePresentationEvaluationInput,
+  RuntimePresentationMatrixRangeEditInput,
   RuntimePresentationView,
 } from "./presentation-runtime.js";
 import { ReadModelService } from "./read-model-service.js";
@@ -132,6 +135,28 @@ export class ApplicationRuntime {
         search: (objectName, query, context) => this.search(objectName, query, context),
         executeReadModel: (readModelName, context, query) =>
           this.executeReadModel(readModelName, context, query),
+        create: (objectName, values, context) => this.create(objectName, values, context),
+        update: (objectName, id, patch, context) => this.update(objectName, id, patch, context),
+        delete: (objectName, id, context) => this.delete(objectName, id, context),
+        getRecordForRuntime: (objectName, id) =>
+          this.objectStore.getRecordForRuntime(objectName, id),
+        evaluatePolicy: (objectName, action, context, options = {}) => {
+          const object = this.index.getObject(objectName);
+          const currentState =
+            options.record === undefined ? undefined : getRecordState(object, options.record);
+          return this.policyEngine.evaluate(
+            {
+              objectName,
+              action,
+              ...(options.record === undefined ? {} : { record: options.record }),
+              ...(options.patch === undefined ? {} : { patch: options.patch }),
+              ...(currentState === undefined ? {} : { currentState }),
+            },
+            context,
+          );
+        },
+        canWrite: (objectName, operation, context) =>
+          this.syncPolicy.evaluateLocalWrite(objectName, operation, context),
       },
       this.index,
       this.logger,
@@ -419,6 +444,20 @@ export class ApplicationRuntime {
       sections: result.sections.length,
     });
     return result;
+  }
+
+  async cyclePresentationMatrixCell(
+    input: RuntimePresentationMatrixCellCycleInput,
+  ): Promise<RuntimePresentationMatrixEditResult> {
+    await this.whenReady();
+    return this.presentationRuntime.cycleMatrixCell(input);
+  }
+
+  async applyPresentationMatrixRangeEdit(
+    input: RuntimePresentationMatrixRangeEditInput,
+  ): Promise<RuntimePresentationMatrixEditResult> {
+    await this.whenReady();
+    return this.presentationRuntime.applyMatrixRangeEdit(input);
   }
 
   async evaluateEditSurface(

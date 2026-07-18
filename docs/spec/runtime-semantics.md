@@ -168,8 +168,9 @@ values, after source read policy shaping.
 Composed views evaluate through `ApplicationRuntime.evaluatePresentationView`.
 The runtime consumes `ResolvedView.presentation` and returns renderer-neutral
 view data: sections, controls, command/navigation actions, lists, rows, row
-actions, text/icon fragments, semantic row statuses, view legends, empty
-states, local state values, and structured diagnostics.
+actions, resource/date matrices, matrix cells, text/icon fragments, semantic
+row and cell statuses, view legends, empty states, local state values, and
+structured diagnostics.
 
 Evaluation order is deterministic:
 
@@ -185,9 +186,15 @@ Evaluation order is deterministic:
    ties use status declaration order.
 7. Evaluate row templates, icon maps, display formats, conditional fragments,
    and empty states.
-8. Evaluate legends from declared status order. Legends default to statuses
-   present in evaluated rows; `include: all` includes all declared legend
-   statuses.
+8. Bind each matrix through policy-enforcing runtime APIs. Row and cell sources
+   may be objects or read models. Date columns are generated deterministically
+   from the resolved date range. Blank/unset cells can receive an explicit
+   semantic status without writing a persisted row.
+9. Evaluate matrix cell statuses using the same precedence and declaration-order
+   rules as list rows.
+10. Evaluate legends from declared status order. Legends default to statuses
+   present in evaluated rows and matrix cells; `include: all` includes all
+   declared legend statuses.
 
 Presentation filters are display filters only. They run after runtime read
 authorization, context scoping, offline dataset constraints, and read-model
@@ -196,6 +203,14 @@ policy enforcement on writes, commands, sync replay, imports, or APIs.
 
 Row-template evaluation is read-only. It does not mutate stored records or local
 view state.
+
+Matrix cell cycling and matrix range editing are runtime operations. They do
+not mutate browser-only state. The runtime resolves the matrix declaration,
+finds the matching persisted cell row where one exists, computes create, update,
+or delete behavior from the edit declaration, checks policy and sync mode, then
+executes validated object operations. Range edits declare sequential validated
+writes, so partial application behavior is explicit rather than hidden behind a
+browser loop.
 
 Semantic statuses are data, not CSS class names. Runtime status output includes
 the stable status name, label, accessibility label, theme token, precedence, and
