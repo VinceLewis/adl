@@ -10,6 +10,10 @@ import { cloneJson, getContextNowIso, noopRuntimeLogger } from "./runtime-types.
 import type { RuntimeContext, RuntimeLogger } from "./runtime-types.js";
 
 export interface AuditEventDetails {
+  commandName?: string;
+  commandLabel?: string;
+  commandStep?: string;
+  commandTransactionId?: string;
   lifecycleAction?: string;
   fromState?: string;
   toState?: string;
@@ -56,6 +60,12 @@ export class AuditService {
       object: objectName,
       recordId: record.meta.guid,
       operation,
+      ...(details.commandName === undefined ? {} : { commandName: details.commandName }),
+      ...(details.commandLabel === undefined ? {} : { commandLabel: details.commandLabel }),
+      ...(details.commandStep === undefined ? {} : { commandStep: details.commandStep }),
+      ...(details.commandTransactionId === undefined
+        ? {}
+        : { commandTransactionId: details.commandTransactionId }),
       ...(details.lifecycleAction === undefined
         ? {}
         : { lifecycleAction: details.lifecycleAction }),

@@ -17,11 +17,30 @@ export interface ObjectStorageSearchRequest {
   includeDeleted?: boolean;
 }
 
+export type ObjectStorageTransactionWrite =
+  | {
+      operation: "create";
+      objectName: string;
+      record: StoredObjectRecord;
+    }
+  | {
+      operation: "update";
+      objectName: string;
+      record: StoredObjectRecord;
+    }
+  | {
+      operation: "delete";
+      objectName: string;
+      record: StoredObjectRecord;
+    };
+
 export interface ObjectStorageBackend {
+  readonly supportsTransactions?: boolean;
   create(objectName: string, record: StoredObjectRecord): Promise<void>;
   read(objectName: string, id: string): Promise<StoredObjectRecord | null>;
   update(objectName: string, record: StoredObjectRecord): Promise<void>;
   delete(objectName: string, tombstone: StoredObjectRecord): Promise<void>;
+  commitTransaction?(writes: ObjectStorageTransactionWrite[]): Promise<void>;
   search(request: ObjectStorageSearchRequest): Promise<StoredObjectRecord[]>;
   listRecords(): Promise<PersistedObjectRecord[]>;
   readApplicationMetadata(): Promise<PersistedApplicationMetadata | null>;
@@ -29,6 +48,8 @@ export interface ObjectStorageBackend {
 }
 
 export class InMemoryObjectStorageBackend implements ObjectStorageBackend {
+  readonly supportsTransactions = true;
+
   private readonly recordsByObject = new Map<string, Map<string, StoredObjectRecord>>();
   private applicationMetadata: PersistedApplicationMetadata | undefined;
 
@@ -89,6 +110,55 @@ export class InMemoryObjectStorageBackend implements ObjectStorageBackend {
       .map((record) => cloneJson(record));
   }
 
+  async commitTransaction(writes: ObjectStorageTransactionWrite[]): Promise<void> {
+    const nextRecords = cloneRecordMaps(this.recordsByObject);
+
+    for (const write of writes) {
+      const records = recordsForObjectMap(nextRecords, write.objectName);
+      if (write.operation === "create") {
+        if (records.has(write.record.meta.guid)) {
+          throw new StorageError(
+            `Record '${write.record.meta.guid}' for object '${write.objectName}' already exists.`,
+            {
+              objectName: write.objectName,
+              id: write.record.meta.guid,
+            },
+          );
+        }
+
+        records.set(write.record.meta.guid, cloneJson(write.record));
+        continue;
+      }
+
+      if (!records.has(write.record.meta.guid)) {
+        throw new StorageError(
+          `Record '${write.record.meta.guid}' for object '${write.objectName}' is missing.`,
+          {
+            objectName: write.objectName,
+            id: write.record.meta.guid,
+          },
+        );
+      }
+
+      if (write.operation === "delete" && write.record.meta.deletedAt === undefined) {
+        throw new StorageError(
+          `Delete for record '${write.record.meta.guid}' on object '${write.objectName}' must persist a tombstone.`,
+          {
+            objectName: write.objectName,
+            id: write.record.meta.guid,
+          },
+        );
+      }
+
+      records.set(write.record.meta.guid, cloneJson(write.record));
+    }
+
+    this.recordsByObject.clear();
+    for (const [objectName, records] of nextRecords.entries()) {
+      this.recordsByObject.set(objectName, records);
+    }
+  }
+
   async listRecords(): Promise<PersistedObjectRecord[]> {
     return [...this.recordsByObject.entries()].flatMap(([objectName, records]) =>
       [...records.values()].map((record) => ({
@@ -120,6 +190,30 @@ export class InMemoryObjectStorageBackend implements ObjectStorageBackend {
 
     return records;
   }
+}
+
+function cloneRecordMaps(
+  recordsByObject: Map<string, Map<string, StoredObjectRecord>>,
+): Map<string, Map<string, StoredObjectRecord>> {
+  return new Map(
+    [...recordsByObject.entries()].map(([objectName, records]) => [
+      objectName,
+      new Map([...records.entries()].map(([id, record]) => [id, cloneJson(record)])),
+    ]),
+  );
+}
+
+function recordsForObjectMap(
+  recordsByObject: Map<string, Map<string, StoredObjectRecord>>,
+  objectName: string,
+): Map<string, StoredObjectRecord> {
+  let records = recordsByObject.get(objectName);
+  if (records === undefined) {
+    records = new Map<string, StoredObjectRecord>();
+    recordsByObject.set(objectName, records);
+  }
+
+  return records;
 }
 
 export function recordMatchesSearch(

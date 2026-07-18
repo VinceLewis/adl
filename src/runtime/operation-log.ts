@@ -16,6 +16,10 @@ import type { RuntimeContext, RuntimeLogger } from "./runtime-types.js";
 export interface OperationLogDetails {
   baseRevision?: string;
   patch?: Record<string, JsonValue>;
+  commandName?: string;
+  commandLabel?: string;
+  commandStep?: string;
+  commandTransactionId?: string;
   lifecycleAction?: string;
   fromState?: string;
   toState?: string;
@@ -58,6 +62,12 @@ export class OperationLog {
       ...(details.baseRevision === undefined ? {} : { baseRevision: details.baseRevision }),
       operation,
       ...(details.patch === undefined ? {} : { patch: cloneJson(details.patch) }),
+      ...(details.commandName === undefined ? {} : { commandName: details.commandName }),
+      ...(details.commandLabel === undefined ? {} : { commandLabel: details.commandLabel }),
+      ...(details.commandStep === undefined ? {} : { commandStep: details.commandStep }),
+      ...(details.commandTransactionId === undefined
+        ? {}
+        : { commandTransactionId: details.commandTransactionId }),
       ...(details.lifecycleAction === undefined
         ? {}
         : { lifecycleAction: details.lifecycleAction }),

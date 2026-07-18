@@ -106,7 +106,13 @@ export class CommandService {
       stepRecords.set(step.name, cloneJson(write.record));
     }
 
-    const committed = await this.objectStore.commitPlannedTransaction(plannedWrites, context);
+    const committed = await this.objectStore.commitPlannedTransaction(plannedWrites, context, {
+      command: {
+        name: command.name,
+        ...(command.label === undefined ? {} : { label: command.label }),
+        steps: command.steps.map((step) => step.name),
+      },
+    });
     const result: RuntimeCommandResult = {
       command,
       steps: committed.map((record, index) => ({

@@ -126,6 +126,19 @@ Command authority can use the command precondition as the authorization boundary
 for a step, but validation, scope, sync, constraints, audit, and operation logs
 still run.
 
+Multi-record commands require a storage backend that advertises transactional
+commit support. Backends without that capability reject multi-write commands
+before any planned write is persisted. Validation, policy, sync-mode write
+checks, and constraint checks run before the backend commit. Audit events,
+operation-log entries, and sync-queue entries are recorded only after the
+storage commit succeeds.
+
+Command-backed row side effects keep their normal low-level operation kind
+(`create`, `update`, `delete`, or `transition`) and additionally carry command
+intent metadata: command name, optional command label, command step, and a shared
+command transaction id. This lets replay, audit, and diagnostics preserve the
+business action without hiding the affected object records.
+
 ## Decision Tables
 
 Decision-table inputs evaluate first against the source values. Row conditions

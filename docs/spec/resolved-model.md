@@ -97,6 +97,20 @@ Read models contain named sources, output fields, and sort order. Source scopes
 are backend-neutral: `all`, `currentContext`, `allAvailableContexts`, and
 `currentUser`. Expression fields evaluate over already-projected row values.
 
+## Commands
+
+Commands contain typed inputs, resolved-expression preconditions, and ordered
+create/update steps. A step names its target object, authority mode, value or
+patch expressions, and optional step preconditions. Step value expressions can
+reference command input, runtime values, earlier step fields, or earlier step
+metadata such as generated record ids.
+
+Command declarations are backend-neutral runtime semantics. They do not encode
+SQL, browser callbacks, or generated application code. Runtime side effects keep
+normal row-level audit and operation-log entries, with optional command name,
+label, step, and command transaction id metadata to preserve the business
+command intent.
+
 ## View Presentation
 
 Resolved views include `editContainer`, a renderer-neutral CRUD presentation

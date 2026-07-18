@@ -15,7 +15,11 @@ import {
   resolveApplicationModel,
 } from "../src/index.js";
 import type {
+  ObjectStorageBackend,
+  ObjectStorageSearchRequest,
   PartialApplicationModel,
+  PersistedApplicationMetadata,
+  PersistedObjectRecord,
   ReadModelSourceScope,
   ResolvedObject,
   RuntimeContext,
@@ -1392,6 +1396,109 @@ describe("ApplicationRuntime", () => {
       "transition",
     ]);
   });
+
+  it("executes a command that creates a parent record and links an existing child atomically", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createCommandWorkflowModel()));
+    const setList = await runtime.create("SetList", { Name: "Festival opener" }, adminContext);
+
+    const result = await runtime.executeCommand(
+      "CreateEventWithSetList",
+      { EventName: "Launch show", SetList: setList.meta.guid },
+      adminContext,
+    );
+
+    expect(result.steps.map((step) => [step.step, step.objectName])).toEqual([
+      ["createEvent", "Event"],
+      ["linkSetList", "EventSetList"],
+    ]);
+    expect(result.steps[1]?.record.values).toMatchObject({
+      Event: result.steps[0]?.recordId,
+      SetList: setList.meta.guid,
+      Position: 1,
+    });
+    expect(runtime.operationLog.getOperations().slice(-2)).toMatchObject([
+      {
+        operation: "create",
+        object: "Event",
+        commandName: "CreateEventWithSetList",
+        commandStep: "createEvent",
+        commandTransactionId: "cmd-txn-1",
+      },
+      {
+        operation: "create",
+        object: "EventSetList",
+        commandName: "CreateEventWithSetList",
+        commandStep: "linkSetList",
+        commandTransactionId: "cmd-txn-1",
+      },
+    ]);
+  });
+
+  it("updates records in two object collections as one command intent", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createCommandWorkflowModel()));
+    const user = await runtime.create(
+      "User",
+      { Name: "Grace Hopper", Email: "grace@example.com" },
+      adminContext,
+    );
+    const setList = await runtime.create("SetList", { Name: "Original set" }, adminContext);
+
+    await runtime.executeCommand(
+      "RenameUserAndSetList",
+      {
+        User: user.meta.guid,
+        UserName: "Rear Admiral Hopper",
+        SetList: setList.meta.guid,
+        SetListName: "Compiler classics",
+      },
+      adminContext,
+    );
+
+    await expect(runtime.read("User", user.meta.guid, adminContext)).resolves.toMatchObject({
+      values: { Name: "Rear Admiral Hopper" },
+    });
+    await expect(runtime.read("SetList", setList.meta.guid, adminContext)).resolves.toMatchObject({
+      values: { Name: "Compiler classics" },
+    });
+    expect(runtime.auditService.getEvents().slice(-2)).toMatchObject([
+      {
+        operation: "update",
+        object: "User",
+        commandName: "RenameUserAndSetList",
+        commandStep: "renameUser",
+        commandTransactionId: "cmd-txn-1",
+      },
+      {
+        operation: "update",
+        object: "SetList",
+        commandName: "RenameUserAndSetList",
+        commandStep: "renameSetList",
+        commandTransactionId: "cmd-txn-1",
+      },
+    ]);
+  });
+
+  it("rejects multi-record commands when the backend does not support transactions", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createCommandWorkflowModel()), {
+      storage: new NonTransactionalMemoryBackend(),
+    });
+    const setList = await runtime.create("SetList", { Name: "Backend unsupported" }, adminContext);
+
+    await expect(
+      runtime.executeCommand(
+        "CreateEventWithSetList",
+        { EventName: "Blocked show", SetList: setList.meta.guid },
+        adminContext,
+      ),
+    ).rejects.toMatchObject({
+      code: "ADL_STORAGE_ERROR",
+      message: "Multi-record command transaction is unsupported by the configured storage backend.",
+    });
+
+    await expect(runtime.search("Event", {}, adminContext)).resolves.toHaveLength(0);
+    await expect(runtime.search("EventSetList", {}, adminContext)).resolves.toHaveLength(0);
+    expect(runtime.operationLog.getOperations()).toHaveLength(1);
+  });
 });
 
 function createRuntime(): ApplicationRuntime {
@@ -1400,6 +1507,185 @@ function createRuntime(): ApplicationRuntime {
 
 function createSyncModeRuntime(mode: SyncMode): ApplicationRuntime {
   return new ApplicationRuntime(resolveApplicationModel(createSyncModePartialModel(mode)));
+}
+
+function createCommandWorkflowModel(): PartialApplicationModel {
+  return {
+    app: {
+      name: "CommandWorkflowDemo",
+    },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "User",
+        businessKey: "Email",
+        displayField: "Name",
+        fields: [
+          { name: "Name", type: "text", required: true },
+          { name: "Email", type: "text", required: true },
+        ],
+      },
+      {
+        name: "SetList",
+        businessKey: "Name",
+        displayField: "Name",
+        fields: [{ name: "Name", type: "text", required: true }],
+      },
+      {
+        name: "Event",
+        businessKey: "Name",
+        displayField: "Name",
+        fields: [{ name: "Name", type: "text", required: true }],
+      },
+      {
+        name: "EventSetList",
+        businessKey: "Event",
+        displayField: "Event",
+        fields: [
+          {
+            name: "Event",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "Event", displayField: "Name" },
+          },
+          {
+            name: "SetList",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "SetList", displayField: "Name" },
+          },
+          { name: "Position", type: "number", required: true },
+        ],
+        constraints: [
+          {
+            name: "uniqueSetListPerEvent",
+            kind: "unique",
+            fields: ["SetList"],
+            scopeFields: ["Event"],
+          },
+          {
+            name: "orderedSetLists",
+            kind: "ordered",
+            parentField: "Event",
+            positionField: "Position",
+            minPosition: 1,
+          },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "CreateEventWithSetList",
+        inputs: [
+          { name: "EventName", type: "text", required: true },
+          { name: "SetList", type: "text", required: true },
+        ],
+        steps: [
+          {
+            name: "createEvent",
+            action: "create",
+            object: "Event",
+            authority: "command",
+            values: {
+              Name: { kind: "input", name: "EventName" },
+            },
+          },
+          {
+            name: "linkSetList",
+            action: "create",
+            object: "EventSetList",
+            authority: "command",
+            values: {
+              Event: { kind: "stepMeta", step: "createEvent", property: "guid" },
+              SetList: { kind: "input", name: "SetList" },
+              Position: { kind: "literal", value: 1 },
+            },
+          },
+        ],
+      },
+      {
+        name: "RenameUserAndSetList",
+        inputs: [
+          { name: "User", type: "text", required: true },
+          { name: "UserName", type: "text", required: true },
+          { name: "SetList", type: "text", required: true },
+          { name: "SetListName", type: "text", required: true },
+        ],
+        steps: [
+          {
+            name: "renameUser",
+            action: "update",
+            object: "User",
+            authority: "command",
+            recordId: { kind: "input", name: "User" },
+            patch: {
+              Name: { kind: "input", name: "UserName" },
+            },
+          },
+          {
+            name: "renameSetList",
+            action: "update",
+            object: "SetList",
+            authority: "command",
+            recordId: { kind: "input", name: "SetList" },
+            patch: {
+              Name: { kind: "input", name: "SetListName" },
+            },
+          },
+        ],
+      },
+    ],
+    policies: ["User", "SetList", "Event", "EventSetList"].map((object) => ({
+      name: `${object}Policy`,
+      object,
+      rules: [
+        {
+          name: `allowAdmin${object}Ops`,
+          effect: "allow",
+          principal: { match: "specific", roles: ["Admin"] },
+          action: "*",
+        },
+      ],
+    })),
+  };
+}
+
+class NonTransactionalMemoryBackend implements ObjectStorageBackend {
+  readonly supportsTransactions = false;
+
+  private readonly delegate = new InMemoryObjectStorageBackend();
+
+  create(objectName: string, record: StoredObjectRecord): Promise<void> {
+    return this.delegate.create(objectName, record);
+  }
+
+  read(objectName: string, id: string): Promise<StoredObjectRecord | null> {
+    return this.delegate.read(objectName, id);
+  }
+
+  update(objectName: string, record: StoredObjectRecord): Promise<void> {
+    return this.delegate.update(objectName, record);
+  }
+
+  delete(objectName: string, tombstone: StoredObjectRecord): Promise<void> {
+    return this.delegate.delete(objectName, tombstone);
+  }
+
+  search(request: ObjectStorageSearchRequest): Promise<StoredObjectRecord[]> {
+    return this.delegate.search(request);
+  }
+
+  listRecords(): Promise<PersistedObjectRecord[]> {
+    return this.delegate.listRecords();
+  }
+
+  readApplicationMetadata(): Promise<PersistedApplicationMetadata | null> {
+    return this.delegate.readApplicationMetadata();
+  }
+
+  writeApplicationMetadata(metadata: PersistedApplicationMetadata): Promise<void> {
+    return this.delegate.writeApplicationMetadata(metadata);
+  }
 }
 
 async function createSeededBandRuntime(partialModel = createBandRuntimePartialModel()): Promise<{

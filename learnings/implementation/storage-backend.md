@@ -13,6 +13,13 @@ Read this before changing runtime persistence, object storage, browser demo seed
 - Browser demo seeding uses `seedBrowserDemoRuntimeIfEmpty(...)`, checking for existing records including tombstones before inserting fixture data. This prevents duplicate fixture rows after reload.
 - Phase 9 persisted object records only. Audit events and operation-log entries still live in their existing runtime services; transition metadata remains explicit when those services record lifecycle transitions.
 
+## Key decisions from Phase 35
+
+- `ObjectStorageBackend` can advertise transactional write support through `supportsTransactions` and `commitTransaction(...)`. This capability is required for multi-write runtime commands.
+- `InMemoryObjectStorageBackend` applies transaction writes against cloned record maps and swaps only after all checks pass.
+- `IndexedDbObjectStorageBackend` applies transaction writes through one IndexedDB `readwrite` transaction.
+- Storage backends still persist only object records. Command intent, audit events, operation-log entries, sync queue behavior, policy, validation, and constraints remain runtime-service concerns above the backend.
+
 ## Practical guidance
 
 - Keep future sync policy, replay, and migration checks above the backend unless they are pure persistence concerns. Policy enforcement should still happen before the backend write.

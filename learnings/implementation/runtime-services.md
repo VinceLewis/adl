@@ -24,6 +24,13 @@ Read this before changing runtime services, UI runtime integration, lifecycle ex
 - Object constraints are enforced before storage writes. If a later command step would violate uniqueness or ordered-position constraints, earlier planned steps are not persisted.
 - Command steps can use `authority: "command"` when the command's own preconditions are the authorization boundary for a write that should not be exposed as a direct object policy grant. Validation, sync checks, scope checks, constraints, audit, and operation logs still run.
 
+## Key decisions from Phase 35
+
+- Multi-record commands require an `ObjectStorageBackend` with transactional commit support. The default in-memory and IndexedDB backends advertise `supportsTransactions` and implement `commitTransaction(...)`.
+- `ObjectStore.commitPlannedTransaction(...)` checks constraints before storage writes, commits all planned writes through the backend transaction when more than one write is present, and records audit/operation-log/sync side effects only after storage commit succeeds.
+- A backend without transaction support may still run single-record CRUD and single-step commands, but multi-write commands fail with `ADL_STORAGE_ERROR` before any planned write is persisted.
+- Command-backed row side effects keep their normal operation kind and add command metadata: `commandName`, optional `commandLabel`, `commandStep`, and shared `commandTransactionId`. This preserves business command intent without hiding affected object records from audit, operation log, or sync queue consumers.
+
 ## Policy and validation notes
 
 - `PolicyEngine` is deny-by-default and explicit deny wins.

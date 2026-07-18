@@ -198,12 +198,77 @@ describe("object storage backends", () => {
       },
     ]);
   });
+
+  it("commits IndexedDB transaction writes atomically", async () => {
+    installFakeIndexedDb();
+    const databaseName = nextDatabaseName();
+    const model = resolveApplicationModel(storagePartialModel);
+    const object = requireObject(model.objects[0]);
+    const storage = new IndexedDbObjectStorageBackend({ databaseName });
+    const first = createStoredRecord(object);
+    const second = createStoredRecord(object, "customer-2", {
+      Name: "Grace Hopper",
+      Email: "grace@example.com",
+    });
+
+    await expect(
+      storage.commitTransaction?.([
+        { operation: "create", objectName: "Customer", record: first },
+        { operation: "create", objectName: "Customer", record: second },
+      ]),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      storage.search({
+        object,
+        fields: ["Name"],
+      }),
+    ).resolves.toHaveLength(2);
+
+    const duplicate = createStoredRecord(object, "customer-3", {
+      Name: "Duplicate",
+      Email: "duplicate@example.com",
+    });
+    const updatedSecond = {
+      ...second,
+      meta: {
+        ...second.meta,
+        revision: "rev-2",
+      },
+      values: {
+        ...second.values,
+        Name: "Updated before duplicate",
+      },
+    };
+
+    await expect(
+      storage.commitTransaction?.([
+        { operation: "update", objectName: "Customer", record: updatedSecond },
+        { operation: "create", objectName: "Customer", record: duplicate },
+        { operation: "create", objectName: "Customer", record: duplicate },
+      ]),
+    ).rejects.toBeInstanceOf(StorageError);
+
+    await expect(storage.read("Customer", second.meta.guid)).resolves.toMatchObject({
+      values: {
+        Name: "Grace Hopper",
+      },
+    });
+    await expect(storage.read("Customer", duplicate.meta.guid)).resolves.toBeNull();
+  });
 });
 
-function createStoredRecord(object: ResolvedObject): StoredObjectRecord {
+function createStoredRecord(
+  object: ResolvedObject,
+  guid = "customer-1",
+  values: Record<string, string> = {
+    Name: "Ada Lovelace",
+    Email: "ada@example.com",
+  },
+): StoredObjectRecord {
   return {
     meta: {
-      guid: "customer-1",
+      guid,
       object: object.name,
       schemaVersion: object.schemaVersion,
       revision: "rev-1",
@@ -213,10 +278,7 @@ function createStoredRecord(object: ResolvedObject): StoredObjectRecord {
       updatedBy: "admin-storage",
       syncStatus: "local",
     },
-    values: {
-      Name: "Ada Lovelace",
-      Email: "ada@example.com",
-    },
+    values,
   };
 }
 

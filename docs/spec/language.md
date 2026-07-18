@@ -218,4 +218,9 @@ resolved model for JSON/TypeScript partial models and future parser work.
 
 Commands declare typed inputs, command-level preconditions, and create/update
 steps. Step values can come from literals, command input, runtime values, or
-earlier step records. Commands remain model data; runtime services execute them.
+earlier step records. Steps are ordered, so later steps may reference earlier
+step fields or metadata such as generated record ids.
+
+Commands remain model data; runtime services execute them. They describe a
+business action and its affected records, not UI scripts, generated application
+code, SQL transactions, or browser-only orchestration.

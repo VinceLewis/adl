@@ -884,6 +884,10 @@ export interface AuditEvent {
   object: string;
   recordId: string;
   operation: AuditOperation;
+  commandName?: string;
+  commandLabel?: string;
+  commandStep?: string;
+  commandTransactionId?: string;
   lifecycleAction?: string;
   fromState?: string;
   toState?: string;
@@ -907,6 +911,10 @@ export interface LocalOperation {
   baseRevision?: string;
   operation: LocalOperationKind;
   patch?: Record<string, JsonValue>;
+  commandName?: string;
+  commandLabel?: string;
+  commandStep?: string;
+  commandTransactionId?: string;
   lifecycleAction?: string;
   fromState?: string;
   toState?: string;

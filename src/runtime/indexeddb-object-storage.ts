@@ -2,6 +2,7 @@ import type { StoredObjectRecord } from "../model/resolved-model.js";
 import type {
   ObjectStorageBackend,
   ObjectStorageSearchRequest,
+  ObjectStorageTransactionWrite,
   PersistedApplicationMetadata,
   PersistedObjectRecord,
 } from "./object-storage-backend.js";
@@ -37,6 +38,8 @@ const APPLICATION_METADATA_KEY = "__adl_application_metadata";
 const APPLICATION_METADATA_OBJECT = "__adl_application_metadata";
 
 export class IndexedDbObjectStorageBackend implements ObjectStorageBackend {
+  readonly supportsTransactions = true;
+
   private readonly databaseName: string;
   private readonly storeName: string;
   private readonly version: number;
@@ -82,6 +85,48 @@ export class IndexedDbObjectStorageBackend implements ObjectStorageBackend {
     }
 
     await this.update(objectName, tombstone);
+  }
+
+  async commitTransaction(writes: ObjectStorageTransactionWrite[]): Promise<void> {
+    const db = await this.openDatabase();
+    const transaction = db.transaction(this.storeName, "readwrite");
+    const store = transaction.objectStore(this.storeName);
+
+    for (const write of writes) {
+      if (write.operation === "update") {
+        const existing = await requestToPromise<IndexedDbStoredRecord | undefined>(
+          store.get(recordKey(write.objectName, write.record.meta.guid)),
+          "read record for transactional update",
+        );
+        if (existing === undefined) {
+          throw new StorageError(
+            `Record '${write.record.meta.guid}' for object '${write.objectName}' is missing.`,
+            {
+              objectName: write.objectName,
+              id: write.record.meta.guid,
+            },
+          );
+        }
+      }
+
+      if (write.operation === "delete" && write.record.meta.deletedAt === undefined) {
+        throw new StorageError(
+          `Delete for record '${write.record.meta.guid}' on object '${write.objectName}' must persist a tombstone.`,
+          {
+            objectName: write.objectName,
+            id: write.record.meta.guid,
+          },
+        );
+      }
+
+      const stored = toIndexedDbRecord(write.objectName, write.record);
+      await requestToPromise(
+        write.operation === "create" ? store.add(stored) : store.put(stored),
+        `${write.operation} record in transaction`,
+      );
+    }
+
+    await transactionDone(transaction, "commit transaction");
   }
 
   async search(request: ObjectStorageSearchRequest): Promise<StoredObjectRecord[]> {

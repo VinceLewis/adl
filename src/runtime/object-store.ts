@@ -58,8 +58,17 @@ export interface PlannedUpdateObjectWrite {
   patch: Record<string, JsonValue>;
 }
 
+export interface PlannedTransactionCommitOptions {
+  command?: {
+    name: string;
+    label?: string;
+    steps: string[];
+  };
+}
+
 export class ObjectStore {
   private nextRevisionId = 1;
+  private nextTransactionId = 1;
 
   constructor(
     private readonly model: ResolvedApplicationModel,
@@ -358,14 +367,34 @@ export class ObjectStore {
   async commitPlannedTransaction(
     writes: PlannedObjectWrite[],
     context: RuntimeContext,
+    options: PlannedTransactionCommitOptions = {},
   ): Promise<StoredObjectRecord[]> {
     await this.startupGuard();
     await this.requireConstraintsForWrites(writes);
 
+    const commandTransactionId =
+      options.command === undefined ? undefined : this.nextCommandTransactionId();
+    await this.commitStorageWrites(writes);
+
     const committed: StoredObjectRecord[] = [];
-    for (const write of writes) {
+    for (let index = 0; index < writes.length; index += 1) {
+      const write = writes[index];
+      if (write === undefined) {
+        continue;
+      }
+      const commandDetails =
+        options.command === undefined
+          ? {}
+          : {
+              commandName: options.command.name,
+              ...(options.command.label === undefined
+                ? {}
+                : { commandLabel: options.command.label }),
+              commandStep: options.command.steps[index] ?? `step${index + 1}`,
+              commandTransactionId,
+            };
+
       if (write.operation === "create") {
-        await this.storage.create(write.objectName, write.record);
         this.auditService.record(
           "create",
           write.objectName,
@@ -373,15 +402,16 @@ export class ObjectStore {
           context,
           undefined,
           write.record.values,
+          commandDetails,
         );
         this.recordOperation("create", write.objectName, write.record, context, {
           patch: write.record.values,
+          ...commandDetails,
         });
         committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
         continue;
       }
 
-      await this.storage.update(write.objectName, write.record);
       this.auditService.record(
         "update",
         write.objectName,
@@ -389,10 +419,12 @@ export class ObjectStore {
         context,
         write.existing.values,
         write.record.values,
+        commandDetails,
       );
       this.recordOperation("update", write.objectName, write.record, context, {
         baseRevision: write.existing.meta.revision,
         patch: write.patch,
+        ...commandDetails,
       });
       committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
     }
@@ -721,6 +753,51 @@ export class ObjectStore {
 
   private nextRevision(): string {
     return `rev-${this.nextRevisionId++}`;
+  }
+
+  private nextCommandTransactionId(): string {
+    return `cmd-txn-${this.nextTransactionId++}`;
+  }
+
+  private async commitStorageWrites(writes: PlannedObjectWrite[]): Promise<void> {
+    if (writes.length === 0) {
+      return;
+    }
+
+    if (writes.length > 1) {
+      if (
+        this.storage.supportsTransactions !== true ||
+        this.storage.commitTransaction === undefined
+      ) {
+        throw new StorageError(
+          "Multi-record command transaction is unsupported by the configured storage backend.",
+          {
+            writeCount: writes.length,
+          },
+        );
+      }
+
+      await this.storage.commitTransaction(
+        writes.map((write) => ({
+          operation: write.operation,
+          objectName: write.objectName,
+          record: write.record,
+        })),
+      );
+      return;
+    }
+
+    const write = writes[0];
+    if (write === undefined) {
+      return;
+    }
+
+    if (write.operation === "create") {
+      await this.storage.create(write.objectName, write.record);
+      return;
+    }
+
+    await this.storage.update(write.objectName, write.record);
   }
 }
 
