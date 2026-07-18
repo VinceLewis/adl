@@ -441,6 +441,22 @@ describe("browser UI runtime", () => {
     expect(app.querySelector("[data-icon='music']")).not.toBeNull();
     expect(app.querySelector("[data-icon='microphone']")).not.toBeNull();
     expect(app.querySelector("[data-icon='x']")).not.toBeNull();
+    expect(app.querySelector("[data-presentation-legend='ScheduleStatus']")).not.toBeNull();
+    expect(
+      requireElement<HTMLElement>(app, "[data-presentation-legend='ScheduleStatus']").textContent,
+    ).toContain("Gig");
+    expect(
+      requireElement<HTMLElement>(
+        app,
+        "[data-presentation-row][data-status='event'] .adl-presentation-status",
+      ).getAttribute("aria-label"),
+    ).toBe("Gig event");
+    expect(
+      requireElement<HTMLElement>(
+        app,
+        "[data-presentation-row][data-status='unavailable'] .adl-presentation-status",
+      ).style.getPropertyValue("--adl-status-color"),
+    ).toContain("--adl-color-status-unavailable");
 
     const menu = requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']");
     requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']").click();

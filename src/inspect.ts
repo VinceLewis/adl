@@ -4,10 +4,12 @@ import type {
   PartialApplicationModel,
   PartialEditSectionModel,
   PartialObjectModel,
+  PartialPresentationLegendModel,
   PartialPresentationListModel,
   PartialRelationshipPickerModel,
   PartialPresentationRowFragmentModel,
   PartialPresentationSectionModel,
+  PartialPresentationStatusModel,
   PartialPresentationStateModel,
   PartialShellControlModel,
   PartialShellNavItemModel,
@@ -17,9 +19,11 @@ import type {
   ResolvedEditSection,
   ResolvedObject,
   ResolvedPresentationControl,
+  ResolvedPresentationLegend,
   ResolvedPresentationList,
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
+  ResolvedPresentationStatus,
   ResolvedPresentationState,
   ResolvedRelationshipPicker,
   ResolvedShellControl,
@@ -551,6 +555,26 @@ function explainViewDefaults(
       origin: "source" as const,
       note: `Icon map '${iconMap.name}' resolves values from presentation row field '${iconMap.field}'.`,
     })),
+    ...view.presentation.statuses.flatMap((status, statusIndex) =>
+      explainPresentationStatusDefaults(
+        status,
+        `${presentationPath}.statuses[${statusIndex}]`,
+        sourcePresentation?.statuses?.find((item) => item.name === status.name),
+      ),
+    ),
+    ...view.presentation.statusMaps.map((statusMap, statusMapIndex) => ({
+      path: `${presentationPath}.statusMaps[${statusMapIndex}].field`,
+      value: statusMap.field,
+      origin: "source" as const,
+      note: `Status map '${statusMap.name}' resolves values from presentation row field '${statusMap.field}'.`,
+    })),
+    ...view.presentation.legends.flatMap((legend, legendIndex) =>
+      explainPresentationLegendDefaults(
+        legend,
+        `${presentationPath}.legends[${legendIndex}]`,
+        sourcePresentation?.legends?.find((item) => item.name === legend.name),
+      ),
+    ),
     ...view.presentation.sections.flatMap((section, sectionIndex) =>
       explainPresentationSectionDefaults(
         section,
@@ -770,6 +794,78 @@ function explainPresentationStateDefaults(
   ];
 }
 
+function explainPresentationStatusDefaults(
+  status: ResolvedPresentationStatus,
+  statusPath: string,
+  source: PartialPresentationStatusModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${statusPath}.label`,
+      value: status.label,
+      origin: source?.label === undefined ? "platformDefault" : "source",
+      note:
+        source?.label === undefined
+          ? "Presentation status label defaulted from the status name."
+          : "Presentation status label was supplied by the source model.",
+    },
+    {
+      path: `${statusPath}.accessibleLabel`,
+      value: status.accessibleLabel,
+      origin: source?.accessibleLabel === undefined ? "platformDefault" : "source",
+      note:
+        source?.accessibleLabel === undefined
+          ? "Presentation status accessibility label defaulted from the display label."
+          : "Presentation status accessibility label was supplied by the source model.",
+    },
+    {
+      path: `${statusPath}.themeToken`,
+      value: status.themeToken,
+      origin: source?.themeToken === undefined ? "platformDefault" : "source",
+      note:
+        source?.themeToken === undefined
+          ? "Presentation status theme token default was applied."
+          : "Presentation status theme token was supplied by the source model.",
+    },
+    {
+      path: `${statusPath}.precedence`,
+      value: status.precedence,
+      origin: source?.precedence === undefined ? "platformDefault" : "source",
+      note:
+        source?.precedence === undefined
+          ? "Presentation status precedence defaulted to 0."
+          : "Presentation status precedence was supplied by the source model.",
+    },
+  ];
+}
+
+function explainPresentationLegendDefaults(
+  legend: ResolvedPresentationLegend,
+  legendPath: string,
+  source: PartialPresentationLegendModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${legendPath}.statuses`,
+      value: legend.statuses,
+      origin: source?.statuses === undefined ? "platformDefault" : "source",
+      note:
+        source?.statuses === undefined
+          ? "Presentation legend includes all declared statuses by default."
+          : "Presentation legend statuses were supplied by the source model.",
+    },
+    {
+      path: `${legendPath}.include`,
+      value: legend.include,
+      origin: source?.include === undefined ? "platformDefault" : "source",
+      note:
+        source?.include === undefined
+          ? "Presentation legend defaults to statuses present in evaluated rows."
+          : "Presentation legend include behavior was supplied by the source model.",
+    },
+  ];
+}
+
 function explainPresentationSectionDefaults(
   section: ResolvedPresentationSection,
   sectionPath: string,
@@ -934,6 +1030,16 @@ function explainPresentationListDefaults(
           ? "Presentation list empty-state text defaulted to an empty string."
           : "Presentation list empty-state text was supplied by the source model.",
     },
+    ...(list.status === undefined
+      ? []
+      : [
+          {
+            path: `${listPath}.status.candidates`,
+            value: list.status.candidates as unknown as JsonValue,
+            origin: "source" as const,
+            note: `Presentation list '${list.name}' resolves semantic status candidates before row rendering.`,
+          },
+        ]),
     {
       path: `${listPath}.row.layout`,
       value: list.row.layout,

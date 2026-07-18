@@ -168,8 +168,8 @@ values, after source read policy shaping.
 Composed views evaluate through `ApplicationRuntime.evaluatePresentationView`.
 The runtime consumes `ResolvedView.presentation` and returns renderer-neutral
 view data: sections, controls, command/navigation actions, lists, rows, row
-actions, text/icon fragments, empty states, local state values, and structured
-diagnostics.
+actions, text/icon fragments, semantic row statuses, view legends, empty
+states, local state values, and structured diagnostics.
 
 Evaluation order is deterministic:
 
@@ -180,8 +180,14 @@ Evaluation order is deterministic:
 4. Apply presentation `WHERE` filters to already-shaped row values plus local
    state.
 5. Apply presentation list ordering.
-6. Evaluate row templates, icon maps, display formats, conditional fragments,
+6. Evaluate list status candidates from direct status names or status maps.
+   The effective status is the candidate with the highest declared precedence;
+   ties use status declaration order.
+7. Evaluate row templates, icon maps, display formats, conditional fragments,
    and empty states.
+8. Evaluate legends from declared status order. Legends default to statuses
+   present in evaluated rows; `include: all` includes all declared legend
+   statuses.
 
 Presentation filters are display filters only. They run after runtime read
 authorization, context scoping, offline dataset constraints, and read-model
@@ -190,6 +196,12 @@ policy enforcement on writes, commands, sync replay, imports, or APIs.
 
 Row-template evaluation is read-only. It does not mutate stored records or local
 view state.
+
+Semantic statuses are data, not CSS class names. Runtime status output includes
+the stable status name, label, accessibility label, theme token, precedence, and
+optional icon. Missing status maps, missing fields, unmapped values without a
+default status, and unknown status names produce structured presentation
+diagnostics.
 
 Action-control evaluation is renderer-neutral. Runtime output includes action
 intent, label, semantic icon, placement, target command or view, resolved input,
@@ -285,10 +297,12 @@ request, context, winning decision, reasons, and precedence.
 
 Inspection includes presentation defaults and reference-bearing declarations
 when a view has `presentation`: layout, density, local state type/default/
-persistence, icon-map fields, control state/command/view/context references,
-action placement and input references, list source and source kind, render
-style, density, empty-state text, row actions, row layout and density, row
-field references, icon-map references, and fragment style defaults. Invalid
+persistence, icon-map fields, status labels/accessibility labels/theme tokens/
+precedence, status-map fields, legend status/include behavior, control
+state/command/view/context references, action placement and input references,
+list source and source kind, render style, density, empty-state text, list
+status candidates, row actions, row layout and density, row field references,
+icon-map references, and fragment style defaults. Invalid
 presentation references remain validation diagnostics with `ADL_PRESENTATION_*`
 codes rather than parser-AST explanations.
 

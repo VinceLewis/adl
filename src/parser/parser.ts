@@ -12,11 +12,13 @@ import type {
   PresentationDensity,
   PresentationFormatKind,
   PresentationFragmentStyle,
+  PresentationLegendInclude,
   PresentationLayout,
   PresentationActionPlacement,
   PresentationListRenderStyle,
   PresentationListSourceKind,
   PresentationRowLayout,
+  PresentationStatusThemeToken,
   PresentationStatePersistence,
   PresentationStateType,
   PolicyAction,
@@ -73,10 +75,15 @@ import type {
   PresentationIconMapDeclarationAst,
   PresentationIconMapValueDeclarationAst,
   PresentationIconRefDeclarationAst,
+  PresentationLegendDeclarationAst,
   PresentationListDeclarationAst,
   PresentationRowFragmentDeclarationAst,
   PresentationRowTemplateDeclarationAst,
   PresentationSectionDeclarationAst,
+  PresentationStatusCandidateDeclarationAst,
+  PresentationStatusDeclarationAst,
+  PresentationStatusMapDeclarationAst,
+  PresentationStatusMapValueDeclarationAst,
   PresentationStateDeclarationAst,
   PresentationToggleControlDeclarationAst,
   PrincipalSelectorAst,
@@ -1160,6 +1167,9 @@ class AdlParser {
     let density: PresentationDensity | undefined;
     const state: PresentationStateDeclarationAst[] = [];
     const iconMaps: PresentationIconMapDeclarationAst[] = [];
+    const statuses: PresentationStatusDeclarationAst[] = [];
+    const statusMaps: PresentationStatusMapDeclarationAst[] = [];
+    const legends: PresentationLegendDeclarationAst[] = [];
     const sections: PresentationSectionDeclarationAst[] = [];
     this.consumeLineEnd("VIEW declaration");
 
@@ -1186,6 +1196,9 @@ class AdlParser {
           density === undefined &&
           state.length === 0 &&
           iconMaps.length === 0 &&
+          statuses.length === 0 &&
+          statusMaps.length === 0 &&
+          legends.length === 0 &&
           sections.length === 0
             ? {}
             : {
@@ -1195,6 +1208,9 @@ class AdlParser {
                   ...(density === undefined ? {} : { density }),
                   state,
                   iconMaps,
+                  statuses,
+                  statusMaps,
+                  legends,
                   sections,
                   range: { start: startToken.range.start, end: end.range.end },
                 },
@@ -1232,11 +1248,17 @@ class AdlParser {
         state.push(this.parsePresentationState());
       } else if (this.checkWord("ICON_MAP") || this.checkDottedWord("ICON", "MAP")) {
         iconMaps.push(this.parsePresentationIconMap());
+      } else if (this.checkWord("STATUS_MAP") || this.checkDottedWord("STATUS", "MAP")) {
+        statusMaps.push(this.parsePresentationStatusMap());
+      } else if (this.checkWord("STATUS")) {
+        statuses.push(this.parsePresentationStatus());
+      } else if (this.checkWord("LEGEND")) {
+        legends.push(this.parsePresentationLegend());
       } else if (this.checkWord("SECTION")) {
         sections.push(this.parsePresentationSection());
       } else {
         this.failUnexpected(
-          "VIEW directive CONTEXT, READ_MODEL, FIELDS, SEARCH, ACTIONS, SORT, LAYOUT, DENSITY, STATE, ICON_MAP, SECTION, or END.VIEW",
+          "VIEW directive CONTEXT, READ_MODEL, FIELDS, SEARCH, ACTIONS, SORT, LAYOUT, DENSITY, STATE, ICON_MAP, STATUS, STATUS_MAP, LEGEND, SECTION, or END.VIEW",
         );
       }
     }
@@ -1334,6 +1356,141 @@ class AdlParser {
       kind: "PresentationIconMapValueDeclaration",
       value,
       icon,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parsePresentationStatus(): PresentationStatusDeclarationAst {
+    const startToken = this.expectWord("STATUS", "STATUS declaration");
+    const name = this.consumeName("status name");
+    let label: string | undefined;
+    let accessibleLabel: string | undefined;
+    let icon: PresentationIconRefDeclarationAst | undefined;
+    let themeToken: PresentationStatusThemeToken | undefined;
+    let precedence: number | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("status label"));
+      } else if (this.matchWord("ARIA_LABEL") || this.matchDottedWord("ARIA", "LABEL")) {
+        accessibleLabel = String(this.consumeLiteral("status accessible label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+      } else if (this.matchWord("THEME")) {
+        themeToken = this.parsePresentationStatusThemeToken();
+      } else if (this.matchWord("PRECEDENCE")) {
+        precedence = Number(this.consumeLiteral("status precedence"));
+      } else {
+        this.failUnexpected(
+          "STATUS option LABEL, ARIA_LABEL, ICON, THEME, PRECEDENCE, or end of line",
+        );
+      }
+    }
+
+    this.consumeLineEnd("STATUS declaration");
+    return {
+      kind: "PresentationStatusDeclaration",
+      name,
+      ...(label === undefined ? {} : { label }),
+      ...(accessibleLabel === undefined ? {} : { accessibleLabel }),
+      ...(icon === undefined ? {} : { icon }),
+      ...(themeToken === undefined ? {} : { themeToken }),
+      ...(precedence === undefined ? {} : { precedence }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parsePresentationStatusMap(): PresentationStatusMapDeclarationAst {
+    const startToken = this.checkWord("STATUS_MAP")
+      ? this.expectWord("STATUS_MAP", "STATUS_MAP declaration")
+      : this.expectDottedWord("STATUS", "MAP", "STATUS.MAP declaration");
+    const name = this.consumeName("status map name");
+    this.expectWord("FOR", "STATUS_MAP FOR clause");
+    const field = this.consumeName("status map field");
+    let defaultStatus: string | undefined;
+    const values: PresentationStatusMapValueDeclarationAst[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("DEFAULT")) {
+        defaultStatus = this.consumeName("status map default status");
+      } else {
+        this.failUnexpected("STATUS_MAP header option DEFAULT or end of line");
+      }
+    }
+    this.consumeLineEnd("STATUS_MAP declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.STATUS_MAP", this.current());
+      }
+
+      if (this.checkEnd("STATUS_MAP")) {
+        const end = this.parseEnd("STATUS_MAP");
+        return {
+          kind: "PresentationStatusMapDeclaration",
+          name,
+          field,
+          values,
+          ...(defaultStatus === undefined ? {} : { defaultStatus }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("DEFAULT")) {
+        defaultStatus = this.consumeName("status map default status");
+        this.consumeLineEnd("STATUS_MAP DEFAULT directive");
+      } else {
+        values.push(this.parsePresentationStatusMapValue());
+      }
+    }
+  }
+
+  private parsePresentationStatusMapValue(): PresentationStatusMapValueDeclarationAst {
+    const startToken = this.current();
+    const value = this.consumePrimitiveLiteral("status map value");
+    this.expectSymbol("-", "STATUS_MAP value arrow");
+    this.expectSymbol(">", "STATUS_MAP value arrow");
+    const status = this.consumeName("status map status");
+    this.consumeLineEnd("STATUS_MAP value directive");
+
+    return {
+      kind: "PresentationStatusMapValueDeclaration",
+      value,
+      status,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parsePresentationLegend(): PresentationLegendDeclarationAst {
+    const startToken = this.expectWord("LEGEND", "LEGEND declaration");
+    const name = this.consumeName("legend name");
+    let title: string | undefined;
+    let include: PresentationLegendInclude | undefined;
+    let statuses: string[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("TITLE")) {
+        title = String(this.consumeLiteral("legend title"));
+      } else if (this.matchWord("INCLUDE")) {
+        include = this.parsePresentationLegendInclude();
+      } else if (this.matchWord("STATUSES")) {
+        statuses = this.consumeNameListUntilLine("legend status list");
+        break;
+      } else {
+        this.failUnexpected("LEGEND option TITLE, INCLUDE, STATUSES, or end of line");
+      }
+    }
+
+    this.consumeLineEnd("LEGEND declaration");
+    return {
+      kind: "PresentationLegendDeclaration",
+      name,
+      ...(title === undefined ? {} : { title }),
+      statuses,
+      ...(include === undefined ? {} : { include }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -1466,6 +1623,7 @@ class AdlParser {
     const sort: SortDeclarationAst[] = [];
     let filter: ResolvedExpression | undefined;
     let emptyText: string | undefined;
+    const statusCandidates: PresentationStatusCandidateDeclarationAst[] = [];
     const actions: PresentationActionControlDeclarationAst[] = [];
     let row: PresentationRowTemplateDeclarationAst | undefined;
     this.consumeLineEnd("LIST declaration");
@@ -1489,6 +1647,7 @@ class AdlParser {
           sort,
           ...(filter === undefined ? {} : { filter }),
           ...(emptyText === undefined ? {} : { emptyText }),
+          statusCandidates,
           actions,
           ...(row === undefined ? {} : { row }),
           end,
@@ -1512,6 +1671,8 @@ class AdlParser {
       } else if (this.matchWord("EMPTY_TEXT")) {
         emptyText = String(this.consumeLiteral("LIST EMPTY_TEXT value"));
         this.consumeLineEnd("LIST EMPTY_TEXT directive");
+      } else if (this.checkWord("STATUS")) {
+        statusCandidates.push(this.parsePresentationStatusCandidate());
       } else if (this.checkWord("ACTION")) {
         actions.push(this.parsePresentationAction("row"));
       } else if (this.checkWord("ROW")) {
@@ -1520,10 +1681,71 @@ class AdlParser {
         this.failExpected("END.LIST", this.current());
       } else {
         this.failUnexpected(
-          "LIST directive ORDER BY, WHERE, RENDER_AS, DENSITY, EMPTY_TEXT, ACTION, ROW, or END.LIST",
+          "LIST directive ORDER BY, WHERE, RENDER_AS, DENSITY, EMPTY_TEXT, STATUS, ACTION, ROW, or END.LIST",
         );
       }
     }
+  }
+
+  private parsePresentationStatusCandidate(): PresentationStatusCandidateDeclarationAst {
+    const startToken = this.expectWord("STATUS", "LIST STATUS directive");
+    const name = this.consumeName("presentation status name or map");
+
+    if (!this.matchSymbol("(")) {
+      this.consumeLineEnd("LIST STATUS directive");
+      return {
+        kind: "direct",
+        status: name,
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    if (this.matchWord("FIELD")) {
+      const field = this.consumeName("presentation status map field");
+      this.expectSymbol(")", "presentation status map reference");
+      this.consumeLineEnd("LIST STATUS directive");
+      return {
+        kind: "map",
+        map: name,
+        field,
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    if (this.matchWord("VALUE")) {
+      const value = this.consumePrimitiveLiteral("presentation status map value");
+      this.expectSymbol(")", "presentation status map reference");
+      this.consumeLineEnd("LIST STATUS directive");
+      return {
+        kind: "map",
+        map: name,
+        value,
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    const token = this.current();
+    if (token.kind === "identifier") {
+      const field = this.consumeName("presentation status map field");
+      this.expectSymbol(")", "presentation status map reference");
+      this.consumeLineEnd("LIST STATUS directive");
+      return {
+        kind: "map",
+        map: name,
+        field,
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    const value = this.consumePrimitiveLiteral("presentation status map value");
+    this.expectSymbol(")", "presentation status map reference");
+    this.consumeLineEnd("LIST STATUS directive");
+    return {
+      kind: "map",
+      map: name,
+      value,
+      range: this.rangeFrom(startToken),
+    };
   }
 
   private parsePresentationAction(
@@ -2796,6 +3018,52 @@ class AdlParser {
     }
   }
 
+  private parsePresentationStatusThemeToken(): PresentationStatusThemeToken {
+    const token = this.consumeWordToken("presentation status theme token");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "statusevent":
+      case "colorstatusevent":
+        return "colorStatusEvent";
+      case "statusrehearsal":
+      case "colorstatusrehearsal":
+        return "colorStatusRehearsal";
+      case "statusavailable":
+      case "colorstatusavailable":
+        return "colorStatusAvailable";
+      case "statusunavailable":
+      case "colorstatusunavailable":
+        return "colorStatusUnavailable";
+      case "statusbusyelsewhere":
+      case "colorstatusbusyelsewhere":
+        return "colorStatusBusyElsewhere";
+      case "statusconflict":
+      case "colorstatusconflict":
+        return "colorStatusConflict";
+      case "statusunset":
+      case "colorstatusunset":
+        return "colorStatusUnset";
+      case "info":
+      case "colorinfo":
+        return "colorInfo";
+      default:
+        this.failExpected("presentation status theme token", token);
+    }
+  }
+
+  private parsePresentationLegendInclude(): PresentationLegendInclude {
+    const token = this.consumeWordToken("presentation legend include mode");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "present":
+        return "present";
+      case "all":
+        return "all";
+      default:
+        this.failExpected("presentation legend include mode PRESENT or ALL", token);
+    }
+  }
+
   private parsePresentationFragmentStyle(): PresentationFragmentStyle {
     const token = this.consumeWordToken("presentation fragment style");
 
@@ -3216,6 +3484,27 @@ class AdlParser {
       case "info":
       case "colorinfo":
         return "colorInfo";
+      case "statusevent":
+      case "colorstatusevent":
+        return "colorStatusEvent";
+      case "statusrehearsal":
+      case "colorstatusrehearsal":
+        return "colorStatusRehearsal";
+      case "statusavailable":
+      case "colorstatusavailable":
+        return "colorStatusAvailable";
+      case "statusunavailable":
+      case "colorstatusunavailable":
+        return "colorStatusUnavailable";
+      case "statusbusyelsewhere":
+      case "colorstatusbusyelsewhere":
+        return "colorStatusBusyElsewhere";
+      case "statusconflict":
+      case "colorstatusconflict":
+        return "colorStatusConflict";
+      case "statusunset":
+      case "colorstatusunset":
+        return "colorStatusUnset";
       case "radius":
         return "radius";
       case "density":

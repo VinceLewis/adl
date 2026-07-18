@@ -18,10 +18,14 @@ import type {
   PresentationControlDeclarationAst,
   PresentationIconMapDeclarationAst,
   PresentationIconRefDeclarationAst,
+  PresentationLegendDeclarationAst,
   PresentationListDeclarationAst,
   PresentationRowFragmentDeclarationAst,
   PresentationRowTemplateDeclarationAst,
   PresentationSectionDeclarationAst,
+  PresentationStatusCandidateDeclarationAst,
+  PresentationStatusDeclarationAst,
+  PresentationStatusMapDeclarationAst,
   PresentationStateDeclarationAst,
   PresentationToggleControlDeclarationAst,
   PrincipalSelectorAst,
@@ -51,10 +55,14 @@ import type {
   PartialPresentationControlModel,
   PartialPresentationIconMapModel,
   PartialPresentationIconRefModel,
+  PartialPresentationLegendModel,
   PartialPresentationListModel,
   PartialPresentationRowFragmentModel,
   PartialPresentationRowTemplateModel,
   PartialPresentationSectionModel,
+  PartialPresentationStatusCandidateModel,
+  PartialPresentationStatusMapModel,
+  PartialPresentationStatusModel,
   PartialPresentationStateModel,
   PartialPrincipalSelectorModel,
   PartialReadModelModel,
@@ -540,6 +548,9 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
               : { density: view.presentation.density }),
             state: view.presentation.state.map(presentationStateToPartial),
             iconMaps: view.presentation.iconMaps.map(presentationIconMapToPartial),
+            statuses: view.presentation.statuses.map(presentationStatusToPartial),
+            statusMaps: view.presentation.statusMaps.map(presentationStatusMapToPartial),
+            legends: view.presentation.legends.map(presentationLegendToPartial),
             sections: view.presentation.sections.map(presentationSectionToPartial),
           },
         }),
@@ -565,6 +576,41 @@ function presentationIconMapToPartial(
     field: iconMap.field,
     values: iconMap.values.map((value) => ({ value: value.value, icon: value.icon })),
     ...(iconMap.defaultIcon === undefined ? {} : { defaultIcon: iconMap.defaultIcon }),
+  };
+}
+
+function presentationStatusToPartial(
+  status: PresentationStatusDeclarationAst,
+): PartialPresentationStatusModel {
+  return {
+    name: status.name,
+    ...(status.label === undefined ? {} : { label: status.label }),
+    ...(status.accessibleLabel === undefined ? {} : { accessibleLabel: status.accessibleLabel }),
+    ...(status.icon === undefined ? {} : { icon: presentationIconRefToPartial(status.icon) }),
+    ...(status.themeToken === undefined ? {} : { themeToken: status.themeToken }),
+    ...(status.precedence === undefined ? {} : { precedence: status.precedence }),
+  };
+}
+
+function presentationStatusMapToPartial(
+  statusMap: PresentationStatusMapDeclarationAst,
+): PartialPresentationStatusMapModel {
+  return {
+    name: statusMap.name,
+    field: statusMap.field,
+    values: statusMap.values.map((value) => ({ value: value.value, status: value.status })),
+    ...(statusMap.defaultStatus === undefined ? {} : { defaultStatus: statusMap.defaultStatus }),
+  };
+}
+
+function presentationLegendToPartial(
+  legend: PresentationLegendDeclarationAst,
+): PartialPresentationLegendModel {
+  return {
+    name: legend.name,
+    ...(legend.title === undefined ? {} : { title: legend.title }),
+    statuses: [...legend.statuses],
+    ...(legend.include === undefined ? {} : { include: legend.include }),
   };
 }
 
@@ -632,10 +678,30 @@ function presentationListToPartial(
     })),
     ...(list.filter === undefined ? {} : { filter: list.filter }),
     ...(list.emptyText === undefined ? {} : { emptyState: { text: list.emptyText } }),
+    ...(list.statusCandidates.length === 0
+      ? {}
+      : {
+          status: { candidates: list.statusCandidates.map(presentationStatusCandidateToPartial) },
+        }),
     ...(list.actions.length === 0
       ? {}
       : { actions: list.actions.map((action) => presentationActionToPartial(action)) }),
     ...(list.row === undefined ? {} : { row: presentationRowTemplateToPartial(list.row) }),
+  };
+}
+
+function presentationStatusCandidateToPartial(
+  candidate: PresentationStatusCandidateDeclarationAst,
+): PartialPresentationStatusCandidateModel {
+  if (candidate.kind === "direct") {
+    return { kind: "status", status: candidate.status };
+  }
+
+  return {
+    kind: "map",
+    map: candidate.map,
+    ...(candidate.field === undefined ? {} : { field: candidate.field }),
+    ...(candidate.value === undefined ? {} : { value: candidate.value }),
   };
 }
 

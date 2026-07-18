@@ -215,6 +215,7 @@ describe("resolveApplicationModel", () => {
       nav: "top",
       colorPrimary: "#155EEF",
       colorBorder: "#D9E1EC",
+      colorStatusConflict: "#B42318",
     });
   });
 
@@ -437,6 +438,29 @@ describe("resolveApplicationModel", () => {
           values: [{ value: "Gig", icon: "music" }],
         },
       ],
+      statuses: [
+        {
+          name: "event",
+          label: "Event",
+          accessibleLabel: "Event",
+          themeToken: "colorStatusEvent",
+          precedence: 0,
+        },
+      ],
+      statusMaps: [
+        {
+          name: "EventTypeStatus",
+          field: "EventType",
+          values: [{ value: "Gig", status: "event" }],
+        },
+      ],
+      legends: [
+        {
+          name: "ScheduleStatus",
+          statuses: ["event"],
+          include: "present",
+        },
+      ],
       sections: [
         {
           name: "Filters",
@@ -467,6 +491,7 @@ describe("resolveApplicationModel", () => {
               density: "comfortable",
               fields: ["EventDate", "StartTime", "Title"],
               emptyState: { text: "No upcoming events" },
+              status: { candidates: [{ kind: "map", map: "EventTypeStatus" }] },
               row: {
                 layout: "inline",
                 density: "comfortable",
@@ -597,6 +622,15 @@ function createPresentationPartialModel(): PartialApplicationModel {
                   values: [{ value: "Gig", icon: "music" }],
                 },
               ],
+              statuses: [{ name: "event" }],
+              statusMaps: [
+                {
+                  name: "EventTypeStatus",
+                  field: "EventType",
+                  values: [{ value: "Gig", status: "event" }],
+                },
+              ],
+              legends: [{ name: "ScheduleStatus", statuses: ["event"] }],
               sections: [
                 {
                   name: "Filters",
@@ -621,6 +655,7 @@ function createPresentationPartialModel(): PartialApplicationModel {
                       sort: [{ field: "EventDate", direction: "asc" }],
                       filter: { kind: "field", field: "showGigs" },
                       emptyState: { text: "No upcoming events" },
+                      status: { candidates: [{ kind: "map", map: "EventTypeStatus" }] },
                       row: {
                         fragments: [
                           {

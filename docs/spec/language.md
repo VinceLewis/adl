@@ -131,11 +131,16 @@ Implemented view-level declarations:
 - `DENSITY compact|comfortable|spacious`
 - local `STATE Name Type DEFAULT Literal`
 - `ICON_MAP Name FOR Field ... END.ICON_MAP`
+- `STATUS name LABEL 'Label' ARIA_LABEL 'Accessible label' ICON iconRef
+  THEME colorStatusEvent PRECEDENCE 10`
+- `STATUS_MAP Name FOR Field ... END.STATUS_MAP`
+- `LEGEND Name TITLE 'Title' STATUSES statusName ...`
 - `SECTION Name ... END.SECTION`
 
 Sections may declare `HEADING`, local layout/density hints, `TOGGLE` controls,
 and `LIST` blocks. Lists bind to an object or read model and support `ORDER BY`,
-`WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, and a `ROW` template.
+`WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, repeatable `STATUS` candidates,
+and a `ROW` template.
 
 ```adl
 VIEW HomeDashboard DASHBOARD
@@ -152,6 +157,18 @@ VIEW HomeDashboard DASHBOARD
     Unavailable -> x
   END.ICON_MAP
 
+  STATUS event LABEL 'Gig' ARIA_LABEL 'Gig event' ICON EventTypeIcon(Gig) THEME colorStatusEvent PRECEDENCE 10
+  STATUS rehearsal LABEL 'Rehearsal' ARIA_LABEL 'Rehearsal event' ICON EventTypeIcon(Rehearsal) THEME colorStatusRehearsal PRECEDENCE 10
+  STATUS unavailable LABEL 'Unavailable' ARIA_LABEL 'Unavailable block' ICON EventTypeIcon(Unavailable) THEME colorStatusUnavailable PRECEDENCE 20
+
+  STATUS_MAP EventTypeStatus FOR EventType
+    Gig -> event
+    Rehearsal -> rehearsal
+    Unavailable -> unavailable
+  END.STATUS_MAP
+
+  LEGEND ScheduleStatus TITLE 'Schedule status' STATUSES event rehearsal unavailable
+
   SECTION Schedule
     HEADING 'Schedule'
 
@@ -160,6 +177,7 @@ VIEW HomeDashboard DASHBOARD
       WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true) OR (EventType == 'Unavailable' AND showUnavailable == true)
       RENDER_AS compactFeed
       EMPTY_TEXT 'No upcoming events'
+      STATUS EventTypeStatus(EventType)
 
       ROW
         ICON EventTypeIcon(EventType)

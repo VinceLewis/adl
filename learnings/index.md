@@ -91,6 +91,7 @@ resolved-model defaults, UI syntax for composed views, presentation validation,
 or presentation renderer behavior, also read:
 
 - `implementation/ui-presentation-model.md`
+- `implementation/semantic-status-presentation.md`
 
 Before tasks that change shell navigation metadata, drawer rendering, top-bar
 controls, or mobile business-context selectors, also read:
@@ -104,6 +105,7 @@ Before tasks that add or change ADL reference applications, model-driven demo fi
 Before tasks that change resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`, also read:
 
 - `implementation/theme-system.md`
+- `implementation/semantic-status-presentation.md`
 
 Before tasks that change the phase plan, also read:
 
@@ -153,4 +155,5 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work.
 - `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases.
 - `implementation/ui-presentation-model.md`: read before changing composed UI presentation declarations, presentation defaults, UI syntax for composed views, presentation validation, or presentation renderer behavior.
+- `implementation/semantic-status-presentation.md`: read before changing status maps, status precedence, legends, status theme tokens, or status-colored browser presentation.
 - `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors.

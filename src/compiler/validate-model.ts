@@ -19,11 +19,13 @@ import type {
   PresentationActionPlacement,
   PresentationFormatKind,
   PresentationFragmentStyle,
+  PresentationLegendInclude,
   PresentationLayout,
   PresentationListRenderStyle,
   PresentationListSourceKind,
   PresentationRowLayout,
   PresentationShellRegion,
+  PresentationStatusThemeToken,
   PresentationStatePersistence,
   PresentationStateType,
   PolicyAction,
@@ -53,9 +55,12 @@ import type {
   ResolvedPolicyRule,
   ResolvedPresentationControl,
   ResolvedPresentationIconRef,
+  ResolvedPresentationLegend,
   ResolvedPresentationList,
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
+  ResolvedPresentationStatus,
+  ResolvedPresentationStatusMap,
   ResolvedPresentationState,
   ResolvedRelationshipPicker,
   ResolvedViewPresentation,
@@ -282,6 +287,19 @@ export const MODEL_VALIDATION_CODES = {
   PRESENTATION_SECTION_DUPLICATE: "ADL_PRESENTATION_SECTION_DUPLICATE",
   PRESENTATION_SHELL_CONTROL_UNKNOWN: "ADL_PRESENTATION_SHELL_CONTROL_UNKNOWN",
   PRESENTATION_SHELL_REGION_INVALID: "ADL_PRESENTATION_SHELL_REGION_INVALID",
+  PRESENTATION_STATUS_DUPLICATE: "ADL_PRESENTATION_STATUS_DUPLICATE",
+  PRESENTATION_STATUS_MAP_DUPLICATE: "ADL_PRESENTATION_STATUS_MAP_DUPLICATE",
+  PRESENTATION_STATUS_MAP_FIELD_UNKNOWN: "ADL_PRESENTATION_STATUS_MAP_FIELD_UNKNOWN",
+  PRESENTATION_STATUS_MAP_STATUS_UNKNOWN: "ADL_PRESENTATION_STATUS_MAP_STATUS_UNKNOWN",
+  PRESENTATION_STATUS_MAP_VALUE_DUPLICATE: "ADL_PRESENTATION_STATUS_MAP_VALUE_DUPLICATE",
+  PRESENTATION_STATUS_PRECEDENCE_INVALID: "ADL_PRESENTATION_STATUS_PRECEDENCE_INVALID",
+  PRESENTATION_STATUS_THEME_TOKEN_INVALID: "ADL_PRESENTATION_STATUS_THEME_TOKEN_INVALID",
+  PRESENTATION_STATUS_ICON_MAP_UNKNOWN: "ADL_PRESENTATION_STATUS_ICON_MAP_UNKNOWN",
+  PRESENTATION_LIST_STATUS_MAP_UNKNOWN: "ADL_PRESENTATION_LIST_STATUS_MAP_UNKNOWN",
+  PRESENTATION_LIST_STATUS_UNKNOWN: "ADL_PRESENTATION_LIST_STATUS_UNKNOWN",
+  PRESENTATION_LEGEND_DUPLICATE: "ADL_PRESENTATION_LEGEND_DUPLICATE",
+  PRESENTATION_LEGEND_INCLUDE_INVALID: "ADL_PRESENTATION_LEGEND_INCLUDE_INVALID",
+  PRESENTATION_LEGEND_STATUS_UNKNOWN: "ADL_PRESENTATION_LEGEND_STATUS_UNKNOWN",
   PRESENTATION_STATE_DEFAULT_INCOMPATIBLE: "ADL_PRESENTATION_STATE_DEFAULT_INCOMPATIBLE",
   PRESENTATION_STATE_DUPLICATE: "ADL_PRESENTATION_STATE_DUPLICATE",
   PRESENTATION_STATE_PERSISTENCE_INVALID: "ADL_PRESENTATION_STATE_PERSISTENCE_INVALID",
@@ -431,6 +449,17 @@ const PRESENTATION_SHELL_REGIONS = new Set<PresentationShellRegion>([
   "bottomBar",
   "sidebar",
 ]);
+const PRESENTATION_STATUS_THEME_TOKENS = new Set<PresentationStatusThemeToken>([
+  "colorStatusEvent",
+  "colorStatusRehearsal",
+  "colorStatusAvailable",
+  "colorStatusUnavailable",
+  "colorStatusBusyElsewhere",
+  "colorStatusConflict",
+  "colorStatusUnset",
+  "colorInfo",
+]);
+const PRESENTATION_LEGEND_INCLUDES = new Set<PresentationLegendInclude>(["present", "all"]);
 const SHELL_CONTROL_KINDS = new Set<ShellControlKind>([
   "contextSelector",
   "themeSwitch",
@@ -559,6 +588,13 @@ const THEME_STRING_TOKENS = [
   "colorDanger",
   "colorSuccess",
   "colorInfo",
+  "colorStatusEvent",
+  "colorStatusRehearsal",
+  "colorStatusAvailable",
+  "colorStatusUnavailable",
+  "colorStatusBusyElsewhere",
+  "colorStatusConflict",
+  "colorStatusUnset",
   "fontFamily",
   "logoUrl",
 ] as const satisfies readonly (keyof ResolvedThemeTokens)[];
@@ -2904,6 +2940,8 @@ function validateViewPresentation(
   const presentationPath = `${viewPath}.presentation`;
   const stateByName = indexByName(presentation.state);
   const iconMapByName = indexByName(presentation.iconMaps);
+  const statusByName = indexByName(presentation.statuses);
+  const statusMapByName = indexByName(presentation.statusMaps);
   const controlsByName = indexPresentationControls(presentation.sections);
   const viewFieldRefs = getViewFieldReferences(view, targetObject, indexes);
 
@@ -2922,6 +2960,27 @@ function validateViewPresentation(
     MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_DUPLICATE,
     diagnostics,
     `Presentation icon map names must be unique within view '${view.name}'.`,
+  );
+  reportDuplicateNames(
+    presentation.statuses,
+    `${presentationPath}.statuses`,
+    MODEL_VALIDATION_CODES.PRESENTATION_STATUS_DUPLICATE,
+    diagnostics,
+    `Presentation status names must be unique within view '${view.name}'.`,
+  );
+  reportDuplicateNames(
+    presentation.statusMaps,
+    `${presentationPath}.statusMaps`,
+    MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_DUPLICATE,
+    diagnostics,
+    `Presentation status map names must be unique within view '${view.name}'.`,
+  );
+  reportDuplicateNames(
+    presentation.legends,
+    `${presentationPath}.legends`,
+    MODEL_VALIDATION_CODES.PRESENTATION_LEGEND_DUPLICATE,
+    diagnostics,
+    `Presentation legend names must be unique within view '${view.name}'.`,
   );
   reportDuplicateNames(
     presentation.sections,
@@ -2955,6 +3014,52 @@ function validateViewPresentation(
     }
   }
 
+  for (let statusIndex = 0; statusIndex < presentation.statuses.length; statusIndex += 1) {
+    const status = presentation.statuses[statusIndex];
+    if (status === undefined) {
+      continue;
+    }
+    validatePresentationStatus(
+      status,
+      `${presentationPath}.statuses[${statusIndex}]`,
+      view,
+      iconMapByName,
+      diagnostics,
+    );
+  }
+
+  for (
+    let statusMapIndex = 0;
+    statusMapIndex < presentation.statusMaps.length;
+    statusMapIndex += 1
+  ) {
+    const statusMap = presentation.statusMaps[statusMapIndex];
+    if (statusMap === undefined) {
+      continue;
+    }
+    validatePresentationStatusMap(
+      statusMap,
+      `${presentationPath}.statusMaps[${statusMapIndex}]`,
+      view,
+      viewFieldRefs,
+      statusByName,
+      diagnostics,
+    );
+  }
+
+  for (let legendIndex = 0; legendIndex < presentation.legends.length; legendIndex += 1) {
+    const legend = presentation.legends[legendIndex];
+    if (legend === undefined) {
+      continue;
+    }
+    validatePresentationLegend(
+      legend,
+      `${presentationPath}.legends[${legendIndex}]`,
+      statusByName,
+      diagnostics,
+    );
+  }
+
   for (let sectionIndex = 0; sectionIndex < presentation.sections.length; sectionIndex += 1) {
     const section = presentation.sections[sectionIndex];
     if (section === undefined) {
@@ -2966,6 +3071,8 @@ function validateViewPresentation(
       view,
       stateByName,
       iconMapByName,
+      statusByName,
+      statusMapByName,
       indexes,
       diagnostics,
     );
@@ -3043,12 +3150,144 @@ function validatePresentationState(
   }
 }
 
+function validatePresentationStatus(
+  status: ResolvedPresentationStatus,
+  statusPath: string,
+  view: ResolvedView,
+  iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_STATUS_THEME_TOKENS.has(status.themeToken)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_THEME_TOKEN_INVALID,
+        `Presentation status '${status.name}' uses unsupported theme token '${String(status.themeToken)}'.`,
+        `${statusPath}.themeToken`,
+      ),
+    );
+  }
+
+  if (!Number.isFinite(status.precedence) || !Number.isInteger(status.precedence)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_PRECEDENCE_INVALID,
+        `Presentation status '${status.name}' precedence must be an integer.`,
+        `${statusPath}.precedence`,
+      ),
+    );
+  }
+
+  validatePresentationIconRef(
+    status.icon,
+    `${statusPath}.icon`,
+    view,
+    iconMapByName,
+    undefined,
+    diagnostics,
+    MODEL_VALIDATION_CODES.PRESENTATION_STATUS_ICON_MAP_UNKNOWN,
+  );
+}
+
+function validatePresentationStatusMap(
+  statusMap: ResolvedPresentationStatusMap,
+  statusMapPath: string,
+  view: ResolvedView,
+  viewFieldRefs: Map<string, NamedReference<ExpressionFieldReference>>,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (!viewFieldRefs.has(statusMap.field)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_FIELD_UNKNOWN,
+        `Presentation status map '${statusMap.name}' references unknown field '${statusMap.field}' in view '${view.name}'.`,
+        `${statusMapPath}.field`,
+      ),
+    );
+  }
+
+  const firstSeen = new Map<string, number>();
+  for (let valueIndex = 0; valueIndex < statusMap.values.length; valueIndex += 1) {
+    const value = statusMap.values[valueIndex];
+    if (value === undefined) {
+      continue;
+    }
+
+    const key = JSON.stringify(value.value);
+    const firstIndex = firstSeen.get(key);
+    if (firstIndex === undefined) {
+      firstSeen.set(key, valueIndex);
+    } else {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_VALUE_DUPLICATE,
+          `Presentation status map '${statusMap.name}' maps value '${String(value.value)}' more than once.`,
+          `${statusMapPath}.values[${valueIndex}].value`,
+        ),
+      );
+    }
+
+    if (!statusByName.has(value.status)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_STATUS_UNKNOWN,
+          `Presentation status map '${statusMap.name}' references unknown status '${value.status}'.`,
+          `${statusMapPath}.values[${valueIndex}].status`,
+        ),
+      );
+    }
+  }
+
+  if (statusMap.defaultStatus !== undefined && !statusByName.has(statusMap.defaultStatus)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_STATUS_UNKNOWN,
+        `Presentation status map '${statusMap.name}' references unknown default status '${statusMap.defaultStatus}'.`,
+        `${statusMapPath}.defaultStatus`,
+      ),
+    );
+  }
+}
+
+function validatePresentationLegend(
+  legend: ResolvedPresentationLegend,
+  legendPath: string,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (!PRESENTATION_LEGEND_INCLUDES.has(legend.include)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_LEGEND_INCLUDE_INVALID,
+        `Presentation legend '${legend.name}' has unsupported include mode '${String(legend.include)}'.`,
+        `${legendPath}.include`,
+      ),
+    );
+  }
+
+  for (let statusIndex = 0; statusIndex < legend.statuses.length; statusIndex += 1) {
+    const status = legend.statuses[statusIndex];
+    if (status === undefined || statusByName.has(status)) {
+      continue;
+    }
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_LEGEND_STATUS_UNKNOWN,
+        `Presentation legend '${legend.name}' references unknown status '${status}'.`,
+        `${legendPath}.statuses[${statusIndex}]`,
+      ),
+    );
+  }
+}
+
 function validatePresentationSection(
   section: ResolvedPresentationSection,
   sectionPath: string,
   view: ResolvedView,
   stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
   iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
@@ -3098,6 +3337,8 @@ function validatePresentationSection(
       view,
       stateByName,
       iconMapByName,
+      statusByName,
+      statusMapByName,
       indexes,
       diagnostics,
     );
@@ -3189,6 +3430,8 @@ function validatePresentationList(
   view: ResolvedView,
   stateByName: Map<string, NamedReference<ResolvedPresentationState>>,
   iconMapByName: Map<string, NamedReference<{ name: string }>>,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
@@ -3277,6 +3520,14 @@ function validatePresentationList(
     fieldsByName,
     diagnostics,
   );
+  validatePresentationStatusBinding(
+    list,
+    listPath,
+    fieldsByName,
+    statusByName,
+    statusMapByName,
+    diagnostics,
+  );
   validatePresentationRowTemplate(
     list.row,
     `${listPath}.row`,
@@ -3315,6 +3566,64 @@ function validatePresentationList(
       fieldsByName,
       diagnostics,
     );
+  }
+}
+
+function validatePresentationStatusBinding(
+  list: ResolvedPresentationList,
+  listPath: string,
+  fieldsByName: Map<string, NamedReference<ExpressionFieldReference>>,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  statusMapByName: Map<string, NamedReference<ResolvedPresentationStatusMap>>,
+  diagnostics: Diagnostic[],
+): void {
+  if (list.status === undefined) {
+    return;
+  }
+
+  for (
+    let candidateIndex = 0;
+    candidateIndex < list.status.candidates.length;
+    candidateIndex += 1
+  ) {
+    const candidate = list.status.candidates[candidateIndex];
+    if (candidate === undefined) {
+      continue;
+    }
+    const candidatePath = `${listPath}.status.candidates[${candidateIndex}]`;
+
+    if (candidate.kind === "status") {
+      if (!statusByName.has(candidate.status)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.PRESENTATION_LIST_STATUS_UNKNOWN,
+            `Presentation list '${list.name}' references unknown status '${candidate.status}'.`,
+            `${candidatePath}.status`,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (!statusMapByName.has(candidate.map)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_LIST_STATUS_MAP_UNKNOWN,
+          `Presentation list '${list.name}' references unknown status map '${candidate.map}'.`,
+          `${candidatePath}.map`,
+        ),
+      );
+    }
+
+    if (candidate.field !== undefined && !fieldsByName.has(candidate.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_FIELD_UNKNOWN,
+          `Presentation status candidate references unknown field '${candidate.field}' in list '${list.name}'.`,
+          `${candidatePath}.field`,
+        ),
+      );
+    }
   }
 }
 
@@ -3518,6 +3827,7 @@ function validatePresentationIconRef(
   iconMapByName: Map<string, NamedReference<{ name: string }>>,
   fieldsByName: Map<string, NamedReference<ExpressionFieldReference>> | undefined,
   diagnostics: Diagnostic[],
+  unknownIconMapCode: ModelValidationCode = MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_UNKNOWN,
 ): void {
   if (icon === undefined || icon.kind === "named") {
     return;
@@ -3526,7 +3836,7 @@ function validatePresentationIconRef(
   if (!iconMapByName.has(icon.map)) {
     diagnostics.push(
       diagnostic(
-        MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_UNKNOWN,
+        unknownIconMapCode,
         `Presentation icon reference in view '${view.name}' uses unknown icon map '${icon.map}'.`,
         `${iconPath}.map`,
       ),

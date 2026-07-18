@@ -156,12 +156,18 @@ Implemented presentation declarations include:
 - view layout and density hints
 - local view state with type, default value, and persistence
 - icon maps from semantic values to icon names
+- semantic statuses with label, accessibility label, optional icon, theme
+  token, and numeric precedence
+- status maps from row values to semantic status names
+- legends with ordered status names and `present` or `all` include behavior
 - sections with headings, controls, and lists
 - toggle, select, action, and context-selector controls
 - action placement metadata for primary, secondary, and row-level controls
 - command and navigation action bindings with renderer-neutral command inputs
 - read-model-backed or object-backed presentation lists
 - list render style, density, fields, sort, filters, and empty states
+- optional list status bindings with one or more direct or mapped status
+  candidates
 - list row actions
 - row templates with literal text, field text, icon, and conditional fragments
 - fragment styles limited to `plain`, `bold`, `muted`, and `caption`
@@ -172,8 +178,9 @@ Implemented presentation declarations include:
 Presentation references are validated against the resolved model. Lists must
 reference known read models or objects. Row fragments, list fields, sort fields,
 filters, icon maps, controls, local state, commands, command action inputs,
-action visibility predicates, target views, contexts, and shell controls
-produce structured diagnostics when invalid.
+action visibility predicates, target views, contexts, status maps, status
+names, status map fields, legends, and shell controls produce structured
+diagnostics when invalid.
 
 ## Shell
 
@@ -188,6 +195,12 @@ The shell contains:
   names, and visibility metadata.
 - `topBar`: business-context selector placement, mobile context-selector mode,
   and ordered shell control names.
+
+Resolved themes include common semantic status color tokens:
+`colorStatusEvent`, `colorStatusRehearsal`, `colorStatusAvailable`,
+`colorStatusUnavailable`, `colorStatusBusyElsewhere`, `colorStatusConflict`,
+and `colorStatusUnset`. Presentation statuses reference these tokens by name;
+renderers map them to platform colors or CSS variables.
 - `controls`: optional shell controls such as context selector, sync status,
   theme switch, logout, and PWA install prompt.
 

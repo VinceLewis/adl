@@ -13,9 +13,13 @@ import type {
   ResolvedPresentationFormat,
   ResolvedPresentationIconMap,
   ResolvedPresentationIconRef,
+  ResolvedPresentationLegend,
   ResolvedPresentationList,
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
+  ResolvedPresentationStatus,
+  ResolvedPresentationStatusCandidate,
+  ResolvedPresentationStatusMap,
   ResolvedPresentationState,
   ResolvedSort,
   ResolvedView,
@@ -46,6 +50,10 @@ export interface RuntimePresentationDiagnostic {
     | "ADL_PRESENTATION_FIELD_MISSING"
     | "ADL_PRESENTATION_ICON_MAP_MISSING"
     | "ADL_PRESENTATION_ICON_VALUE_MISSING"
+    | "ADL_PRESENTATION_STATUS_MAP_MISSING"
+    | "ADL_PRESENTATION_STATUS_VALUE_MISSING"
+    | "ADL_PRESENTATION_STATUS_MISSING"
+    | "ADL_PRESENTATION_STATUS_FIELD_MISSING"
     | "ADL_PRESENTATION_ACTION_INPUT_FAILED"
     | "ADL_PRESENTATION_ACTION_VISIBILITY_FAILED"
     | "ADL_PRESENTATION_FORMAT_UNSUPPORTED"
@@ -63,8 +71,20 @@ export interface RuntimePresentationView {
   layout: PresentationLayout;
   density: PresentationDensity;
   state: Record<string, JsonValue>;
+  legends: RuntimePresentationLegend[];
   sections: RuntimePresentationSection[];
   diagnostics: RuntimePresentationDiagnostic[];
+}
+
+export interface RuntimePresentationLegend {
+  name: string;
+  title?: string;
+  include: ResolvedPresentationLegend["include"];
+  items: RuntimePresentationLegendItem[];
+}
+
+export interface RuntimePresentationLegendItem {
+  status: RuntimePresentationStatus;
 }
 
 export interface RuntimePresentationSection {
@@ -154,9 +174,24 @@ export interface RuntimePresentationRow {
   sources: RuntimePresentationRowSource[];
   layout: PresentationRowLayout;
   density: ResolvedPresentationList["density"];
+  status?: RuntimePresentationStatus;
   fragments: RuntimePresentationFragment[];
   actions: RuntimePresentationActionControl[];
 }
+
+export interface RuntimePresentationStatus {
+  name: string;
+  label: string;
+  accessibleLabel: string;
+  themeToken: ResolvedPresentationStatus["themeToken"];
+  precedence: number;
+  icon?: RuntimePresentationIcon;
+  source?: RuntimePresentationStatusSource;
+}
+
+export type RuntimePresentationStatusSource =
+  | { kind: "direct" }
+  | { kind: "map"; map: string; value: JsonPrimitive };
 
 export interface RuntimePresentationRowSource {
   objectName: string;
@@ -235,6 +270,7 @@ export class PresentationRuntime {
         layout: "stack",
         density: "comfortable",
         state: {},
+        legends: [],
         sections: [],
         diagnostics: [
           {
@@ -291,6 +327,7 @@ export class PresentationRuntime {
       layout: view.presentation.layout,
       density: view.presentation.density,
       state: stateResult.state,
+      legends: this.evaluateLegends(view, sections, diagnostics),
       sections,
       diagnostics,
     };
@@ -523,12 +560,22 @@ export class PresentationRuntime {
     diagnostics: RuntimePresentationDiagnostic[],
     location: DiagnosticLocation,
   ): RuntimePresentationRow {
+    const status =
+      list.status === undefined
+        ? undefined
+        : this.evaluateStatusBinding(list, view, row.values, state, diagnostics, {
+            ...location,
+            list: list.name,
+            path: `${location.path}.status`,
+          });
+
     return {
       id: row.id,
       values: cloneJson(row.values),
       sources: row.sources.map((source) => ({ ...source })),
       layout: list.row.layout,
       density: list.row.density,
+      ...(status === undefined ? {} : { status }),
       fragments: this.evaluateFragments(
         list.row.fragments,
         view,
@@ -835,6 +882,229 @@ export class PresentationRuntime {
     return {
       text: emptyState.text,
       ...(icon === undefined ? {} : { icon }),
+    };
+  }
+
+  private evaluateStatusBinding(
+    list: ResolvedPresentationList,
+    view: ResolvedView,
+    values: Record<string, JsonValue>,
+    state: Record<string, JsonValue>,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationStatus | undefined {
+    const candidates = (list.status?.candidates ?? [])
+      .map((candidate, index) =>
+        this.evaluateStatusCandidate(candidate, view, values, state, diagnostics, {
+          ...location,
+          path: `${location.path}.candidates[${index}]`,
+        }),
+      )
+      .filter((status): status is RuntimePresentationStatus => status !== undefined);
+
+    if (candidates.length === 0) {
+      return undefined;
+    }
+
+    const statusOrder = new Map(
+      (view.presentation?.statuses ?? []).map((status, index) => [status.name, index]),
+    );
+    return [...candidates].sort((left, right) => {
+      if (left.precedence !== right.precedence) {
+        return right.precedence - left.precedence;
+      }
+      return (statusOrder.get(left.name) ?? 0) - (statusOrder.get(right.name) ?? 0);
+    })[0];
+  }
+
+  private evaluateStatusCandidate(
+    candidate: ResolvedPresentationStatusCandidate,
+    view: ResolvedView,
+    values: Record<string, JsonValue>,
+    state: Record<string, JsonValue>,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationStatus | undefined {
+    if (candidate.kind === "status") {
+      return this.resolveStatus(candidate.status, view, state, diagnostics, location, {
+        kind: "direct",
+      });
+    }
+
+    const statusMap = view.presentation?.statusMaps.find((map) => map.name === candidate.map);
+    if (statusMap === undefined) {
+      diagnostics.push({
+        severity: "error",
+        code: "ADL_PRESENTATION_STATUS_MAP_MISSING",
+        message: `Status map '${candidate.map}' does not exist on view '${view.name}'.`,
+        path: location.path,
+        section: location.section,
+        list: location.list,
+      });
+      return undefined;
+    }
+
+    const rawValue = this.resolveStatusMapValue(
+      candidate,
+      statusMap,
+      values,
+      diagnostics,
+      location,
+    );
+    if (!isJsonPrimitive(rawValue)) {
+      return undefined;
+    }
+
+    const mapped = statusMap.values.find((value) => value.value === rawValue);
+    const statusName = mapped?.status ?? statusMap.defaultStatus;
+    if (statusName === undefined) {
+      diagnostics.push({
+        severity: "warning",
+        code: "ADL_PRESENTATION_STATUS_VALUE_MISSING",
+        message: `Status map '${statusMap.name}' has no status for value '${String(rawValue)}'.`,
+        path: location.path,
+        section: location.section,
+        list: location.list,
+      });
+      return undefined;
+    }
+
+    return this.resolveStatus(statusName, view, state, diagnostics, location, {
+      kind: "map",
+      map: statusMap.name,
+      value: cloneJson(rawValue),
+    });
+  }
+
+  private resolveStatusMapValue(
+    candidate: Extract<ResolvedPresentationStatusCandidate, { kind: "map" }>,
+    statusMap: ResolvedPresentationStatusMap,
+    values: Record<string, JsonValue>,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): JsonValue | undefined {
+    if (candidate.value !== undefined) {
+      return candidate.value;
+    }
+
+    const field = candidate.field ?? statusMap.field;
+    if (Object.prototype.hasOwnProperty.call(values, field)) {
+      return values[field];
+    }
+
+    diagnostics.push({
+      severity: "warning",
+      code: "ADL_PRESENTATION_STATUS_FIELD_MISSING",
+      message: `Status map field '${field}' is missing from presentation data.`,
+      path: location.path,
+      section: location.section,
+      list: location.list,
+      field,
+    });
+    return undefined;
+  }
+
+  private resolveStatus(
+    statusName: string,
+    view: ResolvedView,
+    state: Record<string, JsonValue>,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+    source: RuntimePresentationStatusSource,
+  ): RuntimePresentationStatus | undefined {
+    const status = view.presentation?.statuses.find((candidate) => candidate.name === statusName);
+    if (status === undefined) {
+      diagnostics.push({
+        severity: "error",
+        code: "ADL_PRESENTATION_STATUS_MISSING",
+        message: `Status '${statusName}' does not exist on view '${view.name}'.`,
+        path: location.path,
+        section: location.section,
+        list: location.list,
+      });
+      return undefined;
+    }
+
+    const icon = this.resolveIcon(status.icon, view, state, undefined, diagnostics, {
+      ...location,
+      path: `${location.path}.icon`,
+    });
+
+    return {
+      name: status.name,
+      label: status.label,
+      accessibleLabel: status.accessibleLabel,
+      themeToken: status.themeToken,
+      precedence: status.precedence,
+      ...(icon === undefined ? {} : { icon }),
+      source,
+    };
+  }
+
+  private evaluateLegends(
+    view: ResolvedView,
+    sections: RuntimePresentationSection[],
+    diagnostics: RuntimePresentationDiagnostic[],
+  ): RuntimePresentationLegend[] {
+    const presentation = view.presentation;
+    if (presentation === undefined || presentation.legends.length === 0) {
+      return [];
+    }
+
+    const presentStatuses = new Set<string>();
+    for (const section of sections) {
+      for (const list of section.lists) {
+        for (const row of list.rows) {
+          if (row.status !== undefined) {
+            presentStatuses.add(row.status.name);
+          }
+        }
+      }
+    }
+
+    return presentation.legends
+      .map((legend, legendIndex) =>
+        this.evaluateLegend(legend, view, presentStatuses, diagnostics, {
+          path: `presentation.legends[${legendIndex}]`,
+        }),
+      )
+      .filter((legend) => legend.items.length > 0 || legend.include === "all");
+  }
+
+  private evaluateLegend(
+    legend: ResolvedPresentationLegend,
+    view: ResolvedView,
+    presentStatuses: Set<string>,
+    diagnostics: RuntimePresentationDiagnostic[],
+    location: DiagnosticLocation,
+  ): RuntimePresentationLegend {
+    const statusNames =
+      legend.statuses.length === 0
+        ? (view.presentation?.statuses ?? []).map((status) => status.name)
+        : legend.statuses;
+    const items = statusNames
+      .filter((statusName) => legend.include === "all" || presentStatuses.has(statusName))
+      .map((statusName, index) =>
+        this.resolveStatus(
+          statusName,
+          view,
+          {},
+          diagnostics,
+          {
+            ...location,
+            path: `${location.path}.statuses[${index}]`,
+          },
+          { kind: "direct" },
+        ),
+      )
+      .filter((status): status is RuntimePresentationStatus => status !== undefined)
+      .map((status) => ({ status }));
+
+    return {
+      name: legend.name,
+      ...(legend.title === undefined ? {} : { title: legend.title }),
+      include: legend.include,
+      items,
     };
   }
 

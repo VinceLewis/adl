@@ -57,6 +57,16 @@ export type PresentationRowLayout = "inline" | "stack";
 export type PresentationFragmentStyle = "plain" | "bold" | "muted" | "caption";
 export type PresentationFormatKind = "text" | "number" | "date" | "datetime" | "time";
 export type PresentationShellRegion = "topBar" | "bottomBar" | "sidebar";
+export type PresentationStatusThemeToken =
+  | "colorStatusEvent"
+  | "colorStatusRehearsal"
+  | "colorStatusAvailable"
+  | "colorStatusUnavailable"
+  | "colorStatusBusyElsewhere"
+  | "colorStatusConflict"
+  | "colorStatusUnset"
+  | "colorInfo";
+export type PresentationLegendInclude = "present" | "all";
 export type EditSectionKind = "fields" | "childCollection";
 export type EditChildOperationKind =
   | "createChild"
@@ -562,6 +572,9 @@ export interface ResolvedViewPresentation {
   density: PresentationDensity;
   state: ResolvedPresentationState[];
   iconMaps: ResolvedPresentationIconMap[];
+  statuses: ResolvedPresentationStatus[];
+  statusMaps: ResolvedPresentationStatusMap[];
+  legends: ResolvedPresentationLegend[];
   sections: ResolvedPresentationSection[];
   shell?: ResolvedPresentationShell;
 }
@@ -583,6 +596,34 @@ export interface ResolvedPresentationIconMap {
 export interface ResolvedPresentationIconMapValue {
   value: JsonPrimitive;
   icon: string;
+}
+
+export interface ResolvedPresentationStatus {
+  name: string;
+  label: string;
+  accessibleLabel: string;
+  icon?: ResolvedPresentationIconRef;
+  themeToken: PresentationStatusThemeToken;
+  precedence: number;
+}
+
+export interface ResolvedPresentationStatusMap {
+  name: string;
+  field: string;
+  values: ResolvedPresentationStatusMapValue[];
+  defaultStatus?: string;
+}
+
+export interface ResolvedPresentationStatusMapValue {
+  value: JsonPrimitive;
+  status: string;
+}
+
+export interface ResolvedPresentationLegend {
+  name: string;
+  title?: string;
+  statuses: string[];
+  include: PresentationLegendInclude;
 }
 
 export interface ResolvedPresentationSection {
@@ -649,9 +690,18 @@ export interface ResolvedPresentationList {
   sort: ResolvedSort[];
   filter?: ResolvedExpression;
   emptyState: ResolvedPresentationEmptyState;
+  status?: ResolvedPresentationStatusBinding;
   actions: ResolvedPresentationActionControl[];
   row: ResolvedPresentationRowTemplate;
 }
+
+export interface ResolvedPresentationStatusBinding {
+  candidates: ResolvedPresentationStatusCandidate[];
+}
+
+export type ResolvedPresentationStatusCandidate =
+  | { kind: "status"; status: string }
+  | { kind: "map"; map: string; field?: string; value?: JsonPrimitive };
 
 export interface ResolvedPresentationEmptyState {
   text: string;
@@ -825,6 +875,13 @@ export interface ResolvedThemeTokens {
   colorDanger: string;
   colorSuccess: string;
   colorInfo: string;
+  colorStatusEvent: string;
+  colorStatusRehearsal: string;
+  colorStatusAvailable: string;
+  colorStatusUnavailable: string;
+  colorStatusBusyElsewhere: string;
+  colorStatusConflict: string;
+  colorStatusUnset: string;
   radius: ThemeRadius;
   density: ThemeDensity;
   nav: ThemeNav;
@@ -1252,6 +1309,9 @@ export interface PartialViewPresentationModel {
   density?: PresentationDensity;
   state?: PartialPresentationStateModel[];
   iconMaps?: PartialPresentationIconMapModel[];
+  statuses?: PartialPresentationStatusModel[];
+  statusMaps?: PartialPresentationStatusMapModel[];
+  legends?: PartialPresentationLegendModel[];
   sections?: PartialPresentationSectionModel[];
   shell?: PartialPresentationShellModel;
 }
@@ -1273,6 +1333,34 @@ export interface PartialPresentationIconMapModel {
 export interface PartialPresentationIconMapValueModel {
   value: JsonPrimitive;
   icon: string;
+}
+
+export interface PartialPresentationStatusModel {
+  name: string;
+  label?: string;
+  accessibleLabel?: string;
+  icon?: PartialPresentationIconRefModel;
+  themeToken?: PresentationStatusThemeToken;
+  precedence?: number;
+}
+
+export interface PartialPresentationStatusMapModel {
+  name: string;
+  field: string;
+  values?: PartialPresentationStatusMapValueModel[];
+  defaultStatus?: string;
+}
+
+export interface PartialPresentationStatusMapValueModel {
+  value: JsonPrimitive;
+  status: string;
+}
+
+export interface PartialPresentationLegendModel {
+  name: string;
+  title?: string;
+  statuses?: string[];
+  include?: PresentationLegendInclude;
 }
 
 export interface PartialPresentationSectionModel {
@@ -1339,9 +1427,18 @@ export interface PartialPresentationListModel {
   sort?: ResolvedSort[];
   filter?: PartialPolicyConditionModel;
   emptyState?: PartialPresentationEmptyStateModel;
+  status?: PartialPresentationStatusBindingModel;
   actions?: PartialPresentationActionControlModel[];
   row?: PartialPresentationRowTemplateModel;
 }
+
+export interface PartialPresentationStatusBindingModel {
+  candidates?: PartialPresentationStatusCandidateModel[];
+}
+
+export type PartialPresentationStatusCandidateModel =
+  | { kind: "status"; status: string }
+  | { kind: "map"; map: string; field?: string; value?: JsonPrimitive };
 
 export interface PartialPresentationEmptyStateModel {
   text?: string;

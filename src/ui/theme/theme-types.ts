@@ -15,6 +15,13 @@ export const THEME_COLOR_CSS_VARIABLES = {
   colorDanger: "--adl-color-danger",
   colorSuccess: "--adl-color-success",
   colorInfo: "--adl-color-info",
+  colorStatusEvent: "--adl-color-status-event",
+  colorStatusRehearsal: "--adl-color-status-rehearsal",
+  colorStatusAvailable: "--adl-color-status-available",
+  colorStatusUnavailable: "--adl-color-status-unavailable",
+  colorStatusBusyElsewhere: "--adl-color-status-busy-elsewhere",
+  colorStatusConflict: "--adl-color-status-conflict",
+  colorStatusUnset: "--adl-color-status-unset",
 } as const satisfies Partial<Record<keyof ResolvedThemeTokens, ThemeTokenCssVariable>>;
 
 export interface DensityCssTokens {

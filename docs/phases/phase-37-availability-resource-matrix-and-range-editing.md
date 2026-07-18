@@ -67,7 +67,7 @@ date/slot utilities that a later calendar phase can reuse.
 ## Suggested Codex Prompt
 
 ```text
-Use ADL_Codex_Implementation_Brief_v2.md, docs/spec/ui-language-addendum.md, docs/phases/phase-35-command-backed-multi-table-actions.md, docs/phases/phase-36-semantic-status-and-legends.md, learnings/implementation/context-runtime.md, learnings/implementation/read-model-runtime.md, learnings/implementation/offline-dataset-runtime.md, learnings/implementation/policy-engine.md, learnings/implementation/ui-presentation-model.md, and docs/phases/phase-37-availability-resource-matrix-and-range-editing.md as the source of truth.
+Use ADL_Codex_Implementation_Brief_v2.md, docs/spec/ui-language-addendum.md, docs/phases/phase-35-command-backed-multi-table-actions.md, docs/phases/phase-36-semantic-status-and-legends.md, learnings/implementation/context-runtime.md, learnings/implementation/read-model-runtime.md, learnings/implementation/offline-dataset-runtime.md, learnings/implementation/policy-engine.md, learnings/implementation/ui-presentation-model.md, learnings/implementation/semantic-status-presentation.md, and docs/phases/phase-37-availability-resource-matrix-and-range-editing.md as the source of truth.
 
 Execute Phase 37 only. Add a generic resource/date matrix renderer and availability-style range editing. Support semantic statuses, current-user cell cycling where declared, unset-as-absence semantics, and policy-shaped cross-context derived statuses. Do not implement the calendar month renderer. Add tests, update docs/learnings, run full verification, commit, and push.
 ```

@@ -5,6 +5,7 @@ import type {
   RuntimePresentationIcon,
   RuntimePresentationList,
   RuntimePresentationSection,
+  RuntimePresentationStatus,
   RuntimePresentationView,
 } from "../../runtime/presentation-runtime.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
@@ -90,9 +91,50 @@ export class AdlComposedViewElement extends HTMLElement {
         data-presentation-view="${escapeHtml(this._presentation.view)}"
       >
         ${this.renderDiagnostics()}
+        ${this.renderLegends()}
         ${this._presentation.sections.map((section) => this.renderSection(section)).join("")}
       </div>
     `;
+  }
+
+  private renderLegends(): string {
+    const legends = this._presentation?.legends ?? [];
+    if (legends.length === 0) {
+      return "";
+    }
+
+    return legends
+      .map(
+        (legend) => `
+          <div
+            class="adl-presentation-legend"
+            data-presentation-legend="${escapeHtml(legend.name)}"
+            role="list"
+            aria-label="${escapeHtml(legend.title ?? `${legend.name} legend`)}"
+          >
+            ${
+              legend.title === undefined
+                ? ""
+                : `<div class="adl-presentation-legend-title">${escapeHtml(legend.title)}</div>`
+            }
+            ${legend.items
+              .map(
+                (item) => `
+                  <div
+                    class="adl-presentation-legend-item"
+                    data-status="${escapeHtml(item.status.name)}"
+                    role="listitem"
+                  >
+                    ${this.renderStatusIndicator(item.status)}
+                    <span>${escapeHtml(item.status.label)}</span>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        `,
+      )
+      .join("");
   }
 
   private renderDiagnostics(): string {
@@ -240,7 +282,14 @@ export class AdlComposedViewElement extends HTMLElement {
                           row.density,
                         )}"
                         data-presentation-row="${escapeHtml(row.id)}"
+                        ${row.status === undefined ? "" : `data-status="${escapeHtml(row.status.name)}"`}
+                        ${
+                          row.status === undefined
+                            ? ""
+                            : `style="${escapeHtml(this.statusStyle(row.status))}"`
+                        }
                       >
+                        ${this.renderStatusIndicator(row.status)}
                         ${row.fragments.map((fragment) => this.renderFragment(fragment)).join("")}
                         ${this.renderRowActions(row.actions)}
                       </li>
@@ -293,6 +342,29 @@ export class AdlComposedViewElement extends HTMLElement {
     return `<span class="adl-fragment-${escapeHtml(fragment.style)}">${escapeHtml(
       fragment.text,
     )}</span>`;
+  }
+
+  private renderStatusIndicator(status: RuntimePresentationStatus | undefined): string {
+    if (status === undefined) {
+      return "";
+    }
+
+    return `
+      <span
+        class="adl-presentation-status"
+        data-status="${escapeHtml(status.name)}"
+        aria-label="${escapeHtml(status.accessibleLabel)}"
+        title="${escapeHtml(status.accessibleLabel)}"
+        style="${escapeHtml(this.statusStyle(status))}"
+      >
+        <span class="adl-presentation-status-swatch" aria-hidden="true"></span>
+        ${this.renderIcon(status.icon, undefined)}
+      </span>
+    `;
+  }
+
+  private statusStyle(status: RuntimePresentationStatus): string {
+    return `--adl-status-color: var(${statusThemeCssVariable(status.themeToken)}, var(--adl-color-info));`;
   }
 
   private renderIcon(icon: RuntimePresentationIcon | undefined, label: string | undefined): string {
@@ -351,4 +423,25 @@ function svgPath(path: string): string {
       <path d="${path}"></path>
     </svg>
   `;
+}
+
+function statusThemeCssVariable(themeToken: RuntimePresentationStatus["themeToken"]): string {
+  switch (themeToken) {
+    case "colorStatusEvent":
+      return "--adl-color-status-event";
+    case "colorStatusRehearsal":
+      return "--adl-color-status-rehearsal";
+    case "colorStatusAvailable":
+      return "--adl-color-status-available";
+    case "colorStatusUnavailable":
+      return "--adl-color-status-unavailable";
+    case "colorStatusBusyElsewhere":
+      return "--adl-color-status-busy-elsewhere";
+    case "colorStatusConflict":
+      return "--adl-color-status-conflict";
+    case "colorStatusUnset":
+      return "--adl-color-status-unset";
+    case "colorInfo":
+      return "--adl-color-info";
+  }
 }

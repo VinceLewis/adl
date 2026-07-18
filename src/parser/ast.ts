@@ -6,11 +6,13 @@ import type {
   PresentationDensity,
   PresentationFormatKind,
   PresentationFragmentStyle,
+  PresentationLegendInclude,
   PresentationLayout,
   PresentationActionPlacement,
   PresentationListRenderStyle,
   PresentationListSourceKind,
   PresentationRowLayout,
+  PresentationStatusThemeToken,
   PresentationStatePersistence,
   PresentationStateType,
   PolicyAction,
@@ -65,6 +67,7 @@ export type BlockName =
   | "LIST"
   | "ROW"
   | "ICON_MAP"
+  | "STATUS_MAP"
   | "SHELL";
 
 export interface EndMarkerNode {
@@ -354,6 +357,9 @@ export interface ViewPresentationDeclarationAst {
   density?: PresentationDensity;
   state: PresentationStateDeclarationAst[];
   iconMaps: PresentationIconMapDeclarationAst[];
+  statuses: PresentationStatusDeclarationAst[];
+  statusMaps: PresentationStatusMapDeclarationAst[];
+  legends: PresentationLegendDeclarationAst[];
   sections: PresentationSectionDeclarationAst[];
   range: SourceRange;
 }
@@ -381,6 +387,43 @@ export interface PresentationIconMapValueDeclarationAst {
   kind: "PresentationIconMapValueDeclaration";
   value: JsonPrimitive;
   icon: string;
+  range: SourceRange;
+}
+
+export interface PresentationStatusDeclarationAst {
+  kind: "PresentationStatusDeclaration";
+  name: string;
+  label?: string;
+  accessibleLabel?: string;
+  icon?: PresentationIconRefDeclarationAst;
+  themeToken?: PresentationStatusThemeToken;
+  precedence?: number;
+  range: SourceRange;
+}
+
+export interface PresentationStatusMapDeclarationAst {
+  kind: "PresentationStatusMapDeclaration";
+  name: string;
+  field: string;
+  values: PresentationStatusMapValueDeclarationAst[];
+  defaultStatus?: string;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationStatusMapValueDeclarationAst {
+  kind: "PresentationStatusMapValueDeclaration";
+  value: JsonPrimitive;
+  status: string;
+  range: SourceRange;
+}
+
+export interface PresentationLegendDeclarationAst {
+  kind: "PresentationLegendDeclaration";
+  name: string;
+  title?: string;
+  statuses: string[];
+  include?: PresentationLegendInclude;
   range: SourceRange;
 }
 
@@ -441,11 +484,16 @@ export interface PresentationListDeclarationAst {
   sort: SortDeclarationAst[];
   filter?: ResolvedExpression;
   emptyText?: string;
+  statusCandidates: PresentationStatusCandidateDeclarationAst[];
   actions: PresentationActionControlDeclarationAst[];
   row?: PresentationRowTemplateDeclarationAst;
   end: EndMarkerNode;
   range: SourceRange;
 }
+
+export type PresentationStatusCandidateDeclarationAst =
+  | { kind: "direct"; status: string; range: SourceRange }
+  | { kind: "map"; map: string; field?: string; value?: JsonPrimitive; range: SourceRange };
 
 export interface PresentationRowTemplateDeclarationAst {
   kind: "PresentationRowTemplateDeclaration";
@@ -593,6 +641,13 @@ export type ThemeTokenName =
   | "colorDanger"
   | "colorSuccess"
   | "colorInfo"
+  | "colorStatusEvent"
+  | "colorStatusRehearsal"
+  | "colorStatusAvailable"
+  | "colorStatusUnavailable"
+  | "colorStatusBusyElsewhere"
+  | "colorStatusConflict"
+  | "colorStatusUnset"
   | "radius"
   | "density"
   | "nav"

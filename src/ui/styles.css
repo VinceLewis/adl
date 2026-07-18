@@ -11,6 +11,13 @@
   --adl-color-danger: #d92d20;
   --adl-color-success: #039855;
   --adl-color-info: #155eef;
+  --adl-color-status-event: #155eef;
+  --adl-color-status-rehearsal: #7a5af8;
+  --adl-color-status-available: #039855;
+  --adl-color-status-unavailable: #d92d20;
+  --adl-color-status-busy-elsewhere: #dc6803;
+  --adl-color-status-conflict: #b42318;
+  --adl-color-status-unset: #667085;
   --adl-radius: 6px;
   --adl-control-height: 34px;
   --adl-space-xs: 6px;
@@ -670,6 +677,29 @@ button:disabled {
   gap: var(--adl-space-sm);
 }
 
+.adl-presentation-legend {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+  min-width: 0;
+}
+
+.adl-presentation-legend-title {
+  color: var(--adl-color-text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.adl-presentation-legend-item {
+  align-items: center;
+  color: var(--adl-color-text-muted);
+  display: inline-flex;
+  font-size: 12px;
+  gap: var(--adl-space-xs);
+  min-width: 0;
+}
+
 .adl-presentation-toggle,
 .adl-presentation-action,
 .adl-presentation-context-control,
@@ -717,6 +747,10 @@ button:disabled {
   line-height: 1.35;
   min-width: 0;
   padding: var(--adl-space-sm);
+}
+
+.adl-presentation-row[data-status] {
+  border-left: 3px solid var(--adl-status-color, var(--adl-color-info));
 }
 
 .adl-presentation-row:last-child {
@@ -769,6 +803,34 @@ button:disabled {
   stroke-linejoin: round;
   stroke-width: 2;
   width: 18px;
+}
+
+.adl-presentation-status {
+  align-items: center;
+  color: var(--adl-status-color, var(--adl-color-info));
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  margin-right: var(--adl-space-xs);
+}
+
+.adl-presentation-status .adl-presentation-icon {
+  height: 18px;
+  margin-right: 0;
+  width: 18px;
+}
+
+.adl-presentation-status .adl-presentation-icon svg {
+  height: 15px;
+  width: 15px;
+}
+
+.adl-presentation-status-swatch {
+  background: currentColor;
+  border-radius: 50%;
+  display: inline-block;
+  height: 8px;
+  width: 8px;
 }
 
 .adl-presentation-icon-fallback {

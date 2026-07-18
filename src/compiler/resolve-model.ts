@@ -52,12 +52,15 @@ import type {
   PartialPresentationFormatModel,
   PartialPresentationIconMapModel,
   PartialPresentationIconRefModel,
+  PartialPresentationLegendModel,
   PartialPresentationListModel,
   PartialPresentationRowFragmentModel,
   PartialPresentationRowTemplateModel,
   PartialPresentationSectionModel,
   PartialPresentationShellModel,
   PartialPresentationShellRegionModel,
+  PartialPresentationStatusMapModel,
+  PartialPresentationStatusModel,
   PartialPresentationStateModel,
   PartialPrincipalSelectorModel,
   PartialReadModelFieldModel,
@@ -111,12 +114,16 @@ import type {
   ResolvedPresentationFormat,
   ResolvedPresentationIconMap,
   ResolvedPresentationIconRef,
+  ResolvedPresentationLegend,
   ResolvedPresentationList,
   ResolvedPresentationRowFragment,
   ResolvedPresentationRowTemplate,
   ResolvedPresentationSection,
   ResolvedPresentationShell,
   ResolvedPresentationShellRegion,
+  ResolvedPresentationStatus,
+  ResolvedPresentationStatusCandidate,
+  ResolvedPresentationStatusMap,
   ResolvedPresentationState,
   ResolvedRelationshipPicker,
   ResolvedPrincipalSelector,
@@ -724,6 +731,9 @@ function resolveViewPresentation(
     density: input.density ?? "comfortable",
     state: (input.state ?? []).map(resolvePresentationState),
     iconMaps: (input.iconMaps ?? []).map(resolvePresentationIconMap),
+    statuses: (input.statuses ?? []).map(resolvePresentationStatus),
+    statusMaps: (input.statusMaps ?? []).map(resolvePresentationStatusMap),
+    legends: (input.legends ?? []).map(resolvePresentationLegend),
     sections: (input.sections ?? []).map(resolvePresentationSection),
     ...(input.shell === undefined ? {} : { shell: resolvePresentationShell(input.shell) }),
   };
@@ -765,6 +775,43 @@ function resolvePresentationIconMap(
     field: input.field,
     values: (input.values ?? []).map((value) => ({ value: value.value, icon: value.icon })),
     ...(input.defaultIcon === undefined ? {} : { defaultIcon: input.defaultIcon }),
+  };
+}
+
+function resolvePresentationStatus(
+  input: PartialPresentationStatusModel,
+): ResolvedPresentationStatus {
+  const label = input.label ?? titleCaseIdentifier(input.name);
+
+  return {
+    name: input.name,
+    label,
+    accessibleLabel: input.accessibleLabel ?? label,
+    ...(input.icon === undefined ? {} : { icon: resolvePresentationIconRef(input.icon) }),
+    themeToken: input.themeToken ?? defaultPresentationStatusThemeToken(input.name),
+    precedence: input.precedence ?? 0,
+  };
+}
+
+function resolvePresentationStatusMap(
+  input: PartialPresentationStatusMapModel,
+): ResolvedPresentationStatusMap {
+  return {
+    name: input.name,
+    field: input.field,
+    values: (input.values ?? []).map((value) => ({ value: value.value, status: value.status })),
+    ...(input.defaultStatus === undefined ? {} : { defaultStatus: input.defaultStatus }),
+  };
+}
+
+function resolvePresentationLegend(
+  input: PartialPresentationLegendModel,
+): ResolvedPresentationLegend {
+  return {
+    name: input.name,
+    ...(input.title === undefined ? {} : { title: input.title }),
+    statuses: [...(input.statuses ?? [])],
+    include: input.include ?? "present",
   };
 }
 
@@ -851,11 +898,56 @@ function resolvePresentationList(input: PartialPresentationListModel): ResolvedP
     sort: [...(input.sort ?? [])].map(resolveSort),
     ...(input.filter === undefined ? {} : { filter: resolveExpression(input.filter) }),
     emptyState: resolvePresentationEmptyState(input.emptyState),
+    ...(input.status === undefined
+      ? {}
+      : {
+          status: {
+            candidates: (input.status.candidates ?? []).map(resolvePresentationStatusCandidate),
+          },
+        }),
     actions: (input.actions ?? []).map((action) =>
       resolvePresentationAction(action, action.placement ?? "row"),
     ),
     row: resolvePresentationRowTemplate(input.row),
   };
+}
+
+function resolvePresentationStatusCandidate(
+  input: ResolvedPresentationStatusCandidate,
+): ResolvedPresentationStatusCandidate {
+  if (input.kind === "status") {
+    return { kind: "status", status: input.status };
+  }
+
+  return {
+    kind: "map",
+    map: input.map,
+    ...(input.field === undefined ? {} : { field: input.field }),
+    ...(input.value === undefined ? {} : { value: input.value }),
+  };
+}
+
+function defaultPresentationStatusThemeToken(
+  name: string,
+): ResolvedPresentationStatus["themeToken"] {
+  switch (normaliseIdentifier(name)) {
+    case "event":
+      return "colorStatusEvent";
+    case "rehearsal":
+      return "colorStatusRehearsal";
+    case "available":
+      return "colorStatusAvailable";
+    case "unavailable":
+      return "colorStatusUnavailable";
+    case "busyelsewhere":
+      return "colorStatusBusyElsewhere";
+    case "conflict":
+      return "colorStatusConflict";
+    case "unset":
+      return "colorStatusUnset";
+    default:
+      return "colorInfo";
+  }
 }
 
 function resolvePresentationAction(
@@ -1030,6 +1122,10 @@ function titleCaseIdentifier(value: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function normaliseIdentifier(value: string): string {
+  return value.replace(/[_-\s]+/g, "").toLowerCase();
 }
 
 function defaultReadModelSourceScope(

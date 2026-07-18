@@ -37,6 +37,59 @@
                     "defaultIcon": "calendar"
                   }
                 ],
+                "statuses": [
+                  {
+                    "name": "event",
+                    "label": "Gig",
+                    "accessibleLabel": "Gig event",
+                    "icon": { "kind": "map", "map": "EventTypeIcon", "value": "Gig" },
+                    "themeToken": "colorStatusEvent",
+                    "precedence": 10
+                  },
+                  {
+                    "name": "rehearsal",
+                    "label": "Rehearsal",
+                    "accessibleLabel": "Rehearsal event",
+                    "icon": {
+                      "kind": "map",
+                      "map": "EventTypeIcon",
+                      "value": "Rehearsal"
+                    },
+                    "themeToken": "colorStatusRehearsal",
+                    "precedence": 10
+                  },
+                  {
+                    "name": "unavailable",
+                    "label": "Unavailable",
+                    "accessibleLabel": "Unavailable block",
+                    "icon": {
+                      "kind": "map",
+                      "map": "EventTypeIcon",
+                      "value": "Unavailable"
+                    },
+                    "themeToken": "colorStatusUnavailable",
+                    "precedence": 20
+                  }
+                ],
+                "statusMaps": [
+                  {
+                    "name": "EventTypeStatus",
+                    "field": "EventType",
+                    "values": [
+                      { "value": "Gig", "status": "event" },
+                      { "value": "Rehearsal", "status": "rehearsal" },
+                      { "value": "Unavailable", "status": "unavailable" }
+                    ],
+                    "defaultStatus": "event"
+                  }
+                ],
+                "legends": [
+                  {
+                    "name": "ScheduleStatus",
+                    "title": "Schedule status",
+                    "statuses": ["event", "rehearsal", "unavailable"]
+                  }
+                ],
                 "sections": [
                   { "name": "Welcome", "heading": "Welcome Back!" },
                   {
@@ -125,6 +178,11 @@
                             },
                             "right": { "kind": "field", "field": "showUnavailable" }
                           }
+                        },
+                        "status": {
+                          "candidates": [
+                            { "kind": "map", "map": "EventTypeStatus", "field": "EventType" }
+                          ]
                         },
                         "row": {
                           "fragments": [
@@ -359,8 +417,12 @@
           "objects.0.views.0.presentation.density",
           "objects.0.views.0.presentation.state.0.type",
           "objects.0.views.0.presentation.state.0.persistence",
+          "objects.0.views.0.presentation.statuses.0.themeToken",
+          "objects.0.views.0.presentation.statuses.0.precedence",
+          "objects.0.views.0.presentation.legends.0.include",
           "objects.0.views.0.presentation.sections.0.layout",
           "objects.0.views.0.presentation.sections.2.lists.0.sourceKind",
+          "objects.0.views.0.presentation.sections.2.lists.0.status.candidates.0.map",
           "objects.0.views.0.presentation.sections.2.lists.0.row.layout",
           "objects.0.views.0.presentation.sections.2.lists.0.row.fragments.1.style",
           "objects.0.views.0.presentation.sections.3.lists.0.renderAs",
@@ -374,8 +436,12 @@
           "objects.0.views.0.presentation.density": "comfortable",
           "objects.0.views.0.presentation.state.0.type": "boolean",
           "objects.0.views.0.presentation.state.0.persistence": "memory",
+          "objects.0.views.0.presentation.statuses.0.themeToken": "colorStatusEvent",
+          "objects.0.views.0.presentation.statuses.0.precedence": 10,
+          "objects.0.views.0.presentation.legends.0.include": "present",
           "objects.0.views.0.presentation.sections.0.layout": "stack",
           "objects.0.views.0.presentation.sections.2.lists.0.sourceKind": "readModel",
+          "objects.0.views.0.presentation.sections.2.lists.0.status.candidates.0.map": "EventTypeStatus",
           "objects.0.views.0.presentation.sections.2.lists.0.row.layout": "inline",
           "objects.0.views.0.presentation.sections.2.lists.0.row.fragments.1.style": "plain",
           "objects.0.views.0.presentation.sections.3.lists.0.renderAs": "table",
@@ -445,6 +511,39 @@
             "showRehearsals": true,
             "showUnavailable": true
           },
+          "legends": [
+            {
+              "name": "ScheduleStatus",
+              "title": "Schedule status",
+              "include": "present",
+              "items": [
+                {
+                  "status": {
+                    "name": "event",
+                    "label": "Gig",
+                    "accessibleLabel": "Gig event",
+                    "themeToken": "colorStatusEvent"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "rehearsal",
+                    "label": "Rehearsal",
+                    "accessibleLabel": "Rehearsal event",
+                    "themeToken": "colorStatusRehearsal"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "unavailable",
+                    "label": "Unavailable",
+                    "accessibleLabel": "Unavailable block",
+                    "themeToken": "colorStatusUnavailable"
+                  }
+                }
+              ]
+            }
+          ],
           "diagnostics": [],
           "sections": [
             { "name": "Welcome", "heading": "Welcome Back!", "controls": [], "lists": [] },
@@ -505,6 +604,12 @@
                         "EventDate": "2026-08-01",
                         "StartTime": "20:00"
                       },
+                      "status": {
+                        "name": "event",
+                        "label": "Gig",
+                        "accessibleLabel": "Gig event",
+                        "themeToken": "colorStatusEvent"
+                      },
                       "fragments": [
                         {
                           "kind": "icon",
@@ -526,11 +631,18 @@
                         { "kind": "text", "text": "Alpha Hall", "style": "plain" }
                       ]
                     },
-                    { "values": { "Title": "New set rehearsal", "EventType": "Rehearsal" } },
+                    {
+                      "values": { "Title": "New set rehearsal", "EventType": "Rehearsal" },
+                      "status": { "name": "rehearsal", "themeToken": "colorStatusRehearsal" }
+                    },
                     {
                       "values": {
                         "Title": "Unavailable - session prep",
                         "EventType": "Unavailable"
+                      },
+                      "status": {
+                        "name": "unavailable",
+                        "themeToken": "colorStatusUnavailable"
                       }
                     }
                   ]
@@ -708,9 +820,14 @@
           "objects[0].views[0].presentation.state[0].type",
           "objects[0].views[0].presentation.state[0].persistence",
           "objects[0].views[0].presentation.iconMaps[0].field",
+          "objects[0].views[0].presentation.statuses[0].label",
+          "objects[0].views[0].presentation.statuses[0].accessibleLabel",
+          "objects[0].views[0].presentation.statusMaps[0].field",
+          "objects[0].views[0].presentation.legends[0].include",
           "objects[0].views[0].presentation.sections[1].controls[0].state",
           "objects[0].views[0].presentation.sections[2].lists[0].source",
           "objects[0].views[0].presentation.sections[2].lists[0].sourceKind",
+          "objects[0].views[0].presentation.sections[2].lists[0].status.candidates",
           "objects[0].views[0].presentation.sections[2].lists[0].row.fragments[1].style"
         ]
       },
@@ -739,6 +856,26 @@
               "origin": "source"
             },
             {
+              "path": "objects[0].views[0].presentation.statuses[0].label",
+              "value": "Gig",
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[0].presentation.statuses[0].accessibleLabel",
+              "value": "Gig event",
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[0].presentation.statusMaps[0].field",
+              "value": "EventType",
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[0].presentation.legends[0].include",
+              "value": "present",
+              "origin": "platformDefault"
+            },
+            {
               "path": "objects[0].views[0].presentation.sections[1].controls[0].state",
               "value": "showGigs",
               "origin": "source"
@@ -752,6 +889,11 @@
               "path": "objects[0].views[0].presentation.sections[2].lists[0].sourceKind",
               "value": "readModel",
               "origin": "platformDefault"
+            },
+            {
+              "path": "objects[0].views[0].presentation.sections[2].lists[0].status.candidates",
+              "value": [{ "kind": "map", "map": "EventTypeStatus", "field": "EventType" }],
+              "origin": "source"
             },
             {
               "path": "objects[0].views[0].presentation.sections[2].lists[0].row.fragments[1].style",

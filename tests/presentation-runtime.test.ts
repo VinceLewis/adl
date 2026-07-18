@@ -56,6 +56,44 @@ describe("presentation runtime", () => {
       "New set rehearsal",
       "Unavailable - session prep",
     ]);
+    expect(schedule?.lists[0]?.rows.map((row) => row.status?.name)).toEqual([
+      "event",
+      "rehearsal",
+      "unavailable",
+    ]);
+    expect(home.legends).toEqual([
+      {
+        name: "ScheduleStatus",
+        title: "Schedule status",
+        include: "present",
+        items: [
+          {
+            status: expect.objectContaining({
+              name: "event",
+              label: "Gig",
+              accessibleLabel: "Gig event",
+              themeToken: "colorStatusEvent",
+            }),
+          },
+          {
+            status: expect.objectContaining({
+              name: "rehearsal",
+              label: "Rehearsal",
+              accessibleLabel: "Rehearsal event",
+              themeToken: "colorStatusRehearsal",
+            }),
+          },
+          {
+            status: expect.objectContaining({
+              name: "unavailable",
+              label: "Unavailable",
+              accessibleLabel: "Unavailable block",
+              themeToken: "colorStatusUnavailable",
+            }),
+          },
+        ],
+      },
+    ]);
     expect(schedule?.lists[0]?.rows[0]?.fragments).toEqual([
       {
         kind: "icon",
@@ -178,6 +216,47 @@ describe("presentation runtime", () => {
         field: "PublishedOn",
       }),
     ]);
+  });
+
+  it("selects one effective semantic status by precedence and declaration order", async () => {
+    const context: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "api",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(createStatusPresentationModel());
+    await runtime.create(
+      "Slot",
+      { Name: "Open", Availability: "Available", BusyElsewhere: false, HasConflict: false },
+      context,
+    );
+    await runtime.create(
+      "Slot",
+      { Name: "Double booked", Availability: "Available", BusyElsewhere: true, HasConflict: true },
+      context,
+    );
+
+    const view = await runtime.evaluatePresentationView("Slot", "Planner", context);
+    const rows = view.sections[0]?.lists[0]?.rows ?? [];
+
+    expect(view.diagnostics).toEqual([]);
+    expect(rows.map((row) => [row.values.Name, row.status?.name])).toEqual([
+      ["Open", "available"],
+      ["Double booked", "conflict"],
+    ]);
+    expect(rows[1]?.status).toMatchObject({
+      name: "conflict",
+      precedence: 100,
+      source: { kind: "map", map: "ConflictStatus", value: true },
+    });
+    expect(view.legends[0]).toMatchObject({
+      name: "PlannerLegend",
+      items: [
+        { status: expect.objectContaining({ name: "available" }) },
+        { status: expect.objectContaining({ name: "conflict" }) },
+      ],
+    });
   });
 
   it("evaluates command, navigation, and row actions with renderer-neutral state", async () => {
@@ -423,6 +502,99 @@ function createActionPresentationModel() {
         rules: [
           {
             name: "allowAdminAllNoteActions",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createStatusPresentationModel() {
+  return resolveApplicationModel({
+    app: {
+      name: "Planner",
+      startView: "Planner",
+    },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Slot",
+        fields: [
+          { name: "Name", type: "text", required: true },
+          { name: "Availability", type: "text" },
+          { name: "BusyElsewhere", type: "boolean", defaultValue: false },
+          { name: "HasConflict", type: "boolean", defaultValue: false },
+        ],
+        views: [
+          {
+            name: "Planner",
+            kind: "composite",
+            fields: ["Name", "Availability", "BusyElsewhere", "HasConflict"],
+            presentation: {
+              statuses: [
+                { name: "unset", label: "Unset", precedence: 0 },
+                { name: "available", label: "Available", precedence: 10 },
+                { name: "busyElsewhere", label: "Busy Elsewhere", precedence: 50 },
+                { name: "conflict", label: "Conflict", precedence: 100 },
+              ],
+              statusMaps: [
+                {
+                  name: "AvailabilityStatus",
+                  field: "Availability",
+                  values: [{ value: "Available", status: "available" }],
+                },
+                {
+                  name: "BusyStatus",
+                  field: "BusyElsewhere",
+                  values: [{ value: true, status: "busyElsewhere" }],
+                  defaultStatus: "unset",
+                },
+                {
+                  name: "ConflictStatus",
+                  field: "HasConflict",
+                  values: [{ value: true, status: "conflict" }],
+                  defaultStatus: "unset",
+                },
+              ],
+              legends: [{ name: "PlannerLegend", statuses: ["available", "conflict"] }],
+              sections: [
+                {
+                  name: "Slots",
+                  lists: [
+                    {
+                      name: "Slots",
+                      sourceKind: "object",
+                      source: "Slot",
+                      fields: ["Name", "Availability", "BusyElsewhere", "HasConflict"],
+                      status: {
+                        candidates: [
+                          { kind: "map", map: "AvailabilityStatus" },
+                          { kind: "map", map: "BusyStatus" },
+                          { kind: "map", map: "ConflictStatus" },
+                        ],
+                      },
+                      row: {
+                        fragments: [{ kind: "field", field: "Name" }],
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "SlotPolicy",
+        object: "Slot",
+        rules: [
+          {
+            name: "allowAdminAllSlotActions",
             effect: "allow",
             principal: { match: "specific", roles: ["Admin"] },
             action: "*",

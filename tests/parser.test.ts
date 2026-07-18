@@ -155,6 +155,14 @@ OBJECT Event
       Gig -> music
     END.ICON_MAP
 
+    STATUS event LABEL 'Gig' ARIA_LABEL 'Gig event' ICON EventTypeIcon(Gig) THEME colorStatusEvent PRECEDENCE 10
+
+    STATUS_MAP EventTypeStatus FOR EventType
+      Gig -> event
+    END.STATUS_MAP
+
+    LEGEND ScheduleStatus TITLE 'Schedule status' STATUSES event
+
     SECTION Schedule
       HEADING 'Upcoming events'
 
@@ -172,6 +180,7 @@ OBJECT Event
         RENDER_AS compactFeed
         DENSITY compact
         EMPTY_TEXT 'No upcoming events'
+        STATUS EventTypeStatus(EventType)
 
         ACTION openEvent VIEW EventList LABEL 'Open' PLACEMENT row
           INPUT title FROM Title
@@ -202,6 +211,29 @@ END.OBJECT
           values: [expect.objectContaining({ value: "Gig", icon: "music" })],
         }),
       ],
+      statuses: [
+        expect.objectContaining({
+          name: "event",
+          label: "Gig",
+          accessibleLabel: "Gig event",
+          themeToken: "colorStatusEvent",
+          precedence: 10,
+        }),
+      ],
+      statusMaps: [
+        expect.objectContaining({
+          name: "EventTypeStatus",
+          field: "EventType",
+          values: [expect.objectContaining({ value: "Gig", status: "event" })],
+        }),
+      ],
+      legends: [
+        expect.objectContaining({
+          name: "ScheduleStatus",
+          title: "Schedule status",
+          statuses: ["event"],
+        }),
+      ],
       sections: [
         expect.objectContaining({
           name: "Schedule",
@@ -217,6 +249,13 @@ END.OBJECT
             expect.objectContaining({
               name: "UpcomingEvents",
               renderAs: "compactFeed",
+              statusCandidates: [
+                expect.objectContaining({
+                  kind: "map",
+                  map: "EventTypeStatus",
+                  field: "EventType",
+                }),
+              ],
               actions: [expect.objectContaining({ name: "openEvent", view: "EventList" })],
             }),
           ],

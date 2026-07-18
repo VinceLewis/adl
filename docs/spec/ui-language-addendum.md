@@ -50,6 +50,11 @@ render loops.
 UI ADL should compose with read models. Read models shape and authorize data;
 presentation constructs decide how that data appears.
 
+Semantic statuses describe business-facing presentation meaning, not CSS class
+names. A row or future cell can expose a stable status such as `event`,
+`rehearsal`, `available`, `unavailable`, `busyElsewhere`, `conflict`, or
+`unset`; themes and renderers choose the color/icon treatment.
+
 UI ADL should be optional. A valid ADL app should still render through default
 list and form views when no presentation layer is provided.
 
@@ -290,6 +295,45 @@ END.LIST
 These filters are UI filters. They do not replace runtime policy enforcement or
 read-model scoping.
 
+### Semantic Statuses And Legends
+
+Views may declare semantic statuses, maps from row values to statuses, and
+legends:
+
+```adl
+STATUS event LABEL "Gig" ARIA_LABEL "Gig event" ICON EventTypeIcon(Gig) THEME colorStatusEvent PRECEDENCE 10
+STATUS unavailable LABEL "Unavailable" ARIA_LABEL "Unavailable block" ICON EventTypeIcon(Unavailable) THEME colorStatusUnavailable PRECEDENCE 20
+
+STATUS_MAP EventTypeStatus FOR EventType DEFAULT event
+  Gig -> event
+  Rehearsal -> rehearsal
+  Unavailable -> unavailable
+END.STATUS_MAP
+
+LEGEND ScheduleStatus TITLE "Schedule status" STATUSES event rehearsal unavailable
+```
+
+Lists may declare one or more status candidates:
+
+```adl
+LIST UpcomingEvents FROM HomeUpcomingEvents
+  STATUS EventTypeStatus(EventType)
+END.LIST
+```
+
+If multiple candidates produce statuses for one row or future cell, the runtime
+chooses the status with the highest declared `PRECEDENCE`. Equal precedence is
+resolved by the order of status declarations in the view. Legends default to
+showing only statuses present in evaluated rows; `INCLUDE all` shows all
+statuses named by the legend.
+
+The evaluator returns status name, label, accessibility label, theme token,
+precedence, optional semantic icon, and source metadata. Browser renderers must
+include accessible text or labels wherever status is conveyed by icon or color.
+Unsupported or missing status maps, fields, values, or status names produce
+structured `ADL_PRESENTATION_*` diagnostics where runtime evaluation can detect
+them.
+
 ### Empty States
 
 Lists should declare empty states:
@@ -363,6 +407,18 @@ VIEW HomeDashboard DASHBOARD
     Unavailable -> x
   END.ICON_MAP
 
+  STATUS event LABEL "Gig" ARIA_LABEL "Gig event" ICON EventTypeIcon(Gig) THEME colorStatusEvent PRECEDENCE 10
+  STATUS rehearsal LABEL "Rehearsal" ARIA_LABEL "Rehearsal event" ICON EventTypeIcon(Rehearsal) THEME colorStatusRehearsal PRECEDENCE 10
+  STATUS unavailable LABEL "Unavailable" ARIA_LABEL "Unavailable block" ICON EventTypeIcon(Unavailable) THEME colorStatusUnavailable PRECEDENCE 20
+
+  STATUS_MAP EventTypeStatus FOR EventType DEFAULT event
+    Gig -> event
+    Rehearsal -> rehearsal
+    Unavailable -> unavailable
+  END.STATUS_MAP
+
+  LEGEND ScheduleStatus TITLE "Schedule status" STATUSES event rehearsal unavailable
+
   SECTION Welcome
     HEADING "Welcome Back!"
   END.SECTION
@@ -392,6 +448,7 @@ VIEW HomeDashboard DASHBOARD
       ORDER BY EventDate ASC, StartTime ASC
       EMPTY_TEXT "No upcoming events"
       WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true) OR (EventType == 'Unavailable' AND showUnavailable == true)
+      STATUS EventTypeStatus(EventType)
 
       ROW
         ICON EventTypeIcon(EventType)
@@ -484,6 +541,7 @@ The implemented presentation model resolves to structured data for:
 - row actions
 - row template fragments
 - icon maps
+- semantic statuses, status maps, status precedence, and legends
 - format declarations
 - empty states
 - shell regions in JSON/TypeScript partial models only
@@ -505,19 +563,25 @@ Implemented defaults are explicit in the resolved model:
 - local state persistence: `memory`
 - local state default values: `false` for Boolean, `0` for number, empty text
   for text, and `null` for date/time values
+- status label and accessibility label: title-cased status name
+- status theme token: common semantic status color token when known, otherwise
+  `colorInfo`
+- status precedence: `0`
+- legend include behavior: `present`
 - empty-state text: empty string
 - CRUD edit container: `modal`
 
 Implemented validation reports structured diagnostics for invalid references to
 read models, objects, fields, local state, icon maps, known fragment styles,
 formats, commands, command action inputs, action visibility predicates, target
-views, contexts, shell regions, and shell controls.
+views, contexts, status maps, status names, status map fields, legends, shell
+regions, and shell controls.
 
 Conformance cases under `conformance/presentation/` cover resolution defaults,
 validation diagnostics, local state defaults, toggle-controlled filters,
 read-model list binding, row fragments, icon maps, deterministic formatting,
-ordering, empty states, and inspect output for presentation defaults and
-references.
+ordering, semantic statuses, legends, empty states, and inspect output for
+presentation defaults and references.
 
 ## Implementation Notes
 
@@ -532,6 +596,7 @@ Parser/compiler support is implemented for the smallest useful subset:
 7. `TEXT` literals and fields with `FORMAT` and `STYLE bold`
 8. `ICON`
 9. `ICON_MAP`
+10. `STATUS`, `STATUS_MAP`, `LEGEND`, and list `STATUS` candidates
 
 Unsupported source constructs include `SELECT`, `CONTEXT_SELECTOR`, arbitrary
 CSS, raw SVG, framework component names, host callbacks, procedural render
@@ -559,8 +624,9 @@ declaration of the same name, which allows `domain.adl` to define fields and
 Runtime evaluation is implemented by `ApplicationRuntime.evaluatePresentationView`.
 It initializes resolved local state defaults, applies local state updates, binds
 lists through policy-enforcing runtime reads or read models, applies
-presentation filters and ordering, resolves row templates and icon maps, formats
-primitive display values, and returns empty states when no visible rows remain.
+presentation filters and ordering, resolves semantic statuses by deterministic
+precedence, resolves row templates and icon maps, formats primitive display
+values, evaluates legends, and returns empty states when no visible rows remain.
 
 The evaluator returns renderer-neutral data only. It does not return DOM nodes,
 HTML strings, CSS selectors, framework component names, JavaScript callbacks,
@@ -570,9 +636,10 @@ filters run after read authorization, context scoping, and read-model shaping;
 they are not a policy or storage boundary.
 
 The browser renderer consumes this evaluator output. It renders sections,
-headings, local toggle controls, command/navigation actions, compact feed rows,
-row actions, inline text fragments, bold fragments, semantic icons,
-diagnostics, and empty states. Toggle interaction updates view-local
+headings, legends, semantic status indicators, local toggle controls,
+command/navigation actions, compact feed rows, row actions, inline text
+fragments, bold fragments, semantic icons, diagnostics, and empty states.
+Toggle interaction updates view-local
 presentation state and re-evaluates the view; it does not write object-store
 records. Action clicks dispatch to model navigation or `ApplicationRuntime`
 command execution.

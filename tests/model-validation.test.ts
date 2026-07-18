@@ -581,6 +581,58 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  it("reports invalid presentation status maps, legends, and precedence", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPresentationStatusPartialModel()));
+    const presentation = invalid.objects[0]?.views[0]?.presentation;
+
+    if (presentation === undefined) {
+      throw new Error("Expected presentation fixture.");
+    }
+
+    presentation.statuses.push({ ...presentation.statuses[0]!, name: "available" });
+    (presentation.statuses[0] as unknown as { themeToken: string }).themeToken = "brandGreen";
+    presentation.statuses[0]!.precedence = 1.5;
+    presentation.statusMaps.push({ ...presentation.statusMaps[0]!, name: "AvailabilityStatus" });
+    presentation.statusMaps[0]!.field = "MissingAvailability";
+    presentation.statusMaps[0]!.values.push({ value: "Available", status: "duplicateValue" });
+    presentation.statusMaps[0]!.values.push({ value: "Unknown", status: "missingStatus" });
+    presentation.statusMaps[0]!.defaultStatus = "missingDefault";
+    presentation.legends.push({ ...presentation.legends[0]!, name: "AvailabilityLegend" });
+    (presentation.legends[0] as unknown as { include: string }).include = "visible";
+    presentation.legends[0]!.statuses.push("missingLegendStatus");
+    const list = presentation.sections[0]?.lists[0];
+    if (list === undefined) {
+      throw new Error("Expected status list fixture.");
+    }
+    list.status = {
+      candidates: [
+        { kind: "status", status: "missingDirectStatus" },
+        { kind: "map", map: "MissingStatusMap" },
+        { kind: "map", map: "AvailabilityStatus", field: "MissingListField" },
+      ],
+    };
+
+    const diagnostics = validateApplicationModel(invalid);
+    const codes = diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_DUPLICATE,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_THEME_TOKEN_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_PRECEDENCE_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_DUPLICATE,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_STATUS_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_STATUS_MAP_VALUE_DUPLICATE,
+        MODEL_VALIDATION_CODES.PRESENTATION_LEGEND_DUPLICATE,
+        MODEL_VALIDATION_CODES.PRESENTATION_LEGEND_INCLUDE_INVALID,
+        MODEL_VALIDATION_CODES.PRESENTATION_LEGEND_STATUS_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_STATUS_UNKNOWN,
+        MODEL_VALIDATION_CODES.PRESENTATION_LIST_STATUS_MAP_UNKNOWN,
+      ]),
+    );
+  });
+
   it("reports invalid theme tokens and base-theme cycles", () => {
     const resolved = resolveApplicationModel({
       ...validPartialModel,
@@ -927,6 +979,57 @@ function createPresentationPartialModel(): PartialApplicationModel {
           { name: "StartTime", source: "Event", field: "StartTime", type: "time" },
           { name: "Title", source: "Event", field: "Title", type: "text" },
           { name: "EventType", source: "Event", field: "EventType", type: "text" },
+        ],
+      },
+    ],
+  };
+}
+
+function createPresentationStatusPartialModel(): PartialApplicationModel {
+  return {
+    app: { name: "StatusValidation", startView: "Planner" },
+    objects: [
+      {
+        name: "Slot",
+        fields: [
+          { name: "Name", type: "text" },
+          { name: "Availability", type: "text" },
+          { name: "Conflict", type: "boolean", defaultValue: false },
+        ],
+        views: [
+          {
+            name: "Planner",
+            kind: "composite",
+            fields: ["Name", "Availability", "Conflict"],
+            presentation: {
+              statuses: [
+                { name: "available", label: "Available", precedence: 10 },
+                { name: "conflict", label: "Conflict", precedence: 100 },
+              ],
+              statusMaps: [
+                {
+                  name: "AvailabilityStatus",
+                  field: "Availability",
+                  values: [{ value: "Available", status: "available" }],
+                },
+              ],
+              legends: [{ name: "AvailabilityLegend", statuses: ["available", "conflict"] }],
+              sections: [
+                {
+                  name: "Planner",
+                  lists: [
+                    {
+                      name: "Slots",
+                      sourceKind: "object",
+                      source: "Slot",
+                      fields: ["Name", "Availability", "Conflict"],
+                      row: { fragments: [{ kind: "field", field: "Name" }] },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
         ],
       },
     ],

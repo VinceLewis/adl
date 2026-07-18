@@ -504,6 +504,14 @@ OBJECT Event
       Gig -> music
     END.ICON_MAP
 
+    STATUS event LABEL 'Gig' ARIA_LABEL 'Gig event' ICON EventTypeIcon(Gig) THEME colorStatusEvent PRECEDENCE 10
+
+    STATUS_MAP EventTypeStatus FOR EventType
+      Gig -> event
+    END.STATUS_MAP
+
+    LEGEND ScheduleStatus TITLE 'Schedule status' STATUSES event
+
     SECTION Schedule
       HEADING 'Upcoming events'
 
@@ -521,6 +529,7 @@ OBJECT Event
         RENDER_AS compactFeed
         DENSITY compact
         EMPTY_TEXT 'No upcoming events'
+        STATUS EventTypeStatus(EventType)
 
         ACTION openEvent VIEW EventList LABEL 'Open' PLACEMENT row
           INPUT title FROM Title
@@ -568,6 +577,31 @@ END.COMMAND
           values: [{ value: "Gig", icon: "music" }],
         },
       ],
+      statuses: [
+        {
+          name: "event",
+          label: "Gig",
+          accessibleLabel: "Gig event",
+          icon: { kind: "map", map: "EventTypeIcon", value: "Gig" },
+          themeToken: "colorStatusEvent",
+          precedence: 10,
+        },
+      ],
+      statusMaps: [
+        {
+          name: "EventTypeStatus",
+          field: "EventType",
+          values: [{ value: "Gig", status: "event" }],
+        },
+      ],
+      legends: [
+        {
+          name: "ScheduleStatus",
+          title: "Schedule status",
+          statuses: ["event"],
+          include: "present",
+        },
+      ],
       sections: [
         {
           name: "Schedule",
@@ -595,6 +629,7 @@ END.COMMAND
               name: "UpcomingEvents",
               source: "HomeUpcomingEvents",
               renderAs: "compactFeed",
+              status: { candidates: [{ kind: "map", map: "EventTypeStatus", field: "EventType" }] },
               actions: [
                 {
                   name: "openEvent",
@@ -722,12 +757,39 @@ END.COMMAND
           ]),
         }),
       ],
+      statuses: expect.arrayContaining([
+        expect.objectContaining({ name: "event", label: "Gig" }),
+        expect.objectContaining({ name: "rehearsal", label: "Rehearsal" }),
+        expect.objectContaining({ name: "unavailable", label: "Unavailable" }),
+      ]),
+      statusMaps: [
+        expect.objectContaining({
+          name: "EventTypeStatus",
+          values: expect.arrayContaining([
+            { value: "Gig", status: "event" },
+            { value: "Rehearsal", status: "rehearsal" },
+            { value: "Unavailable", status: "unavailable" },
+          ]),
+        }),
+      ],
+      legends: [
+        expect.objectContaining({
+          name: "ScheduleStatus",
+          statuses: ["event", "rehearsal", "unavailable"],
+        }),
+      ],
       sections: expect.arrayContaining([
         expect.objectContaining({ name: "Welcome" }),
         expect.objectContaining({ name: "Filters" }),
         expect.objectContaining({
           name: "Schedule",
-          lists: [expect.objectContaining({ name: "UpcomingEvents", renderAs: "compactFeed" })],
+          lists: [
+            expect.objectContaining({
+              name: "UpcomingEvents",
+              renderAs: "compactFeed",
+              status: { candidates: [{ kind: "map", map: "EventTypeStatus", field: "EventType" }] },
+            }),
+          ],
         }),
         expect.objectContaining({
           name: "Invitations",
