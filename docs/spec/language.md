@@ -11,6 +11,8 @@ The current parser is line-oriented and block-based. Top-level declarations use
 uppercase keywords and explicit `END.*` block terminators.
 
 - `APP Name` declares the application. `START_VIEW` may name the initial view.
+- `SHELL ... END.SHELL` declares application shell navigation and top-bar
+  controls.
 - `ROLE Name` declares an application role.
 - `CONTEXT Name` declares a business context, optional selection behavior, and
   optional membership object mapping.
@@ -177,10 +179,40 @@ END.VIEW
 Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
 framework component names, procedural render loops, or host functions.
 
-ADL source syntax for `SHELL`, `TOP_BAR`, `SELECT`, `ACTION`, and
-`CONTEXT_SELECTOR` is not implemented. Some of these shapes exist in the
-resolved model for JSON/TypeScript partial models or future parser work, but
-the current parser rejects them as authored UI syntax.
+## Shell Navigation
+
+The parser supports a global `SHELL` block for renderer-neutral application
+navigation and top-bar controls. Shell declarations resolve to top-level
+`ResolvedApplicationModel.shell` metadata; browser runtimes do not read ADL
+syntax directly.
+
+```adl
+SHELL
+  NAV HomeDashboard LABEL 'Home' ICON home GROUP Main ORDER 10
+  NAV BandEventList LABEL 'Gigs' ICON calendar GROUP Main ORDER 20
+  NAV MyAvailabilityList LABEL 'Availability' ICON calendar GROUP Main ORDER 30 VISIBLE WHEN CONTEXT Band SELECTED
+  CONTROL contextSelector KIND contextSelector PLACEMENT topBar
+  CONTROL syncStatus KIND syncStatus PLACEMENT topBar VISIBLE ONLINE
+  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector syncStatus
+END.SHELL
+```
+
+`NAV` entries target resolved views. Supported nav metadata includes `LABEL`,
+semantic `ICON`, `GROUP`, numeric `ORDER`, optional `ACTIVE_WHEN` view names,
+and `VISIBLE` conditions. Implemented visibility conditions are `ALWAYS`,
+`ONLINE`, `OFFLINE`, `WHEN CONTEXT Name AVAILABLE`, and `WHEN CONTEXT Name
+SELECTED`.
+
+`CONTROL` entries support optional `LABEL`, semantic `ICON`, `PLACEMENT`, and
+`VISIBLE` metadata. Implemented control kinds are `contextSelector`,
+`syncStatus`, `themeSwitch`, `logout`, and `pwaInstall`; unsupported runtime
+capabilities degrade as unavailable controls. `TOP_BAR` declares context
+selector placement, mobile context selector behavior (`dropdown` or `sheet`),
+and the ordered top-bar control list.
+
+ADL source syntax for view-local `SELECT`, `ACTION`, and `CONTEXT_SELECTOR`
+presentation controls is not implemented. Those control shapes exist in the
+resolved model for JSON/TypeScript partial models and future parser work.
 
 ## Commands
 

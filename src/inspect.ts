@@ -7,6 +7,8 @@ import type {
   PartialPresentationRowFragmentModel,
   PartialPresentationSectionModel,
   PartialPresentationStateModel,
+  PartialShellControlModel,
+  PartialShellNavItemModel,
   PartialViewModel,
   PolicyAction,
   ResolvedApplicationModel,
@@ -16,6 +18,8 @@ import type {
   ResolvedPresentationRowFragment,
   ResolvedPresentationSection,
   ResolvedPresentationState,
+  ResolvedShellControl,
+  ResolvedShellNavItem,
   ResolvedView,
   RuntimeChannel,
   StoredObjectRecord,
@@ -68,6 +72,7 @@ export function explainResolvedModel(
     model,
     entries: [
       ...explainTopLevelDefaults(model, source),
+      ...explainShellDefaults(model, source),
       ...model.objects.flatMap((object, index) =>
         explainObjectDefaults(
           object,
@@ -77,6 +82,146 @@ export function explainResolvedModel(
       ),
     ],
   };
+}
+
+function explainShellDefaults(
+  model: ResolvedApplicationModel,
+  source: PartialApplicationModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: "shell.topBar.contextSelector",
+      value: model.shell.topBar.contextSelector,
+      origin: source?.shell?.topBar?.contextSelector === undefined ? "platformDefault" : "source",
+      note:
+        source?.shell?.topBar?.contextSelector === undefined
+          ? "Shell context selector placement defaulted to the top bar."
+          : "Shell context selector placement was supplied by the source model.",
+    },
+    {
+      path: "shell.topBar.mobileContextSelector",
+      value: model.shell.topBar.mobileContextSelector,
+      origin:
+        source?.shell?.topBar?.mobileContextSelector === undefined ? "platformDefault" : "source",
+      note:
+        source?.shell?.topBar?.mobileContextSelector === undefined
+          ? "Mobile business-context selectors defaulted to sheet behavior."
+          : "Mobile business-context selector behavior was supplied by the source model.",
+    },
+    {
+      path: "shell.topBar.controls",
+      value: model.shell.topBar.controls,
+      origin: source?.shell?.topBar?.controls === undefined ? "platformDefault" : "source",
+      note:
+        source?.shell?.topBar?.controls === undefined
+          ? "Top-bar controls defaulted to context selection and sync status."
+          : "Top-bar controls were supplied by the source model.",
+    },
+    ...model.shell.nav.items.flatMap((item, itemIndex) =>
+      explainShellNavItem(
+        item,
+        `shell.nav.items[${itemIndex}]`,
+        source?.shell?.nav?.items?.find((sourceItem) => sourceItem.view === item.view),
+      ),
+    ),
+    ...model.shell.controls.flatMap((control, controlIndex) =>
+      explainShellControl(
+        control,
+        `shell.controls[${controlIndex}]`,
+        source?.shell?.controls?.find((sourceControl) => sourceControl.name === control.name),
+      ),
+    ),
+  ];
+}
+
+function explainShellNavItem(
+  item: ResolvedShellNavItem,
+  itemPath: string,
+  source: PartialShellNavItemModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${itemPath}.view`,
+      value: item.view,
+      origin: source === undefined ? "derivedDefault" : "source",
+      note:
+        source === undefined
+          ? `Shell navigation item was derived for view '${item.view}'.`
+          : `Shell navigation item resolves view '${item.view}'.`,
+    },
+    {
+      path: `${itemPath}.label`,
+      value: item.label,
+      origin: source?.label === undefined ? "derivedDefault" : "source",
+      note:
+        source?.label === undefined
+          ? "Shell navigation label was derived from the view name."
+          : "Shell navigation label was supplied by the source model.",
+    },
+    {
+      path: `${itemPath}.order`,
+      value: item.order,
+      origin: source?.order === undefined ? "derivedDefault" : "source",
+      note:
+        source?.order === undefined
+          ? "Shell navigation order was derived from declaration/view order."
+          : "Shell navigation order was supplied by the source model.",
+    },
+    {
+      path: `${itemPath}.activeWhen`,
+      value: item.activeWhen,
+      origin: source?.activeWhen === undefined ? "derivedDefault" : "source",
+      note:
+        source?.activeWhen === undefined
+          ? "Shell navigation active state defaults to the target view."
+          : "Shell navigation active-state views were supplied by the source model.",
+    },
+    {
+      path: `${itemPath}.visibility`,
+      value: item.visibility as unknown as JsonValue,
+      origin: source?.visibility === undefined ? "platformDefault" : "source",
+      note:
+        source?.visibility === undefined
+          ? "Shell navigation visibility defaults to always visible."
+          : "Shell navigation visibility was supplied by the source model.",
+    },
+  ];
+}
+
+function explainShellControl(
+  control: ResolvedShellControl,
+  controlPath: string,
+  source: PartialShellControlModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  return [
+    {
+      path: `${controlPath}.kind`,
+      value: control.kind,
+      origin: source === undefined ? "platformDefault" : "source",
+      note:
+        source === undefined
+          ? `Shell control '${control.name}' is a platform default.`
+          : `Shell control '${control.name}' was supplied by the source model.`,
+    },
+    {
+      path: `${controlPath}.placement`,
+      value: control.placement,
+      origin: source?.placement === undefined ? "platformDefault" : "source",
+      note:
+        source?.placement === undefined
+          ? "Shell control placement defaulted to the top bar."
+          : "Shell control placement was supplied by the source model.",
+    },
+    {
+      path: `${controlPath}.visibility`,
+      value: control.visibility as unknown as JsonValue,
+      origin: source?.visibility === undefined ? "platformDefault" : "source",
+      note:
+        source?.visibility === undefined
+          ? "Shell control visibility defaults to always visible."
+          : "Shell control visibility was supplied by the source model.",
+    },
+  ];
 }
 
 export function inspectResolvedModel(

@@ -7,6 +7,8 @@ import type {
   ResolvedBusinessContext,
   ResolvedObject,
   ResolvedReadModel,
+  ResolvedShellControl,
+  ResolvedShellNavItem,
   ResolvedView,
   ResolvedViewContext,
   StoredObjectRecord,
@@ -695,7 +697,7 @@ export class AdlAppElement extends HTMLElement {
             ${isComposedView ? "" : "<span>Model-driven browser runtime</span>"}
           </div>
           <div class="adl-topbar-tools">
-            ${this.renderContextSelectors()}
+            ${this.renderTopBarControls()}
           </div>
         </header>
         ${this.renderNavigationDrawer(view)}
@@ -779,12 +781,67 @@ export class AdlAppElement extends HTMLElement {
   }
 
   private renderContextSelectors(): string {
+    if (this._model.shell.topBar.contextSelector === "hidden") {
+      return "";
+    }
+
     return this.navigableContexts
       .map(
         (context) =>
-          `<adl-context-selector data-context-name="${escapeHtml(context.name)}"></adl-context-selector>`,
+          `<adl-context-selector data-context-name="${escapeHtml(context.name)}" data-mobile-mode="${escapeHtml(
+            this._model.shell.topBar.mobileContextSelector,
+          )}"></adl-context-selector>`,
       )
       .join("");
+  }
+
+  private renderTopBarControls(): string {
+    return this._model.shell.topBar.controls
+      .map((controlName) =>
+        this._model.shell.controls.find((control) => control.name === controlName),
+      )
+      .filter((control): control is ResolvedShellControl => control !== undefined)
+      .filter((control) => control.placement === "topBar" && this.isShellControlVisible(control))
+      .map((control) => this.renderShellControl(control))
+      .join("");
+  }
+
+  private renderShellControl(control: ResolvedShellControl): string {
+    if (control.kind === "contextSelector") {
+      return this.renderContextSelectors();
+    }
+
+    if (control.kind === "syncStatus") {
+      const online = this._context.online ?? true;
+      return `
+        <span
+          class="adl-shell-status ${online ? "adl-shell-status-online" : "adl-shell-status-offline"}"
+          data-shell-control="${escapeHtml(control.name)}"
+          data-shell-control-kind="syncStatus"
+        >${escapeHtml(online ? "Online" : "Offline")}</span>
+      `;
+    }
+
+    const label = control.label ?? titleCaseIdentifier(control.name);
+    return `
+      <button
+        class="adl-shell-control adl-shell-control-unavailable"
+        type="button"
+        data-shell-control="${escapeHtml(control.name)}"
+        data-shell-control-kind="${escapeHtml(control.kind)}"
+        disabled
+        title="${escapeHtml(`${label} is not available in this runtime.`)}"
+      >
+        ${
+          control.icon === undefined
+            ? ""
+            : `<span aria-hidden="true" data-shell-icon="${escapeHtml(control.icon)}">${escapeHtml(
+                iconGlyph(control.icon),
+              )}</span>`
+        }
+        <span>${escapeHtml(label)}</span>
+      </button>
+    `;
   }
 
   private renderCrudWorkspace(view: ResolvedView): string {
@@ -859,6 +916,7 @@ export class AdlAppElement extends HTMLElement {
 
   private renderNavigationDrawer(activeView: ResolvedView): string {
     const activeViewName = activeView.name;
+    const navGroups = groupNavItems(this.visibleNavItems);
     return `
       <button
         class="adl-nav-overlay ${this.navDrawerOpen ? "active" : ""}"
@@ -875,21 +933,45 @@ export class AdlAppElement extends HTMLElement {
           <span>${escapeHtml(this._model.app.name)}</span>
         </div>
         <div class="adl-nav-list">
-          ${this.allViews
-            .map(({ object, view }) => {
-              const active = view.name === activeViewName;
-              return `
-                <button
-                  class="adl-nav-item ${active ? "active" : ""}"
-                  type="button"
-                  data-view-nav="${escapeHtml(view.name)}"
-                  ${active ? 'aria-current="page"' : ""}
-                >
-                  <span>${escapeHtml(titleCaseIdentifier(view.name))}</span>
-                  <small>${escapeHtml(titleCaseIdentifier(object.name))}</small>
-                </button>
-              `;
-            })
+          ${navGroups
+            .map(
+              (group) => `
+                ${
+                  group.name === undefined
+                    ? ""
+                    : `<div class="adl-nav-group" data-nav-group="${escapeHtml(group.name)}">${escapeHtml(
+                        group.name,
+                      )}</div>`
+                }
+                ${group.items
+                  .map((item) => {
+                    const active = item.activeWhen.includes(activeViewName);
+                    const owner = this.findView(item.view)?.object.name;
+                    return `
+                      <button
+                        class="adl-nav-item ${active ? "active" : ""}"
+                        type="button"
+                        data-view-nav="${escapeHtml(item.view)}"
+                        data-nav-item="${escapeHtml(item.name)}"
+                        ${active ? 'aria-current="page"' : ""}
+                      >
+                        ${
+                          item.icon === undefined
+                            ? ""
+                            : `<span class="adl-nav-icon" aria-hidden="true" data-shell-icon="${escapeHtml(
+                                item.icon,
+                              )}">${escapeHtml(iconGlyph(item.icon))}</span>`
+                        }
+                        <span>${escapeHtml(item.label)}</span>
+                        <small>${escapeHtml(
+                          owner === undefined ? item.view : titleCaseIdentifier(owner),
+                        )}</small>
+                      </button>
+                    `;
+                  })
+                  .join("")}
+              `,
+            )
             .join("")}
         </div>
       </nav>
@@ -1173,6 +1255,49 @@ export class AdlAppElement extends HTMLElement {
     );
   }
 
+  private get visibleNavItems(): ResolvedShellNavItem[] {
+    return this._model.shell.nav.items.filter((item) =>
+      this.isShellVisibilityVisible(item.visibility),
+    );
+  }
+
+  private isShellControlVisible(control: ResolvedShellControl): boolean {
+    if (!this.isShellVisibilityVisible(control.visibility)) {
+      return false;
+    }
+
+    if (control.kind === "contextSelector") {
+      return this._model.shell.topBar.contextSelector === control.placement;
+    }
+
+    return true;
+  }
+
+  private isShellVisibilityVisible(visibility: ResolvedShellNavItem["visibility"]): boolean {
+    if (visibility.kind === "always") {
+      return true;
+    }
+
+    if (visibility.kind === "online") {
+      return this._context.online !== false;
+    }
+
+    if (visibility.kind === "offline") {
+      return this._context.online === false;
+    }
+
+    const contextName = visibility.context;
+    if (contextName === undefined) {
+      return false;
+    }
+
+    if (visibility.kind === "contextAvailable") {
+      return (this.availableContexts.get(contextName) ?? []).length > 0;
+    }
+
+    return this.selectedContextIds[contextName] !== undefined;
+  }
+
   private get navigableContexts(): ResolvedBusinessContext[] {
     const contextNames = new Set(
       [
@@ -1232,6 +1357,47 @@ function addBrowserOnlineListeners(listener: () => void): void {
 function removeBrowserOnlineListeners(listener: () => void): void {
   globalThis.removeEventListener?.("online", listener);
   globalThis.removeEventListener?.("offline", listener);
+}
+
+function groupNavItems(
+  items: ResolvedShellNavItem[],
+): { name: string | undefined; items: ResolvedShellNavItem[] }[] {
+  const groups = new Map<string, ResolvedShellNavItem[]>();
+
+  for (const item of items) {
+    const groupName = item.group ?? "";
+    groups.set(groupName, [...(groups.get(groupName) ?? []), item]);
+  }
+
+  return [...groups.entries()].map(([name, groupItems]) => ({
+    name: name.length === 0 ? undefined : name,
+    items: groupItems,
+  }));
+}
+
+function iconGlyph(icon: string): string {
+  switch (icon) {
+    case "home":
+      return "H";
+    case "music":
+      return "M";
+    case "calendar":
+      return "C";
+    case "mic":
+    case "microphone":
+      return "R";
+    case "list":
+      return "L";
+    case "users":
+      return "U";
+    case "sync":
+      return "S";
+    case "log-out":
+    case "logout":
+      return "O";
+    default:
+      return "";
+  }
 }
 
 function readStorageValue(storage: Storage | undefined, key: string): string | null {

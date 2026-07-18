@@ -81,6 +81,7 @@ Before tasks that change browser UI runtime components, browser demo fixtures, U
 
 - `implementation/browser-ui-runtime.md`
 - `implementation/context-ui-navigation.md`
+- `implementation/shell-navigation.md`
 - `implementation/read-model-runtime.md`
 - `implementation/policy-engine.md`
 - `implementation/sync-policy.md`
@@ -90,6 +91,11 @@ resolved-model defaults, UI syntax for composed views, presentation validation,
 or presentation renderer behavior, also read:
 
 - `implementation/ui-presentation-model.md`
+
+Before tasks that change shell navigation metadata, drawer rendering, top-bar
+controls, or mobile business-context selectors, also read:
+
+- `implementation/shell-navigation.md`
 
 Before tasks that add or change ADL reference applications, model-driven demo fixtures, or follow-up platform gaps discovered by a reference app, also read:
 
@@ -147,3 +153,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work.
 - `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases.
 - `implementation/ui-presentation-model.md`: read before changing composed UI presentation declarations, presentation defaults, UI syntax for composed views, presentation validation, or presentation renderer behavior.
+- `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors.

@@ -56,6 +56,10 @@ import type {
   ResolvedPresentationState,
   ResolvedViewPresentation,
   ResolvedReadModel,
+  ResolvedShell,
+  ResolvedShellControl,
+  ResolvedShellNavItem,
+  ResolvedShellVisibility,
   ResolvedSyncPolicy,
   ResolvedSyncWindow,
   ResolvedTheme,
@@ -63,6 +67,11 @@ import type {
   ResolvedView,
   ResolvedViewContext,
   RuntimeChannel,
+  ShellContextSelectorPlacement,
+  ShellControlKind,
+  ShellControlPlacement,
+  ShellMobileContextSelectorMode,
+  ShellVisibilityKind,
   SyncMode,
   SyncScope,
   ViewContextMode,
@@ -209,6 +218,21 @@ export const MODEL_VALIDATION_CODES = {
   POLICY_OBJECT_UNKNOWN: "ADL_POLICY_OBJECT_UNKNOWN",
   POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
   POLICY_CHANNEL_INVALID: "ADL_POLICY_CHANNEL_INVALID",
+  SHELL_CONTEXT_SELECTOR_PLACEMENT_INVALID: "ADL_SHELL_CONTEXT_SELECTOR_PLACEMENT_INVALID",
+  SHELL_CONTROL_CONTEXT_UNKNOWN: "ADL_SHELL_CONTROL_CONTEXT_UNKNOWN",
+  SHELL_CONTROL_DUPLICATE: "ADL_SHELL_CONTROL_DUPLICATE",
+  SHELL_CONTROL_ICON_INVALID: "ADL_SHELL_CONTROL_ICON_INVALID",
+  SHELL_CONTROL_KIND_INVALID: "ADL_SHELL_CONTROL_KIND_INVALID",
+  SHELL_CONTROL_PLACEMENT_INVALID: "ADL_SHELL_CONTROL_PLACEMENT_INVALID",
+  SHELL_MOBILE_CONTEXT_SELECTOR_INVALID: "ADL_SHELL_MOBILE_CONTEXT_SELECTOR_INVALID",
+  SHELL_NAV_ACTIVE_VIEW_UNKNOWN: "ADL_SHELL_NAV_ACTIVE_VIEW_UNKNOWN",
+  SHELL_NAV_DUPLICATE: "ADL_SHELL_NAV_DUPLICATE",
+  SHELL_NAV_ICON_INVALID: "ADL_SHELL_NAV_ICON_INVALID",
+  SHELL_NAV_ORDER_DUPLICATE: "ADL_SHELL_NAV_ORDER_DUPLICATE",
+  SHELL_NAV_VIEW_UNKNOWN: "ADL_SHELL_NAV_VIEW_UNKNOWN",
+  SHELL_TOP_BAR_CONTROL_UNKNOWN: "ADL_SHELL_TOP_BAR_CONTROL_UNKNOWN",
+  SHELL_VISIBILITY_CONTEXT_UNKNOWN: "ADL_SHELL_VISIBILITY_CONTEXT_UNKNOWN",
+  SHELL_VISIBILITY_KIND_INVALID: "ADL_SHELL_VISIBILITY_KIND_INVALID",
   PRESENTATION_CONTROL_COMMAND_UNKNOWN: "ADL_PRESENTATION_CONTROL_COMMAND_UNKNOWN",
   PRESENTATION_CONTROL_CONTEXT_UNKNOWN: "ADL_PRESENTATION_CONTROL_CONTEXT_UNKNOWN",
   PRESENTATION_CONTROL_DUPLICATE: "ADL_PRESENTATION_CONTROL_DUPLICATE",
@@ -352,6 +376,31 @@ const PRESENTATION_SHELL_REGIONS = new Set<PresentationShellRegion>([
   "bottomBar",
   "sidebar",
 ]);
+const SHELL_CONTROL_KINDS = new Set<ShellControlKind>([
+  "contextSelector",
+  "themeSwitch",
+  "logout",
+  "pwaInstall",
+  "syncStatus",
+]);
+const SHELL_CONTROL_PLACEMENTS = new Set<ShellControlPlacement>(["topBar", "navDrawer"]);
+const SHELL_CONTEXT_SELECTOR_PLACEMENTS = new Set<ShellContextSelectorPlacement>([
+  "topBar",
+  "navDrawer",
+  "hidden",
+]);
+const SHELL_MOBILE_CONTEXT_SELECTOR_MODES = new Set<ShellMobileContextSelectorMode>([
+  "dropdown",
+  "sheet",
+]);
+const SHELL_VISIBILITY_KINDS = new Set<ShellVisibilityKind>([
+  "always",
+  "contextAvailable",
+  "contextSelected",
+  "online",
+  "offline",
+]);
+const SHELL_ICON_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 const CONTEXT_SELECTION_MODES = new Set<ContextSelectionMode>(["required", "optional"]);
 const CONTEXT_SELECTION_PERSISTENCE = new Set<ContextSelectionPersistence>([
@@ -542,6 +591,7 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
   );
 
   validateApplicationReferences(model, indexes, diagnostics);
+  validateShell(model.shell, indexes, diagnostics);
 
   for (let contextIndex = 0; contextIndex < (model.contexts ?? []).length; contextIndex += 1) {
     const context = model.contexts?.[contextIndex];
@@ -638,6 +688,245 @@ function validateApplicationReferences(
       ),
     );
   }
+}
+
+function validateShell(
+  shell: ResolvedShell,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  reportDuplicateNames(
+    shell.nav.items,
+    "shell.nav.items",
+    MODEL_VALIDATION_CODES.SHELL_NAV_DUPLICATE,
+    diagnostics,
+    "Shell navigation item names must be unique.",
+  );
+  reportDuplicateShellOrders(shell.nav.items, diagnostics);
+
+  for (let itemIndex = 0; itemIndex < shell.nav.items.length; itemIndex += 1) {
+    const item = shell.nav.items[itemIndex];
+    if (item === undefined) {
+      continue;
+    }
+    validateShellNavItem(item, `shell.nav.items[${itemIndex}]`, indexes, diagnostics);
+  }
+
+  reportDuplicateNames(
+    shell.controls,
+    "shell.controls",
+    MODEL_VALIDATION_CODES.SHELL_CONTROL_DUPLICATE,
+    diagnostics,
+    "Shell control names must be unique.",
+  );
+  const controlsByName = indexByName(shell.controls);
+
+  for (let controlIndex = 0; controlIndex < shell.controls.length; controlIndex += 1) {
+    const control = shell.controls[controlIndex];
+    if (control === undefined) {
+      continue;
+    }
+    validateShellControl(control, `shell.controls[${controlIndex}]`, indexes, diagnostics);
+  }
+
+  if (!SHELL_CONTEXT_SELECTOR_PLACEMENTS.has(shell.topBar.contextSelector)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_CONTEXT_SELECTOR_PLACEMENT_INVALID,
+        `Shell top bar has invalid context selector placement '${String(
+          shell.topBar.contextSelector,
+        )}'.`,
+        "shell.topBar.contextSelector",
+      ),
+    );
+  }
+
+  if (!SHELL_MOBILE_CONTEXT_SELECTOR_MODES.has(shell.topBar.mobileContextSelector)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_MOBILE_CONTEXT_SELECTOR_INVALID,
+        `Shell top bar has invalid mobile context selector mode '${String(
+          shell.topBar.mobileContextSelector,
+        )}'.`,
+        "shell.topBar.mobileContextSelector",
+      ),
+    );
+  }
+
+  for (let controlIndex = 0; controlIndex < shell.topBar.controls.length; controlIndex += 1) {
+    const controlName = shell.topBar.controls[controlIndex];
+    if (controlName === undefined || controlsByName.has(controlName)) {
+      continue;
+    }
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_UNKNOWN,
+        `Shell top bar references unknown control '${controlName}'.`,
+        `shell.topBar.controls[${controlIndex}]`,
+      ),
+    );
+  }
+}
+
+function reportDuplicateShellOrders(
+  items: ResolvedShellNavItem[],
+  diagnostics: Diagnostic[],
+): void {
+  const orderPaths = new Map<number, number>();
+
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+    const item = items[itemIndex];
+    if (item === undefined) {
+      continue;
+    }
+
+    const existingIndex = orderPaths.get(item.order);
+    if (existingIndex !== undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.SHELL_NAV_ORDER_DUPLICATE,
+          `Shell navigation order ${item.order} is used by more than one item.`,
+          `shell.nav.items[${itemIndex}].order`,
+        ),
+      );
+      continue;
+    }
+
+    orderPaths.set(item.order, itemIndex);
+  }
+}
+
+function validateShellNavItem(
+  item: ResolvedShellNavItem,
+  itemPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!indexes.viewNames.has(item.view)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_NAV_VIEW_UNKNOWN,
+        `Shell navigation item '${item.name}' references unknown view '${item.view}'.`,
+        `${itemPath}.view`,
+      ),
+    );
+  }
+
+  validateShellIcon(
+    item.icon,
+    `${itemPath}.icon`,
+    MODEL_VALIDATION_CODES.SHELL_NAV_ICON_INVALID,
+    diagnostics,
+  );
+  validateShellVisibility(item.visibility, `${itemPath}.visibility`, indexes, diagnostics);
+
+  for (let activeIndex = 0; activeIndex < item.activeWhen.length; activeIndex += 1) {
+    const activeView = item.activeWhen[activeIndex];
+    if (activeView === undefined || indexes.viewNames.has(activeView)) {
+      continue;
+    }
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_NAV_ACTIVE_VIEW_UNKNOWN,
+        `Shell navigation item '${item.name}' active state references unknown view '${activeView}'.`,
+        `${itemPath}.activeWhen[${activeIndex}]`,
+      ),
+    );
+  }
+}
+
+function validateShellControl(
+  control: ResolvedShellControl,
+  controlPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!SHELL_CONTROL_KINDS.has(control.kind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_KIND_INVALID,
+        `Shell control '${control.name}' has invalid kind '${String(control.kind)}'.`,
+        `${controlPath}.kind`,
+      ),
+    );
+  }
+
+  if (!SHELL_CONTROL_PLACEMENTS.has(control.placement)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_PLACEMENT_INVALID,
+        `Shell control '${control.name}' has invalid placement '${String(control.placement)}'.`,
+        `${controlPath}.placement`,
+      ),
+    );
+  }
+
+  validateShellIcon(
+    control.icon,
+    `${controlPath}.icon`,
+    MODEL_VALIDATION_CODES.SHELL_CONTROL_ICON_INVALID,
+    diagnostics,
+  );
+  validateShellVisibility(control.visibility, `${controlPath}.visibility`, indexes, diagnostics);
+
+  if (control.context !== undefined && !indexes.contextsByName.has(control.context)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_CONTEXT_UNKNOWN,
+        `Shell control '${control.name}' references unknown context '${control.context}'.`,
+        `${controlPath}.context`,
+      ),
+    );
+  }
+}
+
+function validateShellVisibility(
+  visibility: ResolvedShellVisibility,
+  visibilityPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!SHELL_VISIBILITY_KINDS.has(visibility.kind)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_VISIBILITY_KIND_INVALID,
+        `Shell visibility kind '${String(visibility.kind)}' is not supported.`,
+        `${visibilityPath}.kind`,
+      ),
+    );
+  }
+
+  if (
+    (visibility.kind === "contextAvailable" || visibility.kind === "contextSelected") &&
+    (visibility.context === undefined || !indexes.contextsByName.has(visibility.context))
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_VISIBILITY_CONTEXT_UNKNOWN,
+        `Shell visibility references unknown context '${visibility.context ?? ""}'.`,
+        `${visibilityPath}.context`,
+      ),
+    );
+  }
+}
+
+function validateShellIcon(
+  icon: string | undefined,
+  iconPath: string,
+  code: ModelValidationCode,
+  diagnostics: Diagnostic[],
+): void {
+  if (icon === undefined || SHELL_ICON_PATTERN.test(icon)) {
+    return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      code,
+      `Shell icon reference '${icon}' is not a supported semantic icon name.`,
+      iconPath,
+    ),
+  );
 }
 
 function validateBusinessContext(

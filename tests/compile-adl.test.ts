@@ -612,6 +612,28 @@ END.READ_MODEL
       theme: "CorporateLight",
       startView: "HomeDashboard",
     });
+    expect(result.model.shell.nav.items.map((item) => [item.view, item.label, item.order])).toEqual(
+      [
+        ["HomeDashboard", "Home", 10],
+        ["BandEventList", "Gigs", 20],
+        ["MyAvailabilityList", "Availability", 30],
+        ["SongLibrary", "Songs", 40],
+        ["SetListList", "Set Lists", 50],
+        ["BandDirectory", "Bands", 60],
+        ["UserProfileList", "User Profile List", 70],
+        ["BandProfile", "Band Profile", 80],
+        ["BandMemberList", "Band Member List", 90],
+        ["BandInvitationList", "Band Invitation List", 100],
+        ["BandEventForm", "Band Event Form", 110],
+        ["SetListItemList", "Set List Item List", 120],
+        ["SetListByPosition", "Set List By Position", 130],
+        ["StreamingLinkList", "Streaming Link List", 140],
+        ["DevicePreferenceList", "Device Preference List", 150],
+      ],
+    );
+    expect(
+      result.model.shell.nav.items.find((item) => item.view === "MyAvailabilityList")?.visibility,
+    ).toEqual({ kind: "contextSelected", context: "Band" });
     expect(result.model.contexts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

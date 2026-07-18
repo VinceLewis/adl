@@ -79,6 +79,30 @@ CRUD container choices are presentation hints only. Runtime create, update,
 delete, transition, validation, policy, sync, audit, and operation-log behavior
 is unchanged and remains enforced by runtime services.
 
+## Shell Rendering
+
+Browser shell rendering consumes `ResolvedApplicationModel.shell`. The drawer
+orders nav items by resolved `order`, renders resolved labels, semantic icons,
+groups, and active-state metadata, and evaluates shell visibility from runtime
+context such as online state or business-context availability/selection.
+
+Shell visibility is presentation behavior only. Hiding a nav item or shell
+control does not enforce policy. Runtime services still enforce context scope,
+policy, lifecycle, validation, sync mode, audit, and operation-log semantics
+when a user or API attempts an operation.
+
+Top-bar business-context selectors are shell controls. When the resolved shell
+uses `mobileContextSelector: "sheet"`, constrained browser layouts render a
+compact selected-context label that opens a modal/sheet for selection instead
+of relying on a cramped dropdown. Route, persisted, and selected context ids
+are still validated through runtime context services before scoped reads or
+writes run.
+
+Optional shell controls degrade by capability. The current browser runtime
+implements context selection and sync/online status. Controls such as logout,
+theme switch, and PWA install prompt can be declared and inspected, but render
+as unavailable unless the host runtime supplies that capability.
+
 ## Lifecycles
 
 Lifecycle transition is a first-class runtime operation. The implemented order
@@ -210,6 +234,12 @@ list source and source kind, render style, density, empty-state text, row layout
 and density, row field references, icon-map references, and fragment style
 defaults. Invalid presentation references remain validation diagnostics with
 `ADL_PRESENTATION_*` codes rather than parser-AST explanations.
+
+Inspection also includes shell defaults and references: top-bar context
+selector placement, mobile context selector behavior, top-bar controls, nav
+target views, nav labels, order, active-state view names, visibility, control
+kinds, control placement, and control visibility. Invalid shell references
+remain validation diagnostics with `ADL_SHELL_*` codes.
 
 ## Schema-Version Compatibility
 

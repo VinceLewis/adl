@@ -54,6 +54,21 @@ export type PresentationRowLayout = "inline" | "stack";
 export type PresentationFragmentStyle = "plain" | "bold" | "muted" | "caption";
 export type PresentationFormatKind = "text" | "number" | "date" | "datetime" | "time";
 export type PresentationShellRegion = "topBar" | "bottomBar" | "sidebar";
+export type ShellControlKind =
+  | "contextSelector"
+  | "themeSwitch"
+  | "logout"
+  | "pwaInstall"
+  | "syncStatus";
+export type ShellControlPlacement = "topBar" | "navDrawer";
+export type ShellContextSelectorPlacement = "topBar" | "navDrawer" | "hidden";
+export type ShellMobileContextSelectorMode = "dropdown" | "sheet";
+export type ShellVisibilityKind =
+  | "always"
+  | "contextAvailable"
+  | "contextSelected"
+  | "online"
+  | "offline";
 
 export type PolicyEffect = "allow" | "deny" | "readonly" | "mask" | "hidden";
 export type PolicyAction =
@@ -110,6 +125,7 @@ export interface ResolvedApplicationModel {
   modelVersion: string;
   generatedAt?: string;
   app: ResolvedApp;
+  shell: ResolvedShell;
   roles: ResolvedRole[];
   contexts?: ResolvedBusinessContext[];
   objects: ResolvedObject[];
@@ -139,6 +155,48 @@ export interface ResolvedApp {
   name: string;
   startView: string;
   theme: string;
+}
+
+export interface ResolvedShell {
+  nav: ResolvedShellNavigation;
+  topBar: ResolvedShellTopBar;
+  controls: ResolvedShellControl[];
+}
+
+export interface ResolvedShellNavigation {
+  items: ResolvedShellNavItem[];
+}
+
+export interface ResolvedShellNavItem {
+  name: string;
+  view: string;
+  label: string;
+  icon?: string;
+  group?: string;
+  order: number;
+  activeWhen: string[];
+  visibility: ResolvedShellVisibility;
+}
+
+export interface ResolvedShellVisibility {
+  kind: ShellVisibilityKind;
+  context?: string;
+}
+
+export interface ResolvedShellTopBar {
+  contextSelector: ShellContextSelectorPlacement;
+  mobileContextSelector: ShellMobileContextSelectorMode;
+  controls: string[];
+}
+
+export interface ResolvedShellControl {
+  name: string;
+  kind: ShellControlKind;
+  label?: string;
+  icon?: string;
+  placement: ShellControlPlacement;
+  visibility: ResolvedShellVisibility;
+  context?: string;
 }
 
 export interface ResolvedRole {
@@ -804,6 +862,7 @@ export interface LocalOperation {
 export interface PartialApplicationModel {
   modelVersion?: string;
   app: PartialAppModel;
+  shell?: PartialShellModel;
   roles?: PartialRoleModel[];
   contexts?: PartialBusinessContextModel[];
   objects: PartialObjectModel[];
@@ -819,6 +878,48 @@ export interface PartialAppModel {
   name: string;
   startView?: string;
   theme?: string;
+}
+
+export interface PartialShellModel {
+  nav?: PartialShellNavigationModel;
+  topBar?: PartialShellTopBarModel;
+  controls?: PartialShellControlModel[];
+}
+
+export interface PartialShellNavigationModel {
+  items?: PartialShellNavItemModel[];
+}
+
+export interface PartialShellNavItemModel {
+  name?: string;
+  view: string;
+  label?: string;
+  icon?: string;
+  group?: string;
+  order?: number;
+  activeWhen?: string[];
+  visibility?: PartialShellVisibilityModel;
+}
+
+export interface PartialShellVisibilityModel {
+  kind?: ShellVisibilityKind;
+  context?: string;
+}
+
+export interface PartialShellTopBarModel {
+  contextSelector?: ShellContextSelectorPlacement;
+  mobileContextSelector?: ShellMobileContextSelectorMode;
+  controls?: string[];
+}
+
+export interface PartialShellControlModel {
+  name: string;
+  kind: ShellControlKind;
+  label?: string;
+  icon?: string;
+  placement?: ShellControlPlacement;
+  visibility?: PartialShellVisibilityModel;
+  context?: string;
 }
 
 export interface PartialRoleModel {

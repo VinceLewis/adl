@@ -205,6 +205,65 @@ END.OBJECT
     });
   });
 
+  it("parses shell navigation metadata", () => {
+    const ast = parseAdl(`APP ShellSyntax
+END.APP
+
+SHELL
+  NAV Home LABEL 'Home' ICON home GROUP Main ORDER 10 ACTIVE_WHEN Home HomeDetail
+  NAV Availability LABEL 'Availability' ICON calendar GROUP Main ORDER 20 VISIBLE WHEN CONTEXT Band SELECTED
+  CONTROL contextSelector KIND contextSelector PLACEMENT topBar
+  CONTROL syncStatus KIND syncStatus PLACEMENT topBar VISIBLE ONLINE
+  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector syncStatus
+END.SHELL
+
+CONTEXT Band OBJECT Band
+
+OBJECT Band
+  FIELD Name TEXT
+  VIEW Home LIST
+    FIELDS Name
+  END.VIEW
+  VIEW HomeDetail FORM
+    FIELDS Name
+  END.VIEW
+  VIEW Availability LIST
+    FIELDS Name
+  END.VIEW
+END.OBJECT
+`);
+
+    expect(ast.shell).toMatchObject({
+      navItems: [
+        expect.objectContaining({
+          view: "Home",
+          label: "Home",
+          icon: "home",
+          group: "Main",
+          order: 10,
+          activeWhen: ["Home", "HomeDetail"],
+        }),
+        expect.objectContaining({
+          view: "Availability",
+          visibility: { kind: "contextSelected", context: "Band" },
+        }),
+      ],
+      controls: [
+        expect.objectContaining({ name: "contextSelector", controlKind: "contextSelector" }),
+        expect.objectContaining({
+          name: "syncStatus",
+          controlKind: "syncStatus",
+          visibility: { kind: "online" },
+        }),
+      ],
+      topBar: expect.objectContaining({
+        contextSelector: "topBar",
+        mobileContextSelector: "sheet",
+        controls: ["contextSelector", "syncStatus"],
+      }),
+    });
+  });
+
   it("reports missing block terminators with a source location", () => {
     expect(() =>
       parseAdl(`APP Broken

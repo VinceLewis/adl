@@ -24,6 +24,11 @@ import type {
   ResolvedCommandValueExpression,
   ResolvedExpression,
   RuntimeChannel,
+  ShellContextSelectorPlacement,
+  ShellControlKind,
+  ShellControlPlacement,
+  ShellMobileContextSelectorMode,
+  ShellVisibilityKind,
   SyncMode,
   SyncScope,
   ThemeDensity,
@@ -75,6 +80,11 @@ import type {
   ReadModelFieldDeclarationAst,
   ReadModelSourceDeclarationAst,
   RoleDeclarationAst,
+  ShellControlDeclarationAst,
+  ShellDeclarationAst,
+  ShellNavItemDeclarationAst,
+  ShellTopBarDeclarationAst,
+  ShellVisibilityDeclarationAst,
   SortDeclarationAst,
   SourcePosition,
   SourceRange,
@@ -154,6 +164,7 @@ class AdlParser {
     this.skipNewlines();
     const start = this.current().range.start;
     const app = this.parseApp();
+    let shell: ShellDeclarationAst | undefined;
     const roles: RoleDeclarationAst[] = [];
     const contexts: BusinessContextDeclarationAst[] = [];
     const objects: ObjectDeclarationAst[] = [];
@@ -171,7 +182,9 @@ class AdlParser {
         break;
       }
 
-      if (this.checkWord("ROLE")) {
+      if (this.checkWord("SHELL")) {
+        shell = this.parseShell();
+      } else if (this.checkWord("ROLE")) {
         roles.push(this.parseRole());
       } else if (this.checkWord("CONTEXT")) {
         contexts.push(this.parseBusinessContext());
@@ -199,6 +212,7 @@ class AdlParser {
     return {
       kind: "AdlDocument",
       app,
+      ...(shell === undefined ? {} : { shell }),
       roles,
       contexts,
       objects,
@@ -274,6 +288,198 @@ class AdlParser {
       ...(description === undefined ? {} : { description }),
       range: this.rangeFrom(startToken),
     };
+  }
+
+  private parseShell(): ShellDeclarationAst {
+    const startToken = this.expectWord("SHELL", "SHELL declaration");
+    const navItems: ShellNavItemDeclarationAst[] = [];
+    const controls: ShellControlDeclarationAst[] = [];
+    let topBar: ShellTopBarDeclarationAst | undefined;
+    this.consumeLineEnd("SHELL declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.SHELL", this.current());
+      }
+
+      if (this.checkEnd("SHELL")) {
+        const end = this.parseEnd("SHELL");
+        return {
+          kind: "ShellDeclaration",
+          navItems,
+          controls,
+          ...(topBar === undefined ? {} : { topBar }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.checkWord("NAV")) {
+        navItems.push(this.parseShellNavItem());
+      } else if (this.checkWord("CONTROL")) {
+        controls.push(this.parseShellControl());
+      } else if (this.checkWord("TOP_BAR") || this.checkDottedWord("TOP", "BAR")) {
+        topBar = this.parseShellTopBar();
+      } else {
+        this.failUnexpected("SHELL directive NAV, CONTROL, TOP_BAR, or END.SHELL");
+      }
+    }
+  }
+
+  private parseShellNavItem(): ShellNavItemDeclarationAst {
+    const startToken = this.expectWord("NAV", "SHELL NAV declaration");
+    const view = this.consumeName("shell navigation view name");
+    let name: string | undefined;
+    let label: string | undefined;
+    let icon: string | undefined;
+    let group: string | undefined;
+    let order: number | undefined;
+    let activeWhen: string[] = [];
+    let visibility: ShellVisibilityDeclarationAst | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("AS")) {
+        name = this.consumeName("shell navigation item name");
+      } else if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("shell navigation label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.consumeName("shell navigation icon");
+      } else if (this.matchWord("GROUP")) {
+        group = this.consumeName("shell navigation group");
+      } else if (this.matchWord("ORDER")) {
+        order = this.consumeNumber("shell navigation order");
+      } else if (this.matchWord("ACTIVE_WHEN") || this.matchDottedWord("ACTIVE", "WHEN")) {
+        activeWhen = this.consumeNameListUntilLine("shell navigation active views");
+        break;
+      } else if (this.matchWord("VISIBLE")) {
+        visibility = this.parseShellVisibility();
+      } else {
+        this.failUnexpected(
+          "SHELL NAV option AS, LABEL, ICON, GROUP, ORDER, ACTIVE_WHEN, VISIBLE, or end of line",
+        );
+      }
+    }
+    this.consumeLineEnd("SHELL NAV declaration");
+
+    return {
+      kind: "ShellNavItemDeclaration",
+      ...(name === undefined ? {} : { name }),
+      view,
+      ...(label === undefined ? {} : { label }),
+      ...(icon === undefined ? {} : { icon }),
+      ...(group === undefined ? {} : { group }),
+      ...(order === undefined ? {} : { order }),
+      activeWhen,
+      ...(visibility === undefined ? {} : { visibility }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseShellControl(): ShellControlDeclarationAst {
+    const startToken = this.expectWord("CONTROL", "SHELL CONTROL declaration");
+    const name = this.consumeName("shell control name");
+    let controlKind: ShellControlKind | undefined;
+    let label: string | undefined;
+    let icon: string | undefined;
+    let placement: ShellControlPlacement | undefined;
+    let visibility: ShellVisibilityDeclarationAst | undefined;
+    let context: string | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("KIND")) {
+        controlKind = this.parseShellControlKind();
+      } else if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("shell control label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.consumeName("shell control icon");
+      } else if (this.matchWord("PLACEMENT")) {
+        placement = this.parseShellControlPlacement();
+      } else if (this.matchWord("VISIBLE")) {
+        visibility = this.parseShellVisibility();
+      } else if (this.matchWord("CONTEXT")) {
+        context = this.consumeName("shell control context");
+      } else {
+        this.failUnexpected(
+          "SHELL CONTROL option KIND, LABEL, ICON, PLACEMENT, VISIBLE, CONTEXT, or end of line",
+        );
+      }
+    }
+    this.consumeLineEnd("SHELL CONTROL declaration");
+
+    return {
+      kind: "ShellControlDeclaration",
+      name,
+      controlKind: controlKind ?? "syncStatus",
+      ...(label === undefined ? {} : { label }),
+      ...(icon === undefined ? {} : { icon }),
+      ...(placement === undefined ? {} : { placement }),
+      ...(visibility === undefined ? {} : { visibility }),
+      ...(context === undefined ? {} : { context }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseShellTopBar(): ShellTopBarDeclarationAst {
+    const startToken = this.checkWord("TOP_BAR")
+      ? this.expectWord("TOP_BAR", "SHELL TOP_BAR declaration")
+      : this.expectDottedWord("TOP", "BAR", "SHELL TOP.BAR declaration");
+    let contextSelector: ShellContextSelectorPlacement | undefined;
+    let mobileContextSelector: ShellMobileContextSelectorMode | undefined;
+    let controls: string[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("CONTEXT_SELECTOR")) {
+        contextSelector = this.parseShellContextSelectorPlacement();
+      } else if (this.matchWord("MOBILE_CONTEXT_SELECTOR")) {
+        mobileContextSelector = this.parseShellMobileContextSelectorMode();
+      } else if (this.matchWord("CONTROLS")) {
+        controls = this.consumeNameListUntilLine("SHELL TOP_BAR controls");
+        break;
+      } else {
+        this.failUnexpected(
+          "SHELL TOP_BAR option CONTEXT_SELECTOR, MOBILE_CONTEXT_SELECTOR, CONTROLS, or end of line",
+        );
+      }
+    }
+    this.consumeLineEnd("SHELL TOP_BAR declaration");
+
+    return {
+      kind: "ShellTopBarDeclaration",
+      ...(contextSelector === undefined ? {} : { contextSelector }),
+      ...(mobileContextSelector === undefined ? {} : { mobileContextSelector }),
+      controls,
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseShellVisibility(): ShellVisibilityDeclarationAst {
+    if (this.matchWord("ALWAYS")) {
+      return { kind: "always" };
+    }
+
+    if (this.matchWord("ONLINE")) {
+      return { kind: "online" };
+    }
+
+    if (this.matchWord("OFFLINE")) {
+      return { kind: "offline" };
+    }
+
+    this.expectWord("WHEN", "SHELL visibility WHEN clause");
+    if (this.matchWord("CONTEXT")) {
+      const context = this.consumeName("SHELL visibility context");
+      if (this.matchWord("AVAILABLE")) {
+        return { kind: "contextAvailable", context };
+      }
+      if (this.matchWord("SELECTED")) {
+        return { kind: "contextSelected", context };
+      }
+      this.failUnexpected("SHELL visibility CONTEXT condition AVAILABLE or SELECTED");
+    }
+
+    this.failUnexpected("SHELL visibility condition CONTEXT, ONLINE, OFFLINE, or ALWAYS");
   }
 
   private parseBusinessContext(): BusinessContextDeclarationAst {
@@ -2162,6 +2368,77 @@ class AdlParser {
         return "route";
       default:
         this.failExpected("context selection source RUNTIME or ROUTE", token);
+    }
+  }
+
+  private parseShellControlKind(): ShellControlKind {
+    const token = this.consumeWordToken("shell control kind");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "contextselector":
+      case "context_selector":
+        return "contextSelector";
+      case "themeswitch":
+      case "theme_switch":
+        return "themeSwitch";
+      case "logout":
+        return "logout";
+      case "pwainstall":
+      case "pwa_install":
+        return "pwaInstall";
+      case "syncstatus":
+      case "sync_status":
+        return "syncStatus";
+      default:
+        this.failExpected(
+          "shell control kind CONTEXT_SELECTOR, THEME_SWITCH, LOGOUT, PWA_INSTALL, or SYNC_STATUS",
+          token,
+        );
+    }
+  }
+
+  private parseShellControlPlacement(): ShellControlPlacement {
+    const token = this.consumeWordToken("shell control placement");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "topbar":
+      case "top_bar":
+        return "topBar";
+      case "navdrawer":
+      case "nav_drawer":
+        return "navDrawer";
+      default:
+        this.failExpected("shell control placement TOP_BAR or NAV_DRAWER", token);
+    }
+  }
+
+  private parseShellContextSelectorPlacement(): ShellContextSelectorPlacement {
+    const token = this.consumeWordToken("shell context selector placement");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "topbar":
+      case "top_bar":
+        return "topBar";
+      case "navdrawer":
+      case "nav_drawer":
+        return "navDrawer";
+      case "hidden":
+        return "hidden";
+      default:
+        this.failExpected("shell context selector placement TOP_BAR, NAV_DRAWER, or HIDDEN", token);
+    }
+  }
+
+  private parseShellMobileContextSelectorMode(): ShellMobileContextSelectorMode {
+    const token = this.consumeWordToken("shell mobile context selector mode");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "dropdown":
+        return "dropdown";
+      case "sheet":
+        return "sheet";
+      default:
+        this.failExpected("shell mobile context selector mode DROPDOWN or SHEET", token);
     }
   }
 

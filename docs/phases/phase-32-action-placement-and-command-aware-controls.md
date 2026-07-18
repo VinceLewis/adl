@@ -9,6 +9,11 @@ This phase makes actions visible in the places users naturally expect them:
 home/dashboard quick actions, list create actions, row actions, calendar-cell
 actions later, and shell/global actions where appropriate.
 
+Phase 31 added top-level `ResolvedApplicationModel.shell` metadata and global
+`SHELL` source syntax for nav items and shell controls. Phase 32 should reuse
+that shell contract for any shell/global action placement rather than inventing
+a second browser-only action path.
+
 ## Scope
 
 Add generic action placement support:
@@ -62,7 +67,7 @@ action system those later phases will use.
 ## Suggested Codex Prompt
 
 ```text
-Use ADL_Codex_Implementation_Brief_v2.md, docs/spec/ui-language-addendum.md, docs/spec/runtime-semantics.md, docs/phases/phase-30-list-first-crud-and-edit-containers.md, docs/phases/phase-31-shell-nav-metadata-and-mobile-context-controls.md, learnings/implementation/runtime-services.md, learnings/implementation/policy-engine.md, learnings/implementation/ui-presentation-model.md, and docs/phases/phase-32-action-placement-and-command-aware-controls.md as the source of truth.
+Use ADL_Codex_Implementation_Brief_v2.md, docs/spec/ui-language-addendum.md, docs/spec/runtime-semantics.md, docs/phases/phase-30-list-first-crud-and-edit-containers.md, docs/phases/phase-31-shell-nav-metadata-and-mobile-context-controls.md, learnings/implementation/runtime-services.md, learnings/implementation/policy-engine.md, learnings/implementation/ui-presentation-model.md, learnings/implementation/shell-navigation.md, and docs/phases/phase-32-action-placement-and-command-aware-controls.md as the source of truth.
 
 Execute Phase 32 only. Add model-driven action placement for view, section, and row actions, with renderer-neutral runtime output and browser controls bound to navigation or existing runtime commands. Keep policy enforcement in runtime services. Do not implement parent-child edit surfaces, relationship pickers, range availability, or calendar rendering. Add tests, update docs/learnings, run full verification, commit, and push.
 ```

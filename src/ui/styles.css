@@ -207,6 +207,14 @@ button:disabled {
   padding: var(--adl-space-md);
 }
 
+.adl-nav-group {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 650;
+  padding: 8px 4px 0;
+  text-transform: uppercase;
+}
+
 .adl-nav-item {
   align-items: center;
   background: rgba(255, 255, 255, 0.12);
@@ -214,6 +222,7 @@ button:disabled {
   color: var(--adl-color-text-inverted);
   display: grid;
   gap: 2px;
+  grid-template-columns: 22px minmax(0, 1fr);
   justify-items: start;
   min-height: 50px;
   padding: 8px 12px;
@@ -234,9 +243,23 @@ button:disabled {
   font-weight: 650;
 }
 
+.adl-nav-icon {
+  align-items: center;
+  align-self: center;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
 .adl-nav-item small {
   color: rgba(255, 255, 255, 0.76);
   font-size: 12px;
+  grid-column: 2;
 }
 
 .adl-brand {
@@ -308,6 +331,82 @@ button:disabled {
   align-items: center;
 }
 
+.adl-context-compact {
+  display: none;
+}
+
+.adl-context-sheet-scrim {
+  background: rgba(16, 24, 40, 0.42);
+  border: 0;
+  border-radius: 0;
+  bottom: 0;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 1100;
+}
+
+.adl-context-sheet {
+  background: var(--adl-color-surface);
+  border-radius: var(--adl-radius) var(--adl-radius) 0 0;
+  bottom: 0;
+  box-shadow: 0 -18px 48px rgba(16, 24, 40, 0.24);
+  color: var(--adl-color-text);
+  left: 0;
+  max-height: min(70vh, 440px);
+  overflow-y: auto;
+  position: fixed;
+  right: 0;
+  z-index: 1110;
+}
+
+.adl-context-sheet-header {
+  align-items: center;
+  border-bottom: 1px solid var(--adl-color-border);
+  display: flex;
+  justify-content: space-between;
+  padding: var(--adl-space-md);
+}
+
+.adl-context-sheet-options {
+  display: grid;
+  gap: var(--adl-space-xs);
+  padding: var(--adl-space-md);
+}
+
+.adl-context-sheet-options button {
+  justify-content: start;
+  text-align: left;
+}
+
+.adl-context-sheet-options button[aria-current="true"] {
+  border-color: var(--adl-color-primary);
+}
+
+.adl-shell-status {
+  align-items: center;
+  background: var(--adl-color-surface-alt);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text-muted);
+  display: inline-flex;
+  font-size: 12px;
+  min-height: var(--adl-control-height);
+  padding: 0 10px;
+}
+
+.adl-shell-status-offline {
+  border-color: var(--adl-color-danger);
+  color: var(--adl-color-danger);
+}
+
+.adl-shell-control {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--adl-space-xs);
+}
+
 .adl-topbar-composed .adl-topbar-tools {
   justify-content: flex-end;
 }
@@ -325,7 +424,9 @@ button:disabled {
 .adl-topbar-composed .adl-view-switch select,
 .adl-topbar-composed .adl-context-selector select,
 .adl-topbar-composed .adl-context-empty,
-.adl-topbar-composed .adl-context-single {
+.adl-topbar-composed .adl-context-single,
+.adl-topbar-composed .adl-context-compact,
+.adl-topbar-composed .adl-shell-status {
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.34);
   color: var(--adl-color-text-inverted);
@@ -949,6 +1050,17 @@ textarea.adl-field-control {
   .adl-view-switch select,
   .adl-context-selector select {
     min-width: 0;
+    width: 100%;
+  }
+
+  .adl-context-selector[data-context-name] select {
+    display: none;
+  }
+
+  .adl-context-compact {
+    align-items: center;
+    display: inline-flex;
+    justify-content: space-between;
     width: 100%;
   }
 

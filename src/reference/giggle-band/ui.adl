@@ -1,3 +1,15 @@
+SHELL
+  NAV HomeDashboard LABEL 'Home' ICON home GROUP Main ORDER 10
+  NAV BandEventList LABEL 'Gigs' ICON calendar GROUP Main ORDER 20
+  NAV MyAvailabilityList LABEL 'Availability' ICON calendar GROUP Main ORDER 30 VISIBLE WHEN CONTEXT Band SELECTED
+  NAV SongLibrary LABEL 'Songs' ICON music GROUP Library ORDER 40
+  NAV SetListList LABEL 'Set Lists' ICON list GROUP Library ORDER 50
+  NAV BandDirectory LABEL 'Bands' ICON users GROUP Admin ORDER 60
+  CONTROL contextSelector KIND contextSelector PLACEMENT topBar
+  CONTROL syncStatus KIND syncStatus PLACEMENT topBar
+  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector syncStatus
+END.SHELL
+
 OBJECT Event
   VIEW HomeDashboard DASHBOARD
     CONTEXT ALL Band

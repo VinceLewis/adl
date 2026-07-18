@@ -24,6 +24,11 @@ import type {
   PresentationToggleControlDeclarationAst,
   PrincipalSelectorAst,
   ReadModelDeclarationAst,
+  ShellControlDeclarationAst,
+  ShellDeclarationAst,
+  ShellNavItemDeclarationAst,
+  ShellTopBarDeclarationAst,
+  ShellVisibilityDeclarationAst,
   SyncDeclarationAst,
   ThemeDeclarationAst,
   ViewDeclarationAst,
@@ -51,6 +56,11 @@ import type {
   PartialPresentationStateModel,
   PartialPrincipalSelectorModel,
   PartialReadModelModel,
+  PartialShellControlModel,
+  PartialShellModel,
+  PartialShellNavItemModel,
+  PartialShellTopBarModel,
+  PartialShellVisibilityModel,
   PartialSyncPolicyModel,
   PartialThemeModel,
   PartialViewModel,
@@ -92,6 +102,7 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       ...(ast.app.startView === undefined ? {} : { startView: ast.app.startView }),
       ...(ast.app.theme === undefined ? {} : { theme: ast.app.theme }),
     },
+    ...(ast.shell === undefined ? {} : { shell: shellToPartial(ast.shell) }),
     roles: ast.roles.map((role) => ({
       name: role.name,
       ...(role.description === undefined ? {} : { description: role.description }),
@@ -105,6 +116,64 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
     policies: [...ast.policies.map(policyToPartial), ...generatedPolicies],
     themes: ast.themes.map(themeToPartial),
     sync: ast.sync.map(syncToPartial),
+  };
+}
+
+function shellToPartial(shell: ShellDeclarationAst): PartialShellModel {
+  return {
+    nav: {
+      items: shell.navItems.map(shellNavItemToPartial),
+    },
+    ...(shell.topBar === undefined ? {} : { topBar: shellTopBarToPartial(shell.topBar) }),
+    controls: shell.controls.map(shellControlToPartial),
+  };
+}
+
+function shellNavItemToPartial(item: ShellNavItemDeclarationAst): PartialShellNavItemModel {
+  return {
+    ...(item.name === undefined ? {} : { name: item.name }),
+    view: item.view,
+    ...(item.label === undefined ? {} : { label: item.label }),
+    ...(item.icon === undefined ? {} : { icon: item.icon }),
+    ...(item.group === undefined ? {} : { group: item.group }),
+    ...(item.order === undefined ? {} : { order: item.order }),
+    ...(item.activeWhen.length === 0 ? {} : { activeWhen: [...item.activeWhen] }),
+    ...(item.visibility === undefined
+      ? {}
+      : { visibility: shellVisibilityToPartial(item.visibility) }),
+  };
+}
+
+function shellControlToPartial(control: ShellControlDeclarationAst): PartialShellControlModel {
+  return {
+    name: control.name,
+    kind: control.controlKind,
+    ...(control.label === undefined ? {} : { label: control.label }),
+    ...(control.icon === undefined ? {} : { icon: control.icon }),
+    ...(control.placement === undefined ? {} : { placement: control.placement }),
+    ...(control.visibility === undefined
+      ? {}
+      : { visibility: shellVisibilityToPartial(control.visibility) }),
+    ...(control.context === undefined ? {} : { context: control.context }),
+  };
+}
+
+function shellTopBarToPartial(topBar: ShellTopBarDeclarationAst): PartialShellTopBarModel {
+  return {
+    ...(topBar.contextSelector === undefined ? {} : { contextSelector: topBar.contextSelector }),
+    ...(topBar.mobileContextSelector === undefined
+      ? {}
+      : { mobileContextSelector: topBar.mobileContextSelector }),
+    controls: [...topBar.controls],
+  };
+}
+
+function shellVisibilityToPartial(
+  visibility: ShellVisibilityDeclarationAst,
+): PartialShellVisibilityModel {
+  return {
+    kind: visibility.kind,
+    ...(visibility.context === undefined ? {} : { context: visibility.context }),
   };
 }
 

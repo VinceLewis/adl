@@ -18,6 +18,11 @@ import type {
   ResolvedExpression,
   ResolvedCommandValueExpression,
   RuntimeChannel,
+  ShellContextSelectorPlacement,
+  ShellControlKind,
+  ShellControlPlacement,
+  ShellMobileContextSelectorMode,
+  ShellVisibilityKind,
   SyncMode,
   SyncScope,
   ContextSelectionMode,
@@ -58,7 +63,8 @@ export type BlockName =
   | "TOGGLE"
   | "LIST"
   | "ROW"
-  | "ICON_MAP";
+  | "ICON_MAP"
+  | "SHELL";
 
 export interface EndMarkerNode {
   kind: "EndMarker";
@@ -69,6 +75,7 @@ export interface EndMarkerNode {
 export interface AdlDocumentAst {
   kind: "AdlDocument";
   app: AppDeclarationAst;
+  shell?: ShellDeclarationAst;
   roles: RoleDeclarationAst[];
   contexts: BusinessContextDeclarationAst[];
   objects: ObjectDeclarationAst[];
@@ -87,6 +94,53 @@ export interface AppDeclarationAst {
   theme?: string;
   startView?: string;
   end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface ShellDeclarationAst {
+  kind: "ShellDeclaration";
+  navItems: ShellNavItemDeclarationAst[];
+  controls: ShellControlDeclarationAst[];
+  topBar?: ShellTopBarDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface ShellNavItemDeclarationAst {
+  kind: "ShellNavItemDeclaration";
+  name?: string;
+  view: string;
+  label?: string;
+  icon?: string;
+  group?: string;
+  order?: number;
+  activeWhen: string[];
+  visibility?: ShellVisibilityDeclarationAst;
+  range: SourceRange;
+}
+
+export interface ShellVisibilityDeclarationAst {
+  kind: ShellVisibilityKind;
+  context?: string;
+}
+
+export interface ShellControlDeclarationAst {
+  kind: "ShellControlDeclaration";
+  name: string;
+  controlKind: ShellControlKind;
+  label?: string;
+  icon?: string;
+  placement?: ShellControlPlacement;
+  visibility?: ShellVisibilityDeclarationAst;
+  context?: string;
+  range: SourceRange;
+}
+
+export interface ShellTopBarDeclarationAst {
+  kind: "ShellTopBarDeclaration";
+  contextSelector?: ShellContextSelectorPlacement;
+  mobileContextSelector?: ShellMobileContextSelectorMode;
+  controls: string[];
   range: SourceRange;
 }
 

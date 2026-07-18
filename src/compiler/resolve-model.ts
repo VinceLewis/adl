@@ -61,6 +61,10 @@ import type {
   PartialReadModelFieldModel,
   PartialReadModelModel,
   PartialReadModelSourceModel,
+  PartialShellControlModel,
+  PartialShellModel,
+  PartialShellNavItemModel,
+  PartialShellVisibilityModel,
   PartialStateModel,
   PartialSyncPolicyModel,
   PartialSyncWindowModel,
@@ -116,6 +120,10 @@ import type {
   ResolvedReadModelField,
   ResolvedReadModelSource,
   ResolvedRole,
+  ResolvedShell,
+  ResolvedShellControl,
+  ResolvedShellNavItem,
+  ResolvedShellVisibility,
   ResolvedSort,
   ResolvedState,
   ResolvedSyncPolicy,
@@ -164,6 +172,7 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
     ...object.sync,
   }));
   const startView = input.app.startView ?? objectsWithPolicies[0]?.views[0]?.name ?? "";
+  const shell = resolveShell(input.shell, objectsWithPolicies);
 
   return {
     modelVersion: input.modelVersion ?? ADL_MODEL_VERSION,
@@ -172,6 +181,7 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
       startView,
       theme: input.app.theme ?? DEFAULT_THEME_NAME,
     },
+    shell,
     roles: resolveRoles(input.roles ?? []),
     ...(contexts === undefined ? {} : { contexts }),
     objects: objectsWithPolicies,
@@ -184,6 +194,94 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
     audit: createDefaultAuditModel(),
     operationLog: createDefaultOperationLogModel(),
     defaults: createDefaultModelDefaults(),
+  };
+}
+
+function resolveShell(
+  input: PartialShellModel | undefined,
+  objects: ResolvedObject[],
+): ResolvedShell {
+  const sourceItems = input?.nav?.items ?? [];
+  const declaredViews = new Set(sourceItems.map((item) => item.view));
+  const defaultItems = objects
+    .flatMap((object) => object.views.map((view) => ({ object, view })))
+    .filter(({ view }) => !declaredViews.has(view.name))
+    .map(({ object, view }, index) =>
+      resolveShellNavItem(
+        {
+          view: view.name,
+          label: titleCaseIdentifier(view.name),
+          group: titleCaseIdentifier(object.name),
+          order: (sourceItems.length + index + 1) * 10,
+        },
+        sourceItems.length + index,
+      ),
+    );
+
+  const navItems = [
+    ...sourceItems.map((item, index) => resolveShellNavItem(item, index)),
+    ...defaultItems,
+  ].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
+  const controls = (input?.controls ?? createDefaultShellControls()).map(resolveShellControl);
+
+  return {
+    nav: { items: navItems },
+    topBar: {
+      contextSelector: input?.topBar?.contextSelector ?? "topBar",
+      mobileContextSelector: input?.topBar?.mobileContextSelector ?? "sheet",
+      controls: [...(input?.topBar?.controls ?? controls.map((control) => control.name))],
+    },
+    controls,
+  };
+}
+
+function resolveShellNavItem(input: PartialShellNavItemModel, index: number): ResolvedShellNavItem {
+  return {
+    name: input.name ?? input.view,
+    view: input.view,
+    label: input.label ?? titleCaseIdentifier(input.view),
+    ...(input.icon === undefined ? {} : { icon: input.icon }),
+    ...(input.group === undefined ? {} : { group: input.group }),
+    order: input.order ?? (index + 1) * 10,
+    activeWhen: [...(input.activeWhen ?? [input.view])],
+    visibility: resolveShellVisibility(input.visibility),
+  };
+}
+
+function createDefaultShellControls(): PartialShellControlModel[] {
+  return [
+    {
+      name: "contextSelector",
+      kind: "contextSelector",
+      placement: "topBar",
+    },
+    {
+      name: "syncStatus",
+      kind: "syncStatus",
+      label: "Sync status",
+      placement: "topBar",
+    },
+  ];
+}
+
+function resolveShellControl(input: PartialShellControlModel): ResolvedShellControl {
+  return {
+    name: input.name,
+    kind: input.kind,
+    ...(input.label === undefined ? {} : { label: input.label }),
+    ...(input.icon === undefined ? {} : { icon: input.icon }),
+    placement: input.placement ?? "topBar",
+    visibility: resolveShellVisibility(input.visibility),
+    ...(input.context === undefined ? {} : { context: input.context }),
+  };
+}
+
+function resolveShellVisibility(
+  input: PartialShellVisibilityModel | undefined,
+): ResolvedShellVisibility {
+  return {
+    kind: input?.kind ?? "always",
+    ...(input?.context === undefined ? {} : { context: input.context }),
   };
 }
 
@@ -825,6 +923,15 @@ function resolveReadModelSource(
     object: input.object,
     scope: input.scope ?? defaultScope,
   };
+}
+
+function titleCaseIdentifier(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function defaultReadModelSourceScope(

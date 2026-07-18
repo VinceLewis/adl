@@ -286,15 +286,16 @@ business state.
 ### App Shell
 
 Some screen elements belong to the app shell rather than a single list or form.
-The following syntax is a future proposal, not implemented parser syntax:
+Implemented global shell syntax declares navigation and top-bar controls:
 
 ```adl
 SHELL
-  TOP_BAR
-    LEFT_ACTION Menu
-    TITLE CurrentBand.Name
-    RIGHT_CONTROL BandSelector
-  END.TOP_BAR
+  NAV HomeDashboard LABEL "Home" ICON home GROUP Main ORDER 10
+  NAV BandEventList LABEL "Gigs" ICON calendar GROUP Main ORDER 20
+  NAV MyAvailabilityList LABEL "Availability" ICON calendar GROUP Main ORDER 30 VISIBLE WHEN CONTEXT Band SELECTED
+  CONTROL contextSelector KIND contextSelector PLACEMENT topBar
+  CONTROL syncStatus KIND syncStatus PLACEMENT topBar
+  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector syncStatus
 END.SHELL
 ```
 
@@ -303,15 +304,24 @@ For the Giggle dashboard screenshot this covers:
 - left menu button
 - centered band/app title
 - right-side band selector
+- drawer labels for Home, Gigs, Availability, Songs, Set Lists, and Bands
+- compact mobile business-context selection through a sheet
 
-The resolved model can represent shell regions in JSON/TypeScript partial
-models and validates shell region/control references. The parser, presentation
-evaluator, and browser handoff do not implement ADL `SHELL`, `TOP_BAR`, or
-view-declared shell behavior yet. The current browser has a generic app shell:
-a left hamburger button opens an off-canvas navigation drawer, the center area
-shows the application title, and business context selectors remain in the
-top-bar tools. That browser shell is convention-driven, not driven by ADL shell
-declarations.
+The resolved model stores shell metadata at `ResolvedApplicationModel.shell`.
+Nav items target resolved views and carry label, icon, group, order,
+active-state, and visibility metadata. Shell visibility can depend on runtime
+online state or business-context availability/selection. Visibility is not
+authorization; runtime policy and context services still enforce access when an
+operation runs.
+
+Shell controls support `contextSelector`, `syncStatus`, `themeSwitch`,
+`logout`, and `pwaInstall`. The current browser implements context selection
+and sync/online status. Controls whose host capability is unavailable render as
+unavailable controls rather than breaking the shell.
+
+Per-view `presentation.shell.regions` remains available in JSON/TypeScript
+partial models for view-local presentation-control placement, but source syntax
+for view-declared shell regions is not implemented.
 
 ## Giggle Dashboard Example
 
@@ -546,9 +556,10 @@ transition. This path still uses runtime policy presentation for field
 visibility/editability and runtime services for all write enforcement.
 
 The generic browser shell renders application navigation through a hamburger
-drawer rather than exposing a raw view selector in the top bar. The top bar is
-reserved for app identity and business context controls such as band selection.
-The drawer closes through the hamburger button, overlay click, or Escape key.
+drawer from resolved shell nav metadata rather than exposing a raw view selector
+in the top bar. The top bar is reserved for app identity, model-declared shell
+controls, and business context controls such as band selection. The drawer
+closes through the hamburger button, overlay click, or Escape key.
 
 The deterministic formatter intentionally supports a small cross-runtime subset:
 date tokens such as `EEE d MMM`, time tokens such as `h:mma`, UTC datetime
@@ -558,7 +569,8 @@ and fall back to raw values where possible.
 
 ## Open Questions
 
-- Should shell declarations be global, view-scoped, or both?
+- Should view-scoped shell regions get source syntax, or should shell stay
+  global with view-local controls referenced through presentation?
 - Should icon names be restricted to a standard set at compile time?
 - Should date/time format strings use a single ADL-supported pattern language
   across runtimes?

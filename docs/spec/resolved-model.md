@@ -8,8 +8,8 @@ nodes or ADL source text.
 
 `ResolvedApplicationModel` is deterministic and JSON-compatible. It contains:
 
-- `modelVersion`, `app`, `roles`, `objects`, `policies`, `themes`, `sync`,
-  `audit`, `operationLog`, and `defaults`.
+- `modelVersion`, `app`, `shell`, `roles`, `objects`, `policies`, `themes`,
+  `sync`, `audit`, `operationLog`, and `defaults`.
 - Optional `contexts`, `readModels`, `decisionTables`, and `commands` when the
   source model declares those features.
 - Optional `presentation` declarations on resolved views when the source model
@@ -36,6 +36,11 @@ Resolution applies platform defaults consistently:
   deny-all rule.
 - Objects without explicit views receive list and form views over business and
   computed fields.
+- Shell navigation defaults to one item per resolved view, with derived labels,
+  object-name groups, declaration-order sorting, active state on the target
+  view, and `always` visibility.
+- Shell top-bar controls default to business context selectors and sync status.
+  Mobile business-context selectors default to sheet behavior.
 - View edit containers default to `modal`; `splitPane` is available only when
   explicitly selected.
 - View presentation defaults, when a view declares presentation, are `stack`
@@ -126,10 +131,36 @@ reference known read models or objects. Row fragments, list fields, sort fields,
 filters, icon maps, controls, local state, commands, target views, contexts, and
 shell controls produce structured diagnostics when invalid.
 
-The resolved shell shape is not currently authored through ADL `SHELL` or
-`TOP_BAR` syntax, and presentation runtime evaluation does not emit shell
-regions. Generic browser app-bar styling exists for composed views, but it is
-not a resolved shell contract yet.
+## Shell
+
+`ResolvedApplicationModel.shell` is the renderer-neutral application shell
+contract. It is separate from per-view presentation and is available even when
+source models do not declare a `SHELL` block.
+
+The shell contains:
+
+- `nav.items`: view-backed navigation items with name, target view, label,
+  optional semantic icon, optional group, numeric order, active-state view
+  names, and visibility metadata.
+- `topBar`: business-context selector placement, mobile context-selector mode,
+  and ordered shell control names.
+- `controls`: optional shell controls such as context selector, sync status,
+  theme switch, logout, and PWA install prompt.
+
+Implemented shell visibility metadata is deliberately small: `always`, `online`,
+`offline`, `contextAvailable`, and `contextSelected`. Context visibility names
+a business context and is a rendering decision only. It does not grant or deny
+runtime access.
+
+Shell validation checks view targets, active-state view references, duplicate
+nav names and orders, semantic icon name shape, control names/kinds/placements,
+top-bar control references, and context references in shell visibility or
+controls. Invalid shell metadata produces `ADL_SHELL_*` diagnostics.
+
+Per-view `presentation.shell.regions` remains a JSON/TypeScript partial-model
+shape for placing view-local presentation controls. It is distinct from the
+top-level application shell and is not emitted by presentation runtime
+evaluation.
 
 Presentation does not replace read models, validation, policy enforcement,
 lifecycle enforcement, or sync policy. It only describes how already-authorized

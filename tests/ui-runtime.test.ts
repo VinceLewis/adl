@@ -337,8 +337,32 @@ describe("browser UI runtime", () => {
       "The Betas",
     ]);
 
-    selector.value = seeded.firstBand.meta.guid;
-    selector.dispatchEvent(new Event("change", { bubbles: true }));
+    requireElement<HTMLButtonElement>(app, "button[data-context-compact='true']").click();
+    await flushUi();
+    expect(app.querySelector(".adl-context-sheet")).not.toBeNull();
+    requireElement<HTMLButtonElement>(
+      app,
+      `button[data-context-sheet-option='${seeded.firstBand.meta.guid}']`,
+    ).click();
+    await flushUi();
+
+    expect(app.textContent).toContain("Alpha Hall");
+    expect(app.textContent).not.toContain("Beta Hall");
+
+    const resetSelector = requireElement<HTMLSelectElement>(
+      app,
+      "select[data-context-select='Band']",
+    );
+    resetSelector.value = "";
+    resetSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+
+    const refreshedFirstSelector = requireElement<HTMLSelectElement>(
+      app,
+      "select[data-context-select='Band']",
+    );
+    refreshedFirstSelector.value = seeded.firstBand.meta.guid;
+    refreshedFirstSelector.dispatchEvent(new Event("change", { bubbles: true }));
     await flushUi();
 
     expect(app.textContent).toContain("Alpha Hall");
@@ -413,19 +437,51 @@ describe("browser UI runtime", () => {
     expect(app.querySelector(".adl-menu-action")).not.toBeNull();
     expect(app.querySelector(".adl-view-switch")).toBeNull();
     expect(app.querySelector("select[data-context-select='Band']")).not.toBeNull();
+    expect(app.querySelector("[data-shell-control-kind='syncStatus']")).not.toBeNull();
     expect(app.querySelector("[data-icon='music']")).not.toBeNull();
     expect(app.querySelector("[data-icon='microphone']")).not.toBeNull();
     expect(app.querySelector("[data-icon='x']")).not.toBeNull();
 
     const menu = requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']");
-    menu.click();
+    requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']").click();
     await flushUi();
     expect(requireElement<HTMLElement>(app, ".adl-nav-drawer").classList.contains("active")).toBe(
       true,
     );
     expect(
+      [...app.querySelectorAll("[data-nav-group]")].map((group) => group.textContent?.trim()),
+    ).toEqual(expect.arrayContaining(["Main", "Library", "Admin"]));
+    expect(
+      requireElement<HTMLElement>(app, "[data-nav-item='HomeDashboard']").textContent,
+    ).toContain("Home");
+    expect(
+      requireElement<HTMLElement>(app, "[data-nav-item='BandEventList']").textContent,
+    ).toContain("Gigs");
+    expect(app.querySelector("[data-nav-item='MyAvailabilityList']")).toBeNull();
+    expect(app.querySelector("[data-shell-icon='home']")).not.toBeNull();
+    expect(
       requireElement<HTMLButtonElement>(app, "button[data-view-nav='BandEventList']"),
     ).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await flushUi();
+    expect(requireElement<HTMLElement>(app, ".adl-nav-drawer").classList.contains("active")).toBe(
+      false,
+    );
+
+    const bandSelector = requireElement<HTMLSelectElement>(
+      app,
+      "select[data-context-select='Band']",
+    );
+    bandSelector.value = seeded.firstBand.meta.guid;
+    bandSelector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+    requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']").click();
+    await flushUi();
+    expect(
+      requireElement<HTMLElement>(app, "[data-nav-item='MyAvailabilityList']").textContent,
+    ).toContain("Availability");
+
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await flushUi();
     expect(requireElement<HTMLElement>(app, ".adl-nav-drawer").classList.contains("active")).toBe(

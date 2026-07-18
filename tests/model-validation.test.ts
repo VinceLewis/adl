@@ -555,6 +555,80 @@ describe("validateApplicationModel", () => {
       ]),
     );
   });
+
+  it("reports invalid shell navigation and control declarations", () => {
+    const invalid = cloneResolved(
+      resolveApplicationModel({
+        app: { name: "ShellDiagnostics", startView: "Home" },
+        contexts: [{ name: "Band", object: "Band" }],
+        shell: {
+          nav: {
+            items: [
+              {
+                name: "home",
+                view: "MissingView",
+                icon: "Bad Icon",
+                order: 10,
+                activeWhen: ["AlsoMissing"],
+                visibility: { kind: "contextSelected", context: "MissingContext" },
+              },
+              { name: "home", view: "Home", order: 10 },
+            ],
+          },
+          topBar: {
+            contextSelector: "topBar",
+            mobileContextSelector: "sheet",
+            controls: ["missingControl"],
+          },
+          controls: [
+            {
+              name: "syncStatus",
+              kind: "syncStatus",
+              icon: "Bad Icon",
+              placement: "topBar",
+              context: "MissingContext",
+            },
+            { name: "syncStatus", kind: "logout", placement: "navDrawer" },
+          ],
+        },
+        objects: [
+          {
+            name: "Band",
+            fields: [{ name: "Name", type: "text" }],
+            views: [{ name: "Home", kind: "list", fields: ["Name"] }],
+          },
+        ],
+      }),
+    );
+
+    (invalid.shell.controls[0] as unknown as { kind: string }).kind = "unsupported";
+    (invalid.shell.controls[0] as unknown as { placement: string }).placement = "footer";
+    (invalid.shell.topBar as unknown as { contextSelector: string }).contextSelector = "toolbar";
+    (invalid.shell.topBar as unknown as { mobileContextSelector: string }).mobileContextSelector =
+      "popover";
+    (invalid.shell.nav.items[1]?.visibility as unknown as { kind: string }).kind = "sometimes";
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.SHELL_CONTEXT_SELECTOR_PLACEMENT_INVALID,
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_CONTEXT_UNKNOWN,
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_DUPLICATE,
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_ICON_INVALID,
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_KIND_INVALID,
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_PLACEMENT_INVALID,
+        MODEL_VALIDATION_CODES.SHELL_MOBILE_CONTEXT_SELECTOR_INVALID,
+        MODEL_VALIDATION_CODES.SHELL_NAV_ACTIVE_VIEW_UNKNOWN,
+        MODEL_VALIDATION_CODES.SHELL_NAV_DUPLICATE,
+        MODEL_VALIDATION_CODES.SHELL_NAV_ICON_INVALID,
+        MODEL_VALIDATION_CODES.SHELL_NAV_ORDER_DUPLICATE,
+        MODEL_VALIDATION_CODES.SHELL_NAV_VIEW_UNKNOWN,
+        MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_UNKNOWN,
+        MODEL_VALIDATION_CODES.SHELL_VISIBILITY_KIND_INVALID,
+      ]),
+    );
+  });
 });
 
 function createInvalidResolvedModel(): ResolvedApplicationModel {

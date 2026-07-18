@@ -131,6 +131,19 @@ describe("resolveApplicationModel", () => {
       startView: "PatientRecordList",
       theme: DEFAULT_THEME_NAME,
     });
+    expect(resolved.shell.nav.items[0]).toMatchObject({
+      view: "PatientRecordList",
+      label: "Patient Record List",
+      group: "Patient Record",
+      order: 10,
+      activeWhen: ["PatientRecordList"],
+      visibility: { kind: "always" },
+    });
+    expect(resolved.shell.topBar).toEqual({
+      contextSelector: "topBar",
+      mobileContextSelector: "sheet",
+      controls: ["contextSelector", "syncStatus"],
+    });
     expect(resolved.themes.map((theme) => theme.name)).toEqual([...BUILT_IN_THEME_NAMES]);
     expect(resolved.sync).toEqual([
       {
@@ -202,6 +215,90 @@ describe("resolveApplicationModel", () => {
       nav: "top",
       colorPrimary: "#155EEF",
       colorBorder: "#D9E1EC",
+    });
+  });
+
+  it("resolves explicit shell navigation metadata and inspectable defaults", () => {
+    const resolved = resolveApplicationModel({
+      app: {
+        name: "ShellOps",
+        startView: "TicketBoard",
+      },
+      shell: {
+        nav: {
+          items: [
+            {
+              view: "TicketBoard",
+              label: "Work",
+              icon: "home",
+              group: "Main",
+              order: 20,
+              activeWhen: ["TicketBoard", "TicketList"],
+            },
+            {
+              view: "TicketList",
+              label: "Tickets",
+              icon: "list",
+              group: "Main",
+              order: 10,
+              visibility: { kind: "offline" },
+            },
+          ],
+        },
+        topBar: {
+          contextSelector: "topBar",
+          mobileContextSelector: "sheet",
+          controls: ["syncStatus"],
+        },
+        controls: [{ name: "syncStatus", kind: "syncStatus", placement: "topBar" }],
+      },
+      objects: [
+        {
+          name: "Ticket",
+          fields: [{ name: "Title", type: "text" }],
+          views: [
+            { name: "TicketBoard", kind: "dashboard", fields: ["Title"] },
+            { name: "TicketList", kind: "list", fields: ["Title"] },
+          ],
+        },
+      ],
+    });
+
+    expect(resolved.shell.nav.items.map((item) => [item.view, item.label, item.order])).toEqual([
+      ["TicketList", "Tickets", 10],
+      ["TicketBoard", "Work", 20],
+    ]);
+    expect(resolved.shell.nav.items[0]).toMatchObject({
+      icon: "list",
+      group: "Main",
+      visibility: { kind: "offline" },
+    });
+    expect(resolved.shell.controls).toEqual([
+      {
+        name: "syncStatus",
+        kind: "syncStatus",
+        placement: "topBar",
+        visibility: { kind: "always" },
+      },
+    ]);
+
+    expect(
+      explainResolvedModel(resolved, {
+        app: { name: "ShellOps", startView: "TicketBoard" },
+        shell: {
+          nav: { items: [{ view: "TicketBoard", label: "Work" }] },
+        },
+        objects: [
+          {
+            name: "Ticket",
+            fields: [{ name: "Title", type: "text" }],
+            views: [{ name: "TicketBoard", kind: "dashboard", fields: ["Title"] }],
+          },
+        ],
+      }).entries.find((entry) => entry.path === "shell.nav.items[1].label"),
+    ).toMatchObject({
+      value: "Work",
+      origin: "source",
     });
   });
 
