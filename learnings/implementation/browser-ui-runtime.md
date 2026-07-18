@@ -29,6 +29,9 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   drawer for application view navigation. Business context selectors stay in the
   top bar. Avoid putting the raw object/view selector back into the top bar for
   app-like reference experiences.
+- Shell chrome is app-level, not presentation-view-specific. The browser uses
+  the same app top bar across composed dashboards/calendars and generic CRUD
+  list/form pages; only the workspace body switches renderer by view kind.
 - View-local presentation controls, such as toggles, dispatch state updates
   back to `adl-app`. The app re-evaluates the presentation view with local
   state updates and does not write object-store records for those interactions.

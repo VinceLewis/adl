@@ -2096,6 +2096,7 @@ class AdlParser {
       : this.expectDottedWord("READ", "MODEL", "READ.MODEL declaration");
     const name = this.consumeName("read model name");
     let context: ViewContextDeclarationAst | undefined;
+    let strategy: ReadModelDeclarationAst["strategy"];
     const sources: ReadModelSourceDeclarationAst[] = [];
     const fields: ReadModelFieldDeclarationAst[] = [];
     const sort: SortDeclarationAst[] = [];
@@ -2114,6 +2115,7 @@ class AdlParser {
           kind: "ReadModelDeclaration",
           name,
           ...(context === undefined ? {} : { context }),
+          ...(strategy === undefined ? {} : { strategy }),
           sources,
           fields,
           sort,
@@ -2125,6 +2127,9 @@ class AdlParser {
       if (this.matchWord("CONTEXT")) {
         context = this.parseViewContextAfterKeyword();
         this.consumeLineEnd("READ_MODEL CONTEXT directive");
+      } else if (this.matchWord("UNION")) {
+        strategy = "union";
+        this.consumeLineEnd("READ_MODEL UNION directive");
       } else if (this.checkWord("SOURCE")) {
         sources.push(this.parseReadModelSource());
       } else if (this.checkWord("FIELD")) {
@@ -2133,7 +2138,9 @@ class AdlParser {
         sort.push(...this.parseSortList());
         this.consumeLineEnd("READ_MODEL SORT directive");
       } else {
-        this.failUnexpected("READ_MODEL directive SOURCE, FIELD, SORT, or END.READ_MODEL");
+        this.failUnexpected(
+          "READ_MODEL directive CONTEXT, UNION, SOURCE, FIELD, SORT, or END.READ_MODEL",
+        );
       }
     }
   }

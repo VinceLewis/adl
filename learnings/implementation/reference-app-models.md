@@ -46,10 +46,10 @@ Read this before adding or changing ADL reference applications, especially multi
 - The Giggle home dashboard stays in `src/reference/giggle-band/ui.adl`; the
   browser renderer only gained generic composed-view shell and compact-feed
   styling.
-- The schedule feed continues to use one `Event` object and one
-  `HomeUpcomingEvents` read model. `EventType` now includes `Unavailable` so the
-  authored icon map and local toggles can represent the three dashboard row
-  types without a union read model.
+- The schedule feed uses union read models for event rows plus current-user
+  availability rows. `Event.EventType` stays limited to event categories such as
+  `Gig` and `Rehearsal`; unavailable schedule rows come from `Availability.Status`
+  projected through `HomeUpcomingEvents` and `CalendarPlanningItems`.
 - The default demo seed leaves `PendingInvitations` empty for the home
   dashboard while command tests create explicit pending invitations. Keep
   invitation-command setup local to command tests so the reference dashboard can
@@ -58,5 +58,6 @@ Read this before adding or changing ADL reference applications, especially multi
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.
-- Prefer one domain object with a type field when the current read-model runtime cannot express a union of several source objects.
+- Prefer union read models when a reference surface must present records from
+  distinct domain objects without pretending one object is another.
 - When modeling user-owned records, prefer structured policy conditions over owner-convention checks when the business owner is a field such as `User`.

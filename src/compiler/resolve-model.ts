@@ -1257,6 +1257,7 @@ function resolveReadModel(
   return {
     name: input.name,
     ...(input.context === undefined ? {} : { context: resolveViewContext(input.context) }),
+    strategy: input.strategy ?? "join",
     sources,
     fields: input.fields.map((field) =>
       resolveReadModelField(field, sources, sourcesByName, objectsByName),

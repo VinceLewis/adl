@@ -142,10 +142,7 @@ describe("band reference app runtime", () => {
       undefined,
       seeded.firstBandContext,
     );
-    expect(firstBandEvents.map((record) => record.values.Title)).toEqual([
-      "Canal Street headline",
-      "Unavailable - session prep",
-    ]);
+    expect(firstBandEvents.map((record) => record.values.Title)).toEqual(["Canal Street headline"]);
 
     await expect(
       seeded.runtime.read("Event", seeded.secondEvent.meta.guid, seeded.firstBandContext),
@@ -199,31 +196,57 @@ describe("band reference app runtime", () => {
       selectedContexts: { Band: seeded.firstBand.meta.guid },
     });
     expect(home.rows.map((row) => row.values)).toEqual([
-      {
+      expect.objectContaining({
         EventDate: "2026-08-01",
         StartTime: "20:00",
         EventType: "Gig",
         Title: "Canal Street headline",
         VenueName: "Alpha Hall",
-        BandName: "The Alphas",
-      },
-      {
+      }),
+      expect.objectContaining({
         EventDate: "2026-08-02",
         StartTime: "18:30",
         EventType: "Rehearsal",
         Title: "New set rehearsal",
         VenueName: "Beta Rooms",
-        BandName: "The Betas",
-      },
-      {
+      }),
+      expect.objectContaining({
         EventDate: "2026-08-03",
-        StartTime: "09:00",
         EventType: "Unavailable",
         Title: "Unavailable - session prep",
-        VenueName: "Personal calendar",
-        BandName: "The Alphas",
-      },
+      }),
     ]);
+    expect(home.rows[2]?.sources).toEqual({
+      availability: {
+        objectName: "Availability",
+        recordId: seeded.availability.meta.guid,
+      },
+    });
+
+    const calendar = await seeded.runtime.executeReadModel(
+      "CalendarPlanningItems",
+      seeded.firstBandContext,
+    );
+    expect(calendar.rows.map((row) => row.values)).toEqual([
+      expect.objectContaining({
+        Date: "2026-08-01",
+        StartTime: "20:00",
+        CalendarStatus: "Gig",
+        Title: "Canal Street headline",
+        VenueName: "Alpha Hall",
+      }),
+      expect.objectContaining({
+        Date: "2026-08-03",
+        CalendarStatus: "Unavailable",
+        Title: "Unavailable - session prep",
+      }),
+    ]);
+    expect(calendar.rows[1]?.sources).toEqual({
+      availability: {
+        objectName: "Availability",
+        recordId: seeded.availability.meta.guid,
+      },
+    });
 
     const setList = await seeded.runtime.executeReadModel(
       "SetListItemsByPosition",
@@ -269,11 +292,7 @@ describe("band reference app runtime", () => {
     );
 
     expect(new Set(eventRecords.map((record) => record.recordId))).toEqual(
-      new Set([
-        seeded.firstEvent.meta.guid,
-        seeded.secondEvent.meta.guid,
-        seeded.thirdEvent.meta.guid,
-      ]),
+      new Set([seeded.firstEvent.meta.guid, seeded.secondEvent.meta.guid]),
     );
     expect(
       eventRecords.find((record) => record.recordId === seeded.firstEvent.meta.guid)?.reasons,
@@ -293,7 +312,6 @@ describe("band reference app runtime", () => {
     expect(eventSearch.map((record) => record.meta.guid)).toEqual([
       seeded.firstEvent.meta.guid,
       seeded.secondEvent.meta.guid,
-      seeded.thirdEvent.meta.guid,
     ]);
     expect(availabilitySearch.map((record) => record.meta.guid)).toEqual([
       seeded.availability.meta.guid,

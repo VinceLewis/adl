@@ -433,7 +433,7 @@ describe("browser UI runtime", () => {
     expect(app.textContent).toContain("New set rehearsal");
     expect(app.textContent).toContain("Unavailable - session prep");
     expect(app.textContent).toContain("No pending invitations");
-    expect(app.querySelector(".adl-topbar-composed")).not.toBeNull();
+    expect(app.querySelector(".adl-topbar-app")).not.toBeNull();
     expect(app.querySelector(".adl-menu-action")).not.toBeNull();
     expect(app.querySelector(".adl-view-switch")).toBeNull();
     expect(app.querySelector("select[data-context-select='Band']")).not.toBeNull();
@@ -454,9 +454,9 @@ describe("browser UI runtime", () => {
     expect(
       requireElement<HTMLElement>(
         app,
-        "[data-presentation-row][data-status='unavailable'] .adl-presentation-status",
+        "[data-presentation-row][data-status='rehearsal'] .adl-presentation-status",
       ).style.getPropertyValue("--adl-status-color"),
-    ).toContain("--adl-color-status-unavailable");
+    ).toContain("--adl-color-status-rehearsal");
 
     const menu = requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']");
     requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']").click();
@@ -530,6 +530,51 @@ describe("browser UI runtime", () => {
     expect(app.textContent).toContain("Canal Street headline");
     expect(app.textContent).not.toContain("New set rehearsal");
     expect(app.textContent).toContain("Unavailable - session prep");
+  });
+
+  it("uses Giggle app shell chrome on CRUD pages", async () => {
+    const seeded = await createSeededGiggleRuntime();
+    const app = await mountApp(seeded.model, seeded.runtime, {
+      ...seeded.firstBandContext,
+      channel: "ui",
+    });
+
+    navigateWithDrawer(app, "BandEventList");
+    await flushUi();
+
+    expect(app.querySelector("adl-list-view")).not.toBeNull();
+    expect(app.querySelector("adl-composed-view")).toBeNull();
+    expect(app.querySelector(".adl-topbar-app")).not.toBeNull();
+    expect(app.textContent).not.toContain("Model-driven browser runtime");
+  });
+
+  it("opens Giggle calendar availability rows as Availability records", async () => {
+    const seeded = await createSeededGiggleRuntime();
+    const app = await mountApp(seeded.model, seeded.runtime, {
+      ...seeded.firstBandContext,
+      channel: "ui",
+    });
+
+    navigateWithDrawer(app, "BandEventCalendar");
+    await waitForText(app, "Mon 3 Aug");
+
+    const unavailableDay = requireElement<HTMLElement>(
+      app,
+      "[data-calendar-agenda-day='2026-08-03']",
+    );
+    expect(unavailableDay.textContent).toContain("Unavailable - session prep");
+
+    requireElement<HTMLButtonElement>(
+      unavailableDay,
+      "button[data-object-name='Availability'][data-record-id]",
+    ).click();
+    await waitForText(app, "Local first");
+
+    expect(app.querySelector(".adl-edit-container-modal adl-form-view")).not.toBeNull();
+    expect(
+      requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='Notes'] input")
+        .value,
+    ).toBe("Unavailable - session prep");
   });
 
   it("renders composed list empty states from the presentation evaluator", async () => {
@@ -642,7 +687,57 @@ describe("browser UI runtime", () => {
     expect(app.querySelector("[data-presentation-calendar='MonthPlanner']")).not.toBeNull();
     expect(app.textContent).toContain("August 2026");
     expect(app.querySelector("[data-calendar-cell='2026-08-01'] details")).not.toBeNull();
+    expect(
+      requireElement<HTMLElement>(app, "[data-calendar-cell='2026-08-01']").getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+    expect(
+      requireElement<HTMLElement>(app, "[data-calendar-cell='2026-08-01'] .adl-calendar-actions")
+        .className,
+    ).toContain("adl-calendar-actions-cell");
+    const selectedDay = requireElement<HTMLElement>(
+      app,
+      "[data-calendar-selected-date='2026-08-01']",
+    );
+    expect(selectedDay.textContent).toContain("Sat 1 Aug");
+    expect(selectedDay.textContent).toContain("3 events");
+    expect(selectedDay.textContent).toContain("First set");
+    expect(
+      app.querySelector("[data-calendar-selected-date='2026-08-01'] button[data-record-id]"),
+    ).not.toBeNull();
     expect(app.querySelector("[data-calendar-agenda-day='2026-08-01']")).not.toBeNull();
+    expect(
+      requireElement<HTMLElement>(app, "[data-calendar-agenda-day='2026-08-01'] time").textContent,
+    ).toBe("Sat 1 Aug");
+    expect(
+      requireElement<HTMLElement>(app, "[data-calendar-agenda-day='2026-08-02']").className,
+    ).toContain("empty");
+
+    requireElement<HTMLElement>(app, "[data-calendar-cell='2026-08-04']").click();
+    await waitForText(app, "Tue 4 Aug");
+    expect(
+      requireElement<HTMLElement>(app, "[data-calendar-cell='2026-08-04']").getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+    expect(
+      requireElement<HTMLElement>(app, "[data-calendar-selected-date='2026-08-04']").textContent,
+    ).toContain("No events scheduled.");
+
+    requireElement<HTMLButtonElement>(
+      app,
+      "[data-calendar-agenda-day='2026-08-01'] button[data-record-id]",
+    ).click();
+    await waitForText(app, "Local first");
+    expect(app.querySelector(".adl-edit-container-modal adl-form-view")).not.toBeNull();
+    expect(
+      requireElement<HTMLInputElement>(app, "adl-field-renderer[data-field-name='Title'] input")
+        .value,
+    ).toBe("First set");
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='cancel']").click();
+    await flushUi();
 
     requireElement<HTMLButtonElement>(app, "button[aria-label='Next month']").click();
     await waitForText(app, "September 2026");

@@ -35,6 +35,7 @@ import type {
   PresentationStateType,
   PolicyAction,
   ReadModelSourceScope,
+  ReadModelStrategy,
   ResolvedApplicationModel,
   ResolvedBusinessContext,
   ResolvedCommand,
@@ -353,6 +354,7 @@ export const MODEL_VALIDATION_CODES = {
   READ_MODEL_SOURCE_OBJECT_UNKNOWN: "ADL_READ_MODEL_SOURCE_OBJECT_UNKNOWN",
   READ_MODEL_SOURCE_SCOPE_INVALID: "ADL_READ_MODEL_SOURCE_SCOPE_INVALID",
   READ_MODEL_SORT_FIELD_UNKNOWN: "ADL_READ_MODEL_SORT_FIELD_UNKNOWN",
+  READ_MODEL_STRATEGY_INVALID: "ADL_READ_MODEL_STRATEGY_INVALID",
   RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN",
   RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED: "ADL_RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED",
   RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN",
@@ -552,6 +554,7 @@ const READ_MODEL_SOURCE_SCOPES = new Set<ReadModelSourceScope>([
   "allAvailableContexts",
   "currentUser",
 ]);
+const READ_MODEL_STRATEGIES = new Set<ReadModelStrategy>(["join", "union"]);
 const COMPUTED_FIELD_STRATEGIES = new Set<ComputedFieldStrategy>(["readTime"]);
 
 const POLICY_ACTIONS = new Set<PolicyAction>([
@@ -5008,6 +5011,15 @@ function validateReadModel(
   const sourcesByName = indexByName(readModel.sources);
 
   validateReadModelContext(readModel.context, `${readModelPath}.context`, indexes, diagnostics);
+  if (!READ_MODEL_STRATEGIES.has(readModel.strategy)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_STRATEGY_INVALID,
+        `Read model '${readModel.name}' has invalid strategy '${String(readModel.strategy)}'.`,
+        `${readModelPath}.strategy`,
+      ),
+    );
+  }
   reportDuplicateNames(
     readModel.sources,
     `${readModelPath}.sources`,

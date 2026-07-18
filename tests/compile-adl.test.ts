@@ -734,9 +734,20 @@ END.COMMAND
       expect.arrayContaining([
         "HomeUpcomingEvents",
         "SetListItemsByPosition",
+        "CalendarPlanningItems",
         "PendingInvitations",
       ]),
     );
+    expect(
+      result.model.readModels?.find((readModel) => readModel.name === "HomeUpcomingEvents"),
+    ).toMatchObject({
+      strategy: "union",
+    });
+    expect(
+      result.model.readModels?.find((readModel) => readModel.name === "CalendarPlanningItems"),
+    ).toMatchObject({
+      strategy: "union",
+    });
     expect(
       result.model.objects
         .find((object) => object.name === "Event")

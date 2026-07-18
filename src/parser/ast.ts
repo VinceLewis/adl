@@ -20,6 +20,7 @@ import type {
   PolicyAction,
   PolicyEffect,
   ReadModelSourceScope,
+  ReadModelStrategy,
   ResolvedExpression,
   ResolvedCommandValueExpression,
   RuntimeChannel,
@@ -585,6 +586,7 @@ export interface ReadModelDeclarationAst {
   kind: "ReadModelDeclaration";
   name: string;
   context?: ViewContextDeclarationAst;
+  strategy?: ReadModelStrategy;
   sources: ReadModelSourceDeclarationAst[];
   fields: ReadModelFieldDeclarationAst[];
   sort: SortDeclarationAst[];

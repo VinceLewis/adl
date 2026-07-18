@@ -1754,10 +1754,7 @@ export class PresentationRuntime {
     diagnostics: RuntimePresentationDiagnostic[],
     location: DiagnosticLocation,
   ): string {
-    if (
-      !Object.prototype.hasOwnProperty.call(values, fragment.field) ||
-      values[fragment.field] === null
-    ) {
+    if (!Object.prototype.hasOwnProperty.call(values, fragment.field)) {
       diagnostics.push({
         severity: "warning",
         code: "ADL_PRESENTATION_FIELD_MISSING",
@@ -1771,6 +1768,10 @@ export class PresentationRuntime {
     }
 
     const value = values[fragment.field];
+    if (value === null) {
+      return fragment.fallback ?? "";
+    }
+
     if (fragment.format !== undefined) {
       return formatPresentationValue(value, fragment.format, diagnostics, location);
     }

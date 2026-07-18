@@ -15,7 +15,7 @@ OBJECT Event
   VIEW HomeDashboard DASHBOARD
     CONTEXT ALL Band
     READ_MODEL HomeUpcomingEvents
-    FIELDS EventDate StartTime EventType Title VenueName BandName
+    FIELDS EventDate StartTime EventType Title VenueName
     SORT EventDate ASC StartTime ASC
     ACTIONS read search
     LAYOUT stack
@@ -85,9 +85,6 @@ OBJECT Event
           TEXT EventDate FORMAT date 'EEE d MMM'
           TEXT ' '
           TEXT StartTime FORMAT time 'h:mma'
-          TEXT ' - '
-          TEXT BandName
-          TEXT ' - '
           TEXT Title STYLE bold
           TEXT ' - '
           TEXT VenueName
@@ -146,24 +143,19 @@ OBJECT Event
     SECTION PlanningCalendar
       HEADING 'Calendar'
 
-      CALENDAR MonthPlanner FROM OBJECT Event
+      CALENDAR MonthPlanner FROM READ_MODEL CalendarPlanningItems
         MONTH_STATE visibleMonth
         WEEK_START monday
-        RANGE '2026-08-01' TO '2026-08-31'
         DATE_FIELD Date
         TITLE_FIELD Title
         SUMMARY_FIELDS StartTime VenueName
-        FIELDS Date StartTime EventType Title VenueName
+        FIELDS Date StartTime CalendarStatus Title VenueName
         ORDER BY Date ASC, StartTime ASC
         DENSITY compact
-        STATUS CalendarEventTypeStatus(EventType)
+        STATUS CalendarEventTypeStatus(CalendarStatus)
         EMPTY_TEXT 'No events in this month'
 
         ACTION addEventOnDate CREATE Event LABEL 'Add Event' ICON calendar PLACEMENT primary
-          INPUT Date FROM Date
-        END.ACTION
-
-        ACTION viewEventsOnDate VIEW BandEventList LABEL 'View Events' ICON calendar PLACEMENT secondary WHEN HasEvents == true
           INPUT Date FROM Date
         END.ACTION
       END.CALENDAR

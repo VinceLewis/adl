@@ -50,7 +50,6 @@ export interface BandReferenceSeed {
   secondBand: StoredObjectRecord;
   firstEvent: StoredObjectRecord;
   secondEvent: StoredObjectRecord;
-  thirdEvent: StoredObjectRecord;
   availability: StoredObjectRecord;
   firstSong: StoredObjectRecord;
   secondSong: StoredObjectRecord;
@@ -163,21 +162,6 @@ export async function seedBandReferenceRuntime(
     },
     contextForBand(systemContext, secondBand.meta.guid),
   );
-  const thirdEvent = await runtime.create(
-    "Event",
-    {
-      Band: firstBand.meta.guid,
-      EventType: "Unavailable",
-      Date: "2026-08-03",
-      StartTime: "09:00",
-      EndTime: "12:00",
-      Title: "Unavailable - session prep",
-      VenueName: "Personal calendar",
-      VenueLocation: "Remote",
-    },
-    contextForBand(systemContext, firstBand.meta.guid),
-  );
-
   const musicianContext: RuntimeContext = {
     userId: musician.meta.guid,
     roles: [],
@@ -199,9 +183,9 @@ export async function seedBandReferenceRuntime(
     "Availability",
     {
       User: musician.meta.guid,
-      Date: "2026-08-01",
+      Date: "2026-08-03",
       Status: "Unavailable",
-      Notes: "Already booked for the headline show.",
+      Notes: "Unavailable - session prep",
     },
     musicianContext,
   );
@@ -302,7 +286,6 @@ export async function seedBandReferenceRuntime(
     secondBand,
     firstEvent,
     secondEvent,
-    thirdEvent,
     availability,
     firstSong,
     secondSong,
@@ -323,13 +306,15 @@ export async function seedBandReferenceRuntimeIfEmpty(
   );
 
   if (existing[0] !== undefined) {
+    const musicianContext: RuntimeContext = {
+      userId: existing[0].meta.guid,
+      roles: [],
+      channel: "ui",
+      now: getSeedNow(systemContext),
+    };
+    await migratePersistedBandReferenceDemo(runtime, musicianContext, systemContext);
     return {
-      musicianContext: {
-        userId: existing[0].meta.guid,
-        roles: [],
-        channel: "ui",
-        now: getSeedNow(systemContext),
-      },
+      musicianContext,
       seeded: false,
     };
   }
@@ -342,6 +327,52 @@ export async function seedBandReferenceRuntimeIfEmpty(
     },
     seeded: true,
   };
+}
+
+async function migratePersistedBandReferenceDemo(
+  runtime: ApplicationRuntime,
+  musicianContext: RuntimeContext,
+  systemContext: RuntimeContext,
+): Promise<void> {
+  const availableBands = await runtime.listAvailableContexts("Band", musicianContext);
+  for (const band of availableBands) {
+    const bandSystemContext = contextForBand(systemContext, band.id);
+    const staleEvents = await runtime.search(
+      "Event",
+      { text: "Unavailable - session prep", fields: ["Title"] },
+      bandSystemContext,
+    );
+    for (const event of staleEvents) {
+      await runtime.delete("Event", event.meta.guid, bandSystemContext);
+    }
+  }
+
+  const availabilityRecords = await runtime.search("Availability", undefined, musicianContext);
+  for (const availabilityRecord of availabilityRecords.filter(
+    (record) => record.values.Notes === "Already booked for the headline show.",
+  )) {
+    await runtime.delete("Availability", availabilityRecord.meta.guid, musicianContext);
+  }
+
+  if (
+    !availabilityRecords.some(
+      (record) =>
+        record.values.Date === "2026-08-03" &&
+        record.values.Status === "Unavailable" &&
+        record.values.Notes === "Unavailable - session prep",
+    )
+  ) {
+    await runtime.create(
+      "Availability",
+      {
+        User: musicianContext.userId,
+        Date: "2026-08-03",
+        Status: "Unavailable",
+        Notes: "Unavailable - session prep",
+      },
+      musicianContext,
+    );
+  }
 }
 
 export function contextForBand(context: RuntimeContext, bandId: string): RuntimeContext {

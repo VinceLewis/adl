@@ -365,6 +365,7 @@ function readModelToPartial(readModel: ReadModelDeclarationAst): PartialReadMode
     ...(readModel.context === undefined
       ? {}
       : { context: viewContextToPartial(readModel.context) }),
+    ...(readModel.strategy === undefined ? {} : { strategy: readModel.strategy }),
     sources: readModel.sources.map((source) => ({
       name: source.name,
       object: source.object,

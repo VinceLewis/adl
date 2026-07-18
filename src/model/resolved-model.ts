@@ -145,6 +145,7 @@ export type ReadModelSourceScope =
   | "currentContext"
   | "allAvailableContexts"
   | "currentUser";
+export type ReadModelStrategy = "join" | "union";
 export type ObjectConstraintKind = "unique" | "ordered";
 export type PolicyConditionKind = "equals" | "all" | "any" | "not";
 export type PolicyConditionRuntimeProperty = "userId";
@@ -867,6 +868,7 @@ export interface ResolvedPresentationShellRegion {
 export interface ResolvedReadModel {
   name: string;
   context?: ResolvedViewContext;
+  strategy: ReadModelStrategy;
   sources: ResolvedReadModelSource[];
   fields: ResolvedReadModelField[];
   sort: ResolvedSort[];
@@ -1691,6 +1693,7 @@ export interface PartialPresentationShellRegionModel {
 export interface PartialReadModelModel {
   name: string;
   context?: PartialViewContextModel;
+  strategy?: ReadModelStrategy;
   sources: PartialReadModelSourceModel[];
   fields: PartialReadModelFieldModel[];
   sort?: ResolvedSort[];

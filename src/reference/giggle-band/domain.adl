@@ -89,7 +89,7 @@ OBJECT Event
   DISPLAY Title
   SCOPE Band FIELD Band
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
-  FIELD EventType TEXT REQUIRED DEFAULT Gig IN ('Gig', 'Rehearsal', 'Unavailable')
+  FIELD EventType TEXT REQUIRED DEFAULT Gig IN ('Gig', 'Rehearsal')
   FIELD Date DATE REQUIRED
   FIELD StartTime TIME
   FIELD EndTime TIME
@@ -229,14 +229,22 @@ END.OBJECT
 
 READ_MODEL HomeUpcomingEvents
   CONTEXT ALL Band
+  UNION
   SOURCE event OBJECT Event SCOPE allAvailableContexts
-  SOURCE band OBJECT Band SCOPE allAvailableContexts
-  FIELD EventDate FROM event.Date
-  FIELD StartTime FROM event.StartTime
-  FIELD EventType FROM event.EventType
-  FIELD Title FROM event.Title
-  FIELD VenueName FROM event.VenueName
-  FIELD BandName FROM band.Name
+  SOURCE availability OBJECT Availability SCOPE currentUser
+  FIELD EventDateSource FROM event.Date
+  FIELD AvailabilityDate FROM availability.Date
+  FIELD EventDate DATE = EventDateSource ?? AvailabilityDate
+  FIELD EventStartTime FROM event.StartTime
+  FIELD StartTime TIME = EventStartTime ?? NULL
+  FIELD EventTypeSource FROM event.EventType
+  FIELD AvailabilityStatus FROM availability.Status
+  FIELD EventType TEXT = EventTypeSource ?? AvailabilityStatus
+  FIELD EventTitle FROM event.Title
+  FIELD AvailabilityNotes FROM availability.Notes
+  FIELD Title TEXT = EventTitle ?? AvailabilityNotes
+  FIELD EventVenueName FROM event.VenueName
+  FIELD VenueName TEXT = EventVenueName ?? 'Personal calendar'
   SORT EventDate ASC StartTime ASC
 END.READ_MODEL
 
@@ -259,6 +267,25 @@ READ_MODEL CurrentUserAvailability
   FIELD Status FROM availability.Status
   FIELD UserName FROM user.Name
   SORT AvailabilityDate ASC
+END.READ_MODEL
+
+READ_MODEL CalendarPlanningItems
+  CONTEXT REQUIRED Band
+  UNION
+  SOURCE event OBJECT Event SCOPE currentContext
+  SOURCE availability OBJECT Availability SCOPE currentUser
+  FIELD EventDate FROM event.Date
+  FIELD AvailabilityDate FROM availability.Date
+  FIELD Date DATE = EventDate ?? AvailabilityDate
+  FIELD StartTime FROM event.StartTime
+  FIELD EventType FROM event.EventType
+  FIELD AvailabilityStatus FROM availability.Status
+  FIELD CalendarStatus TEXT = EventType ?? AvailabilityStatus
+  FIELD EventTitle FROM event.Title
+  FIELD AvailabilityNotes FROM availability.Notes
+  FIELD Title TEXT = EventTitle ?? AvailabilityNotes
+  FIELD VenueName FROM event.VenueName
+  SORT Date ASC StartTime ASC
 END.READ_MODEL
 
 READ_MODEL PendingInvitations

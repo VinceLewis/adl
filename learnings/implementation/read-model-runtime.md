@@ -10,6 +10,12 @@ Read this before changing read-model execution, read-model-backed dashboards, re
 - `ReadModelService` reads raw records internally only to perform backend-neutral lookup joins and filtering. It still enforces object scope, search/read policy, and field-level read shaping before returning projected rows.
 - Cross-context read models with `context.mode: "all"` deliberately remove the selected context and resolve all available context roles through `RuntimeContextService`, matching Phase 14 view navigation behavior.
 - The current implementation treats the first source as the primary row source. Additional sources are resolved by lookup fields on already-loaded source records. It does not implement arbitrary joins, aggregates, SQL, or union-style reporting.
+- Read models now have an explicit execution strategy. `join` is the default and
+  preserves the primary-source plus lookup-source behavior above. `union`
+  searches each declared source independently and projects one row per source
+  record, preserving the source alias and record identity for renderer actions.
+  Use union read models for mixed planning feeds such as Event plus Availability
+  calendar rows; do not fake those source identities in the browser renderer.
 - Read-model rows return projected `values` plus source record identities. They do not expose raw source records to the UI.
 - The generic dashboard renderer presents read-model rows as a dense event list. It is not a calendar or scheduler widget.
 

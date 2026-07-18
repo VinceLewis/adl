@@ -108,6 +108,10 @@ export class ReadModelService {
     readModel: ResolvedReadModel,
     context: RuntimeContext,
   ): Promise<RuntimeReadModelRow[]> {
+    if (readModel.strategy === "union") {
+      return this.executeUnionRows(readModel, context);
+    }
+
     const primarySource = readModel.sources[0];
     if (primarySource === undefined) {
       return [];
@@ -134,6 +138,22 @@ export class ReadModelService {
 
       if (rowComplete) {
         rows.push(this.projectRow(readModel, sourceRecords, context));
+      }
+    }
+
+    return rows;
+  }
+
+  private async executeUnionRows(
+    readModel: ResolvedReadModel,
+    context: RuntimeContext,
+  ): Promise<RuntimeReadModelRow[]> {
+    const rows: RuntimeReadModelRow[] = [];
+
+    for (const source of readModel.sources) {
+      const records = await this.searchPrimarySource(readModel, source, context);
+      for (const record of records) {
+        rows.push(this.projectRow(readModel, new Map([[source.name, record]]), context));
       }
     }
 

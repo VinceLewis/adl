@@ -41,6 +41,7 @@ import type {
   PresentationCalendarNavigateDetail,
   PresentationActionDetail,
   PresentationMatrixCellCycleDetail,
+  PresentationRecordSelectDetail,
   PresentationStateChangeDetail,
 } from "./adl-composed-view.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
@@ -490,6 +491,42 @@ export class AdlAppElement extends HTMLElement {
     });
   };
 
+  private readonly handlePresentationRecordSelect = (event: Event): void => {
+    const detail = (event as CustomEvent<PresentationRecordSelectDetail>).detail;
+    if (detail === undefined) {
+      return;
+    }
+
+    void this.runCommand(async () => {
+      const context = this.requireActiveRuntimeContext();
+      const record = await this.runtime.read(detail.objectName, detail.recordId, context);
+      if (record === null) {
+        return;
+      }
+
+      const activeObject = this.activeObject;
+      if (detail.objectName !== activeObject.name) {
+        const targetObject = this._model.objects.find(
+          (object) => object.name === detail.objectName,
+        );
+        const targetView =
+          targetObject?.views.find((view) => view.kind === "list") ?? targetObject?.views[0];
+        if (targetView !== undefined) {
+          this.viewName = targetView.name;
+        }
+      }
+
+      this.mode = "edit";
+      this.selectedRecord = record;
+      this.editContainerOpen = true;
+      this.draftValues = {};
+      this.stagedChildChanges = [];
+      this.fieldIssues = [];
+      await this.refreshEditSurface();
+      this.render();
+    });
+  };
+
   private async openCreateFromPresentationAction(detail: PresentationActionDetail): Promise<void> {
     await this.runCommand(async () => {
       const targetView =
@@ -640,6 +677,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.addEventListener("adl-presentation-action", this.handlePresentationAction);
     this.addEventListener("adl-presentation-calendar-nav", this.handlePresentationCalendarNavigate);
+    this.addEventListener("adl-presentation-record-select", this.handlePresentationRecordSelect);
     this.addEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.addEventListener("change", this.handleChange);
     this.addEventListener("click", this.handleClick);
@@ -665,6 +703,7 @@ export class AdlAppElement extends HTMLElement {
       "adl-presentation-calendar-nav",
       this.handlePresentationCalendarNavigate,
     );
+    this.removeEventListener("adl-presentation-record-select", this.handlePresentationRecordSelect);
     this.removeEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.removeEventListener("change", this.handleChange);
     this.removeEventListener("click", this.handleClick);
@@ -904,8 +943,8 @@ export class AdlAppElement extends HTMLElement {
     const readModel = this.activeReadModel;
     const formView = this.formView;
     const isComposedView = view.presentation !== undefined;
-    const shellClass = isComposedView ? "adl-shell adl-shell-composed" : "adl-shell";
-    const topbarClass = isComposedView ? "adl-topbar adl-topbar-composed" : "adl-topbar";
+    const shellClass = "adl-shell adl-shell-app";
+    const topbarClass = "adl-topbar adl-topbar-app";
     const showWorkspace =
       this.activeRuntimeContext !== undefined && this.activeViewEmptyState === undefined;
 
@@ -925,7 +964,6 @@ export class AdlAppElement extends HTMLElement {
           </button>
           <div class="adl-brand">
             <h1>${escapeHtml(this._model.app.name)}</h1>
-            ${isComposedView ? "" : "<span>Model-driven browser runtime</span>"}
           </div>
           <div class="adl-topbar-tools">
             ${this.renderTopBarControls()}
