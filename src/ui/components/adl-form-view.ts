@@ -7,6 +7,10 @@ import type {
   StoredObjectRecord,
 } from "../../model/resolved-model.js";
 import type { RuntimeContext, RuntimeValidationIssue } from "../../runtime/runtime-types.js";
+import type {
+  RuntimeEditSurface,
+  RuntimeEditChildCollectionSection,
+} from "../../runtime/edit-surface-runtime.js";
 import {
   canRunCommand,
   getAvailableLifecycleActions,
@@ -19,6 +23,7 @@ import type {
   SaveRecordDetail,
   TransitionRecordDetail,
   UiMode,
+  StageChildOperationDetail,
 } from "../types.js";
 import { AdlActionBarElement } from "./adl-action-bar.js";
 import { AdlFieldRendererElement } from "./adl-field-renderer.js";
@@ -38,6 +43,7 @@ export class AdlFormViewElement extends HTMLElement {
   private _mode: UiMode = "edit";
   private _fieldIssues: RuntimeValidationIssue[] = [];
   private _draftValues: Record<string, JsonValue> = {};
+  private _editSurface: RuntimeEditSurface | undefined;
 
   private readonly handleFormInput = (): void => {
     this.dispatchEvent(
@@ -107,6 +113,75 @@ export class AdlFormViewElement extends HTMLElement {
     }
   };
 
+  private readonly handleChildClick = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const action = target.closest<HTMLButtonElement>("button[data-child-action]");
+    if (action === null) {
+      return;
+    }
+
+    const sectionName = action.dataset.childSection;
+    const childObject = action.dataset.childObject;
+    const operation = action.dataset.childAction as StageChildOperationDetail["operation"];
+    if (sectionName === undefined || childObject === undefined) {
+      return;
+    }
+
+    event.stopPropagation();
+
+    if (operation === "createChild") {
+      this.dispatchEvent(
+        new CustomEvent<StageChildOperationDetail>("adl-stage-child-operation", {
+          bubbles: true,
+          detail: {
+            section: sectionName,
+            operation,
+            childObject,
+            values: this.collectChildDraftValues(sectionName),
+          },
+        }),
+      );
+      return;
+    }
+
+    const childId = action.dataset.childId;
+    const stagedOperationId = action.dataset.stagedOperationId;
+    if (operation === "remove" && stagedOperationId !== undefined) {
+      this.dispatchEvent(
+        new CustomEvent<StageChildOperationDetail>("adl-stage-child-operation", {
+          bubbles: true,
+          detail: {
+            section: sectionName,
+            operation,
+            childObject,
+            stagedOperationId,
+          },
+        }),
+      );
+      return;
+    }
+
+    if (childId === undefined) {
+      return;
+    }
+
+    this.dispatchEvent(
+      new CustomEvent<StageChildOperationDetail>("adl-stage-child-operation", {
+        bubbles: true,
+        detail: {
+          section: sectionName,
+          operation,
+          childObject,
+          childId,
+        },
+      }),
+    );
+  };
+
   set runtime(runtime: ApplicationRuntime | undefined) {
     this._runtime = runtime;
     this.render();
@@ -147,8 +222,14 @@ export class AdlFormViewElement extends HTMLElement {
     this.render();
   }
 
+  set editSurface(editSurface: RuntimeEditSurface | undefined) {
+    this._editSurface = editSurface;
+    this.render();
+  }
+
   connectedCallback(): void {
     this.addEventListener("adl-action", this.handleAction);
+    this.addEventListener("click", this.handleChildClick);
     this.addEventListener("input", this.handleFormInput);
     this.addEventListener("change", this.handleFormInput);
     this.render();
@@ -156,6 +237,7 @@ export class AdlFormViewElement extends HTMLElement {
 
   disconnectedCallback(): void {
     this.removeEventListener("adl-action", this.handleAction);
+    this.removeEventListener("click", this.handleChildClick);
     this.removeEventListener("input", this.handleFormInput);
     this.removeEventListener("change", this.handleFormInput);
   }
@@ -171,9 +253,7 @@ export class AdlFormViewElement extends HTMLElement {
       return;
     }
 
-    const fields = this._view.fields
-      .map((fieldName) => this._object?.fields.find((field) => field.name === fieldName))
-      .filter((field): field is ResolvedField => field !== undefined);
+    const fields = this.getRenderedFields();
     const title =
       this._mode === "create"
         ? `New ${titleCaseIdentifier(this._object.name)}`
@@ -196,18 +276,151 @@ export class AdlFormViewElement extends HTMLElement {
           <adl-action-bar></adl-action-bar>
         </header>
         <div class="adl-form-body">
-          ${fields
-            .map(
-              (field) =>
-                `<adl-field-renderer data-field-slot="${escapeHtml(field.name)}"></adl-field-renderer>`,
-            )
-            .join("")}
+          ${this.renderEditSections(fields)}
         </div>
       </section>
     `;
 
     this.configureFields(fields);
     this.configureActions();
+  }
+
+  private getRenderedFields(): ResolvedField[] {
+    if (this._editSurface !== undefined) {
+      return this._editSurface.sections
+        .filter((section) => section.kind === "fields")
+        .flatMap((section) => section.fields);
+    }
+
+    return (
+      this._view?.fields
+        .map((fieldName) => this._object?.fields.find((field) => field.name === fieldName))
+        .filter((field): field is ResolvedField => field !== undefined) ?? []
+    );
+  }
+
+  private renderEditSections(fields: ResolvedField[]): string {
+    if (this._editSurface === undefined) {
+      return fields.map((field) => this.renderFieldSlot(field)).join("");
+    }
+
+    return this._editSurface.sections
+      .map((section) => {
+        if (section.kind === "fields") {
+          return `
+            <section class="adl-edit-section" data-edit-section="${escapeHtml(section.name)}">
+              ${section.heading === undefined ? "" : `<h3>${escapeHtml(section.heading)}</h3>`}
+              ${section.fields.map((field) => this.renderFieldSlot(field)).join("")}
+            </section>
+          `;
+        }
+
+        return this.renderChildCollection(section);
+      })
+      .join("");
+  }
+
+  private renderFieldSlot(field: ResolvedField): string {
+    return `<adl-field-renderer data-field-slot="${escapeHtml(field.name)}"></adl-field-renderer>`;
+  }
+
+  private renderChildCollection(section: RuntimeEditChildCollectionSection): string {
+    const addAction = section.actions.find(
+      (action) => action.operation === "createChild" && action.visible,
+    );
+    return `
+      <section class="adl-edit-section adl-child-section" data-child-section="${escapeHtml(section.name)}">
+        <header class="adl-child-section-header">
+          <h3>${escapeHtml(section.heading ?? titleCaseIdentifier(section.name))}</h3>
+          ${
+            addAction === undefined
+              ? ""
+              : `<button
+                  type="button"
+                  data-child-action="createChild"
+                  data-child-section="${escapeHtml(section.name)}"
+                  data-child-object="${escapeHtml(section.childObject)}"
+                  ${addAction.enabled ? "" : "disabled"}
+                >Add</button>`
+          }
+        </header>
+        ${this.renderChildRows(section)}
+        ${this.renderChildDraft(section)}
+      </section>
+    `;
+  }
+
+  private renderChildRows(section: RuntimeEditChildCollectionSection): string {
+    if (section.rows.length === 0) {
+      return `<div class="adl-empty">${escapeHtml(section.emptyState.text || "No child records.")}</div>`;
+    }
+
+    return `
+      <div class="adl-child-rows">
+        ${section.rows
+          .map(
+            (row) => `
+              <div class="adl-child-row" data-child-row="${escapeHtml(row.id)}">
+                <div class="adl-child-row-values">
+                  ${section.fields
+                    .map(
+                      (field) =>
+                        `<span>${escapeHtml(formatChildValue(row.values[field.name]))}</span>`,
+                    )
+                    .join("")}
+                </div>
+                <div class="adl-child-row-actions">
+                  ${row.actions
+                    .filter((action) => action.visible)
+                    .map(
+                      (action) => `
+                        <button
+                          type="button"
+                          data-child-action="${escapeHtml(action.operation)}"
+                          data-child-section="${escapeHtml(section.name)}"
+                          data-child-object="${escapeHtml(section.childObject)}"
+                          ${
+                            row.record === undefined
+                              ? `data-staged-operation-id="${escapeHtml(row.stagedOperationId ?? "")}"`
+                              : `data-child-id="${escapeHtml(row.record.meta.guid)}"`
+                          }
+                          ${action.enabled ? "" : "disabled"}
+                        >${escapeHtml(action.operation === "remove" ? "Remove" : titleCaseIdentifier(action.operation))}</button>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  private renderChildDraft(section: RuntimeEditChildCollectionSection): string {
+    if (!section.operations.includes("createChild")) {
+      return "";
+    }
+
+    return `
+      <div class="adl-child-draft" data-child-draft="${escapeHtml(section.name)}">
+        ${section.fields
+          .map(
+            (field) => `
+              <label>
+                <span>${escapeHtml(titleCaseIdentifier(field.name))}</span>
+                <input
+                  type="${field.type === "number" ? "number" : "text"}"
+                  data-child-draft-field="${escapeHtml(field.name)}"
+                  data-child-draft-section="${escapeHtml(section.name)}"
+                />
+              </label>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
   }
 
   private configureFields(fields: ResolvedField[]): void {
@@ -336,6 +549,23 @@ export class AdlFormViewElement extends HTMLElement {
     return values;
   }
 
+  private collectChildDraftValues(sectionName: string): Record<string, JsonValue> {
+    const values: Record<string, JsonValue> = {};
+    for (const input of this.querySelectorAll<HTMLInputElement>(
+      `input[data-child-draft-section="${cssEscape(sectionName)}"]`,
+    )) {
+      const fieldName = input.dataset.childDraftField;
+      if (fieldName === undefined) {
+        continue;
+      }
+      const field = this._editSurface?.sections
+        .find((section) => section.kind === "childCollection" && section.name === sectionName)
+        ?.fields.find((candidate) => candidate.name === fieldName);
+      values[fieldName] = field?.type === "number" ? Number(input.value) : input.value;
+    }
+    return values;
+  }
+
   private getFieldValue(field: ResolvedField): JsonValue | undefined {
     if (Object.prototype.hasOwnProperty.call(this._draftValues, field.name)) {
       return this._draftValues[field.name];
@@ -405,6 +635,18 @@ function disambiguateLifecycleActionLabels(
 
 function normalizeActionLabel(label: string): string {
   return label.trim().toLowerCase();
+}
+
+function formatChildValue(value: JsonValue | undefined): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (Array.isArray(value) || typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
 }
 
 function cssEscape(value: string): string {

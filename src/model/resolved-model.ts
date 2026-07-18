@@ -55,6 +55,14 @@ export type PresentationRowLayout = "inline" | "stack";
 export type PresentationFragmentStyle = "plain" | "bold" | "muted" | "caption";
 export type PresentationFormatKind = "text" | "number" | "date" | "datetime" | "time";
 export type PresentationShellRegion = "topBar" | "bottomBar" | "sidebar";
+export type EditSectionKind = "fields" | "childCollection";
+export type EditChildOperationKind =
+  | "createChild"
+  | "linkExisting"
+  | "updateChild"
+  | "unlink"
+  | "remove"
+  | "reorder";
 export type ShellControlKind =
   | "contextSelector"
   | "themeSwitch"
@@ -488,6 +496,7 @@ export interface ResolvedView {
   searchFields: string[];
   sort: ResolvedSort[];
   actions: string[];
+  editSections: ResolvedEditSection[];
   presentation?: ResolvedViewPresentation;
 }
 
@@ -499,6 +508,34 @@ export interface ResolvedViewContext {
 export interface ResolvedSort {
   field: string;
   direction: "asc" | "desc";
+}
+
+export type ResolvedEditSection = ResolvedEditFieldsSection | ResolvedEditChildCollectionSection;
+
+export interface ResolvedEditSectionBase {
+  name: string;
+  kind: EditSectionKind;
+  heading?: string;
+}
+
+export interface ResolvedEditFieldsSection extends ResolvedEditSectionBase {
+  kind: "fields";
+  fields: string[];
+}
+
+export interface ResolvedEditChildCollectionSection extends ResolvedEditSectionBase {
+  kind: "childCollection";
+  childObject: string;
+  parentField: string;
+  childView?: string;
+  operations: EditChildOperationKind[];
+  staged: boolean;
+  orderField?: string;
+  emptyState: ResolvedEditChildCollectionEmptyState;
+}
+
+export interface ResolvedEditChildCollectionEmptyState {
+  text: string;
 }
 
 export interface ResolvedViewPresentation {
@@ -1127,12 +1164,43 @@ export interface PartialViewModel {
   searchFields?: string[];
   sort?: ResolvedSort[];
   actions?: string[];
+  editSections?: PartialEditSectionModel[];
   presentation?: PartialViewPresentationModel;
 }
 
 export interface PartialViewContextModel {
   mode: ViewContextMode;
   context?: string;
+}
+
+export type PartialEditSectionModel =
+  | PartialEditFieldsSectionModel
+  | PartialEditChildCollectionSectionModel;
+
+export interface PartialEditSectionBaseModel {
+  name: string;
+  kind: EditSectionKind;
+  heading?: string;
+}
+
+export interface PartialEditFieldsSectionModel extends PartialEditSectionBaseModel {
+  kind: "fields";
+  fields?: string[];
+}
+
+export interface PartialEditChildCollectionSectionModel extends PartialEditSectionBaseModel {
+  kind: "childCollection";
+  childObject: string;
+  parentField: string;
+  childView?: string;
+  operations?: EditChildOperationKind[];
+  staged?: boolean;
+  orderField?: string;
+  emptyState?: PartialEditChildCollectionEmptyStateModel;
+}
+
+export interface PartialEditChildCollectionEmptyStateModel {
+  text?: string;
 }
 
 export interface PartialViewPresentationModel {

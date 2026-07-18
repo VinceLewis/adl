@@ -187,6 +187,23 @@ to model view navigation and command actions through
 `ApplicationRuntime.executeCommand`, where command preconditions, policy,
 validation, sync, audit, and operation-log behavior remain authoritative.
 
+Parent-child edit surfaces evaluate through
+`ApplicationRuntime.evaluateEditSurface`. The runtime consumes
+`ResolvedView.editSections` and returns renderer-neutral field sections and
+child collection sections. Existing parent records load child rows through
+policy-enforcing search on the child object, then filter rows whose declared
+parent lookup field equals the parent record id. Child collection actions are
+shaped by child-object policy and sync state for each operation.
+
+Unsaved parents cannot be used as persisted relationship targets. Child changes
+for a create workflow are represented as explicit staged operations and are
+included in the evaluated edit surface. Saving the parent may then call
+`ApplicationRuntime.applyStagedChildChanges`, which applies staged operations in
+the supplied order through normal runtime create, update, and delete paths.
+Those paths continue to enforce validation, policy, constraints, sync, audit,
+and operation-log behavior. Cancelling a create/edit container discards the
+caller-held staged operation list.
+
 The deterministic formatter currently supports:
 
 - dates with `yyyy`, `yy`, `MMM`, `MM`, `M`, `dd`, `d`, and `EEE`

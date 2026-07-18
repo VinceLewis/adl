@@ -31,6 +31,7 @@ import type {
   PartialDecisionTableInputModel,
   PartialDecisionTableModel,
   PartialDecisionTableRowModel,
+  PartialEditSectionModel,
   PartialComputedFieldModel,
   PartialFieldModel,
   PartialHookRefsModel,
@@ -86,6 +87,7 @@ import type {
   ResolvedDecisionTable,
   ResolvedDecisionTableInput,
   ResolvedDecisionTableRow,
+  ResolvedEditSection,
   ResolvedField,
   ResolvedHookRefs,
   ResolvedLifecycleGuard,
@@ -590,6 +592,7 @@ function createDefaultViews(
       searchFields,
       sort: [],
       actions: ["create", "read", "update", "delete"],
+      editSections: [{ name: "Fields", kind: "fields", fields: fieldNames }],
     },
     {
       name: `${input.name}Form`,
@@ -600,6 +603,7 @@ function createDefaultViews(
       searchFields: [],
       sort: [],
       actions: ["save", "delete"],
+      editSections: [{ name: "Fields", kind: "fields", fields: fieldNames }],
     },
   ];
 }
@@ -624,6 +628,13 @@ function resolveView(
   fields: ResolvedField[],
   computedFields: ResolvedComputedField[],
 ): ResolvedView {
+  const viewFields = [
+    ...(input.fields ?? [
+      ...fields.map((field) => field.name),
+      ...orderedComputedFieldNames(computedFields),
+    ]),
+  ];
+
   return {
     name: input.name,
     object: input.object ?? objectName,
@@ -631,19 +642,53 @@ function resolveView(
     ...(input.context === undefined ? {} : { context: resolveViewContext(input.context) }),
     ...(input.readModel === undefined ? {} : { readModel: input.readModel }),
     editContainer: input.editContainer ?? "modal",
-    fields: [
-      ...(input.fields ?? [
-        ...fields.map((field) => field.name),
-        ...orderedComputedFieldNames(computedFields),
-      ]),
-    ],
+    fields: viewFields,
     searchFields: [...(input.searchFields ?? [])],
     sort: [...(input.sort ?? [])].map(resolveSort),
     actions: [...(input.actions ?? [])],
+    editSections: resolveEditSections(input.editSections, viewFields),
     ...(input.presentation === undefined
       ? {}
       : { presentation: resolveViewPresentation(input.presentation) }),
   };
+}
+
+function resolveEditSections(
+  input: PartialEditSectionModel[] | undefined,
+  viewFields: string[],
+): ResolvedEditSection[] {
+  if (input === undefined || input.length === 0) {
+    return [{ name: "Fields", kind: "fields", fields: [...viewFields] }];
+  }
+
+  return input.map((section) => {
+    const base = {
+      name: section.name,
+      ...(section.heading === undefined ? {} : { heading: section.heading }),
+    };
+
+    if (section.kind === "fields") {
+      return {
+        ...base,
+        kind: "fields",
+        fields: [...(section.fields ?? viewFields)],
+      };
+    }
+
+    return {
+      ...base,
+      kind: "childCollection",
+      childObject: section.childObject,
+      parentField: section.parentField,
+      ...(section.childView === undefined ? {} : { childView: section.childView }),
+      operations: [...(section.operations ?? ["createChild", "updateChild", "unlink"])],
+      staged: section.staged ?? true,
+      ...(section.orderField === undefined ? {} : { orderField: section.orderField }),
+      emptyState: {
+        text: section.emptyState?.text ?? "",
+      },
+    };
+  });
 }
 
 function resolveViewPresentation(

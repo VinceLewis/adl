@@ -72,6 +72,22 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   navigation, and command actions call `ApplicationRuntime.executeCommand`.
   Runtime command services remain the enforcement boundary for command
   preconditions, policy, validation, sync, audit, and operation logging.
+- Phase 33 added CRUD `ResolvedView.editSections` for parent edit surfaces.
+  Every view resolves an inspectable default `fields` edit section from
+  `view.fields`; authored JSON/TypeScript partial models can add
+  `childCollection` sections that point to a child object and lookup field back
+  to the parent. ADL source syntax for these edit sections is intentionally not
+  implemented yet.
+- Parent-child edit evaluation is exposed through
+  `ApplicationRuntime.evaluateEditSurface(...)`. Existing parent child rows are
+  loaded through child-object runtime search, then filtered by the declared
+  parent lookup field. Child action visibility/enabled state is shaped through
+  child-object policy and sync decisions.
+- New-parent child changes are explicit staged operations held by the caller/UI.
+  `ApplicationRuntime.applyStagedChildChanges(...)` applies them after the
+  parent exists, in caller-supplied order, through normal runtime create/update/
+  delete APIs. Cancelling a browser form clears the staged list without writing
+  child records.
 
 ## Practical Guidance
 
@@ -83,6 +99,9 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
 - Browser CRUD renderer work should use `ResolvedView.editContainer` for
   create/edit placement. Do not encode modal, drawer, page, or split-pane
   choices through app-specific branches or DOM/CSS selector names in the model.
+- Browser parent-child rendering should consume evaluated edit surfaces and
+  dispatch staged child operations back to the app container. It should not
+  write child objects directly from child-section DOM handlers.
 - Browser toggle controls should update view-local presentation state and
   request re-evaluation. They are not durable fields and should not call object
   create/update APIs unless a future model declaration explicitly binds them to

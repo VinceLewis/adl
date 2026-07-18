@@ -107,6 +107,16 @@ dense back-office list/form layout as an explicit option. This property is
 model-level only in the current implementation; ADL source syntax for choosing
 it is not implemented yet.
 
+Resolved views also include `editSections`. The default is one `fields` section
+derived from `view.fields`. A view may instead declare explicit field sections
+and `childCollection` sections. Child collections name the child object, the
+child lookup field that points at the parent object, an optional child view for
+display fields, supported operations, staged-change behavior, optional order
+field, and empty-state text. The implemented child operation names are
+`createChild`, `linkExisting`, `updateChild`, `unlink`, `remove`, and
+`reorder`. These declarations are renderer-neutral; they describe edit
+composition and relationship intent, not browser components or storage tables.
+
 Resolved views may include an optional `presentation` contract. This is
 renderer-neutral JSON-compatible data consumed by UI runtimes, not parser AST
 or browser component code.

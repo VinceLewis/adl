@@ -12,8 +12,15 @@ import type { RuntimeHook } from "./hook-registry.js";
 import { RuntimeContextService } from "./context-service.js";
 import { DecisionTableService } from "./decision-table-service.js";
 import type { DecisionTableEvaluationResult } from "./decision-table-service.js";
+import { EditSurfaceRuntime } from "./edit-surface-runtime.js";
+import type {
+  RuntimeApplyStagedChildInput,
+  RuntimeApplyStagedChildResult,
+  RuntimeEditSurface,
+  RuntimeEditSurfaceEvaluationInput,
+} from "./edit-surface-runtime.js";
 import { LifecycleEngine } from "./lifecycle-engine.js";
-import { RuntimeModelIndex } from "./model-helpers.js";
+import { RuntimeModelIndex, getRecordState } from "./model-helpers.js";
 import { OfflineDatasetService } from "./offline-dataset-service.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
@@ -66,6 +73,7 @@ export class ApplicationRuntime {
   readonly offlineDatasetService: OfflineDatasetService;
   readonly readModelService: ReadModelService;
   readonly presentationRuntime: PresentationRuntime;
+  readonly editSurfaceRuntime: EditSurfaceRuntime;
   readonly objectStore: ObjectStore;
   readonly lifecycleEngine: LifecycleEngine;
   readonly commandService: CommandService;
@@ -122,6 +130,35 @@ export class ApplicationRuntime {
         search: (objectName, query, context) => this.search(objectName, query, context),
         executeReadModel: (readModelName, context, query) =>
           this.executeReadModel(readModelName, context, query),
+      },
+      this.index,
+      this.logger,
+    );
+    this.editSurfaceRuntime = new EditSurfaceRuntime(
+      model,
+      {
+        read: (objectName, id, context) => this.read(objectName, id, context),
+        search: (objectName, context) => this.search(objectName, {}, context),
+        create: (objectName, values, context) => this.create(objectName, values, context),
+        update: (objectName, id, patch, context) => this.update(objectName, id, patch, context),
+        delete: (objectName, id, context) => this.delete(objectName, id, context),
+        evaluatePolicy: (objectName, action, context, options = {}) => {
+          const object = this.index.getObject(objectName);
+          const currentState =
+            options.record === undefined ? undefined : getRecordState(object, options.record);
+          return this.policyEngine.evaluate(
+            {
+              objectName,
+              action,
+              ...(options.record === undefined ? {} : { record: options.record }),
+              ...(options.patch === undefined ? {} : { patch: options.patch }),
+              ...(currentState === undefined ? {} : { currentState }),
+            },
+            context,
+          );
+        },
+        canWrite: (objectName, operation, context) =>
+          this.syncPolicy.evaluateLocalWrite(objectName, operation, context),
       },
       this.index,
       this.logger,
@@ -375,6 +412,52 @@ export class ApplicationRuntime {
       objectName,
       viewName,
       sections: result.sections.length,
+    });
+    return result;
+  }
+
+  async evaluateEditSurface(
+    objectName: string,
+    viewName: string,
+    context: RuntimeContext,
+    options: Omit<RuntimeEditSurfaceEvaluationInput, "objectName" | "viewName" | "context">,
+  ): Promise<RuntimeEditSurface> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.evaluateEditSurface", {
+      objectName,
+      viewName,
+      context: safeContextLog(context),
+    });
+    const result = await this.editSurfaceRuntime.evaluate({
+      objectName,
+      viewName,
+      context,
+      ...options,
+    });
+    this.logger.debug("EXIT ApplicationRuntime.evaluateEditSurface", {
+      objectName,
+      viewName,
+      sections: result.sections.length,
+    });
+    return result;
+  }
+
+  async applyStagedChildChanges(
+    input: RuntimeApplyStagedChildInput,
+  ): Promise<RuntimeApplyStagedChildResult> {
+    await this.whenReady();
+    this.logger.debug("ENTER ApplicationRuntime.applyStagedChildChanges", {
+      objectName: input.objectName,
+      viewName: input.viewName,
+      parentRecordId: input.parentRecordId,
+      count: input.stagedChanges.length,
+      context: safeContextLog(input.context),
+    });
+    const result = await this.editSurfaceRuntime.applyStagedChanges(input);
+    this.logger.debug("EXIT ApplicationRuntime.applyStagedChildChanges", {
+      objectName: input.objectName,
+      viewName: input.viewName,
+      count: result.applied.length,
     });
     return result;
   }

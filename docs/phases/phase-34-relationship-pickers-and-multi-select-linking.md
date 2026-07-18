@@ -24,6 +24,12 @@ Implement relationship picker semantics:
 This phase should not add calendar rendering, range availability editing, or
 new offline write-queue behavior.
 
+Phase 33 established `ResolvedView.editSections`, child collection sections,
+`ApplicationRuntime.evaluateEditSurface(...)`, and
+`ApplicationRuntime.applyStagedChildChanges(...)`. Relationship picker output
+should integrate with those edit-surface hooks, especially staged `linkExisting`
+operations for unsaved parents.
+
 ## Design Constraints
 
 - Candidate filtering must run after policy and context scoping.

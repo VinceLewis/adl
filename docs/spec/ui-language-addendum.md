@@ -584,6 +584,17 @@ back to the same list context after save, cancel, close, delete, or lifecycle
 transition. This path still uses runtime policy presentation for field
 visibility/editability and runtime services for all write enforcement.
 
+CRUD form views can now declare resolved-model `editSections`. Field sections
+group parent fields. Child collection sections embed records whose child object
+has a lookup field back to the parent object. The browser renderer consumes
+`ApplicationRuntime.evaluateEditSurface` output and renders the child rows in
+the same modal, drawer, page, or split-pane form container. New-parent workflows
+stage child operations explicitly until the parent record exists; canceling the
+container discards those staged operations, while save applies them through
+runtime services after the parent save succeeds. ADL source syntax for authored
+child edit sections is not implemented yet; JSON/TypeScript partial models can
+use the resolved contract.
+
 The generic browser shell renders application navigation through a hamburger
 drawer from resolved shell nav metadata rather than exposing a raw view selector
 in the top bar. The top bar is reserved for app identity, model-declared shell

@@ -1,4 +1,5 @@
 import type {
+  EditChildOperationKind,
   JsonValue,
   PolicyEffect,
   ResolvedField,
@@ -49,4 +50,13 @@ export interface TransitionRecordDetail {
   actionName: string;
   record: StoredObjectRecord;
   values: Record<string, JsonValue>;
+}
+
+export interface StageChildOperationDetail {
+  section: string;
+  operation: EditChildOperationKind | "updateChild";
+  childObject: string;
+  childId?: string;
+  values?: Record<string, JsonValue>;
+  stagedOperationId?: string;
 }

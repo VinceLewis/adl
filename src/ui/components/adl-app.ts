@@ -31,6 +31,7 @@ import { applyResolvedTheme, findApplicationTheme } from "../theme/default-theme
 import type {
   DraftRecordDetail,
   SaveRecordDetail,
+  StageChildOperationDetail,
   TransitionRecordDetail,
   UiMessage,
   UiMode,
@@ -47,6 +48,10 @@ import { AdlListViewElement } from "./adl-list-view.js";
 import { AdlMessageAreaElement } from "./adl-message-area.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
 import type { RuntimePresentationView } from "../../runtime/presentation-runtime.js";
+import type {
+  RuntimeEditSurface,
+  RuntimeStagedChildOperation,
+} from "../../runtime/edit-surface-runtime.js";
 
 interface ActiveViewContextState {
   context?: RuntimeContext;
@@ -66,6 +71,8 @@ export class AdlAppElement extends HTMLElement {
   private readModelRows: RuntimeReadModelRow[] = [];
   private presentationView: RuntimePresentationView | undefined;
   private presentationStateByView = new Map<string, Record<string, JsonValue>>();
+  private editSurface: RuntimeEditSurface | undefined;
+  private stagedChildChanges: RuntimeStagedChildOperation[] = [];
   private selectedRecord: StoredObjectRecord | undefined;
   private editContainerOpen = false;
   private mode: UiMode = "edit";
@@ -106,7 +113,9 @@ export class AdlAppElement extends HTMLElement {
         this.selectedRecord = record;
         this.editContainerOpen = true;
         this.draftValues = {};
+        this.stagedChildChanges = [];
         this.fieldIssues = [];
+        await this.refreshEditSurface();
         this.render();
       }
     });
@@ -117,9 +126,13 @@ export class AdlAppElement extends HTMLElement {
     this.selectedRecord = undefined;
     this.editContainerOpen = true;
     this.draftValues = {};
+    this.stagedChildChanges = [];
     this.fieldIssues = [];
     this.messages = [];
-    this.render();
+    void this.runCommand(async () => {
+      await this.refreshEditSurface();
+      this.render();
+    });
   };
 
   private readonly handleDraft = (event: Event): void => {
@@ -150,8 +163,10 @@ export class AdlAppElement extends HTMLElement {
           this.applySelectedScopeToCreateValues(detail.values),
           context,
         );
+        await this.applyPendingChildChanges(created.meta.guid, context);
         this.messages = [successMessage(`${this.activeObject.name} created.`)];
         this.draftValues = {};
+        this.stagedChildChanges = [];
         this.fieldIssues = [];
         await this.refreshRecords(
           this.activeEditContainer === "splitPane" ? created.meta.guid : undefined,
@@ -167,7 +182,7 @@ export class AdlAppElement extends HTMLElement {
         return;
       }
 
-      if (Object.keys(detail.values).length === 0) {
+      if (Object.keys(detail.values).length === 0 && this.stagedChildChanges.length === 0) {
         this.messages = [infoMessage("No changes to save.")];
         this.draftValues = {};
         if (this.activeEditContainer !== "splitPane") {
@@ -177,14 +192,19 @@ export class AdlAppElement extends HTMLElement {
         return;
       }
 
-      const updated = await this.runtime.update(
-        this.activeObject.name,
-        detail.record.meta.guid,
-        detail.values,
-        context,
-      );
+      const updated =
+        Object.keys(detail.values).length === 0
+          ? detail.record
+          : await this.runtime.update(
+              this.activeObject.name,
+              detail.record.meta.guid,
+              detail.values,
+              context,
+            );
+      await this.applyPendingChildChanges(updated.meta.guid, context);
       this.messages = [successMessage(`${this.activeObject.name} saved.`)];
       this.draftValues = {};
+      this.stagedChildChanges = [];
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
       if (this.activeEditContainer !== "splitPane") {
@@ -208,6 +228,7 @@ export class AdlAppElement extends HTMLElement {
       this.mode = "create";
       this.editContainerOpen = this.activeEditContainer === "splitPane";
       this.draftValues = {};
+      this.stagedChildChanges = [];
       await this.refreshRecords();
       this.render();
     });
@@ -215,6 +236,8 @@ export class AdlAppElement extends HTMLElement {
 
   private readonly handleCancel = (): void => {
     this.fieldIssues = [];
+    this.stagedChildChanges = [];
+    this.editSurface = undefined;
     if (this.activeEditContainer !== "splitPane") {
       this.closeEditContainer(true);
       this.render();
@@ -259,11 +282,42 @@ export class AdlAppElement extends HTMLElement {
       );
       this.messages = [successMessage(`${titleCaseIdentifier(detail.actionName)} completed.`)];
       this.draftValues = {};
+      this.stagedChildChanges = [];
       this.fieldIssues = [];
       await this.refreshRecords(updated.meta.guid);
       if (this.activeEditContainer !== "splitPane") {
         this.closeEditContainer(false);
       }
+      this.render();
+    });
+  };
+
+  private readonly handleStageChildOperation = (event: Event): void => {
+    const detail = (event as CustomEvent<StageChildOperationDetail>).detail;
+    if (detail === undefined) {
+      return;
+    }
+
+    if (detail.operation === "remove" && detail.stagedOperationId !== undefined) {
+      this.stagedChildChanges = this.stagedChildChanges.filter(
+        (operation) => operation.id !== detail.stagedOperationId,
+      );
+    } else {
+      this.stagedChildChanges = [
+        ...this.stagedChildChanges,
+        {
+          id: `child-${Date.now()}-${this.stagedChildChanges.length + 1}`,
+          section: detail.section,
+          operation: detail.operation,
+          childObject: detail.childObject,
+          ...(detail.childId === undefined ? {} : { childId: detail.childId }),
+          ...(detail.values === undefined ? {} : { values: detail.values }),
+        },
+      ];
+    }
+
+    void this.runCommand(async () => {
+      await this.refreshEditSurface();
       this.render();
     });
   };
@@ -338,6 +392,8 @@ export class AdlAppElement extends HTMLElement {
     this.editContainerOpen = false;
     this.mode = "edit";
     this.draftValues = {};
+    this.stagedChildChanges = [];
+    this.editSurface = undefined;
     this.messages = [];
     this.fieldIssues = [];
     this.navDrawerOpen = false;
@@ -359,6 +415,8 @@ export class AdlAppElement extends HTMLElement {
     this.editContainerOpen = false;
     this.mode = "edit";
     this.draftValues = {};
+    this.stagedChildChanges = [];
+    this.editSurface = undefined;
     this.messages = [];
     this.fieldIssues = [];
     void this.runCommand(async () => {
@@ -437,6 +495,8 @@ export class AdlAppElement extends HTMLElement {
     this.seeded = false;
     this.presentationView = undefined;
     this.presentationStateByView = new Map();
+    this.editSurface = undefined;
+    this.stagedChildChanges = [];
     this.editContainerOpen = false;
     this.selectedRecord = undefined;
 
@@ -456,6 +516,8 @@ export class AdlAppElement extends HTMLElement {
     this.seeded = runtime !== undefined;
     this.presentationView = undefined;
     this.presentationStateByView = new Map();
+    this.editSurface = undefined;
+    this.stagedChildChanges = [];
     this.editContainerOpen = false;
     this.selectedRecord = undefined;
   }
@@ -494,6 +556,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-delete-record", this.handleDelete);
     this.addEventListener("adl-cancel-record", this.handleCancel);
     this.addEventListener("adl-transition-record", this.handleTransition);
+    this.addEventListener("adl-stage-child-operation", this.handleStageChildOperation);
     this.addEventListener("adl-select-context", this.handleContextSelection);
     this.addEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.addEventListener("adl-presentation-action", this.handlePresentationAction);
@@ -513,6 +576,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-delete-record", this.handleDelete);
     this.removeEventListener("adl-cancel-record", this.handleCancel);
     this.removeEventListener("adl-transition-record", this.handleTransition);
+    this.removeEventListener("adl-stage-child-operation", this.handleStageChildOperation);
     this.removeEventListener("adl-select-context", this.handleContextSelection);
     this.removeEventListener("adl-presentation-state-change", this.handlePresentationStateChange);
     this.removeEventListener("adl-presentation-action", this.handlePresentationAction);
@@ -617,6 +681,7 @@ export class AdlAppElement extends HTMLElement {
       this.selectedRecord = selected;
       this.editContainerOpen = true;
       this.mode = selected === undefined ? "create" : "edit";
+      await this.refreshEditSurface();
       return;
     }
 
@@ -624,6 +689,9 @@ export class AdlAppElement extends HTMLElement {
       this.selectedRecord =
         (await this.runtime.read(object.name, preferredRecordId, viewContext.context)) ?? undefined;
       this.mode = this.selectedRecord === undefined ? "create" : "edit";
+      if (this.editContainerOpen) {
+        await this.refreshEditSurface();
+      }
       return;
     }
 
@@ -643,6 +711,7 @@ export class AdlAppElement extends HTMLElement {
       if (this.selectedRecord === undefined) {
         this.editContainerOpen = false;
       }
+      await this.refreshEditSurface();
     }
   }
 
@@ -666,6 +735,42 @@ export class AdlAppElement extends HTMLElement {
     this.presentationView = presentation;
   }
 
+  private async refreshEditSurface(): Promise<void> {
+    if (!this.editContainerOpen) {
+      this.editSurface = undefined;
+      return;
+    }
+
+    const context = this.requireActiveRuntimeContext();
+    this.editSurface = await this.runtime.evaluateEditSurface(
+      this.activeObject.name,
+      this.formView.name,
+      context,
+      {
+        mode: this.mode,
+        ...(this.selectedRecord === undefined ? {} : { recordId: this.selectedRecord.meta.guid }),
+        stagedChanges: this.stagedChildChanges,
+      },
+    );
+  }
+
+  private async applyPendingChildChanges(
+    parentRecordId: string,
+    context: RuntimeContext,
+  ): Promise<void> {
+    if (this.stagedChildChanges.length === 0) {
+      return;
+    }
+
+    await this.runtime.applyStagedChildChanges({
+      objectName: this.activeObject.name,
+      viewName: this.formView.name,
+      parentRecordId,
+      context,
+      stagedChanges: this.stagedChildChanges,
+    });
+  }
+
   private async runCommand(command: () => Promise<void>): Promise<void> {
     try {
       await command();
@@ -686,6 +791,8 @@ export class AdlAppElement extends HTMLElement {
     this.selectedRecord = undefined;
     this.mode = "edit";
     this.draftValues = {};
+    this.stagedChildChanges = [];
+    this.editSurface = undefined;
     this.fieldIssues = [];
     if (clearMessages) {
       this.messages = [];
@@ -786,6 +893,7 @@ export class AdlAppElement extends HTMLElement {
       form.mode = this.mode;
       form.draftValues = this.draftValues;
       form.fieldIssues = this.fieldIssues;
+      form.editSurface = this.editSurface;
     }
 
     const dashboard = this.querySelector<AdlDashboardViewElement>("adl-dashboard-view");

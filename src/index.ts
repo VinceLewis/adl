@@ -13,6 +13,7 @@ export * from "./runtime/audit-service.js";
 export * from "./runtime/command-service.js";
 export * from "./runtime/condition-evaluator.js";
 export * from "./runtime/decision-table-service.js";
+export * from "./runtime/edit-surface-runtime.js";
 export * from "./runtime/expression-evaluator.js";
 export * from "./runtime/context-service.js";
 export * from "./runtime/hook-registry.js";

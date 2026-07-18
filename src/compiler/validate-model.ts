@@ -8,6 +8,7 @@ import type {
   ContextSelectionMode,
   ContextSelectionPersistence,
   ContextSelectionSource,
+  EditChildOperationKind,
   EditContainerMode,
   ExpressionBinaryOperator,
   ExpressionRuntimeProperty,
@@ -38,6 +39,7 @@ import type {
   ResolvedContextMembership,
   ResolvedDecisionTable,
   ResolvedDecisionTableRow,
+  ResolvedEditSection,
   ResolvedField,
   ResolvedHookRefs,
   ResolvedLifecycle,
@@ -312,6 +314,15 @@ export const MODEL_VALIDATION_CODES = {
   THEME_DUPLICATE: "ADL_THEME_DUPLICATE",
   THEME_TOKEN_INVALID: "ADL_THEME_TOKEN_INVALID",
   VIEW_EDIT_CONTAINER_INVALID: "ADL_VIEW_EDIT_CONTAINER_INVALID",
+  VIEW_EDIT_SECTION_CHILD_OBJECT_UNKNOWN: "ADL_VIEW_EDIT_SECTION_CHILD_OBJECT_UNKNOWN",
+  VIEW_EDIT_SECTION_CHILD_VIEW_UNKNOWN: "ADL_VIEW_EDIT_SECTION_CHILD_VIEW_UNKNOWN",
+  VIEW_EDIT_SECTION_DUPLICATE: "ADL_VIEW_EDIT_SECTION_DUPLICATE",
+  VIEW_EDIT_SECTION_FIELD_UNKNOWN: "ADL_VIEW_EDIT_SECTION_FIELD_UNKNOWN",
+  VIEW_EDIT_SECTION_KIND_INVALID: "ADL_VIEW_EDIT_SECTION_KIND_INVALID",
+  VIEW_EDIT_SECTION_OPERATION_INVALID: "ADL_VIEW_EDIT_SECTION_OPERATION_INVALID",
+  VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN: "ADL_VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN",
+  VIEW_EDIT_SECTION_PARENT_FIELD_INVALID: "ADL_VIEW_EDIT_SECTION_PARENT_FIELD_INVALID",
+  VIEW_EDIT_SECTION_PARENT_FIELD_UNKNOWN: "ADL_VIEW_EDIT_SECTION_PARENT_FIELD_UNKNOWN",
   VIEW_FIELD_UNKNOWN: "ADL_VIEW_FIELD_UNKNOWN",
   VIEW_CONTEXT_MODE_INVALID: "ADL_VIEW_CONTEXT_MODE_INVALID",
   VIEW_CONTEXT_REQUIRED: "ADL_VIEW_CONTEXT_REQUIRED",
@@ -346,6 +357,15 @@ const VIEW_KINDS = new Set<ViewKind>([
   "composite",
 ]);
 const EDIT_CONTAINER_MODES = new Set<EditContainerMode>(["modal", "drawer", "page", "splitPane"]);
+const EDIT_SECTION_KINDS = new Set(["fields", "childCollection"]);
+const EDIT_CHILD_OPERATION_KINDS = new Set<EditChildOperationKind>([
+  "createChild",
+  "linkExisting",
+  "updateChild",
+  "unlink",
+  "remove",
+  "reorder",
+]);
 const PRESENTATION_LAYOUTS = new Set<PresentationLayout>(["stack", "grid", "split", "sidebar"]);
 const PRESENTATION_DENSITIES = new Set<PresentationDensity>(["compact", "comfortable", "spacious"]);
 const PRESENTATION_STATE_TYPES = new Set<PresentationStateType>([
@@ -2504,8 +2524,157 @@ function validateView(
     }
   }
 
+  validateViewEditSections(
+    view.editSections,
+    `${viewPath}.editSections`,
+    targetObject,
+    fieldNames,
+    new Set(view.fields),
+    indexes,
+    diagnostics,
+  );
+
   if (view.presentation !== undefined) {
     validateViewPresentation(view.presentation, view, viewPath, targetObject, indexes, diagnostics);
+  }
+}
+
+function validateViewEditSections(
+  sections: ResolvedEditSection[],
+  sectionsPath: string,
+  parentObject: ResolvedObject,
+  parentFieldNames: Set<string>,
+  viewFields: Set<string>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  reportDuplicateNames(
+    sections,
+    sectionsPath,
+    MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_DUPLICATE,
+    diagnostics,
+    `Edit section names must be unique within object '${parentObject.name}' views.`,
+  );
+
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex];
+    if (section === undefined) {
+      continue;
+    }
+
+    const sectionPath = `${sectionsPath}[${sectionIndex}]`;
+    if (!EDIT_SECTION_KINDS.has(section.kind)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_KIND_INVALID,
+          `Edit section '${section.name}' has invalid kind '${String(section.kind)}'.`,
+          `${sectionPath}.kind`,
+        ),
+      );
+      continue;
+    }
+
+    if (section.kind === "fields") {
+      for (let fieldIndex = 0; fieldIndex < section.fields.length; fieldIndex += 1) {
+        const field = section.fields[fieldIndex];
+        if (field === undefined || parentFieldNames.has(field)) {
+          continue;
+        }
+        if (viewFields.has(field)) {
+          continue;
+        }
+
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_FIELD_UNKNOWN,
+            `Edit field section '${section.name}' references unknown field '${field}' on object '${parentObject.name}'.`,
+            `${sectionPath}.fields[${fieldIndex}]`,
+          ),
+        );
+      }
+      continue;
+    }
+
+    const childObject = indexes.objectsByName.get(section.childObject)?.item;
+    if (childObject === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_CHILD_OBJECT_UNKNOWN,
+          `Edit child collection '${section.name}' references unknown child object '${section.childObject}'.`,
+          `${sectionPath}.childObject`,
+        ),
+      );
+    } else {
+      const parentField = childObject.fields.find((field) => field.name === section.parentField);
+      if (parentField === undefined) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PARENT_FIELD_UNKNOWN,
+            `Edit child collection '${section.name}' references unknown parent field '${section.parentField}' on child object '${childObject.name}'.`,
+            `${sectionPath}.parentField`,
+          ),
+        );
+      } else if (parentField.lookup?.targetObject !== parentObject.name) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PARENT_FIELD_INVALID,
+            `Edit child collection '${section.name}' parent field '${section.parentField}' must lookup parent object '${parentObject.name}'.`,
+            `${sectionPath}.parentField`,
+          ),
+        );
+      }
+
+      if (section.childView !== undefined) {
+        const childView = childObject.views.find((view) => view.name === section.childView);
+        if (childView === undefined) {
+          diagnostics.push(
+            diagnostic(
+              MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_CHILD_VIEW_UNKNOWN,
+              `Edit child collection '${section.name}' references unknown child view '${section.childView}' on object '${childObject.name}'.`,
+              `${sectionPath}.childView`,
+            ),
+          );
+        }
+      }
+
+      if (
+        section.orderField !== undefined &&
+        !childObject.fields.some((field) => field.name === section.orderField)
+      ) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN,
+            `Edit child collection '${section.name}' references unknown order field '${section.orderField}' on child object '${childObject.name}'.`,
+            `${sectionPath}.orderField`,
+          ),
+        );
+      }
+    }
+
+    for (let operationIndex = 0; operationIndex < section.operations.length; operationIndex += 1) {
+      const operation = section.operations[operationIndex];
+      if (operation === undefined || EDIT_CHILD_OPERATION_KINDS.has(operation)) {
+        continue;
+      }
+
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_OPERATION_INVALID,
+          `Edit child collection '${section.name}' has unsupported operation '${String(operation)}'.`,
+          `${sectionPath}.operations[${operationIndex}]`,
+        ),
+      );
+    }
+
+    if (section.operations.includes("reorder") && section.orderField === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN,
+          `Edit child collection '${section.name}' requires orderField when reorder is supported.`,
+          `${sectionPath}.orderField`,
+        ),
+      );
+    }
   }
 }
 

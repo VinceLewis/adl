@@ -2,6 +2,7 @@ import { toStorageName, toTableName } from "./model/defaults.js";
 import type {
   JsonValue,
   PartialApplicationModel,
+  PartialEditSectionModel,
   PartialObjectModel,
   PartialPresentationListModel,
   PartialPresentationRowFragmentModel,
@@ -12,6 +13,7 @@ import type {
   PartialViewModel,
   PolicyAction,
   ResolvedApplicationModel,
+  ResolvedEditSection,
   ResolvedObject,
   ResolvedPresentationControl,
   ResolvedPresentationList,
@@ -499,15 +501,23 @@ function explainViewDefaults(
         ? "CRUD edit container default was applied."
         : "CRUD edit container was supplied by the source model.",
   };
+  const editSectionEntries = view.editSections.flatMap((section, sectionIndex) =>
+    explainEditSectionDefaults(
+      section,
+      `${viewPath}.editSections[${sectionIndex}]`,
+      source?.editSections?.find((item) => item.name === section.name),
+    ),
+  );
 
   if (view.presentation === undefined) {
-    return [editContainerEntry];
+    return [editContainerEntry, ...editSectionEntries];
   }
 
   const sourcePresentation = source?.presentation;
   const presentationPath = `${viewPath}.presentation`;
   return [
     editContainerEntry,
+    ...editSectionEntries,
     {
       path: `${presentationPath}.layout`,
       value: view.presentation.layout,
@@ -546,6 +556,87 @@ function explainViewDefaults(
         sourcePresentation?.sections?.find((item) => item.name === section.name),
       ),
     ),
+  ];
+}
+
+function explainEditSectionDefaults(
+  section: ResolvedEditSection,
+  sectionPath: string,
+  source: PartialEditSectionModel | undefined,
+): ResolvedModelExplanationEntry[] {
+  if (section.kind === "fields") {
+    return [
+      {
+        path: `${sectionPath}.kind`,
+        value: section.kind,
+        origin: source === undefined ? "platformDefault" : "source",
+        note:
+          source === undefined
+            ? "Default edit field section was derived from the view fields."
+            : "Edit field section was supplied by the source model.",
+      },
+      {
+        path: `${sectionPath}.fields`,
+        value: section.fields,
+        origin:
+          source?.kind === "fields" && source.fields === undefined ? "platformDefault" : "source",
+        note:
+          source?.kind === "fields" && source.fields === undefined
+            ? "Edit field section inherited the view fields."
+            : "Edit field section fields are explicit.",
+      },
+    ];
+  }
+
+  return [
+    {
+      path: `${sectionPath}.childObject`,
+      value: section.childObject,
+      origin: "source",
+      note: `Edit child collection '${section.name}' resolves child object '${section.childObject}'.`,
+    },
+    {
+      path: `${sectionPath}.parentField`,
+      value: section.parentField,
+      origin: "source",
+      note: `Edit child collection '${section.name}' links children through '${section.parentField}'.`,
+    },
+    {
+      path: `${sectionPath}.operations`,
+      value: section.operations,
+      origin:
+        source?.kind === "childCollection" && source.operations === undefined
+          ? "platformDefault"
+          : "source",
+      note:
+        source?.kind === "childCollection" && source.operations === undefined
+          ? "Edit child collection operations defaulted to createChild, updateChild, and unlink."
+          : "Edit child collection operations were supplied by the source model.",
+    },
+    {
+      path: `${sectionPath}.staged`,
+      value: section.staged,
+      origin:
+        source?.kind === "childCollection" && source.staged === undefined
+          ? "platformDefault"
+          : "source",
+      note:
+        source?.kind === "childCollection" && source.staged === undefined
+          ? "Edit child collection staged changes defaulted to enabled."
+          : "Edit child collection staged behavior was supplied by the source model.",
+    },
+    {
+      path: `${sectionPath}.emptyState.text`,
+      value: section.emptyState.text,
+      origin:
+        source?.kind === "childCollection" && source.emptyState?.text === undefined
+          ? "platformDefault"
+          : "source",
+      note:
+        source?.kind === "childCollection" && source.emptyState?.text === undefined
+          ? "Edit child collection empty-state text defaulted to an empty string."
+          : "Edit child collection empty-state text was supplied by the source model.",
+    },
   ];
 }
 
