@@ -150,7 +150,7 @@ export class AdlListViewElement extends HTMLElement {
       canRunCommand(this._runtime, this._object, "create", this._context);
 
     this.innerHTML = `
-      <section class="adl-panel">
+      <section class="adl-panel adl-list-panel">
         <header class="adl-panel-header">
           <h2 class="adl-panel-title">${escapeHtml(titleCaseIdentifier(this._object.name))}</h2>
           <div class="adl-list-tools">

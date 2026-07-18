@@ -34,3 +34,8 @@ screens, or browser verification.
   continue to cover every page.
 - When changing list or form interaction patterns, add screenshots and layout
   assertions for both the resting page and the opened create/edit surface.
+- For shell scrolling changes, assert behavior in the browser instead of
+  relying only on screenshots: document scroll should remain at zero, the ADL
+  scroll region should be the scrolling element, app chrome should remain
+  visible, and list/table sticky controls should be checked in both desktop and
+  mobile projects.

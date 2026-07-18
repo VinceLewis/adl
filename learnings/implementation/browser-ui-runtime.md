@@ -32,6 +32,13 @@ Read this before changing browser UI components, runtime/UI policy integration, 
 - Shell chrome is app-level, not presentation-view-specific. The browser uses
   the same app top bar across composed dashboards/calendars and generic CRUD
   list/form pages; only the workspace body switches renderer by view kind.
+- The browser shell owns viewport scrolling. Keep document/body scrolling
+  disabled for app pages, render workspace content inside `.adl-scroll-region`,
+  and keep the app top bar fixed while only the workspace region scrolls.
+- Generic CRUD list chrome is sticky inside the app scroll region. List search
+  and create controls should stay visible during list scrolling; desktop table
+  headings should stick below that list header, while mobile card views should
+  not expose a sticky table header.
 - View-local presentation controls, such as toggles, dispatch state updates
   back to `adl-app`. The app re-evaluates the presentation view with local
   state updates and does not write object-store records for those interactions.

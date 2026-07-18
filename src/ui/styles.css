@@ -24,6 +24,7 @@
   --adl-space-sm: 8px;
   --adl-space-md: 12px;
   --adl-space-lg: 16px;
+  --adl-list-toolbar-sticky-height: 62px;
   --adl-table-cell-y: 10px;
   --adl-table-cell-x: 12px;
   --adl-form-gap: 12px;
@@ -33,14 +34,22 @@
   background: var(--adl-color-background);
 }
 
+html {
+  height: 100%;
+}
+
 body {
+  height: 100%;
   margin: 0;
   min-width: 320px;
+  overflow: hidden;
 }
 
 adl-app {
   display: block;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 button,
@@ -72,7 +81,11 @@ button:disabled {
 .adl-shell {
   background: var(--adl-color-background);
   color: var(--adl-color-text);
-  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .adl-topbar {
@@ -84,6 +97,9 @@ button:disabled {
   grid-template-columns: 44px minmax(0, 1fr) auto;
   min-height: 60px;
   padding: 0 var(--adl-space-lg);
+  position: sticky;
+  top: 0;
+  z-index: 800;
 }
 
 .adl-topbar-app {
@@ -439,6 +455,17 @@ button:disabled {
   color: var(--adl-color-text-inverted);
 }
 
+.adl-scroll-region {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding-top: calc(var(--adl-list-toolbar-sticky-height) + var(--adl-space-lg));
+}
+
+.adl-scroll-region :is(button, input, select, textarea, tr, [tabindex]):focus {
+  scroll-margin-top: calc(var(--adl-list-toolbar-sticky-height) + var(--adl-space-lg));
+}
+
 .adl-topbar-app .adl-view-switch option,
 .adl-topbar-app .adl-context-selector option {
   color: var(--adl-color-text);
@@ -481,11 +508,18 @@ button:disabled {
 
 .adl-panel-header {
   align-items: center;
+  background: var(--adl-color-surface);
   border-bottom: 1px solid var(--adl-color-border);
   display: flex;
   gap: var(--adl-space-md);
   justify-content: space-between;
   padding: var(--adl-space-md);
+}
+
+.adl-list-panel .adl-panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 
 .adl-panel-heading {
@@ -546,11 +580,12 @@ button:disabled {
 }
 
 .adl-table-wrap {
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .adl-table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
   min-width: 100%;
   table-layout: fixed;
@@ -567,13 +602,23 @@ button:disabled {
 }
 
 .adl-table th {
+  background: var(--adl-color-surface);
   color: var(--adl-color-text-muted);
   font-size: 12px;
   font-weight: 650;
 }
 
+.adl-list-panel .adl-table th {
+  position: sticky;
+  top: var(--adl-list-toolbar-sticky-height);
+  z-index: 30;
+}
+
 .adl-table tr {
   cursor: pointer;
+  scroll-margin-top: calc(
+    var(--adl-list-toolbar-sticky-height) + var(--adl-control-height) + var(--adl-space-lg)
+  );
 }
 
 .adl-table tr:focus-visible {

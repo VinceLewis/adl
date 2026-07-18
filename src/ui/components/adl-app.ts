@@ -970,31 +970,33 @@ export class AdlAppElement extends HTMLElement {
           </div>
         </header>
         ${this.renderNavigationDrawer(view)}
-        <adl-message-area></adl-message-area>
-        ${
-          showWorkspace
-            ? isComposedView
-              ? `
-                <div class="adl-composed-workspace">
-                  <adl-composed-view></adl-composed-view>
-                  ${
-                    this.editContainerOpen &&
-                    this.activeEditContainer !== "page" &&
-                    this.activeEditContainer !== "splitPane"
-                      ? this.renderEditContainer(this.activeEditContainer)
-                      : ""
-                  }
-                </div>
-              `
-              : readModel === undefined
-                ? this.renderCrudWorkspace(view)
-                : `
-                <div class="adl-dashboard-workspace">
-                  <adl-dashboard-view></adl-dashboard-view>
-                </div>
-              `
-            : `<section class="adl-empty-state">${escapeHtml(this.activeViewEmptyState ?? "No runtime context is available for this view.")}</section>`
-        }
+        <div class="adl-scroll-region">
+          <adl-message-area></adl-message-area>
+          ${
+            showWorkspace
+              ? isComposedView
+                ? `
+                  <div class="adl-composed-workspace">
+                    <adl-composed-view></adl-composed-view>
+                    ${
+                      this.editContainerOpen &&
+                      this.activeEditContainer !== "page" &&
+                      this.activeEditContainer !== "splitPane"
+                        ? this.renderEditContainer(this.activeEditContainer)
+                        : ""
+                    }
+                  </div>
+                `
+                : readModel === undefined
+                  ? this.renderCrudWorkspace(view)
+                  : `
+                  <div class="adl-dashboard-workspace">
+                    <adl-dashboard-view></adl-dashboard-view>
+                  </div>
+                `
+              : `<section class="adl-empty-state">${escapeHtml(this.activeViewEmptyState ?? "No runtime context is available for this view.")}</section>`
+          }
+        </div>
       </main>
     `;
 
