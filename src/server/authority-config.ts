@@ -9,6 +9,8 @@ export interface AuthorityRateLimits {
   invite: number;
   bootstrap: number;
   replay: number;
+  report: number;
+  administration: number;
 }
 
 export interface AuthorityConfiguration {
@@ -63,6 +65,8 @@ export function loadAuthorityConfiguration(
       invite: positiveInteger(environment.ADL_RATE_INVITE, 20),
       bootstrap: positiveInteger(environment.ADL_RATE_BOOTSTRAP, 120),
       replay: positiveInteger(environment.ADL_RATE_REPLAY, 240),
+      report: positiveInteger(environment.ADL_RATE_REPORT, 30),
+      administration: positiveInteger(environment.ADL_RATE_ADMINISTRATION, 30),
     },
   };
   if (config.environment === "production" && environment.ADL_COOKIE_SECURE !== "true")

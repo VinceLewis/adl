@@ -25,7 +25,12 @@ export interface AuthorityInvite {
 
 export interface AuthorityAccessAuditEvent {
   accessAuditId: string;
-  kind: "inviteCreated" | "inviteClaimed" | "inviteRevoked" | "membershipRevoked";
+  kind:
+    | "inviteCreated"
+    | "inviteClaimed"
+    | "inviteRevoked"
+    | "membershipRevoked"
+    | "sessionsRevoked";
   actorId: string;
   contextName: string;
   contextId: string;
@@ -252,6 +257,53 @@ export class AuthorityAccessLifecycleService {
       occurredAt: now,
     });
     return true;
+  }
+
+  /**
+   * A deliberately narrow incident-response action. The caller must hold the
+   * same existing membership-management permission as invite and revocation
+   * flows; this never turns a session token into an operational role.
+   */
+  async revokeUserSessions(
+    sessionToken: string | undefined,
+    input: { contextName: string; contextId: string; userId: string },
+  ): Promise<boolean> {
+    const session = await this.requireSession(sessionToken);
+    const membership = await this.requireMembershipManager(
+      session.userId,
+      input.contextName,
+      input.contextId,
+    );
+    const targetHasContextAccess = (await this.storage.listRecords()).some(
+      (entry) =>
+        entry.objectName === membership.object &&
+        entry.record.meta.deletedAt === undefined &&
+        entry.record.values[membership.userField] === input.userId &&
+        entry.record.values[membership.contextField] === input.contextId,
+    );
+    if (!targetHasContextAccess) return false;
+    if (!isRevocableSessionAdapter(this.sessions)) return false;
+    await this.sessions.revokeUserSessions(input.userId);
+    await this.store.recordAudit({
+      accessAuditId: `access-audit-${this.newId()}`,
+      kind: "sessionsRevoked",
+      actorId: session.userId,
+      contextName: input.contextName,
+      contextId: input.contextId,
+      occurredAt: this.now(),
+    });
+    return true;
+  }
+
+  /** Used by server-only administration views; authorization remains ADL policy. */
+  async requireAdministration(
+    sessionToken: string | undefined,
+    contextName: string,
+    contextId: string,
+  ): Promise<{ userId: string }> {
+    const session = await this.requireSession(sessionToken);
+    await this.requireMembershipManager(session.userId, contextName, contextId);
+    return { userId: session.userId };
   }
 
   private async requireSession(sessionToken: string | undefined) {

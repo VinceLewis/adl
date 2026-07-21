@@ -1,5 +1,9 @@
 import type { JsonValue } from "../model/resolved-model.js";
 import type { AuthorityAccessLifecycleService } from "./access-lifecycle.js";
+import type {
+  AuthorityAdministrationService,
+  AuthorityReportingService,
+} from "./authoritative-reporting.js";
 import {
   assertProductionSessionAdapter,
   type AuthorityConfiguration,
@@ -30,6 +34,8 @@ export interface AuthorityHttpDependencies {
   sessions: OpaqueSessionAdapter;
   identityVerifier: UpstreamIdentityVerifier;
   accessLifecycle?: AuthorityAccessLifecycleService;
+  reporting?: AuthorityReportingService;
+  administration?: AuthorityAdministrationService;
   logger?: SecurityLogger;
   metrics?: AuthorityMetrics;
   rateLimiter?: AuthorityRateLimiter;
@@ -136,6 +142,66 @@ export function createAuthorityHttpHandler(
         if (!enforceRate()) return rateLimited();
         return jsonResponse(await authority.replay(cookie, intent));
       }
+      const reporting = dependencies.reporting;
+      if (pathname === "/v1/reports/execute") {
+        if (reporting === undefined) return reject("endpoint_unavailable", 503, pathname);
+        if (!enforceRate()) return rateLimited();
+        return jsonResponse(await reporting.execute(cookie, reportRequest(body)));
+      }
+      if (pathname === "/v1/reports/export") {
+        if (reporting === undefined) return reject("endpoint_unavailable", 503, pathname);
+        if (!enforceRate()) return rateLimited();
+        const exported = await reporting.exportCsv(cookie, reportExportRequest(body));
+        return new Response(exported.body, {
+          status: 200,
+          headers: {
+            "content-type": exported.contentType,
+            "cache-control": "no-store",
+            "content-disposition": `attachment; filename=\"${exported.filename}\"`,
+            "x-adl-report-truncated": String(exported.truncated),
+          },
+        });
+      }
+      const administration = dependencies.administration;
+      if (pathname.startsWith("/v1/admin/")) {
+        if (administration === undefined) return reject("endpoint_unavailable", 503, pathname);
+        if (!enforceRate()) return rateLimited();
+        const scope = administrationScope(body);
+        const page = {
+          ...(scope.limit === undefined ? {} : { limit: scope.limit }),
+          ...(scope.cursor === undefined ? {} : { cursor: scope.cursor }),
+        };
+        if (pathname === "/v1/admin/access-audit/list")
+          return jsonResponse(
+            await administration.accessAudit(cookie, scope.contextName, scope.contextId, page),
+          );
+        if (pathname === "/v1/admin/runtime-audit/list")
+          return jsonResponse(
+            await administration.runtimeAudit(cookie, scope.contextName, scope.contextId, page),
+          );
+        if (pathname === "/v1/admin/memberships/list")
+          return jsonResponse(
+            await administration.memberships(cookie, scope.contextName, scope.contextId, page),
+          );
+        if (pathname === "/v1/admin/invites/list")
+          return jsonResponse(
+            await administration.invites(cookie, scope.contextName, scope.contextId, page),
+          );
+        if (pathname === "/v1/admin/recovery/status")
+          return jsonResponse(
+            await administration.recovery(cookie, scope.contextName, scope.contextId),
+          );
+        if (pathname === "/v1/admin/sessions/revoke")
+          return jsonResponse(
+            await administration.revokeSessions(
+              cookie,
+              scope.contextName,
+              scope.contextId,
+              requiredString(body, "userId"),
+            ),
+          );
+        return failure("not_found", 404);
+      }
       const access = dependencies.accessLifecycle;
       if (access === undefined) return reject("endpoint_unavailable", 503, pathname);
       if (pathname === "/v1/invites/create") {
@@ -231,7 +297,39 @@ function bucketFor(pathname: string): keyof AuthorityRateLimits | undefined {
   if (pathname.startsWith("/v1/invites/") || pathname === "/v1/memberships/revoke") return "invite";
   if (pathname === "/v1/sync/bootstrap") return "bootstrap";
   if (pathname === "/v1/sync/replay") return "replay";
+  if (pathname.startsWith("/v1/reports/")) return "report";
+  if (pathname.startsWith("/v1/admin/")) return "administration";
   return undefined;
+}
+function reportRequest(body: Record<string, JsonValue>) {
+  return {
+    readModelName: requiredString(body, "readModelName"),
+    ...(isStringRecord(body.selectedContexts) ? { selectedContexts: body.selectedContexts } : {}),
+    ...(typeof body.cursor === "string" && body.cursor.length <= 4096
+      ? { cursor: body.cursor }
+      : {}),
+    ...(typeof body.limit === "number" && Number.isInteger(body.limit)
+      ? { limit: body.limit }
+      : {}),
+  };
+}
+function reportExportRequest(body: Record<string, JsonValue>) {
+  return {
+    readModelName: requiredString(body, "readModelName"),
+    ...(isStringRecord(body.selectedContexts) ? { selectedContexts: body.selectedContexts } : {}),
+  };
+}
+function administrationScope(body: Record<string, JsonValue>) {
+  return {
+    contextName: requiredString(body, "contextName"),
+    contextId: requiredString(body, "contextId"),
+    ...(typeof body.limit === "number" && Number.isInteger(body.limit)
+      ? { limit: body.limit }
+      : {}),
+    ...(typeof body.cursor === "string" && body.cursor.length <= 4_096
+      ? { cursor: body.cursor }
+      : {}),
+  };
 }
 function bootstrapRequest(body: Record<string, JsonValue>): AuthorityBootstrapRequest {
   return {

@@ -47,6 +47,12 @@ approval before deleting audit data. A daily job may remove expired/revoked
 session and invite verifier rows only after 35 days. Do not delete accepted
 records, outcomes, or audit projections through that job.
 
+Phase 43 adds the metadata-only `adl_authority_administration_audit_events`
+projection. Include it in the same backup, restore-count, and legal retention
+process. It records report/export and operational-review metadata, not report
+rows, raw audit payloads, session/invite verifiers, or credentials. Report
+pages are intentionally short-lived server state and are not recoverable data.
+
 Quarterly restore drill:
 
 1. Restore an encrypted backup into an isolated database and apply WAL to the
@@ -78,3 +84,10 @@ readiness passes, then have clients bootstrap before replaying queued intents.
 only; confirm model/version deployment compatibility, pause affected client
 release if necessary, and keep idempotent retries enabled. Never repair state
 by accepting raw browser records or bypassing `AuthorityService`.
+
+**Report/export concern:** use the context-bounded access-audit and
+administration-audit summaries to identify the actor, report name, and time.
+Do not query the database for a raw report payload: no report payload is kept.
+If membership access is suspect, revoke that membership (which revokes sessions)
+and have the user bootstrap again. A context manager may revoke sessions only
+for a user with active membership in that same context.

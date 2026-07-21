@@ -18,6 +18,8 @@ roles are resolved from accepted membership records on every authority call.
 | Invite abuse | Policy-gated issue, hashed one-time verifier, recipient/expiry checks, locked PostgreSQL claim transaction, endpoint limits | access-lifecycle tests |
 | Replay flood or outcome disclosure | Actor-bound durable outcome lookup after session verification; rate limits exempt only a stored retry for that same actor | authority HTTP/service tests |
 | Database compromise or operator mistake | Dedicated migration and traffic roles, backups, restore drills, retention and incident runbooks | operations drill |
+| Cross-context report/export enumeration | Named resolved read models only; runtime scope/read/masking; source-record export policy; bounded actor-bound cursors | Phase 43 reporting tests |
+| Admin/audit disclosure or over-broad response | Existing context membership-management policy, status-only response DTOs, metadata-only administration audit, endpoint rate/CSRF/origin controls | Phase 43 administration/HTTP tests |
 
 Residual risks: upstream identity-provider compromise, a trusted reverse-proxy
 misconfiguration, and an attacker with database-owner access are outside the

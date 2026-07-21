@@ -104,3 +104,29 @@ Read the [production runbook](operations/authority-production-runbook.md) and
 uses `OpaqueSessionAdapter` and PostgreSQL only; `StaticSessionAdapter` is
 rejected by configuration validation. Migration and traffic accounts are
 separate, and recovery drills cover every authority projection.
+
+## Authoritative reporting and administration
+
+Phase 43 adds `AuthorityReportingService` and `AuthorityAdministrationService`.
+Reports execute only a named resolved read model through `ApplicationRuntime`;
+they do not accept SQL, arbitrary fields, filters, object names, or database
+credentials. Runtime context scope, source `search`/`read` policy, field masks,
+and read-model semantics shape every result before the service paginates it.
+CSV export additionally requires the existing `export` policy for every source
+record. Reports are limited to 500 rows, exports to 100 rows, and pages to 100
+rows. Report and administration-list cursors are opaque, short-lived,
+actor-bound server state.
+
+The HTTP edge exposes POST-only, CSRF/origin/session/rate-protected endpoints
+at `/v1/reports/execute`, `/v1/reports/export`, and narrowly scoped
+`/v1/admin/*` review/response routes. Administration first requires existing
+ADL membership-management (`update`) policy in one selected business context.
+It returns status summaries only: no record JSON, audit before/after payload,
+session verifier, invite verifier, outcome body, or raw access-audit event is
+returned. Session revocation is limited to a target with active access in the
+same managed context.
+
+`0003_reporting_administration.sql` adds only a metadata-only administration
+audit projection and context-review indexes. It does not expose SQL through
+ADL, duplicate accepted records, or store credentials. Apply it with
+`adl_migrator` before serving these endpoints.

@@ -22,7 +22,15 @@ const configuration: AuthorityConfiguration = {
   sessionTtlMinutes: 480,
   maxRequestBytes: 120,
   upstreamIdentity: { issuer: "https://identity.test", audience: "adl-test" },
-  rateLimits: { accountProof: 1, session: 10, invite: 10, bootstrap: 10, replay: 10 },
+  rateLimits: {
+    accountProof: 1,
+    session: 10,
+    invite: 10,
+    bootstrap: 10,
+    replay: 10,
+    report: 10,
+    administration: 10,
+  },
 };
 
 const model = resolveApplicationModel({
