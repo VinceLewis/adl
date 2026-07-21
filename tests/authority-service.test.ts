@@ -182,6 +182,12 @@ describe("AuthorityService", () => {
     expect(accepted.status).toBe("accepted");
     const repeated = await authority.replay(tokenAdmin, adminIntent);
     expect(repeated).toEqual(accepted);
+    const crossActorSameOperationId = await authority.replay(tokenMember, adminIntent);
+    expect(crossActorSameOperationId).toMatchObject({
+      status: "rejected",
+      operationId: adminIntent.operationId,
+      code: "ADL_POLICY_DENIED",
+    });
     const spoofed = await authority.replay(tokenMember, {
       operationId: "op-member-create",
       kind: "create",

@@ -14,12 +14,16 @@ import type {
 
 export class InMemoryAuthorityOutcomeStore implements AuthorityOutcomeStore {
   private readonly outcomes = new Map<string, AuthorityOutcome>();
-  async get(operationId: string): Promise<AuthorityOutcome | null> {
-    return this.outcomes.get(operationId) ?? null;
+  async get(operationId: string, actorId: string): Promise<AuthorityOutcome | null> {
+    return structuredClone(this.outcomes.get(outcomeKey(operationId, actorId)) ?? null);
   }
-  async put(outcome: AuthorityOutcome): Promise<void> {
-    this.outcomes.set(outcome.operationId, structuredClone(outcome));
+  async put(outcome: AuthorityOutcome, actorId: string): Promise<void> {
+    this.outcomes.set(outcomeKey(outcome.operationId, actorId), structuredClone(outcome));
   }
+}
+
+function outcomeKey(operationId: string, actorId: string): string {
+  return `${actorId}\u0000${operationId}`;
 }
 
 export class AuthorityService {
@@ -95,42 +99,63 @@ export class AuthorityService {
     sessionToken: string | undefined,
     intent: AuthorityOperationIntent,
   ): Promise<AuthorityOutcome> {
-    const existing = await this.outcomes.get(intent.operationId);
-    if (existing !== null) return existing;
     const session = await this.sessions.verify(sessionToken);
     if (session === null)
-      return this.persist({
+      return {
         status: "rejected",
         operationId: intent.operationId,
         code: "ADL_AUTH_UNAUTHENTICATED",
         message: "A valid server session is required.",
-      });
+      };
+    const existing = await this.outcomes.get(intent.operationId, session.userId);
+    if (existing !== null) return existing;
     try {
       const context = await this.resolveContext(session.userId, intent.selectedContexts);
       const records = await this.shapeAcceptedRecords(await this.apply(intent, context), context);
-      return this.persist({ status: "accepted", operationId: intent.operationId, records });
+      return this.persist(
+        { status: "accepted", operationId: intent.operationId, records },
+        session.userId,
+      );
     } catch (error) {
       if (error instanceof RevisionConflictError) {
         return error.manual
-          ? this.persist({
-              status: "manualResolution",
-              operationId: intent.operationId,
-              code: "ADL_SYNC_MANUAL_RESOLUTION",
-              message: error.message,
-              recovery: "manual",
-            })
-          : this.persist({
-              status: "conflict",
-              operationId: intent.operationId,
-              code: "ADL_SYNC_CONFLICT",
-              message: error.message,
-              recovery: this.conflictRecovery(error.objectName),
-            });
+          ? this.persist(
+              {
+                status: "manualResolution",
+                operationId: intent.operationId,
+                code: "ADL_SYNC_MANUAL_RESOLUTION",
+                message: error.message,
+                recovery: "manual",
+              },
+              session.userId,
+            )
+          : this.persist(
+              {
+                status: "conflict",
+                operationId: intent.operationId,
+                code: "ADL_SYNC_CONFLICT",
+                message: error.message,
+                recovery: this.conflictRecovery(error.objectName),
+              },
+              session.userId,
+            );
       }
       const code = error instanceof RuntimeError ? error.code : "ADL_AUTHORITY_REJECTED";
       const message = error instanceof Error ? error.message : "The operation was rejected.";
-      return this.persist({ status: "rejected", operationId: intent.operationId, code, message });
+      return this.persist(
+        { status: "rejected", operationId: intent.operationId, code, message },
+        session.userId,
+      );
     }
+  }
+
+  /** Used by the HTTP edge to exempt an authenticated idempotent retry from rate cost. */
+  async replayOutcome(
+    sessionToken: string | undefined,
+    operationId: string,
+  ): Promise<AuthorityOutcome | null> {
+    const session = await this.sessions.verify(sessionToken);
+    return session === null ? null : this.outcomes.get(operationId, session.userId);
   }
 
   private async apply(
@@ -200,8 +225,8 @@ export class AuthorityService {
     const policy = this.runtime.index.getObject(objectName).sync.conflict;
     return policy === "manual" ? "serverWins" : policy;
   }
-  private async persist(outcome: AuthorityOutcome): Promise<AuthorityOutcome> {
-    await this.outcomes.put(outcome);
+  private async persist(outcome: AuthorityOutcome, actorId: string): Promise<AuthorityOutcome> {
+    await this.outcomes.put(outcome, actorId);
     return outcome;
   }
 }

@@ -88,6 +88,7 @@ export interface AuthoritySessionAdapter {
 }
 
 export interface AuthorityOutcomeStore {
-  get(operationId: string): Promise<AuthorityOutcome | null>;
-  put(outcome: AuthorityOutcome): Promise<void>;
+  /** Outcomes are bound to the authenticated actor that submitted the intent. */
+  get(operationId: string, actorId: string): Promise<AuthorityOutcome | null>;
+  put(outcome: AuthorityOutcome, actorId: string): Promise<void>;
 }

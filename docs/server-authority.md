@@ -91,5 +91,16 @@ accepting shared data. Existing cached browser records are not an access grant:
 the client cannot claim or alter access offline, and the next authenticated
 bootstrap remains policy-shaped and reconciles the permitted dataset.
 
-Password/account recovery, email/SMS delivery, rate limiting, deployment,
-backups, monitoring, and incident operations remain deferred to Phase 42.
+## Production boundary and operations
+
+Phase 42 adds the deployment-only HTTP/configuration edge under `src/server/`.
+It requires HTTPS, exact configured origins, JSON size/content-type validation,
+Secure HttpOnly SameSite=Strict `__Host-` session cookies, CSRF protection for
+mutations, rate controls, and redacted structured security events. It never
+adds routes, SQL, cookie settings, or identity providers to the ADL model.
+
+Read the [production runbook](operations/authority-production-runbook.md) and
+[threat model](security/phase-42-threat-model.md) before deploying. Production
+uses `OpaqueSessionAdapter` and PostgreSQL only; `StaticSessionAdapter` is
+rejected by configuration validation. Migration and traffic accounts are
+separate, and recovery drills cover every authority projection.

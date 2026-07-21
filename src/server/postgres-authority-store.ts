@@ -12,18 +12,18 @@ export interface PostgresQueryable {
 export class PostgresAuthorityOutcomeStore implements AuthorityOutcomeStore {
   constructor(private readonly database: PostgresQueryable) {}
 
-  async get(operationId: string): Promise<AuthorityOutcome | null> {
+  async get(operationId: string, actorId: string): Promise<AuthorityOutcome | null> {
     const result = await this.database.query<{ outcome: AuthorityOutcome }>(
-      "select outcome from adl_authority_operation_outcomes where operation_id = $1",
-      [operationId],
+      "select outcome from adl_authority_operation_outcomes where operation_id = $1 and actor_id = $2",
+      [operationId, actorId],
     );
     return result.rows[0]?.outcome ?? null;
   }
 
-  async put(outcome: AuthorityOutcome): Promise<void> {
+  async put(outcome: AuthorityOutcome, actorId: string): Promise<void> {
     await this.database.query(
-      "insert into adl_authority_operation_outcomes (operation_id, outcome) values ($1, $2::jsonb) on conflict (operation_id) do nothing",
-      [outcome.operationId, JSON.stringify(outcome)],
+      "insert into adl_authority_operation_outcomes (operation_id, actor_id, outcome) values ($1, $2, $3::jsonb) on conflict (operation_id, actor_id) do nothing",
+      [outcome.operationId, actorId, JSON.stringify(outcome)],
     );
   }
 }
