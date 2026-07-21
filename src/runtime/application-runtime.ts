@@ -57,11 +57,13 @@ import type {
 import { runRuntimeStartupCompatibilityChecks } from "./startup-compatibility.js";
 import { SyncPolicyService } from "./sync-policy-service.js";
 import { SyncQueue } from "./sync-queue.js";
+import type { SyncStateStorage } from "./sync-state-storage.js";
 import { ValidationEngine } from "./validation-engine.js";
 
 export interface ApplicationRuntimeOptions {
   logger?: RuntimeLogger;
   storage?: ObjectStorageBackend;
+  syncStateStorage?: SyncStateStorage;
 }
 
 export class ApplicationRuntime {
@@ -106,7 +108,7 @@ export class ApplicationRuntime {
     this.syncQueue = new SyncQueue(model, this.index, this.logger);
     this.hookRegistry = new HookRegistry(this.logger);
     const storage = options.storage ?? new InMemoryObjectStorageBackend();
-    this.startupPromise = this.runStartupCompatibilityChecks(storage);
+    this.startupPromise = this.runStartupCompatibilityChecks(storage, options.syncStateStorage);
     void this.startupPromise.catch(() => undefined);
     this.contextService = new RuntimeContextService(model, this.index, storage, this.logger, () =>
       this.whenReady(),
@@ -282,6 +284,11 @@ export class ApplicationRuntime {
       found: result !== null,
     });
     return result;
+  }
+
+  async reconcileRemoteRecord(objectName: string, record: StoredObjectRecord): Promise<void> {
+    await this.whenReady();
+    await this.objectStore.reconcileRemoteRecord(objectName, record);
   }
 
   async update(
@@ -590,13 +597,37 @@ export class ApplicationRuntime {
     this.logger.debug("EXIT ApplicationRuntime.registerHook", { name });
   }
 
-  private async runStartupCompatibilityChecks(storage: ObjectStorageBackend): Promise<void> {
+  private async runStartupCompatibilityChecks(
+    storage: ObjectStorageBackend,
+    syncStateStorage?: SyncStateStorage,
+  ): Promise<void> {
     try {
       this.startupDiagnostics = await runRuntimeStartupCompatibilityChecks(
         this.model,
         storage,
         this.logger,
       );
+      if (syncStateStorage !== undefined) {
+        const state = await syncStateStorage.read();
+        if (state !== null && state.modelVersion !== this.model.modelVersion) {
+          throw new RuntimeStartupError([
+            {
+              severity: "error",
+              code: "ADL_PERSISTED_SYNC_STATE_MODEL_VERSION_MISMATCH",
+              message: `Persisted sync state model version '${state.modelVersion}' is incompatible with current model version '${this.model.modelVersion}'.`,
+              path: "syncState.modelVersion",
+              expected: this.model.modelVersion,
+              actual: state.modelVersion,
+            },
+          ]);
+        }
+        if (state !== null) {
+          this.operationLog.restore(state.operations);
+          this.syncQueue.restore(state.queue);
+        }
+        this.installSyncStatePersistence(syncStateStorage);
+        await this.persistSyncState(syncStateStorage);
+      }
     } catch (error) {
       if (error instanceof RuntimeStartupError) {
         this.startupDiagnostics = error.diagnostics;
@@ -604,5 +635,33 @@ export class ApplicationRuntime {
 
       throw error;
     }
+  }
+
+  private installSyncStatePersistence(storage: SyncStateStorage): void {
+    const persist = () => void this.persistSyncState(storage);
+    for (const method of ["enqueue", "remove", "clear", "restore"] as const) {
+      const original = this.syncQueue[method].bind(this.syncQueue);
+      (this.syncQueue as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
+        const result = (original as (...inner: unknown[]) => unknown)(...args);
+        persist();
+        return result;
+      };
+    }
+    for (const method of ["record", "setStatus", "clear", "restore"] as const) {
+      const original = this.operationLog[method].bind(this.operationLog);
+      (this.operationLog as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
+        const result = (original as (...inner: unknown[]) => unknown)(...args);
+        persist();
+        return result;
+      };
+    }
+  }
+
+  private async persistSyncState(storage: SyncStateStorage): Promise<void> {
+    await storage.write({
+      modelVersion: this.model.modelVersion,
+      queue: this.syncQueue.getEntries(),
+      operations: this.operationLog.getOperations(),
+    });
   }
 }

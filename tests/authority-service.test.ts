@@ -208,4 +208,28 @@ describe("AuthorityService", () => {
     });
     expect(result).toMatchObject({ status: "rejected", code: "ADL_RUNTIME_CONTEXT_ERROR" });
   });
+
+  it("bootstraps only policy-shaped records in the authenticated selected context", async () => {
+    const authority = await fixture();
+    await authority.replay(tokenAdmin, {
+      operationId: "op-bootstrap-create",
+      kind: "create",
+      objectName: "Gig",
+      values: { Band: "band-1", Title: "Visible rehearsal" },
+      selectedContexts: { Band: "band-1" },
+    });
+    const memberPull = await authority.bootstrap(tokenMember, {
+      selectedContexts: { Band: "band-1" },
+      limit: 1,
+    });
+    expect(memberPull.records).toHaveLength(1);
+    expect(memberPull.records[0]).toMatchObject({
+      objectName: "Band",
+      record: { values: { Name: "Giggle" } },
+    });
+    const forbiddenPull = await authority.bootstrap(tokenMember, {
+      selectedContexts: { Band: "outside-band" },
+    });
+    expect(forbiddenPull.records).toEqual([]);
+  });
 });

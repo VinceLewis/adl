@@ -43,6 +43,28 @@ the authenticated context; do not return raw audit, conflict, or protected data.
 
 ## Deferred work
 
-Password/account recovery, invite claim, bootstrap/pull, persistent browser
-queue storage, background sync, rate limiting, deployment, and monitoring are
-not included in Phase 39.
+## Remote bootstrap and browser reconciliation
+
+Phase 40 adds `AuthorityService.bootstrap(...)`. It accepts only a verified
+session and an optional selected business context. The service derives identity
+and context roles server-side, excludes `localPrivate` objects, and passes every
+accepted record through normal runtime context-scope and read-policy shaping
+before it is returned. Denied rows and invalid context selection both produce
+an empty result; they are not distinguishable to the caller. Cursors are opaque,
+bounded, and advance only through records already visible to that caller.
+
+`AuthoritySyncClient` continues to submit only `localFirst` queue entries.
+The IndexedDB `syncState` database persists queue entries and operation-log
+outcomes separately from object records, with a model-version startup guard.
+Conflict outcomes carry only a deterministic recovery strategy from the resolved
+object sync policy (`serverWins`, `clientWins`, `stateTransitionWins`, or
+`manual`); protected authority records are never attached to a conflict.
+
+The client applies accepted and bootstrap records through the runtime's trusted
+sync-projection path. That path creates no new operation-log, audit, or queue
+side effect and marks the local projection `synced`; user-facing reads still go
+through normal `ApplicationRuntime` policy checks. A complete recovery UI
+remains follow-up work.
+
+Password/account recovery, invite claim, background scheduling, rate limiting,
+deployment, and monitoring remain deferred.

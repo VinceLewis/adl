@@ -94,6 +94,16 @@ export class OperationLog {
     return cloneJson(this.operations);
   }
 
+  restore(operations: LocalOperation[]): void {
+    this.operations.splice(0, this.operations.length, ...cloneJson(operations));
+    this.nextOperationId = Math.max(
+      1,
+      ...operations
+        .map((operation) => Number(operation.opId.replace(/^op-/, "")) + 1)
+        .filter(Number.isFinite),
+    );
+  }
+
   setStatus(opId: string, status: LocalOperation["status"]): void {
     const operation = this.operations.find((entry) => entry.opId === opId);
     if (operation !== undefined) {

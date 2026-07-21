@@ -65,4 +65,8 @@ export class SyncQueue {
   clear(): void {
     this.entries.length = 0;
   }
+
+  restore(entries: SyncQueueEntry[]): void {
+    this.entries.splice(0, this.entries.length, ...cloneJson(entries));
+  }
 }

@@ -186,6 +186,23 @@ export class ObjectStore {
     );
   }
 
+  /** Trusted sync projection write. It deliberately does not create local intent, audit, or queue side effects. */
+  async reconcileRemoteRecord(objectName: string, record: StoredObjectRecord): Promise<void> {
+    await this.startupGuard();
+    this.index.getObject(objectName);
+    const existing = await this.storage.read(objectName, record.meta.guid);
+    const synced = cloneJson({
+      ...record,
+      meta: { ...record.meta, syncStatus: "synced" as const },
+    });
+    if (existing === null) {
+      await this.storage.create(objectName, synced);
+      return;
+    }
+    if (synced.meta.deletedAt !== undefined) await this.storage.delete(objectName, synced);
+    else await this.storage.update(objectName, synced);
+  }
+
   async update(
     objectName: string,
     id: string,

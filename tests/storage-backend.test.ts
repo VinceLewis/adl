@@ -3,6 +3,7 @@ import { indexedDB as fakeIndexedDB } from "fake-indexeddb";
 import {
   ApplicationRuntime,
   IndexedDbObjectStorageBackend,
+  IndexedDbSyncStateStorage,
   InMemoryObjectStorageBackend,
   StorageError,
   resolveApplicationModel,
@@ -197,6 +198,29 @@ describe("object storage backends", () => {
         },
       },
     ]);
+  });
+
+  it("persists local-first queue and operation reconciliation state separately from records", async () => {
+    installFakeIndexedDb();
+    const databaseName = nextDatabaseName();
+    const model = resolveApplicationModel(storagePartialModel);
+    const syncState = new IndexedDbSyncStateStorage({ databaseName });
+    const first = new ApplicationRuntime(model, {
+      storage: new IndexedDbObjectStorageBackend({ databaseName }),
+      syncStateStorage: syncState,
+    });
+    await first.create("Customer", { Name: "Queued", Email: "queued@example.com" }, adminContext);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect((await syncState.read())?.queue).toHaveLength(1);
+    const second = new ApplicationRuntime(model, {
+      storage: new IndexedDbObjectStorageBackend({ databaseName }),
+      syncStateStorage: new IndexedDbSyncStateStorage({ databaseName }),
+    });
+    await second.whenReady();
+    expect(second.syncQueue.getEntries()).toHaveLength(1);
+    second.operationLog.setStatus("op-1", "accepted");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect((await syncState.read())?.operations[0]?.status).toBe("accepted");
   });
 
   it("commits IndexedDB transaction writes atomically", async () => {
