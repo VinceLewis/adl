@@ -8,14 +8,21 @@ the ADL model.
 
 ## Trust boundary
 
-`AuthoritySessionAdapter` verifies a server-issued opaque session token and
-returns only an identity. The request cannot set a user id, global role, context
-role, audit actor, accepted revision, or timestamp. Context roles are resolved
-from the accepted `BandMember` records through `RuntimeContextService` before
-the runtime applies policy. The included `StaticSessionAdapter` is deliberately
-development/test-only: production deployments must use an adapter that validates
-an HTTPS-only, Secure, HttpOnly, SameSite cookie or an equivalent server-side
-session, rotates/revokes sessions, and rate-limits authentication endpoints.
+`OpaqueSessionAdapter` is the Phase 41 production adapter. It provisions a
+stable identity from a trusted upstream account proof and issues random opaque
+tokens that are stored only as SHA-256 verifiers in the authority database. It
+validates expiry and identity status on every request and supports rotation,
+sign-out, and user-wide revocation. The HTTP integration must carry the raw
+token only in an HTTPS-only, Secure, HttpOnly, SameSite cookie (or an equivalent
+server-managed credential); it must not put an ADL role or membership in a
+token. `StaticSessionAdapter` remains development/test-only and must not be
+wired into a production authority process.
+
+The request cannot set a user id, global role, context role, audit actor,
+accepted revision, or timestamp. Context roles are resolved from accepted
+`BandMember` records through `RuntimeContextService` before the runtime applies
+policy. A valid authentication session therefore proves identity only, not
+business access.
 
 Never put ADL business roles in a bearer token and never log a session token.
 
@@ -66,5 +73,23 @@ side effect and marks the local projection `synced`; user-facing reads still go
 through normal `ApplicationRuntime` policy checks. A complete recovery UI
 remains follow-up work.
 
-Password/account recovery, invite claim, background scheduling, rate limiting,
-deployment, and monitoring remain deferred.
+## Identity, invites, and revocation
+
+`AuthorityAccessLifecycleService` creates an invite only after the authenticated
+caller passes the existing ADL `update` policy on the resolved membership
+object in the target context. An invite contains a one-time hashed verifier,
+target context, permitted role, optional recipient identity, and expiry. It is
+claimed only online by a verified session. PostgreSQL locks the invite row and
+in the same transaction inserts the membership record, marks the invite
+claimed, and records an access audit event. Raw invite tokens never appear in
+records, audit, sync state, outcomes, or logs.
+
+Membership removal is likewise policy-gated, tombstones the server membership
+record, emits access audit, and revokes the affected user's opaque sessions.
+The next bootstrap or replay therefore fails authentication before returning or
+accepting shared data. Existing cached browser records are not an access grant:
+the client cannot claim or alter access offline, and the next authenticated
+bootstrap remains policy-shaped and reconciles the permitted dataset.
+
+Password/account recovery, email/SMS delivery, rate limiting, deployment,
+backups, monitoring, and incident operations remain deferred to Phase 42.

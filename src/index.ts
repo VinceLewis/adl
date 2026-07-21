@@ -34,6 +34,8 @@ export * from "./runtime/sync-state-storage.js";
 export * from "./runtime/validation-engine.js";
 export * from "./server/authority-types.js";
 export * from "./server/session-adapter.js";
+export * from "./server/opaque-session-adapter.js";
+export * from "./server/access-lifecycle.js";
 export * from "./server/authority-service.js";
 export * from "./server/sync-client.js";
 export * from "./server/postgres-authority-store.js";
