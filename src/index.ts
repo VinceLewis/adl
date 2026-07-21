@@ -36,3 +36,4 @@ export * from "./server/session-adapter.js";
 export * from "./server/authority-service.js";
 export * from "./server/sync-client.js";
 export * from "./server/postgres-authority-store.js";
+export * from "./server/postgres-object-storage.js";
