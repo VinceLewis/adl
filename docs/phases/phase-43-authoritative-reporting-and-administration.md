@@ -24,9 +24,14 @@ and operational boundaries.
 Do not bypass resolved-model runtime semantics, expose raw database access as an
 ADL feature, or begin unrelated presentation, identity, or deployment work.
 
-## Mandatory Planning Handoff
+## Required Final Planning Handoff
 
 Before closing Phase 43, review the roadmap against actual product evidence and
-create the next phase document only for concrete work that remains. That next
-document must fully define its objective, scope, constraints, deliverables,
-acceptance criteria, verification, non-goals, and dependencies before execution.
+create the Phase 44 document for the next concrete work that remains. That
+complete executable document must fully define its objective, scope,
+constraints, deliverables, acceptance criteria, tests/verification, non-goals,
+dependencies, and its required next-phase planning handoff before execution.
+Complete that handoff before final verification, commit all Phase 43 changes,
+and push the current branch. If the evidence establishes that no further phase
+is warranted, record that conclusion and its acceptance evidence in the Phase
+43 closeout instead of inventing work merely to extend the roadmap.

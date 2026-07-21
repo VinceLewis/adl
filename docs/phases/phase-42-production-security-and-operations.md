@@ -26,10 +26,12 @@ Do not introduce unrelated platform rewrites, a new sync architecture, or
 customer-specific reporting/admin functionality merely because production
 operations are being hardened.
 
-## Mandatory Planning Handoff
+## Required Final Planning Handoff
 
 Before closing Phase 42, replace the Phase 43 placeholder with a complete,
 evidence-based executable phase document. Use actual authority data, audit,
 recovery, and operations requirements to define the authoritative reporting and
 administration scope, constraints, acceptance criteria, tests, verification,
-and non-goals.
+non-goals, dependencies, and its required next-phase planning handoff. Complete
+that handoff before final verification, commit all Phase 42 changes, and push
+the current branch.

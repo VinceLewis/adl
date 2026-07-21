@@ -82,5 +82,11 @@ resolution explicit and durable in the local sync experience.
 4. Persist sync queue/reconciliation state in IndexedDB with compatibility checks.
 5. Implement reconciliation and recovery-state mapping.
 6. Add Giggle Band security, PostgreSQL, and browser integration coverage.
-7. Document setup/trust boundaries, update learnings and Phase 41 if needed,
-   then verify, commit, and push the phase.
+7. Document setup/trust boundaries and update learnings.
+8. **Required next-phase planning handoff:** before Phase 40 closes, replace the
+   Phase 41 placeholder with a complete, evidence-based executable phase
+   document. It must use the implemented authority bootstrap, persisted sync
+   state, `StaticSessionAdapter` limitation, and access boundary results to
+   define Phase 41's objective, scope, constraints, deliverables, acceptance
+   criteria, tests/verification, non-goals, dependencies, and its required
+   Phase 42 planning handoff. Then verify, commit, and push the phase.
