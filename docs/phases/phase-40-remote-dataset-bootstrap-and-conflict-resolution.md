@@ -1,35 +1,86 @@
 # Phase 40 - Remote Dataset Bootstrap and Conflict Resolution
 
-## Status
+## Objective
 
-Placeholder. Phase 39 must replace this file with a complete executable phase
-document before Phase 39 closes. Do not begin this phase from the placeholder.
+Build on Phase 39's typed TypeScript authority boundary to let an authenticated
+browser safely obtain and reconcile only its policy- and context-permitted
+remote dataset. Make stale revisions, rejections, conflicts, and manual
+resolution explicit and durable in the local sync experience.
 
-## Intended Objective
+## Scope
 
-Build on the Phase 39 authority path so an authenticated client can safely
-bootstrap and refresh its permitted remote dataset, reconcile accepted server
-state with IndexedDB, and surface actionable conflict/manual-resolution states.
+- A policy-shaped, authenticated bootstrap/pull transport over the Phase 39
+  authority service; records, errors, audit, and conflict responses must not
+  disclose records the current server-resolved identity cannot read.
+- A PostgreSQL accepted-state reader backed by the Phase 39 record projection,
+  including model/schema compatibility checks and pagination/cursors that do
+  not permit cross-context enumeration.
+- IndexedDB persistence for browser sync queue entries and reconciliation state,
+  with startup compatibility checks for that new persisted state.
+- Reconciliation of accepted records, rejected writes, conflict outcomes and
+  manual-resolution outcomes into local records, operation log, sync queue, and
+  existing sync presentation state.
+- Deterministic conflict data and user-facing recovery entry points that remain
+  server-authoritative. Use model conflict policy (`serverWins`, `clientWins`,
+  `stateTransitionWins`, `manual`) rather than client-specific heuristics.
+- Giggle Band tests for admin/member datasets, a remote change after offline
+  work, conflict/manual resolution status, and no local-private transmission.
 
-## Intended Scope
+## Constraints
 
-- Context- and policy-shaped dataset pull/bootstrap from the authority server.
-- Reconciliation of accepted remote records with local records and queued
-  operation intents.
-- Deterministic stale-revision, rejected-intent, conflict, and
-  manual-resolution handling.
-- Browser-visible sync state and recovery flows that do not disclose protected
-  records or bypass server authority.
+- Reuse `AuthoritySessionAdapter`, `AuthorityService`, typed operation outcomes,
+  and the shared resolved-model runtime. Do not add ADL syntax for routes, SQL,
+  sessions, cursors, or provider settings.
+- Treat the browser as untrusted: every pull and resolution action derives
+  identity, memberships and roles server-side and applies read policy before a
+  response is emitted.
+- Do not replace operation-intent replay with blind row replacement, Automerge,
+  peer-to-peer replication, or a second runtime.
+- Preserve `localPrivate`, `cacheReadonly`, and `onlineRequired` semantics.
+- Add a PostgreSQL object-storage/transaction implementation if Phase 39's
+  in-process test backend has not already been replaced; accepted records,
+  audit and idempotent outcomes must commit atomically.
 
-## Explicit Deferrals
+## Deliverables
 
-Do not assume background sync scheduling, account/invite lifecycle work,
-production deployment, reporting, or a different sync technology belongs here.
+- Authenticated bootstrap/pull contract and authority handler with cursor and
+  policy/context shaping.
+- PostgreSQL accepted-state read/storage transaction implementation and
+  integration-test database lifecycle documentation.
+- Persistent browser queue and reconciliation state behind existing runtime
+  persistence boundaries.
+- Runtime/client reconciliation service and compact sync status presentation.
+- Integration and browser tests, documentation, and learnings.
 
-## Mandatory Planning Handoff
+## Acceptance Criteria
 
-Before closing Phase 40, replace the Phase 41 placeholder with a complete,
-evidence-based executable phase document. Use real bootstrap, reconciliation,
-conflict, and session-boundary results to define its exact access-lifecycle
-scope, constraints, acceptance criteria, tests, verification, and non-goals.
-Update Phases 42 and 43 placeholders if dependencies or sequencing change.
+- A user receives only records and fields allowed by server-derived identity,
+  context memberships, and ADL read policy; crafted context/user/role inputs do
+  not expand the dataset.
+- Reconnect reconciles queued local-first entries exactly once and persists the
+  resulting accepted/rejected/conflict/manual state across browser reload.
+- Stale base revisions are deterministic and model conflict policy selects the
+  recovery state without leaking a protected server record.
+- Local-private records and their operation data are never sent or included in
+  bootstrap responses.
+- PostgreSQL integration tests prove restart persistence, atomic accepted
+  writes/audit/outcomes, membership isolation, and cursor isolation.
+- `npm run typecheck`, `npm test`, `npm run format:check`, and `npm run build`
+  pass. Run and inspect `npm run verify:push` if browser rendering or CSS changes.
+
+## Non-goals
+
+- Account recovery, invite claiming, rate limiting, production deployment,
+  background scheduling, reporting, CRDT/Automerge replication, or a complete
+  conflict-resolution UI.
+
+## Tasks
+
+1. Inventory Phase 39 authority interfaces and browser local persistence.
+2. Design typed, policy-shaped pull/bootstrap and conflict payloads.
+3. Implement PostgreSQL accepted-state reads and transactional projection.
+4. Persist sync queue/reconciliation state in IndexedDB with compatibility checks.
+5. Implement reconciliation and recovery-state mapping.
+6. Add Giggle Band security, PostgreSQL, and browser integration coverage.
+7. Document setup/trust boundaries, update learnings and Phase 41 if needed,
+   then verify, commit, and push the phase.

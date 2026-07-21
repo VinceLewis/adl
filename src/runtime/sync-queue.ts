@@ -55,6 +55,13 @@ export class SyncQueue {
     return cloneJson(this.entries);
   }
 
+  remove(queueId: string): void {
+    const index = this.entries.findIndex((entry) => entry.queueId === queueId);
+    if (index >= 0) {
+      this.entries.splice(index, 1);
+    }
+  }
+
   clear(): void {
     this.entries.length = 0;
   }

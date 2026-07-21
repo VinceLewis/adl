@@ -94,6 +94,13 @@ export class OperationLog {
     return cloneJson(this.operations);
   }
 
+  setStatus(opId: string, status: LocalOperation["status"]): void {
+    const operation = this.operations.find((entry) => entry.opId === opId);
+    if (operation !== undefined) {
+      operation.status = status;
+    }
+  }
+
   clear(): void {
     this.operations.length = 0;
   }

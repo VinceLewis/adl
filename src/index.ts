@@ -31,3 +31,8 @@ export * from "./runtime/startup-compatibility.js";
 export * from "./runtime/sync-policy-service.js";
 export * from "./runtime/sync-queue.js";
 export * from "./runtime/validation-engine.js";
+export * from "./server/authority-types.js";
+export * from "./server/session-adapter.js";
+export * from "./server/authority-service.js";
+export * from "./server/sync-client.js";
+export * from "./server/postgres-authority-store.js";
