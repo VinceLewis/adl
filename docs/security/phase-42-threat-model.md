@@ -20,6 +20,8 @@ roles are resolved from accepted membership records on every authority call.
 | Database compromise or operator mistake | Dedicated migration and traffic roles, backups, restore drills, retention and incident runbooks | operations drill |
 | Cross-context report/export enumeration | Named resolved read models only; runtime scope/read/masking; source-record export policy; bounded actor-bound cursors | Phase 43 reporting tests |
 | Admin/audit disclosure or over-broad response | Existing context membership-management policy, status-only response DTOs, metadata-only administration audit, endpoint rate/CSRF/origin controls | Phase 43 administration/HTTP tests |
+| Partial projection after a failed or interrupted write | Single PostgreSQL unit-of-work commits accepted record, runtime audit, and actor-bound outcome together; outcome insert gates duplicate/idempotent submissions; infrastructure failures roll back and stay retryable instead of caching a false rejection | Phase 44 transaction-integrity tests |
+| Inconsistent or incomplete restore set | Metadata-only projection integrity/restore verification (`consistent`, `acceptedOutcomeRecordsMissing`, `orphanRecords`) that prints no protected JSON and blocks traffic switch when inconsistent | Phase 44 integrity tests, operations drill |
 
 Residual risks: upstream identity-provider compromise, a trusted reverse-proxy
 misconfiguration, and an attacker with database-owner access are outside the

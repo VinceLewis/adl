@@ -50,14 +50,27 @@ export interface AuthorityInviteGrant {
   audit: AuthorityAccessAuditEvent;
 }
 
+export interface AuthorityRevokeInviteInput {
+  inviteId: string;
+  contextName: string;
+  contextId: string;
+  revokedAt: Date;
+  audit: AuthorityAccessAuditEvent;
+}
+
+export interface AuthorityRevokeMembershipStoreInput {
+  objectName: string;
+  tombstone: StoredObjectRecord;
+  audit: AuthorityAccessAuditEvent;
+}
+
 export interface AuthorityAccessStore {
-  createInvite(invite: AuthorityInvite): Promise<void>;
-  revokeInvite(
-    inviteId: string,
-    contextName: string,
-    contextId: string,
-    revokedAt: Date,
-  ): Promise<boolean>;
+  /** Invite row and its creation audit event are written in one transaction. */
+  createInvite(invite: AuthorityInvite, audit: AuthorityAccessAuditEvent): Promise<void>;
+  /** Revocation and its audit event commit together; audit is skipped if nothing was revoked. */
+  revokeInvite(input: AuthorityRevokeInviteInput): Promise<boolean>;
+  /** Membership tombstone and its revocation audit event are written in one transaction. */
+  revokeMembership(input: AuthorityRevokeMembershipStoreInput): Promise<void>;
   claimInvite(input: {
     tokenHash: string;
     userId: string;
@@ -152,8 +165,7 @@ export class AuthorityAccessLifecycleService {
       createdAt: now,
       expiresAt: input.expiresAt,
     };
-    await this.store.createInvite(invite);
-    await this.store.recordAudit({
+    await this.store.createInvite(invite, {
       accessAuditId: `access-audit-${this.newId()}`,
       kind: "inviteCreated",
       actorId: session.userId,
@@ -194,23 +206,21 @@ export class AuthorityAccessLifecycleService {
     const session = await this.requireSession(sessionToken);
     await this.requireMembershipManager(session.userId, input.contextName, input.contextId);
     const now = this.now();
-    const revoked = await this.store.revokeInvite(
-      input.inviteId,
-      input.contextName,
-      input.contextId,
-      now,
-    );
-    if (!revoked) return false;
-    await this.store.recordAudit({
-      accessAuditId: `access-audit-${this.newId()}`,
-      kind: "inviteRevoked",
-      actorId: session.userId,
+    return this.store.revokeInvite({
+      inviteId: input.inviteId,
       contextName: input.contextName,
       contextId: input.contextId,
-      inviteId: input.inviteId,
-      occurredAt: now,
+      revokedAt: now,
+      audit: {
+        accessAuditId: `access-audit-${this.newId()}`,
+        kind: "inviteRevoked",
+        actorId: session.userId,
+        contextName: input.contextName,
+        contextId: input.contextId,
+        inviteId: input.inviteId,
+        occurredAt: now,
+      },
     });
-    return true;
   }
 
   async revokeMembership(
@@ -243,18 +253,24 @@ export class AuthorityAccessLifecycleService {
       },
       values: cloneJson(record.values),
     };
-    await this.storage.update(membership.object, tombstone);
+    // Revoke sessions first: if the atomic tombstone+audit write then fails, the
+    // fail-safe state is "sessions gone, membership still active" (access denied)
+    // rather than "membership revoked, stale sessions still valid".
     if (isRevocableSessionAdapter(this.sessions))
       await this.sessions.revokeUserSessions(input.userId);
-    await this.store.recordAudit({
-      accessAuditId: `access-audit-${this.newId()}`,
-      kind: "membershipRevoked",
-      actorId: session.userId,
-      contextName: input.contextName,
-      contextId: input.contextId,
-      role: input.role,
-      membershipRecordId: record.meta.guid,
-      occurredAt: now,
+    await this.store.revokeMembership({
+      objectName: membership.object,
+      tombstone,
+      audit: {
+        accessAuditId: `access-audit-${this.newId()}`,
+        kind: "membershipRevoked",
+        actorId: session.userId,
+        contextName: input.contextName,
+        contextId: input.contextId,
+        role: input.role,
+        membershipRecordId: record.meta.guid,
+        occurredAt: now,
+      },
     });
     return true;
   }
@@ -391,29 +407,32 @@ export class InMemoryAuthorityAccessStore implements AuthorityAccessStore {
 
   constructor(private readonly storage: ObjectStorageBackend) {}
 
-  async createInvite(invite: AuthorityInvite): Promise<void> {
+  async createInvite(invite: AuthorityInvite, audit: AuthorityAccessAuditEvent): Promise<void> {
     if (this.invitesByHash.has(invite.tokenHash)) throw new Error("Invite token collision.");
     this.invitesByHash.set(invite.tokenHash, cloneInvite(invite));
+    this.audits.push(cloneAudit(audit));
   }
 
-  async revokeInvite(
-    inviteId: string,
-    contextName: string,
-    contextId: string,
-    revokedAt: Date,
-  ): Promise<boolean> {
+  async revokeInvite(input: AuthorityRevokeInviteInput): Promise<boolean> {
     for (const invite of this.invitesByHash.values()) {
       if (
-        invite.inviteId !== inviteId ||
-        invite.contextName !== contextName ||
-        invite.contextId !== contextId ||
-        invite.claimedBy !== undefined
+        invite.inviteId !== input.inviteId ||
+        invite.contextName !== input.contextName ||
+        invite.contextId !== input.contextId ||
+        invite.claimedBy !== undefined ||
+        invite.revokedAt !== undefined
       )
         continue;
-      invite.revokedAt ??= new Date(revokedAt);
+      invite.revokedAt = new Date(input.revokedAt);
+      this.audits.push(cloneAudit(input.audit));
       return true;
     }
     return false;
+  }
+
+  async revokeMembership(input: AuthorityRevokeMembershipStoreInput): Promise<void> {
+    await this.storage.update(input.objectName, input.tombstone);
+    this.audits.push(cloneAudit(input.audit));
   }
 
   async claimInvite(input: {
@@ -469,34 +488,72 @@ export class PostgresAuthorityAccessStore implements AuthorityAccessStore {
     private readonly database: PostgresQueryable,
     private readonly applicationId: string,
   ) {}
-  async createInvite(invite: AuthorityInvite): Promise<void> {
-    await this.database.query(
-      "insert into adl_authority_invites (invite_id, application_id, token_hash, context_name, context_id, role, recipient_user_id, created_by, created_at, expires_at) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-      [
-        invite.inviteId,
-        this.applicationId,
-        invite.tokenHash,
-        invite.contextName,
-        invite.contextId,
-        invite.role,
-        invite.recipientUserId ?? null,
-        invite.createdBy,
-        invite.createdAt,
-        invite.expiresAt,
-      ],
-    );
+  async createInvite(invite: AuthorityInvite, audit: AuthorityAccessAuditEvent): Promise<void> {
+    await this.database.query("begin");
+    try {
+      await this.database.query(
+        "insert into adl_authority_invites (invite_id, application_id, token_hash, context_name, context_id, role, recipient_user_id, created_by, created_at, expires_at) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        [
+          invite.inviteId,
+          this.applicationId,
+          invite.tokenHash,
+          invite.contextName,
+          invite.contextId,
+          invite.role,
+          invite.recipientUserId ?? null,
+          invite.createdBy,
+          invite.createdAt,
+          invite.expiresAt,
+        ],
+      );
+      await this.writeAudit(audit);
+      await this.database.query("commit");
+    } catch (error) {
+      await this.database.query("rollback");
+      throw error;
+    }
   }
-  async revokeInvite(
-    inviteId: string,
-    contextName: string,
-    contextId: string,
-    revokedAt: Date,
-  ): Promise<boolean> {
-    const result = await this.database.query<{ invite_id: string }>(
-      "update adl_authority_invites set revoked_at = coalesce(revoked_at, $5) where application_id = $1 and invite_id = $2 and context_name = $3 and context_id = $4 and claimed_by is null returning invite_id",
-      [this.applicationId, inviteId, contextName, contextId, revokedAt],
-    );
-    return result.rows.length > 0;
+  async revokeInvite(input: AuthorityRevokeInviteInput): Promise<boolean> {
+    await this.database.query("begin");
+    try {
+      const result = await this.database.query<{ invite_id: string }>(
+        "update adl_authority_invites set revoked_at = $5 where application_id = $1 and invite_id = $2 and context_name = $3 and context_id = $4 and claimed_by is null and revoked_at is null returning invite_id",
+        [this.applicationId, input.inviteId, input.contextName, input.contextId, input.revokedAt],
+      );
+      if (result.rows.length === 0) {
+        await this.database.query("rollback");
+        return false;
+      }
+      await this.writeAudit(input.audit);
+      await this.database.query("commit");
+      return true;
+    } catch (error) {
+      await this.database.query("rollback");
+      throw error;
+    }
+  }
+  async revokeMembership(input: AuthorityRevokeMembershipStoreInput): Promise<void> {
+    await this.database.query("begin");
+    try {
+      const result = await this.database.query<{ record_id: string }>(
+        "update adl_authority_records set revision = $4, deleted_at = $5, record = $6::jsonb where application_id = $1 and object_name = $2 and record_id = $3 returning record_id",
+        [
+          this.applicationId,
+          input.objectName,
+          input.tombstone.meta.guid,
+          input.tombstone.meta.revision,
+          input.tombstone.meta.deletedAt ?? null,
+          JSON.stringify(input.tombstone),
+        ],
+      );
+      if (result.rows.length === 0)
+        throw new Error(`Membership record '${input.tombstone.meta.guid}' is missing.`);
+      await this.writeAudit(input.audit);
+      await this.database.query("commit");
+    } catch (error) {
+      await this.database.query("rollback");
+      throw error;
+    }
   }
   async claimInvite(input: {
     tokenHash: string;

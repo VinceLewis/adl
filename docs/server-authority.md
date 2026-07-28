@@ -130,3 +130,31 @@ same managed context.
 audit projection and context-review indexes. It does not expose SQL through
 ADL, duplicate accepted records, or store credentials. Apply it with
 `adl_migrator` before serving these endpoints.
+
+## Transactional projection integrity
+
+Phase 44 makes accepted replay atomic. `PostgresAuthorityUnitOfWork` owns one
+pinned client and the `begin`/`commit`/`rollback` boundary; inside it a
+transaction-scoped `ApplicationRuntime` (over `PostgresObjectStorageBackend` in
+ambient-transaction mode) writes the accepted record, the runtime audit
+projection is persisted into `adl_authority_audit_events`, and the actor-bound
+outcome is inserted — all in the same transaction. The outcome insert is the
+concurrency gate: a duplicate submission that races past the idempotency
+pre-check finds the outcome already present and rolls its record write back
+instead of committing a second accepted record. Multi-record commands keep their
+existing all-or-nothing semantics through the same boundary.
+
+A deterministic runtime rejection or revision conflict is persisted durably in a
+short outcome-only transaction so a later retry stays idempotent. A
+non-deterministic infrastructure failure rolls the whole transaction back and
+surfaces (retryable) rather than being cached as a false verdict — the runtime
+stays the semantic authority and SQL never reimplements policy, validation,
+lifecycle, or command logic. Invite creation/revocation and membership
+revocation likewise commit their invite or record change together with their
+access-audit event.
+
+`AuthorityProjectionIntegrity` provides restore verification: metadata-only
+counts plus `consistent`, `acceptedOutcomeRecordsMissing`, and `orphanRecords`,
+computed with parameterised SQL and never printing accepted values, audit
+payloads, tokens, or outcome bodies. `0004_authority_transaction_integrity.sql`
+adds the runtime-audit review index; apply it with `adl_migrator`.

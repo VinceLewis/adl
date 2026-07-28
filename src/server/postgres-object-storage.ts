@@ -12,14 +12,29 @@ import type {
 import { StorageError, cloneJson } from "../runtime/runtime-types.js";
 import type { PostgresQueryable } from "./postgres-authority-store.js";
 
+export interface PostgresObjectStorageOptions {
+  /**
+   * When true, this backend is already running inside an outer transaction
+   * (an authority unit-of-work). `commitTransaction` then applies its writes on
+   * the shared client without issuing its own `begin`/`commit`, so the caller
+   * keeps a single atomic boundary. Requires the `database` to be a pinned
+   * client, never an unpinned pool.
+   */
+  ambientTransaction?: boolean;
+}
+
 /** Pass a dedicated pg client when using transactions, not an unpinned pool. */
 export class PostgresObjectStorageBackend implements ObjectStorageBackend {
   readonly supportsTransactions = true;
+  private readonly ambientTransaction: boolean;
   constructor(
     private readonly database: PostgresQueryable,
     private readonly applicationId: string,
     private readonly model: ResolvedApplicationModel,
-  ) {}
+    options: PostgresObjectStorageOptions = {},
+  ) {
+    this.ambientTransaction = options.ambientTransaction === true;
+  }
   async create(objectName: string, record: StoredObjectRecord): Promise<void> {
     await this.write("create", objectName, record);
   }
@@ -73,6 +88,12 @@ export class PostgresObjectStorageBackend implements ObjectStorageBackend {
     );
   }
   async commitTransaction(writes: ObjectStorageTransactionWrite[]): Promise<void> {
+    if (this.ambientTransaction) {
+      // The outer authority unit-of-work owns begin/commit/rollback; applying a
+      // nested begin here would prematurely commit the outer transaction.
+      for (const write of writes) await this.write(write.operation, write.objectName, write.record);
+      return;
+    }
     await this.database.query("begin");
     try {
       for (const write of writes) await this.write(write.operation, write.objectName, write.record);

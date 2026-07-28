@@ -28,10 +28,18 @@ and membership-revocation failures.
 
 Use a database owner only to create roles. Run
 [`roles.sql`](../../src/server/migrations/roles.sql) once, then apply ordered
-`0001_authority_projection.sql` and `0002_security_operations.sql` as
-`adl_migrator`. Run the process as `adl_authority`; it has DML only and cannot
-create schema objects or run migrations. Use a pinned PostgreSQL client for any
-multi-statement transaction.
+`0001_authority_projection.sql`, `0002_security_operations.sql`,
+`0003_reporting_administration.sql`, and
+`0004_authority_transaction_integrity.sql` as `adl_migrator`. Run the process as
+`adl_authority`; it has DML only and cannot create schema objects or run
+migrations. Use a pinned PostgreSQL client for any multi-statement transaction.
+
+Wire the authority with a `PostgresAuthorityUnitOfWork` (constructed from a
+connection pool that hands out pinned clients). Accepted replay then commits the
+accepted record, its runtime audit projection, and the actor-bound outcome in
+one transaction; an infrastructure failure at any stage rolls all three back and
+surfaces as a retryable error rather than a durable rejection. The in-process
+backend without a unit-of-work remains test/development wiring only.
 
 Before release: backup, apply migration, run readiness and HTTP smoke tests,
 then retain the previous application build until the restore point is verified.
@@ -47,6 +55,11 @@ approval before deleting audit data. A daily job may remove expired/revoked
 session and invite verifier rows only after 35 days. Do not delete accepted
 records, outcomes, or audit projections through that job.
 
+`adl_authority_audit_events` is now a populated transactional projection (Phase
+39 defined it; Phase 44 writes it inside the accepted-replay transaction).
+Restore it together with the accepted-record and outcome projections; a restore
+that recovers outcomes but loses their referenced records is inconsistent.
+
 Phase 43 adds the metadata-only `adl_authority_administration_audit_events`
 projection. Include it in the same backup, restore-count, and legal retention
 process. It records report/export and operational-review metadata, not report
@@ -61,10 +74,17 @@ Quarterly restore drill:
 3. Verify row counts for every `adl_authority_*` table and sample a record,
    membership, session verifier, invite verifier, outcome, audit, and
    access-audit event without printing protected JSON.
-4. Run `/readyz`, an authenticated bootstrap, an idempotent replay retry, an
+4. Run `AuthorityProjectionIntegrity.verify` against the restored database. It
+   returns metadata-only counts plus `consistent`, `acceptedOutcomeRecordsMissing`,
+   and `orphanRecords`, and must report `consistent: true`. A non-zero
+   `acceptedOutcomeRecordsMissing` or `orphanRecords` means an incomplete restore
+   set; do not switch traffic. `AuthorityProjectionIntegrity.recoveryStatus`
+   backs the administration recovery view with the same result and prints no
+   protected JSON.
+5. Run `/readyz`, an authenticated bootstrap, an idempotent replay retry, an
    invite claim fixture, and a revoked-session rejection against the restored
    instance. Record backup id, recovery point, elapsed time, and results.
-5. Destroy the isolated restore and rotate any credentials used for the drill.
+6. Destroy the isolated restore and rotate any credentials used for the drill.
 
 ## Incidents
 
