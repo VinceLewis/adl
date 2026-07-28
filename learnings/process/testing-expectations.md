@@ -36,6 +36,32 @@ Code phases should add or update tests that prove the behavior introduced by the
 - Phase 28: Giggle dashboard reference implementation, ADL-driven rendering path, representative seed data, and browser build verification
 - Phase 29: UI presentation conformance cases, inspect/explain output, spec consistency, and regression tests for any defects fixed
 
+## Backend/authority integration testing (real, not mocked)
+
+Any test that verifies authority-server behaviour, PostgreSQL projections,
+migrations, the transactional unit-of-work, or the HTTP edge MUST run against a
+real backend. A fake `pg` that pattern-matches SQL in memory is not an
+acceptable correctness proof for backend behaviour — it silently passed a Phase
+44 defect where the runtime-audit `audit_id` used NUL-byte separators, which
+real PostgreSQL rejects (`invalid byte sequence for encoding "UTF8": 0x00`) and
+which would have rolled back every accepted replay in production. Real
+PostgreSQL also validates SQL syntax, jsonb operators, constraints, and true
+row-level locking that a fake cannot.
+
+- Real integration tests live in `tests/integration/` and run with
+  `npm run test:integration` (separate `vitest.integration.config.ts`).
+- The global setup provisions a throwaway `postgres:16-alpine` container via
+  Docker, or uses `ADL_TEST_DATABASE_URL` when set; it applies the real
+  `src/server/migrations/*.sql` once and truncates projections between tests.
+- Tests run over a real `pg` pool (which structurally satisfies the ADL
+  `PostgresPool`/`PostgresQueryable`/`PostgresPoolClient` contracts) and drive
+  the HTTP edge over a real localhost socket with `fetch`.
+- The default `npm test` excludes `tests/integration/**` so it stays hermetic
+  and Docker-free; never let backend behaviour be covered only by a mock.
+- Fault injection at a specific write stage is done with a thin `faultyPool`
+  decorator over the real pool (see `tests/integration/pg-harness.ts`), so real
+  begin/commit/rollback still executes.
+
 Run the strongest relevant commands available at that point, usually some combination of tests, typecheck, lint, format check, and build. If the project does not yet have one of those commands, do not invent unrelated tooling just to satisfy the word "test"; record the gap and proceed with the best available verification.
 
 For browser UI rendering, shell chrome, reference app screens, presentation

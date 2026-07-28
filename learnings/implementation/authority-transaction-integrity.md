@@ -48,13 +48,21 @@ Phase 44 makes accepted replay atomic without moving any semantics into SQL.
   `orphanRecords`. It never prints accepted values, audit payloads, tokens, or
   outcome bodies, and backs the administration recovery view.
 
-## Testing
+## Testing — real PostgreSQL, not a fake
 
-`tests/authority-transaction-integrity.test.ts` uses an in-memory fake `pg`
-pool/client (`FakePostgres`) that executes exactly the statements the projection
-writers issue, models `begin`/`commit`/`rollback` via snapshot/restore, and
-injects a failure at any statement. This exercises the real production SQL
-sequencing and rollback, which no prior test covered. Prefer this fake over
-mocking the stores, and drive the direct-statement stores (object storage,
-access store) through the pool's single shared client so their transaction
-snapshots coordinate. See [[authority-server]] for the surrounding boundary.
+Backend behaviour here is proven by real integration tests in
+`tests/integration/` (`npm run test:integration`), which provision a throwaway
+`postgres:16-alpine` container, apply the real migrations, and run the
+unit-of-work, concurrency gate (two genuinely concurrent connections),
+integrity SQL, access-lifecycle atomicity, and the HTTP edge (real socket +
+`fetch`) end to end. See [[testing-expectations]] and [[authority-server]].
+
+A fake `pg` was tried first and is a cautionary tale: it masked a real defect —
+`writeRuntimeAudit` built the durable `audit_id` with NUL-byte separators, which
+a JS `Map` key tolerates but real PostgreSQL rejects
+(`invalid byte sequence for encoding "UTF8": 0x00`), which would have rolled back
+every accepted replay in production. The audit id now uses `:` separators. Do
+not reintroduce a SQL-pattern-matching fake as the correctness proof for backend
+behaviour; use the real integration suite, with a thin `faultyPool` decorator
+(`tests/integration/pg-harness.ts`) only to inject a fault at a chosen write
+stage while real begin/commit/rollback still executes.

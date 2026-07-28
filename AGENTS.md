@@ -39,6 +39,16 @@ Every phase must end with:
 
 For code phases, add or update tests that prove the behavior introduced by the phase. Run the relevant test, typecheck, lint, format, or build commands that exist in the project at that point. If a command cannot run, record why in the final summary.
 
+### Backend/authority integration testing
+
+Tests that exercise the authority server, PostgreSQL projections, migrations, the unit-of-work, or the HTTP edge MUST run against a real backend, not a mock or in-memory fake of PostgreSQL. Fakes that pattern-match SQL are not acceptable as the correctness proof for backend behaviour: they hide real defects (for example, a NUL byte in a text key that only real PostgreSQL rejects, or real transaction/locking semantics).
+
+- Real backend tests live under `tests/integration/` and run with `npm run test:integration`.
+- They provision a throwaway PostgreSQL via Docker automatically (`postgres:16-alpine`), or use `ADL_TEST_DATABASE_URL` if set (e.g. a CI Postgres service). Docker (or that env var) is required to run them.
+- They apply the real `src/server/migrations/*.sql`, exercise the code over a real `pg` pool, and drive the HTTP edge over a real local network socket with `fetch`.
+- The fast hermetic suite (`npm test`) excludes `tests/integration/**` so it needs no Docker; do not add backend behaviour that is only covered there.
+- When adding or changing authority/server behaviour, add or update the matching real integration test and run `npm run test:integration`. In-memory stores remain acceptable only as test wiring for non-backend units, never as the backend under test.
+
 Before pushing any change that affects browser UI rendering, shell chrome, reference app screens, presentation runtime output, or CSS, run `npm run verify:push`. This includes Playwright desktop and mobile screenshots for every Giggle Band app page through `npm run test:visual`; inspect the generated screenshots before committing.
 
 For documentation-only phases, no automated tests are expected, but verify the requested files exist and that instructions do not contradict the repository boundary.
