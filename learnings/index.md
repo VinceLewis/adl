@@ -46,7 +46,7 @@ Before tasks that change runtime stack choices, server authority, sync transport
 - `implementation/authority-server.md`
 - `implementation/authority-transaction-integrity.md`
 
-Before tasks that change authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, access-lifecycle audit atomicity, or authority restore/integrity verification, also read:
+Before tasks that change authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, access-lifecycle audit atomicity, authority restore/integrity verification, runtime-audit context scoping, or audit/outcome retention, also read:
 
 - `implementation/authority-transaction-integrity.md`
 - `implementation/authority-server.md`
@@ -170,7 +170,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/identity-invites-and-access-lifecycle.md`: read before changing opaque server sessions, identity provisioning, invites, membership grants/revocation, access audit, or browser behavior after authentication/access loss.
 - `implementation/production-authority-operations.md`: read before changing authority HTTP deployment, cookies, upstream identity proof, rate limits, credential logging, PostgreSQL operations, or incident procedures.
 - `implementation/authoritative-reporting-and-administration.md`: read before changing server reports, exports, audit review, membership/invite status, recovery status, or operational access/session response actions.
-- `implementation/authority-transaction-integrity.md`: read before changing authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, the authority unit-of-work, access-lifecycle audit atomicity, or authority restore/integrity verification.
+- `implementation/authority-transaction-integrity.md`: read before changing authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, the authority unit-of-work, access-lifecycle audit atomicity, authority restore/integrity verification, runtime-audit context scoping, or audit/outcome retention.
 - `implementation/ui-presentation-model.md`: read before changing composed UI presentation declarations, presentation defaults, UI syntax for composed views, presentation validation, or presentation renderer behavior.
 - `implementation/semantic-status-presentation.md`: read before changing status maps, status precedence, legends, status theme tokens, or status-colored browser presentation.
 - `implementation/presentation-matrix-runtime.md`: read before changing resource/date matrices, availability presentation, matrix cell cycling, range editing, or future calendar work that reuses matrix status semantics.

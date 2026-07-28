@@ -20,6 +20,8 @@ export interface AuthorityProjectionIntegrityReport {
   acceptedOutcomeRecordsMissing: number;
   /** Record rows whose application metadata row is missing (a broken restore set). */
   orphanRecords: number;
+  /** Runtime-audit rows whose context scope is half-populated (one column null, the other set). */
+  auditScopeInconsistent: number;
 }
 
 /**
@@ -59,7 +61,7 @@ export class AuthorityProjectionIntegrity {
          on r.application_id = $1
          and r.object_name = reference->'meta'->>'object'
          and r.record_id = reference->'meta'->>'guid'
-       where o.outcome->>'status' = 'accepted' and r.record_id is null`,
+       where o.application_id = $1 and o.outcome->>'status' = 'accepted' and r.record_id is null`,
     );
     const orphanRecords = await this.count(
       `select 1
@@ -67,13 +69,23 @@ export class AuthorityProjectionIntegrity {
        left join adl_authority_models m on m.application_id = r.application_id
        where r.application_id = $1 and m.application_id is null`,
     );
+    const auditScopeInconsistent = await this.count(
+      `select 1
+       from adl_authority_audit_events
+       where application_id = $1
+         and (context_name is null) <> (context_id is null)`,
+    );
     return {
       applicationPresent: applicationPresent > 0,
       consistent:
-        applicationPresent > 0 && acceptedOutcomeRecordsMissing === 0 && orphanRecords === 0,
+        applicationPresent > 0 &&
+        acceptedOutcomeRecordsMissing === 0 &&
+        orphanRecords === 0 &&
+        auditScopeInconsistent === 0,
       counts,
       acceptedOutcomeRecordsMissing,
       orphanRecords,
+      auditScopeInconsistent,
     };
   }
 
@@ -96,11 +108,9 @@ export class AuthorityProjectionIntegrity {
   }
 
   private async countOutcomes(): Promise<number> {
-    // Outcomes are keyed by (operation_id, actor_id) and are not scoped by
-    // application_id in the schema, so count them without the application filter.
-    const result = await this.database.query<{ total: string | number }>(
-      "select count(*)::int as total from adl_authority_operation_outcomes",
-    );
-    return Number(result.rows[0]?.total ?? 0);
+    // Since Phase 45 outcomes carry application_id, so they are counted for this
+    // application. Legacy pre-Phase-45 rows have a null application_id and are
+    // intentionally excluded from an application-scoped count.
+    return this.count("select 1 from adl_authority_operation_outcomes where application_id = $1");
   }
 }

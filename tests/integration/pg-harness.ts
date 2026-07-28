@@ -9,6 +9,7 @@ export const MIGRATION_FILES = [
   "0002_security_operations.sql",
   "0003_reporting_administration.sql",
   "0004_authority_transaction_integrity.sql",
+  "0005_authority_audit_scope_and_retention.sql",
 ];
 
 /** Every projection table the integration tests read, write, or reset. */
@@ -28,7 +29,7 @@ export const AUTHORITY_TABLES = [
 /** Apply the real migrations once. Idempotent: skips if already migrated. */
 export async function applyMigrations(client: Client): Promise<void> {
   const already = await client.query(
-    "select 1 from pg_indexes where indexname = 'adl_authority_audit_application_idx'",
+    "select 1 from pg_indexes where indexname = 'adl_authority_audit_context_idx'",
   );
   if ((already.rowCount ?? 0) > 0) return;
   for (const file of MIGRATION_FILES) {

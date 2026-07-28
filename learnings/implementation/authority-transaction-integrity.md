@@ -66,3 +66,36 @@ not reintroduce a SQL-pattern-matching fake as the correctness proof for backend
 behaviour; use the real integration suite, with a thin `faultyPool` decorator
 (`tests/integration/pg-harness.ts`) only to inject a fault at a chosen write
 stage while real begin/commit/rollback still executes.
+
+## Phase 45 — runtime-audit context scope and retention
+
+Phase 45 builds on the same boundary; migration
+`0005_authority_audit_scope_and_retention.sql` adds the columns/indexes.
+
+- Runtime-audit review is now scoped in the projection. `writeRuntimeAudit`
+  stamps each `adl_authority_audit_events` row with `(context_name, context_id)`
+  derived **only from the model's declared object scope** (`ResolvedObject.scope`):
+  the context id is the record's scope-field value read from the audit event's
+  `after`/`before`. This is a persistence concern, not a reimplemented policy.
+  Scope both columns or neither — a half-populated row is an integrity fault
+  (`auditScopeInconsistent`). Unscoped/global objects leave both null and never
+  appear in any per-context review.
+- `PostgresAuthorityAdministrationStore.listRuntimeAudit` filters by
+  `(application_id, context_name, context_id)` in SQL so a bounded page is not
+  dominated or emptied by other contexts' events. The **per-row runtime read in
+  `AuthorityAdministrationService.runtimeAudit` stays the final disclosure
+  boundary** — SQL scoping narrows the candidate set, it does not authorise.
+- Outcomes are application-scoped: `adl_authority_operation_outcomes.application_id`
+  is written by every insert path (`AuthorityTransaction.putOutcome`,
+  `putOutcomeOnly`, `PostgresAuthorityOutcomeStore.put`). The idempotency PK stays
+  `(operation_id, actor_id)`; `application_id` is only a scoping/retention column.
+  `AuthorityProjectionIntegrity.countOutcomes` and `acceptedOutcomeRecordsMissing`
+  are now application-scoped; legacy rows with a null `application_id` are excluded.
+- `AuthorityRetentionService.prune` (`authority-retention.ts`) is the only
+  retention path. It clamps the effective cutoff to no later than
+  `now - minimumRetentionMs` (never deletes in-retention rows), refuses under
+  `legalHold`, throws on a non-positive minimum window, and only ever deletes
+  from `adl_authority_audit_events` and `adl_authority_operation_outcomes` —
+  never accepted records, sessions, invites, or identities. It is metadata-only.
+  Pruning an ancient outcome only drops that operation id from the idempotency
+  cache; Phase 44 atomicity is unaffected (proven by regression test).

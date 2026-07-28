@@ -10,7 +10,10 @@ export interface PostgresQueryable {
 
 /** Durable idempotency/outcome projection. All values are parameterised; never interpolate intent data. */
 export class PostgresAuthorityOutcomeStore implements AuthorityOutcomeStore {
-  constructor(private readonly database: PostgresQueryable) {}
+  constructor(
+    private readonly database: PostgresQueryable,
+    private readonly applicationId: string,
+  ) {}
 
   async get(operationId: string, actorId: string): Promise<AuthorityOutcome | null> {
     const result = await this.database.query<{ outcome: AuthorityOutcome }>(
@@ -22,8 +25,8 @@ export class PostgresAuthorityOutcomeStore implements AuthorityOutcomeStore {
 
   async put(outcome: AuthorityOutcome, actorId: string): Promise<void> {
     await this.database.query(
-      "insert into adl_authority_operation_outcomes (operation_id, actor_id, outcome) values ($1, $2, $3::jsonb) on conflict (operation_id, actor_id) do nothing",
-      [outcome.operationId, actorId, JSON.stringify(outcome)],
+      "insert into adl_authority_operation_outcomes (operation_id, actor_id, application_id, outcome) values ($1, $2, $3, $4::jsonb) on conflict (operation_id, actor_id) do nothing",
+      [outcome.operationId, actorId, this.applicationId, JSON.stringify(outcome)],
     );
   }
 }

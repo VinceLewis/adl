@@ -29,8 +29,9 @@ and membership-revocation failures.
 Use a database owner only to create roles. Run
 [`roles.sql`](../../src/server/migrations/roles.sql) once, then apply ordered
 `0001_authority_projection.sql`, `0002_security_operations.sql`,
-`0003_reporting_administration.sql`, and
-`0004_authority_transaction_integrity.sql` as `adl_migrator`. Run the process as
+`0003_reporting_administration.sql`,
+`0004_authority_transaction_integrity.sql`, and
+`0005_authority_audit_scope_and_retention.sql` as `adl_migrator`. Run the process as
 `adl_authority`; it has DML only and cannot create schema objects or run
 migrations. Use a pinned PostgreSQL client for any multi-statement transaction.
 
@@ -52,8 +53,22 @@ Take encrypted daily logical backups and point-in-time WAL backups. Include all
 session/invite verifiers, outcomes, runtime audit, and access audit. Retain 35
 daily, 12 monthly, and the current legal/audit retention period; get legal
 approval before deleting audit data. A daily job may remove expired/revoked
-session and invite verifier rows only after 35 days. Do not delete accepted
-records, outcomes, or audit projections through that job.
+session and invite verifier rows only after 35 days. That job must never delete
+accepted records.
+
+Runtime audit (`adl_authority_audit_events`) and operation outcomes
+(`adl_authority_operation_outcomes`) have a bounded retention path via
+`AuthorityRetentionService.prune` (Phase 45). It is application-scoped and
+deletes only rows older than the effective cutoff, which is clamped to no later
+than `now - minimumRetentionMs`, so nothing inside the minimum retention window
+is ever removed. It refuses to run when `legalHold` is set, throws on a
+non-positive minimum window, and never touches accepted records, sessions,
+invites, or identities. Configure `minimumRetentionMs` to at least the legal
+audit-retention period and obtain legal approval before enabling it. Pruning an
+ancient outcome only drops that long-past operation id from the idempotency
+cache; accepted state and Phase 44 atomicity are unaffected. Its result is
+metadata-only (counts and the effective cutoff) and must not be logged with any
+payload.
 
 `adl_authority_audit_events` is now a populated transactional projection (Phase
 39 defined it; Phase 44 writes it inside the accepted-replay transaction).
@@ -76,11 +91,13 @@ Quarterly restore drill:
    access-audit event without printing protected JSON.
 4. Run `AuthorityProjectionIntegrity.verify` against the restored database. It
    returns metadata-only counts plus `consistent`, `acceptedOutcomeRecordsMissing`,
-   and `orphanRecords`, and must report `consistent: true`. A non-zero
-   `acceptedOutcomeRecordsMissing` or `orphanRecords` means an incomplete restore
-   set; do not switch traffic. `AuthorityProjectionIntegrity.recoveryStatus`
-   backs the administration recovery view with the same result and prints no
-   protected JSON.
+   `orphanRecords`, and `auditScopeInconsistent`, and must report
+   `consistent: true`. A non-zero `acceptedOutcomeRecordsMissing`, `orphanRecords`,
+   or `auditScopeInconsistent` (a half-populated runtime-audit context scope, e.g.
+   from a bad migration or restore) means an inconsistent set; do not switch
+   traffic. Outcomes are application-scoped since Phase 45, so the outcome count is
+   per application. `AuthorityProjectionIntegrity.recoveryStatus` backs the
+   administration recovery view with the same result and prints no protected JSON.
 5. Run `/readyz`, an authenticated bootstrap, an idempotent replay retry, an
    invite claim fixture, and a revoked-session rejection against the restored
    instance. Record backup id, recovery point, elapsed time, and results.

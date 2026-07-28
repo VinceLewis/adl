@@ -525,7 +525,10 @@ export class InMemoryAuthorityAdministrationStore
 {
   readonly events: AuthorityAdministrationAuditEvent[] = [];
   readonly accessEvents: AuthorityAccessAuditSummary[] = [];
-  readonly runtimeEvents: AuthorityRuntimeAuditSummary[] = [];
+  /** Runtime-audit events carry the context they were stamped with, mirroring the SQL scope columns. */
+  readonly runtimeEvents: Array<
+    AuthorityRuntimeAuditSummary & { contextName?: string; contextId?: string }
+  > = [];
   readonly invites: AuthorityInviteStatus[] = [];
   async record(event: AuthorityAdministrationAuditEvent): Promise<void> {
     this.events.push({ ...event, occurredAt: new Date(event.occurredAt) });
@@ -536,8 +539,13 @@ export class InMemoryAuthorityAdministrationStore
       .slice(0, limit)
       .map((event) => ({ ...event }));
   }
-  async listRuntimeAudit(_contextName: string, _contextId: string, limit: number) {
-    return this.runtimeEvents.slice(0, limit).map((event) => ({ ...event }));
+  async listRuntimeAudit(contextName: string, contextId: string, limit: number) {
+    // Scope to one context like the SQL reader; unscoped rows (no stamped
+    // context) never appear in a per-context review.
+    return this.runtimeEvents
+      .filter((event) => event.contextName === contextName && event.contextId === contextId)
+      .slice(0, limit)
+      .map(({ contextName: _n, contextId: _i, ...summary }) => ({ ...summary }));
   }
   async listInvites(
     contextName: string,
@@ -585,14 +593,18 @@ export class PostgresAuthorityAdministrationStore
       accessSummary(row.access_audit_id, row.event, row.occurred_at),
     );
   }
-  async listRuntimeAudit(_contextName: string, _contextId: string, limit: number) {
+  async listRuntimeAudit(contextName: string, contextId: string, limit: number) {
+    // Scope in SQL to one authorised business context using the (context_name,
+    // context_id) the unit-of-work stamped from the record's declared scope, so
+    // a bounded page is not dominated (or emptied) by other contexts' events.
+    // The caller still applies the per-row runtime read as the disclosure boundary.
     const result = await this.database.query<{
       audit_id: string;
       event: Record<string, unknown>;
       occurred_at: Date | string;
     }>(
-      "select audit_id, event, occurred_at from adl_authority_audit_events where application_id = $1 order by occurred_at desc limit $2",
-      [this.applicationId, limit],
+      "select audit_id, event, occurred_at from adl_authority_audit_events where application_id = $1 and context_name = $2 and context_id = $3 order by occurred_at desc limit $4",
+      [this.applicationId, contextName, contextId, limit],
     );
     return result.rows.flatMap((row) => runtimeSummary(row.audit_id, row.event, row.occurred_at));
   }

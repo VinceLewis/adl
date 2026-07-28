@@ -154,7 +154,35 @@ revocation likewise commit their invite or record change together with their
 access-audit event.
 
 `AuthorityProjectionIntegrity` provides restore verification: metadata-only
-counts plus `consistent`, `acceptedOutcomeRecordsMissing`, and `orphanRecords`,
-computed with parameterised SQL and never printing accepted values, audit
-payloads, tokens, or outcome bodies. `0004_authority_transaction_integrity.sql`
-adds the runtime-audit review index; apply it with `adl_migrator`.
+counts plus `consistent`, `acceptedOutcomeRecordsMissing`, `orphanRecords`, and
+`auditScopeInconsistent`, computed with parameterised SQL and never printing
+accepted values, audit payloads, tokens, or outcome bodies.
+`0004_authority_transaction_integrity.sql` adds the runtime-audit review index;
+apply it with `adl_migrator`.
+
+## Audit scope and retention
+
+Phase 45 makes runtime-audit review context-scoped in the projection and gives
+runtime audit and outcomes a bounded retention lifecycle.
+`0005_authority_audit_scope_and_retention.sql` adds `context_name`/`context_id`
+to `adl_authority_audit_events` and `application_id` to
+`adl_authority_operation_outcomes`, plus the supporting indexes; apply it with
+`adl_migrator`.
+
+The unit-of-work stamps each audit row with the record's business context,
+derived only from the model's declared object scope (`ResolvedObject.scope`) —
+the context id is the record's scope-field value, not a reimplemented policy.
+Unscoped (global) objects leave both columns null and never appear in a
+per-context review. `PostgresAuthorityAdministrationStore.listRuntimeAudit` now
+filters to one authorised context in SQL, so a bounded page is neither dominated
+nor emptied by other contexts' events; `AuthorityAdministrationService`
+`runtimeAudit` still applies the per-row runtime read as the final disclosure
+boundary, and an inaccessible row is never an existence oracle.
+
+`AuthorityRetentionService.prune` is the application-scoped retention path for
+runtime audit and outcomes. It deletes only rows older than an effective cutoff
+clamped to no later than `now - minimumRetentionMs`, so in-retention rows are
+never removed; it refuses under `legalHold`, throws on a non-positive minimum
+window, and never touches accepted records, sessions, invites, or identities.
+Its result is metadata-only (counts and the effective cutoff). Operational
+detail is in `docs/operations/authority-production-runbook.md`.
