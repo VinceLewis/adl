@@ -18,13 +18,19 @@ transport, auth provider direction, packaging, or phase sequencing.
 - Sync starts with ADL operation-intent replay: create, update, delete,
   transition, and command. The server replays intent through ADL runtime
   semantics and returns accepted/rejected/conflict/manual-resolution outcomes.
-- Auth remains infrastructure, not an ADL language primitive. The target is a
-  small TypeScript auth boundary, with custom auth or Better Auth as provider
-  candidates when implementation starts. Phase 46 built the switchable seam and
-  left the provider decision open; see `implementation/first-deployment-slice.md`.
+- Auth remains infrastructure, not an ADL language primitive. Phase 46 built the
+  switchable seam and left the provider decision open; ADR 0008 then closed it:
+  passkeys verified by the authority itself, identity keyed on a stable internal
+  user id with linkable external identifiers so the provider or method stays
+  changeable, and invite-based recovery instead of email. The offline sync grace is
+  a model-declared sync-policy property, not an identity one — identity
+  verification stays configuration per Phase 46. Phases 49 and 50 implement this
+  and are together the deployment gate. See
+  `implementation/first-deployment-slice.md`.
 - The July proposal/auth/sync notes remain useful background but are superseded
   for architecture decisions by `docs/architecture/target-architecture.md` and
-  ADRs 0003-0007.
+  ADRs 0003-0008. `auth-options.md` in particular is background only: its provider
+  shortlist was priced and decided in ADR 0008.
 
 ## Practical guidance
 

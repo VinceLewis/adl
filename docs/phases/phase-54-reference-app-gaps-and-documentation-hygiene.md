@@ -1,7 +1,8 @@
-# Phase 52 - Reference App Gaps and Documentation Hygiene
+# Phase 54 - Reference App Gaps and Documentation Hygiene
 
-> Renumbered from Phase 51 by the Phase 47 handoff. The Phase 48 handoff
-> re-sequenced phases 49-51 around it without changing its own position. Evidence and scope are
+> Renumbered from Phase 51 by the Phase 47 handoff, then Phase 52, and now Phase
+> 54: the Phase 48 handoff and its follow-up re-sequenced phases 49-53 ahead of it.
+> It remains last, and its evidence and scope are unchanged. Evidence and scope are
 > unchanged; only its position in the sequence moved.
 
 ## Objective
@@ -30,7 +31,7 @@ documentation back into line with what the repository actually contains.
   content beneath it. Both are read at the start of phases per `AGENTS.md` and
   `learnings/index.md`, so stale content actively misleads the next execution.
 
-This phase depends on the Phase 49 conformance suite, which must be extended
+This phase depends on the Phase 51 conformance suite, which must be extended
 alongside any new generic capability, and on the Phase 46/47 real deployment,
 which determines which gaps still matter.
 
@@ -60,11 +61,11 @@ which determines which gaps still matter.
 - New ADL syntax (`SHELL`, `TOP_BAR`, `NAV_DRAWER`) must resolve into the
   existing presentation resolved model and must not imply a new renderer, a
   transpiler step, or native UI.
-- Every new capability requires conformance cases, per the Phase 49 contract.
+- Every new capability requires conformance cases, per the Phase 51 contract.
 - Documentation changes must not rewrite the record of completed phases. Correct
   forward-looking guidance; leave historical phase task lists as they are.
 - Preserve Phase 42 controls, Phase 44 atomicity, Phase 45 scope/retention, and
-  Phase 50 membership scoping.
+  Phase 52 membership scoping.
 
 ## Deliverables
 
@@ -118,7 +119,7 @@ which determines which gaps still matter.
 - Phase 18 platform gap work and the band app gap report.
 - Phase 30-38 UI and presentation phases for shell and reorder surfaces.
 - Phase 35 command transaction semantics.
-- Phase 49 conformance suite and specification.
+- Phase 51 conformance suite and specification.
 
 ## Parallel Execution Plan
 
@@ -177,10 +178,10 @@ Use worktree isolation for every capability agent.
 7. Reconcile `docs/architecture/target-architecture.md`,
    `docs/server-authority.md`, the superseded-document banners, and
    `learnings/process/phase-execution.md`.
-8. **Required next-phase planning handoff:** before Phase 52 closes, write
+8. **Required next-phase planning handoff:** before Phase 54 closes, write
    `docs/phases/phase-53-*.md` as a complete evidence-based executable phase
    document for the highest-value remaining gap repository-wide, with objective,
    evidence, scope, constraints, deliverables, acceptance criteria, non-goals,
    dependencies, parallel execution plan, tasks, and its own handoff. If no gap
    justifies a further phase, record that conclusion explicitly instead. Then
-   verify, commit, and push Phase 52.
+   verify, commit, and push Phase 54.

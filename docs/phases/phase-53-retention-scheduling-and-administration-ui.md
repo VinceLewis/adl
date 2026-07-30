@@ -1,8 +1,9 @@
-# Phase 51 - Retention Scheduling and Administration UI
+# Phase 53 - Retention Scheduling and Administration UI
 
-> Renumbered from Phase 49 by the Phase 47 handoff, then from Phase 50 by the
-> Phase 48 handoff, which moved the platform contract phase (now Phase 49) ahead
-> of both this phase and the membership projection (now Phase 50). This phase
+> Renumbered from Phase 49 by the Phase 47 handoff, then 50, then 51, and now
+> Phase 53: the Phase 48 handoff moved the platform contract phase (now Phase 51)
+> ahead of it, and that handoff's follow-up inserted passkey identity (Phase 49)
+> and offline session grace (Phase 50), both of which gate deployment. This phase
 > still follows the membership projection, because its administration surface
 > consumes those scoped membership reads. Evidence and scope are
 > unchanged; only its position in the sequence moved.
@@ -18,7 +19,7 @@ HTTP.
 
 - **Retention never runs.** Phase 45 built `AuthorityRetentionService` with a
   safeguarded `prune` path (`src/server/authority-retention.ts`), and the
-  membership-projection phase (now Phase 50) explicitly listed a scheduler or HTTP
+  membership-projection phase (now Phase 52) explicitly listed a scheduler or HTTP
   surface for it as a non-goal. Nothing invokes it: there is no scheduler, no
   administrative endpoint, and no operator procedure, so the runtime-audit and
   operation-outcome projections would grow without bound in any real deployment
@@ -34,7 +35,7 @@ HTTP.
   hand-built request. After Phase 46 there is a real deployment whose operator
   has no way to use them.
 
-This phase depends on Phase 45 retention safeguards, Phase 50 scoped membership
+This phase depends on Phase 45 retention safeguards, Phase 52 scoped membership
 reads, and the Phase 46/47 client transport and session UI.
 
 ## Scope
@@ -65,7 +66,7 @@ reads, and the Phase 46/47 client transport and session UI.
 - Session revocation from the UI must be reversible only through normal identity
   flows and must not let an operator escalate their own access.
 - Preserve Phase 42 controls, Phase 44 atomicity, Phase 45 scope/retention, and
-  Phase 50 scoped membership reads.
+  Phase 52 scoped membership reads.
 
 ## Deliverables
 
@@ -103,8 +104,8 @@ reads, and the Phase 46/47 client transport and session UI.
   query builder.
 - New identity flows, provider selection, or changes to the Phase 46 identity
   switch.
-- Conformance depth or model migrations, which are Phase 49 and precede this
-  phase; band-app modelling gaps (Phase 52).
+- Conformance depth or model migrations, which are Phase 51 and precede this
+  phase; band-app modelling gaps (Phase 54).
 - External job runners, message queues, or distributed scheduling
   infrastructure: a single schedulable process entry is sufficient.
 
@@ -113,7 +114,7 @@ reads, and the Phase 46/47 client transport and session UI.
 - Phase 45 retention safeguards and application-scoped outcomes.
 - Phase 43 reporting and administration services and endpoints.
 - Phase 46 deployment slice and Phase 47 session/identity UI.
-- Phase 50 scoped membership reads.
+- Phase 52 scoped membership reads.
 
 ## Parallel Execution Plan
 
@@ -163,8 +164,8 @@ Use worktree isolation for the administration UI streams.
    surface including an unauthorised and a wrongly scoped caller.
 6. Update the runbook with the retention operating procedure,
    `docs/server-authority.md`, the threat model, and learnings.
-7. **Required next-phase planning handoff:** before Phase 51 closes, review
-   `docs/phases/phase-52-reference-app-gaps-and-documentation-hygiene.md` and
+7. **Required next-phase planning handoff:** before Phase 53 closes, review
+   `docs/phases/phase-54-reference-app-gaps-and-documentation-hygiene.md` and
    revise it if this phase's results change its scope, constraints, deliverables,
-   or tasks. The handoff must justify Phase 52 as the highest-value remaining gap
-   repository-wide. Then verify, commit, and push Phase 51.
+   or tasks. The handoff must justify Phase 54 as the highest-value remaining gap
+   repository-wide. Then verify, commit, and push Phase 53.

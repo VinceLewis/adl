@@ -208,6 +208,39 @@ operate a subsystem with no users. Weighed repository-wide:
 
 Phase numbers equal execution order, so the three affected documents were renamed
 and their cross-references, dependencies and handoff pointers updated. One factual
-correction was pushed into the new Phase 49: its evidence claimed "after Phase 46
-and 47 there is a real deployment with real PostgreSQL accepted records and real
-browser IndexedDB state", which this phase disproved.
+correction was pushed into the platform contract phase: its evidence claimed "after
+Phase 46 and 47 there is a real deployment with real PostgreSQL accepted records and
+real browser IndexedDB state", which this phase disproved.
+
+### Handoff follow-up: the identity decision arrived, and re-sequenced it again
+
+The paragraph above said the true highest-value gap was a real identity verifier but
+that it could not be sequenced, because choosing a method was a product decision. That
+decision was then made and recorded in
+`docs/adr/0008-passkey-identity-and-offline-session-grace.md`: **passkeys**
+(server-side WebAuthn) as the credential, identity keyed on a stable internal id with
+**linkable external identifiers** so the provider or method stays changeable, invite-based
+recovery instead of email, a **30-day sync grace** declared in the ADL model with local
+operation never gated on a session, and **no local biometric gate**. Cost did not decide
+it — every shortlisted option was £0 at this scale.
+
+That removed the only thing blocking the gap this handoff had already identified as
+highest-value, so it was sequenced where it belongs:
+
+- **Phase 49** — passkey identity and provider-independent identity keying.
+- **Phase 50** — offline session lifetime and sync grace. A deployment needs both;
+  neither alone satisfies the pre-deployment rule, because Phase 49 makes signing in
+  real while Phase 50 makes staying signed in survive being offline.
+- **Phase 51** — platform contract (was 49). It now codifies three contract changes
+  rather than one: Phase 48's create intent, Phase 49's identity shape, and Phase 50's
+  new app-level model property. The "codify after the change" argument that moved it up
+  is what now places it after these two.
+- **Phases 52, 53, 54** — membership projection, retention scheduling, reference-app
+  gaps, each down two.
+
+Two impacts found while re-sequencing, both recorded in the new phase documents rather
+than fixed here: `npm run verify:push` screenshots the reference app with **no authority
+configured**, so the visual suite will not cover the new sign-in surface and a green run
+must not be read as coverage of it; and `ADL_IDENTITY_VERIFICATION`'s `bypass | upstream`
+no longer describes the space, because a passkey is verified by the authority itself
+rather than by an upstream provider.

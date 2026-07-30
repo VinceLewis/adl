@@ -1,7 +1,14 @@
-# Phase 49 - Platform Contract: Conformance Depth and Model Migrations
+# Phase 51 - Platform Contract: Conformance Depth and Model Migrations
 
-> Moved up from Phase 51 by the Phase 48 handoff, ahead of the membership
-> projection (now Phase 50) and retention scheduling (now Phase 51). Phase 48's
+> Moved up from Phase 51 to Phase 49 by the Phase 48 handoff, then back to Phase
+> 51 by that handoff's follow-up, which inserted real passkey identity (Phase 49)
+> and offline session grace (Phase 50) ahead of it. Nothing about this phase's
+> value changed; two phases that gate deployment became executable once the
+> identity method was decided (`docs/adr/0008-passkey-identity-and-offline-session-grace.md`).
+> The original reason for moving it up still holds and now applies to three
+> contract changes rather than one: Phase 48 changed the create intent, Phase 49
+> changes the identity shape, and Phase 50 adds an app-level model property. This
+> phase codifies and migrates all three. Phase 48's
 > own rationale for placing this phase after it was that "this phase changes the
 > contract, that phase codifies it" — which argues for codifying it *next*, while
 > the change is fresh, rather than after two phases that optimise and operate a
@@ -96,7 +103,7 @@ server and the client, and on the existing startup compatibility guard.
   the existing trusted sync-projection boundary.
 - Preserve Phase 44 atomicity, Phase 45 retention/scope, Phase 48 record-identity
   rules, and the disclosure boundaries throughout: migration diagnostics stay
-  metadata-only. Membership-projection scoping is now Phase 50 and follows this
+  metadata-only. Membership-projection scoping is now Phase 52 and follows this
   phase, so there is nothing of it to preserve yet.
 
 ## Deliverables
@@ -137,8 +144,8 @@ server and the client, and on the existing startup compatibility guard.
 - Automatic migration inference for arbitrary model changes, or schema
   migration for the authority projection tables themselves, which remain ordered
   SQL files applied out of band.
-- Band-app modelling gaps and documentation hygiene (Phase 52).
-- The membership projection (Phase 50) and retention scheduling (Phase 51).
+- Band-app modelling gaps and documentation hygiene (Phase 54).
+- The membership projection (Phase 52) and retention scheduling (Phase 53).
 - New ADL syntax for storage, SQL, or migration mechanics beyond declaring a
   model migration.
 
@@ -209,10 +216,10 @@ disjoint files and do not need it.
    verification.
 7. Update the three-layer specification, the runbook migration procedure, and
    learnings.
-8. **Required next-phase planning handoff:** before Phase 49 closes, review
-   `docs/phases/phase-50-authority-membership-projection-and-scoped-access.md` and
+8. **Required next-phase planning handoff:** before Phase 51 closes, review
+   `docs/phases/phase-52-authority-membership-projection-and-scoped-access.md` and
    revise it if this phase's results change its scope, constraints, deliverables,
-   or tasks. The handoff must justify Phase 50 as the highest-value remaining gap
+   or tasks. The handoff must justify Phase 52 as the highest-value remaining gap
    **repository-wide**, not merely the next gap in the subsystem this phase
    touched; if a higher-value gap exists elsewhere, say so and re-sequence. Then
-   verify, commit, and push Phase 49.
+   verify, commit, and push Phase 51.

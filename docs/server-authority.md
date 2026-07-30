@@ -66,11 +66,15 @@ phase or still explicitly outstanding:
 
 - Offline operation identity and accepted-state convergence — Phase 48, below.
 
-Still outstanding after Phase 48: a real upstream identity provider (the switch
-exists, the bypass is the default and is disclosed everywhere including the
-browser sign-in surface), membership-projection scoping, retention scheduling
-and its administration UI, TLS termination, secret management, CI/CD, and a
-hosting provider decision.
+Still outstanding after Phase 48, in sequence order: passkey identity and
+provider-independent identity keying (Phase 49) and offline session lifetime and
+sync grace (Phase 50) — **together the deployment gate**, since until both land the
+bypass is the only way in; then conformance depth and model migrations (Phase 51),
+membership-projection scoping (Phase 52), retention scheduling and its
+administration UI (Phase 53), and reference-app gaps (Phase 54). Outside the phase
+plan: TLS termination, secret management, CI/CD, and a hosting provider decision.
+The identity method itself is no longer open — see
+[ADR 0008](adr/0008-passkey-identity-and-offline-session-grace.md).
 
 ## Remote bootstrap and browser reconciliation
 

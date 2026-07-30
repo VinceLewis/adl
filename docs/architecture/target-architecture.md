@@ -153,12 +153,22 @@ deduplication, or conflict-preserving change movement.
 
 Auth is infrastructure, not an ADL language primitive.
 
-The target is a small TypeScript auth boundary that supplies runtime identity:
+The target is a small TypeScript auth boundary that supplies runtime identity.
+The method is now decided: **passkeys (server-side WebAuthn) verified by the
+authority itself**, with identity keyed on a stable internal user id holding
+**linkable external identifiers** so the provider, the method, or the decision to
+use one at all stays changeable without re-keying user data. Recovery uses the
+existing invite system rather than email. `UpstreamIdentityVerifier` remains the
+seam for a bearer-proof provider, so "Sign in with Google" (free, no per-user
+charge) stays a drop-in alternative.
 
-- custom lightweight auth service, or
-- Better Auth if an off-the-shelf TypeScript library is preferable
+Offline operation is governed by a **sync grace declared in the ADL model** — 30
+days for the Giggle app — which bounds how long a device may sync without a fresh
+logon. Local reads and local-first writes are never gated on a session.
 
-The provider choice is deferred.
+See [ADR 0008](../adr/0008-passkey-identity-and-offline-session-grace.md) for the
+decision, the rejected alternatives (Supabase Auth, Better Auth, Auth.js,
+passwords, magic links, a local biometric gate) and the consequences.
 
 ADL authorization remains separate:
 
@@ -208,18 +218,23 @@ runnable authority process, a switchable identity boundary (bypass by default,
 disclosed at startup and on `/readyz`), an HTTP client transport, and browser
 session/bootstrap/reconnect wiring.
 
-The next implementation sequence is:
+Phases 47 (the usable sync slice — sign-in and invite-claim UI, conflict and
+manual-resolution recovery, the PWA offline shell) and 48 (offline operation
+identity, so an offline-created record converges to one accepted record) are
+complete. The remaining sequence is:
 
-1. Phase 47: the usable sync slice — sign-in and invite-claim UI, conflict and
-   manual-resolution recovery, and the PWA offline shell.
-2. Phase 48: authority membership projection and scoped access.
-3. Phase 49: retention scheduling and its administration UI.
-4. Phase 50: platform contract conformance and migrations.
-5. Phase 51: reference-app gaps and documentation hygiene.
+1. Phase 49: passkey identity and provider-independent identity keying.
+2. Phase 50: offline session lifetime and sync grace.
+3. Phase 51: platform contract conformance and model migrations.
+4. Phase 52: authority membership projection and scoped access.
+5. Phase 53: retention scheduling and its administration UI.
+6. Phase 54: reference-app gaps and documentation hygiene.
 
-Choosing and implementing a real identity provider remains open and is not
-sequenced here; the Phase 46 seam exists so that decision does not block the
-deployment path. See the accepted temporary risk in
+**Phases 49 and 50 together are the deployment gate.** Until both are complete the
+identity bypass is the only way in, and the rule stated by Phases 46, 47 and 48
+stands: no deployment may hold real user data. Neither phase alone is sufficient —
+Phase 49 makes signing in real, Phase 50 makes staying signed in survive being
+offline. See the accepted temporary risk in
 [the threat model](../security/phase-42-threat-model.md).
 
 ## Gating Criteria
@@ -243,7 +258,8 @@ Before introducing Automerge:
 - Automerge remains below the ADL semantic layer
 - the server still validates before accepted state changes
 
-Before choosing an auth provider:
+Before choosing an auth provider — **all met, and the decision is recorded in ADR
+0008**:
 
 - the runtime identity/session boundary is defined
 - invite claiming and offline cached-session requirements are clear

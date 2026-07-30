@@ -1,10 +1,18 @@
 # Auth Options for a Local-First Giggle-Style ADL App
 
 > Superseded for architecture decisions by
-> `docs/architecture/target-architecture.md` and ADR 0007.
-> This document remains useful background. The current target keeps a small
-> TypeScript auth boundary, defers provider choice, and keeps ADL authorization
-> separate from authentication.
+> `docs/architecture/target-architecture.md`, ADR 0007 and **ADR 0008**, which
+> closed the provider question this document left open: passkeys (server-side
+> WebAuthn) verified by the authority itself, identity keyed on a stable internal
+> user id with linkable external identifiers, invite-based recovery rather than
+> email, and a model-declared 30-day sync grace. The shortlist below was priced
+> before that decision — every option was £0 at this scale, so cost did not decide
+> it; see ADR 0008 for why each was rejected.
+>
+> This document remains useful background, and its offline-behaviour section
+> (`Offline Behavior`) and `RuntimeAuthSession` sketch are what Phase 50
+> implements. It keeps ADL authorization separate from authentication, which
+> remains correct.
 
 ## Goal
 

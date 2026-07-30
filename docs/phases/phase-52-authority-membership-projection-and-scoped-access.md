@@ -1,6 +1,6 @@
-# Phase 50 - Authority Membership Projection and Scoped Access Paths
+# Phase 52 - Authority Membership Projection and Scoped Access Paths
 
-> Renumbered from Phase 46, then 48, then 49, and now Phase 50 by the Phase 48
+> Renumbered from Phase 46, then 48, then 49, then 50, and now Phase 52 by the Phase 48
 > handoff, which moved the platform contract phase ahead of it. Each move had the
 > same cause: this work is an optimisation and integrity refactor of a subsystem
 > with no production users, so anything with a user-visible or repository-wide
@@ -111,10 +111,10 @@ precedent.
 
 - New reporting UI, BI connectors, generic SQL, identity flows, a new sync
   protocol, database engine, or ADL language syntax.
-- Conformance depth and model migrations, which are now Phase 49 and precede this
+- Conformance depth and model migrations, which are now Phase 51 and precede this
   phase.
 - A scheduler/HTTP surface for `AuthorityRetentionService.prune` (retention
-  wiring is Phase 51, not this phase's scoping objective).
+  wiring is Phase 53, not this phase's scoping objective).
 - Cross-store distributed transactions with external identity providers or email
   delivery, and arbitrary operator database access.
 
@@ -170,10 +170,10 @@ an ephemeral port, so parallel runs are safe but pay a container each).
    PostgreSQL.
 6. Update the production runbook, server authority documentation, threat model,
    specifications if required, and learnings.
-7. **Required next-phase planning handoff:** before Phase 50 closes, review
-   `docs/phases/phase-51-retention-scheduling-and-administration-ui.md` and
+7. **Required next-phase planning handoff:** before Phase 52 closes, review
+   `docs/phases/phase-53-retention-scheduling-and-administration-ui.md` and
    revise it if this phase's results change its scope, constraints,
-   deliverables, or tasks. The handoff must justify Phase 51 as the
+   deliverables, or tasks. The handoff must justify Phase 53 as the
    highest-value remaining gap **repository-wide**, not merely the next gap in
    the subsystem this phase touched; if a higher-value gap exists elsewhere, say
-   so and re-sequence. Then verify, commit, and push Phase 50.
+   so and re-sequence. Then verify, commit, and push Phase 52.
