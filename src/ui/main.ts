@@ -9,12 +9,9 @@ import {
   createPersistentGiggleBandExampleRuntime,
   seedBandReferenceRuntimeIfEmpty,
 } from "./demo-fixture.js";
-import {
-  connectBrowserAuthority,
-  describeAuthorityFailure,
-  readBrowserAuthorityConfiguration,
-  watchAuthorityReconnect,
-} from "./authority-sync.js";
+import { readBrowserAuthorityConfiguration } from "./authority-sync.js";
+import { IndexedDbSessionIdentityStorage } from "./offline-session.js";
+import { connectAuthority } from "./session-startup.js";
 import type { BrowserAuthorityConfiguration } from "./authority-sync.js";
 import { registerAdlServiceWorker } from "./register-service-worker.js";
 import {
@@ -46,7 +43,11 @@ async function mountDemo(): Promise<void> {
     app.model = model;
     app.runtime = runtime;
     app.context = seeded.musicianContext;
-    await connectAuthority(app, runtime, authority);
+    await connectAuthority(
+      app,
+      runtime,
+      withIdentityStorage(authority, GIGGLE_BAND_EXAMPLE_DATABASE_NAME),
+    );
     void registerAdlServiceWorker(model.modelVersion);
   } else if (demo === "band") {
     const model = createBandReferenceModel();
@@ -59,7 +60,11 @@ async function mountDemo(): Promise<void> {
     app.model = model;
     app.runtime = runtime;
     app.context = seeded.musicianContext;
-    await connectAuthority(app, runtime, authority);
+    await connectAuthority(
+      app,
+      runtime,
+      withIdentityStorage(authority, BAND_REFERENCE_DATABASE_NAME),
+    );
     void registerAdlServiceWorker(model.modelVersion);
   }
 
@@ -88,56 +93,16 @@ function createDemoRuntime(
 }
 
 /**
- * Attaches the authority bridge to the shell. The bridge exists even with no
- * session, so the user is shown a sign-in surface rather than a blank page, and
- * the seeded demo identity is replaced by the server-derived one as soon as
- * there is a session. Every failure is a single warning and a fall back to
- * local behaviour: an unreachable authority must never leave a blank page.
+ * Gives the connection somewhere to remember who the authority said this
+ * device is, so a reload with no connection keeps that identity instead of
+ * falling back to the local demo one. Only reached when an authority is
+ * configured: a purely local demo has no identity to cache.
  */
-async function connectAuthority(
-  app: AdlAppElement,
-  runtime: ApplicationRuntime,
+function withIdentityStorage(
   authority: BrowserAuthorityConfiguration | null,
-): Promise<void> {
-  if (authority === null) {
-    return;
-  }
-
-  try {
-    const connection = await connectBrowserAuthority(runtime, authority, {
-      getContext: () => app.context,
-      onChange: () => {
-        applySessionIdentity(app, connection.session.userId);
-        app.refreshAuthorityState();
-      },
-    });
-    app.authority = connection;
-    applySessionIdentity(app, connection.session.userId);
-
-    try {
-      await connection.synchronize(app.context);
-    } finally {
-      // Registered even when the first sync fails: reconnect is how a browser
-      // that started offline recovers its queued work.
-      watchAuthorityReconnect(
-        connection,
-        () => app.context,
-        () => app.refreshFromRuntime(),
-      );
-    }
-  } catch (error) {
-    console.warn(
-      `ADL authority sync is unavailable; continuing with local data: ${describeAuthorityFailure(error)}`,
-    );
-  }
-}
-
-/**
- * Replaces the local demo identity with the server-derived one. The browser
- * never chooses a user id: it only adopts the one the session reported.
- */
-function applySessionIdentity(app: AdlAppElement, userId: string | undefined): void {
-  if (userId !== undefined && userId !== app.context.userId) {
-    app.context = { ...app.context, userId };
-  }
+  databaseName: string,
+): BrowserAuthorityConfiguration | null {
+  return authority === null
+    ? null
+    : { ...authority, identityStorage: new IndexedDbSessionIdentityStorage({ databaseName }) };
 }

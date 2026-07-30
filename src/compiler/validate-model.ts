@@ -1,4 +1,4 @@
-import { DEFAULT_LIFECYCLE_STATE_FIELD } from "../model/defaults.js";
+import { DEFAULT_LIFECYCLE_STATE_FIELD, MAX_OFFLINE_GRACE_DAYS } from "../model/defaults.js";
 import type {
   ConflictStrategy,
   CommandRuntimeProperty,
@@ -122,6 +122,7 @@ export interface Diagnostic {
 }
 
 export const MODEL_VALIDATION_CODES = {
+  APP_OFFLINE_GRACE_INVALID: "ADL_APP_OFFLINE_GRACE_INVALID",
   APP_START_VIEW_UNKNOWN: "ADL_APP_START_VIEW_UNKNOWN",
   APP_THEME_UNKNOWN: "ADL_APP_THEME_UNKNOWN",
   AUTO_ID_NON_TEXT: "ADL_AUTO_ID_NON_TEXT",
@@ -821,6 +822,24 @@ function validateApplicationReferences(
         MODEL_VALIDATION_CODES.APP_START_VIEW_UNKNOWN,
         `Application start view '${model.app.startView}' does not exist.`,
         "app.startView",
+      ),
+    );
+  }
+
+  /*
+   * A missing declaration resolves to the documented default, which is not a
+   * surprise. A declared value that is not a whole number of days, is
+   * non-positive, or exceeds the bound is refused here rather than silently
+   * becoming the default or becoming a session lifetime nobody intended: this
+   * value is also the authority's session lifetime.
+   */
+  const grace = model.app.offlineGraceDays;
+  if (!Number.isSafeInteger(grace) || grace < 1 || grace > MAX_OFFLINE_GRACE_DAYS) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.APP_OFFLINE_GRACE_INVALID,
+        `Application offline grace must be a whole number of days between 1 and ${MAX_OFFLINE_GRACE_DAYS}, but is '${String(grace)}'.`,
+        "app.offlineGraceDays",
       ),
     );
   }

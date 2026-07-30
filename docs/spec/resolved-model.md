@@ -27,6 +27,7 @@ Resolution applies platform defaults consistently:
 
 - Application theme defaults to `CorporateLight`.
 - Start view defaults to the first resolved object view.
+- `app.offlineGraceDays` defaults to `30`.
 - Object schema version defaults to `1`.
 - Object table names and field storage names use deterministic snake-case
   normalization.
@@ -236,6 +237,37 @@ data should be composed for a renderer.
 Sync modes are `localFirst`, `cacheReadonly`, `onlineRequired`, and
 `localPrivate`. Scope and conflict strategy are explicit on each object and in
 the top-level sync list.
+
+`app.offlineGraceDays` is the one sync-policy value that is application-wide
+rather than per object:
+
+```json
+{
+  "app": {
+    "name": "Giggle Band ADL Example",
+    "startView": "HomeDashboard",
+    "theme": "CorporateLight",
+    "offlineGraceDays": 30
+  }
+}
+```
+
+It is a whole number of days between 1 and 365, declared by
+`APP … OFFLINE_GRACE <days> DAYS` and defaulting to `30`. Validation emits
+`ADL_APP_OFFLINE_GRACE_INVALID` for a missing-shaped, non-positive, fractional
+or out-of-range value rather than silently substituting the default.
+
+It measures how long a device may keep syncing since its last successful
+authentication to the authority. It gates sync only: local reads and local-first
+writes work offline indefinitely on either side of it, and nothing in the
+runtime consults a session. It is also a maximum rather than a minimum —
+revoking a session or a membership takes effect on the next contact regardless
+of remaining grace.
+
+The authority loads the same resolved model and derives its session lifetime
+from this value, so the two cannot drift; `ADL_SESSION_TTL_MINUTES` may only
+shorten it. Because the value is part of the resolved model, changing it is a
+model version change and passes through the startup compatibility guard.
 
 Runtime startup compatibility checks compare persisted application metadata and
 stored record schema versions against the resolved model.

@@ -18,6 +18,7 @@ import {
 import {
   AuthorityConfigurationError,
   loadAuthorityConfiguration,
+  resolveSessionLifetime,
   type AuthorityConfiguration,
 } from "./authority-config.js";
 import { createAuthorityNodeServer } from "./authority-node.js";
@@ -117,10 +118,13 @@ export async function createAuthorityProcess(
   options: AuthorityProcessOptions = {},
 ): Promise<AuthorityProcess> {
   const environment = options.environment ?? process.env;
-  const configuration = loadAuthorityConfiguration(environment);
   const processConfiguration = loadAuthorityProcessConfiguration(environment);
   const { applicationId } = processConfiguration;
   const model = loadAuthorityModel(processConfiguration.modelPath);
+  // The session must be able to span the grace the model declares, so the
+  // deployment configuration is reconciled with the model before anything that
+  // issues or reads a session is composed.
+  const configuration = resolveSessionLifetime(loadAuthorityConfiguration(environment), model);
 
   const pool = new Pool({ connectionString: configuration.databaseUrl });
   // A real `pg.Pool` structurally satisfies the ADL pool/queryable contracts;

@@ -189,6 +189,15 @@ export interface ResolvedApp {
   name: string;
   startView: string;
   theme: string;
+  /**
+   * How long a device may sync since its last successful authentication to the
+   * authority before a fresh logon is required. It is a sync-policy property,
+   * not an identity one: it never declares how a credential is verified, and it
+   * never gates local operation, which works offline indefinitely either side
+   * of the grace. The authority loads the same resolved model and remains the
+   * enforcement point; the client-side check is only an affordance.
+   */
+  offlineGraceDays: number;
 }
 
 export interface ResolvedShell {
@@ -1105,6 +1114,7 @@ export interface PartialAppModel {
   name: string;
   startView?: string;
   theme?: string;
+  offlineGraceDays?: number;
 }
 
 export interface PartialShellModel {

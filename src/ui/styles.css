@@ -1716,6 +1716,99 @@ textarea.adl-field-control {
   font-weight: 650;
 }
 
+/* Inside the grace nothing is wrong, so this is a quiet status line rather than
+   a warning: the app is working exactly as intended, just not connected. */
+.adl-session-grace {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Outside it, syncing has actually stopped and needs an action, so it is given
+   the same weight as the development warning above it. It still must not read
+   as data loss: the copy says so, and the styling stays short of danger red. */
+.adl-session-grace-expired {
+  background: var(--adl-color-surface-alt);
+  border: 1px solid var(--adl-color-status-busy-elsewhere);
+  border-radius: var(--adl-radius);
+  display: grid;
+  gap: var(--adl-space-sm);
+  justify-items: start;
+  padding: var(--adl-space-sm) var(--adl-space-md);
+}
+
+.adl-session-grace-expired-text {
+  color: #93370d;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 52ch;
+}
+
+.adl-session-devices {
+  border-top: 1px solid var(--adl-color-border);
+  display: grid;
+  gap: var(--adl-space-sm);
+  justify-items: start;
+  padding-top: var(--adl-space-md);
+}
+
+.adl-session-device-list {
+  display: grid;
+  gap: var(--adl-space-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+/* A row wraps rather than truncating: the dates are the only way to tell two
+   otherwise identical devices apart. */
+.adl-session-device {
+  align-items: baseline;
+  background: var(--adl-color-surface-alt);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-xs) var(--adl-space-sm);
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+.adl-session-device-name {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.adl-session-device-detail {
+  color: var(--adl-color-text-muted);
+  flex: 1 1 auto;
+  font-size: 12px;
+}
+
+.adl-session-device-revoke {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-danger);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-danger);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+.adl-session-device-revoke[disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.adl-session-devices-empty,
+.adl-session-devices-message {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
 .adl-session-form {
   align-items: end;
   display: flex;

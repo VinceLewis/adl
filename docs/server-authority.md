@@ -611,3 +611,86 @@ The raw invite token is re-supplied at finish rather than stored: only its hash
 lives on the challenge, and the token presented at finish must hash to the one
 the ceremony was started with. No email sender is introduced anywhere in this
 flow.
+
+## Offline session lifetime and sync grace
+
+Phase 50 makes the session model match how the application is actually used: a
+device works fully offline indefinitely, and may sync for up to a declared grace
+period since its last successful authentication before a fresh logon is
+required. The decision is
+[ADR 0008](adr/0008-passkey-identity-and-offline-session-grace.md).
+
+**The grace is declared in the ADL model, not in the environment.**
+`APP … OFFLINE_GRACE 30 DAYS` resolves to `model.app.offlineGraceDays`, a whole
+number of days between 1 and 365 defaulting to 30. It is a sync-policy property
+in the same family as sync mode, conflict policy and offline dataset windows; it
+never declares how a credential is verified, which remains configuration.
+Changing it is a model version change and passes through the startup
+compatibility guard.
+
+**The declared grace is the session lifetime.** The authority loads the same
+resolved model, and `resolveSessionLifetime(configuration, model)` in
+`authority-config.ts` sets `sessionTtlMinutes` to the declared grace before
+anything that issues or verifies a session is composed.
+`ADL_SESSION_TTL_MINUTES` is now an operator **cap**: it may only shorten the
+declared grace, never lengthen it, because an environment variable must not
+grant more time away than the application declared. Its unset default is
+therefore the model's value rather than the old fixed 480 minutes. The effective
+value is disclosed once at startup in a `session_lifetime_configured` security
+event, with `capped` stating whether an operator cap applied.
+
+**Both cookies are persistent, and both carry that lifetime.** `sessionCookie`
+and `csrfCookie` now emit `Max-Age`. Without it these were browser-session
+cookies, so closing the browser signed a user out no matter what the server-side
+expiry said — which makes a grace measured in weeks meaningless. The CSRF cookie
+gets the same lifetime deliberately: it is the double-submit half of every
+authenticated mutation, so a session that survived a browser restart without it
+would read but fail to write. The change is in `sessionCookie` itself, so all
+writers get it: `/v1/session/issue`, `/v1/session/rotate` and both Phase 49
+ceremony finishes.
+
+**Rotation is what restarts the grace.** `/v1/session/rotate` already issued a
+full fresh lifetime; it is now actually called. The browser rotates on connect
+when a session exists, and after a successful sync once more than half the grace
+has elapsed since the last confirmed authentication. Rotating on literally every
+contact would write a session row and re-issue two cookies per sync for no added
+safety; past the halfway point there is still a full half-grace of slack.
+
+**The client-side gate is an affordance; the authority enforces.** The browser
+refuses to *attempt* a sync once its grace has lapsed, which is neither a
+transport failure nor a verdict — every queued entry keeps its place and nothing
+is marked rejected. A client that skips that check gains nothing: the session it
+would present has genuinely expired, `verify` refuses it, and
+`tests/integration/authority-session-lifetime.test.ts` proves the refusal
+against real PostgreSQL for expired sessions, revoked sessions and rotation.
+
+**Local operation is never gated on a session**, before or after the grace
+lapses. Nothing in the runtime consults one, and that is asserted rather than
+assumed.
+
+### Session list and revoke
+
+Two endpoints, inside the ordinary session-and-CSRF gate and the existing
+`session` rate bucket, so no new cross-origin surface is added and both inherit
+the CORS wrapper Phase 49 added:
+
+| Endpoint | Request body | Success |
+| --- | --- | --- |
+| `POST /v1/session/list` | `{}` | `{ sessions: [{ sessionId, issuedAt, expiresAt, current }] }` |
+| `POST /v1/session/revoke` | `{ sessionId }` | `{ revoked: true }` |
+
+- Both are scoped to the caller by their **own session token**, never by a
+  request field, so neither can reach another identity's sessions.
+- The list carries **no token hash**. The verifier for a live session never
+  leaves the server, not even to its own holder.
+- Only sessions that are neither revoked nor expired are listed, capped at 100
+  rows. Rotation writes a row per restart of the grace, and that history must not
+  read as a list of phantom devices.
+- An unknown session id and someone else's session both answer
+  `session_not_found` (404), so this cannot be used to probe which ids exist.
+
+This is the compensating control for a grace measured in weeks. A lost device
+keeps its ability to sync until the grace lapses or its session is revoked, so
+its owner must be able to end it without an administrator.
+`revokeMembership` still revokes the user's sessions **first**, deliberately, so
+losing access ends sync on the next contact regardless of remaining grace.

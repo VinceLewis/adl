@@ -113,6 +113,9 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       name: ast.app.name,
       ...(ast.app.startView === undefined ? {} : { startView: ast.app.startView }),
       ...(ast.app.theme === undefined ? {} : { theme: ast.app.theme }),
+      ...(ast.app.offlineGraceDays === undefined
+        ? {}
+        : { offlineGraceDays: ast.app.offlineGraceDays }),
     },
     ...(ast.shell === undefined ? {} : { shell: shellToPartial(ast.shell) }),
     roles: ast.roles.map((role) => ({

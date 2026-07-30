@@ -245,6 +245,7 @@ class AdlParser {
     const name = this.consumeName("application name");
     let theme: string | undefined;
     let startView: string | undefined;
+    let offlineGraceDays: number | undefined;
     this.consumeLineEnd("APP declaration");
 
     while (true) {
@@ -261,6 +262,7 @@ class AdlParser {
           name,
           ...(theme === undefined ? {} : { theme }),
           ...(startView === undefined ? {} : { startView }),
+          ...(offlineGraceDays === undefined ? {} : { offlineGraceDays }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -272,8 +274,14 @@ class AdlParser {
       } else if (this.matchWord("START_VIEW")) {
         startView = this.consumeName("application start view name");
         this.consumeLineEnd("APP START_VIEW directive");
+      } else if (this.matchWord("OFFLINE_GRACE")) {
+        // The unit word is required, so a bare number can never be read as the
+        // wrong unit if a second unit is ever added.
+        offlineGraceDays = this.consumeNumber("APP OFFLINE_GRACE day count");
+        this.expectWord("DAYS", "APP OFFLINE_GRACE unit");
+        this.consumeLineEnd("APP OFFLINE_GRACE directive");
       } else {
-        this.failUnexpected("APP directive THEME, START_VIEW, or END.APP");
+        this.failUnexpected("APP directive THEME, START_VIEW, OFFLINE_GRACE, or END.APP");
       }
     }
   }

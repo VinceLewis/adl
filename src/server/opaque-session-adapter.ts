@@ -36,6 +36,21 @@ export interface AuthoritySessionRecord {
   rotatedToSessionId?: string;
 }
 
+/**
+ * One active session, as it may be disclosed to the person who owns it.
+ *
+ * It deliberately carries no `tokenHash`: the verifier for a live session must
+ * never leave the server, not even to its own holder. `current` names the
+ * session the request was made with, so a device can be told which row is
+ * itself before it revokes another.
+ */
+export interface AuthoritySessionSummary {
+  sessionId: string;
+  issuedAt: Date;
+  expiresAt: Date;
+  current: boolean;
+}
+
 /** Storage boundary for a custom opaque-session authority adapter. */
 export interface AuthorityIdentitySessionStore {
   findIdentityByUserId(userId: string): Promise<AuthorityIdentity | null>;
@@ -47,6 +62,8 @@ export interface AuthorityIdentitySessionStore {
   linkIdentity(link: AuthorityIdentityLink): Promise<void>;
   listIdentityLinks(userId: string): Promise<AuthorityIdentityLink[]>;
   findSessionByTokenHash(tokenHash: string): Promise<AuthoritySessionRecord | null>;
+  /** Sessions that are neither revoked nor expired at `now`, newest first. */
+  listActiveSessionsForUser(userId: string, now: Date): Promise<AuthoritySessionRecord[]>;
   createSession(session: AuthoritySessionRecord): Promise<void>;
   revokeSession(sessionId: string, revokedAt: Date, rotatedToSessionId?: string): Promise<void>;
   revokeSessionsForUser(userId: string, revokedAt: Date): Promise<void>;
@@ -194,6 +211,49 @@ export class OpaqueSessionAdapter implements AuthoritySessionAdapter {
     return replacement;
   }
 
+  /**
+   * The caller's own active sessions. This is the compensating control for a
+   * grace measured in weeks: a device that is lost keeps its sync capability
+   * until the grace runs out or its session is revoked, so the owner must be
+   * able to see and end it without an administrator.
+   *
+   * Scoped to the caller's identity by construction — the user id comes from
+   * verifying their own token, never from a request field — and revoked and
+   * expired rows are excluded, so rotation history is not disclosed as a list
+   * of phantom devices.
+   */
+  async listSessions(sessionToken: string | undefined): Promise<AuthoritySessionSummary[]> {
+    if (sessionToken === undefined) return [];
+    const tokenHash = await hashSecret(sessionToken);
+    const current = await this.store.findSessionByTokenHash(tokenHash);
+    const session = await this.verify(sessionToken);
+    if (current === null || session === null) return [];
+    const active = await this.store.listActiveSessionsForUser(session.userId, this.now());
+    return active.map((record) => ({
+      sessionId: record.sessionId,
+      issuedAt: new Date(record.issuedAt),
+      expiresAt: new Date(record.expiresAt),
+      current: record.sessionId === current.sessionId,
+    }));
+  }
+
+  /**
+   * Ends one of the caller's own sessions. Returns false when the session is
+   * unknown or belongs to someone else — the two are deliberately the same
+   * answer, so this cannot be used to probe whether a session id exists.
+   */
+  async revokeSessionForCaller(
+    sessionToken: string | undefined,
+    sessionId: string,
+  ): Promise<boolean> {
+    const session = await this.verify(sessionToken);
+    if (session === null) return false;
+    const active = await this.store.listActiveSessionsForUser(session.userId, this.now());
+    if (!active.some((record) => record.sessionId === sessionId)) return false;
+    await this.store.revokeSession(sessionId, this.now());
+    return true;
+  }
+
   async revokeUserSessions(userId: string): Promise<void> {
     await this.store.revokeSessionsForUser(userId, this.now());
   }
@@ -231,6 +291,15 @@ export class InMemoryAuthorityIdentitySessionStore implements AuthorityIdentityS
   }
   async findSessionByTokenHash(tokenHash: string): Promise<AuthoritySessionRecord | null> {
     return cloneSession(this.sessionsByHash.get(tokenHash));
+  }
+  async listActiveSessionsForUser(userId: string, now: Date): Promise<AuthoritySessionRecord[]> {
+    return [...this.sessionsByHash.values()]
+      .filter(
+        (session) =>
+          session.userId === userId && session.revokedAt === undefined && session.expiresAt > now,
+      )
+      .map((session) => cloneSession(session)!)
+      .sort((left, right) => right.issuedAt.getTime() - left.issuedAt.getTime());
   }
   async createSession(session: AuthoritySessionRecord): Promise<void> {
     if (this.sessionsByHash.has(session.tokenHash)) throw new Error("Session token collision.");
@@ -317,6 +386,18 @@ export class PostgresAuthorityIdentitySessionStore implements AuthorityIdentityS
       [this.applicationId, tokenHash],
     );
     return result.rows[0] === undefined ? null : sessionFromRow(result.rows[0]);
+  }
+  /**
+   * Bounded deliberately. Rotation writes a new row on every restart of the
+   * grace, so an old, busy identity accumulates many rows; only the active ones
+   * are selected, and the page is capped so one response can never be unbounded.
+   */
+  async listActiveSessionsForUser(userId: string, now: Date): Promise<AuthoritySessionRecord[]> {
+    const result = await this.database.query<SessionRow>(
+      "select session_id, user_id, token_hash, issued_at, expires_at, revoked_at, rotated_to_session_id from adl_authority_sessions where application_id = $1 and user_id = $2 and revoked_at is null and expires_at > $3 order by issued_at desc, session_id desc limit 100",
+      [this.applicationId, userId, now],
+    );
+    return result.rows.map(sessionFromRow);
   }
   async createSession(session: AuthoritySessionRecord): Promise<void> {
     await this.database.query(

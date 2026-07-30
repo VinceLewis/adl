@@ -10,9 +10,11 @@ import { AdlAppElement } from "../src/ui/components/adl-app.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
 import type {
   AdlAuthorityBridge,
+  AdlDeviceState,
   AdlInviteState,
   AdlSessionState,
 } from "../src/ui/authority-bridge.js";
+import type { OfflineGraceState } from "../src/ui/offline-session.js";
 import type { SyncRecoveryChoice, SyncRecoveryItem } from "../src/index.js";
 import type { PartialApplicationModel, RuntimeContext } from "../src/index.js";
 
@@ -75,6 +77,9 @@ function recoveryItem(overrides: Partial<SyncRecoveryItem> = {}): SyncRecoveryIt
   };
 }
 
+/** No prior authentication on this device, so there is no grace to be inside. */
+const NO_GRACE: OfflineGraceState = { status: "noIdentity", offlineGraceDays: 30 };
+
 function signedOutState(): AdlSessionState {
   return {
     status: "signedOut",
@@ -82,6 +87,7 @@ function signedOutState(): AdlSessionState {
     identityMode: "bypass",
     passkeySupported: true,
     busy: false,
+    grace: NO_GRACE,
   };
 }
 
@@ -89,6 +95,7 @@ function signedOutState(): AdlSessionState {
 class FakeAuthorityBridge implements AdlAuthorityBridge {
   session: AdlSessionState = signedOutState();
   invite: AdlInviteState = { status: "idle" };
+  devices: AdlDeviceState = { status: "idle", devices: [] };
   recovery: SyncRecoveryItem[] = [];
   readonly calls: string[] = [];
 
@@ -107,6 +114,33 @@ class FakeAuthorityBridge implements AdlAuthorityBridge {
   async signOut(): Promise<void> {
     this.calls.push("signOut");
     this.session = { ...signedOutState(), identityMode: this.session.identityMode };
+  }
+  async refreshDevices(): Promise<void> {
+    this.calls.push("refreshDevices");
+    this.devices = {
+      status: "loaded",
+      devices: [
+        {
+          sessionId: "session-here",
+          issuedAt: "2026-07-20T09:00:00.000Z",
+          expiresAt: "2026-08-19T09:00:00.000Z",
+          current: true,
+        },
+        {
+          sessionId: "session-lost-phone",
+          issuedAt: "2026-07-02T09:00:00.000Z",
+          expiresAt: "2026-08-01T09:00:00.000Z",
+          current: false,
+        },
+      ],
+    };
+  }
+  async revokeDevice(sessionId: string): Promise<void> {
+    this.calls.push(`revokeDevice:${sessionId}`);
+    this.devices = {
+      status: "loaded",
+      devices: this.devices.devices.filter((device) => device.sessionId !== sessionId),
+    };
   }
   async claimInvite(inviteToken: string): Promise<void> {
     this.calls.push(`claimInvite:${inviteToken}`);
@@ -176,6 +210,7 @@ describe("browser authority chrome", () => {
       identityMode: "bypass",
       passkeySupported: true,
       busy: false,
+      grace: NO_GRACE,
     };
     const app = await mountApp(bridge, { ...adminContext, online: false });
 
@@ -196,6 +231,7 @@ describe("browser authority chrome", () => {
       identityMode: "bypass",
       passkeySupported: true,
       busy: false,
+      grace: NO_GRACE,
     };
     const app = await mountApp(bridge, { ...adminContext, online: true });
 
@@ -209,6 +245,48 @@ describe("browser authority chrome", () => {
     expect(bridge.calls).toEqual(["claimInvite:invite-token-that-is-long-enough-to-send"]);
   });
 
+  /*
+   * The device list is the compensating control for a grace measured in weeks,
+   * so it must be reachable from the signed-in surface and must revoke through
+   * the authority rather than by editing a local list.
+   */
+  it("lists the caller's own devices and revokes one through the bridge", async () => {
+    const bridge = new FakeAuthorityBridge();
+    bridge.session = {
+      status: "signedIn",
+      userId: "user-42",
+      developmentMode: false,
+      identityMode: "passkey",
+      passkeySupported: true,
+      busy: false,
+      grace: { status: "withinGrace", offlineGraceDays: 30, expiresAt: "2026-08-19T09:00:00.000Z" },
+    };
+    const app = await mountApp(bridge, { ...adminContext, online: true });
+
+    requireElement<HTMLButtonElement>(app, "[data-devices-refresh]").click();
+    await flushUi();
+
+    expect(bridge.calls).toEqual(["refreshDevices"]);
+    const devices = requireElement<HTMLElement>(app, "adl-session-devices");
+    expect(devices.textContent).toContain("This device");
+    // The current session offers no revoke: ending it is signing out.
+    expect(devices.querySelector("[data-devices-revoke='session-here']")).toBeNull();
+
+    requireElement<HTMLButtonElement>(
+      devices,
+      "[data-devices-revoke='session-lost-phone']",
+    ).click();
+    await flushUi();
+
+    expect(bridge.calls).toEqual(["refreshDevices", "revokeDevice:session-lost-phone"]);
+  });
+
+  it("renders no device list while signed out", async () => {
+    const app = await mountApp(new FakeAuthorityBridge());
+
+    expect(app.querySelector("adl-session-devices")).toBeNull();
+  });
+
   it("shows a manual conflict and resolves it through the bridge", async () => {
     const bridge = new FakeAuthorityBridge();
     bridge.session = {
@@ -218,6 +296,7 @@ describe("browser authority chrome", () => {
       identityMode: "bypass",
       passkeySupported: true,
       busy: false,
+      grace: NO_GRACE,
     };
     bridge.recovery = [recoveryItem({ strategy: "manual" })];
     const app = await mountApp(bridge);
@@ -244,6 +323,7 @@ describe("browser authority chrome", () => {
       identityMode: "bypass",
       passkeySupported: true,
       busy: false,
+      grace: NO_GRACE,
     };
     bridge.recovery = [
       recoveryItem({

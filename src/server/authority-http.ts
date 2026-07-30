@@ -69,6 +69,17 @@ export function createAuthorityHttpHandler(
     bypassed: identityVerification.bypassed,
     occurredAt: new Date().toISOString(),
   });
+  // The effective session lifetime is now derived from the model's declared
+  // offline grace rather than read straight from the environment, so an
+  // operator must be able to see what it actually resolved to and whether their
+  // cap shortened it.
+  logger.write({
+    event: "session_lifetime_configured",
+    outcome: "allowed",
+    sessionTtlMinutes: configuration.sessionTtlMinutes,
+    capped: configuration.sessionTtlMinutesCap !== undefined,
+    occurredAt: new Date().toISOString(),
+  });
 
   /*
    * The preflight alone is not enough. A browser also refuses to let the page
@@ -280,6 +291,44 @@ export function createAuthorityHttpHandler(
           200,
           cookieHeaders(configuration, rotated.sessionToken, newCsrfToken()),
         );
+      }
+      /*
+       * A person's own device list, and the revoke that goes with it. Both are
+       * scoped to the caller by their own session token rather than by any
+       * request field, so neither can reach another identity's sessions, and
+       * neither discloses a token hash. They sit inside the ordinary
+       * session-and-CSRF gate above and inherit the CORS wrapper, so no new
+       * cross-origin surface is added.
+       */
+      if (pathname === "/v1/session/list") {
+        if (!enforceRate()) return rateLimited();
+        const listed = await sessions.listSessions(cookie);
+        return jsonResponse({
+          sessions: listed.map((entry) => ({
+            sessionId: entry.sessionId,
+            issuedAt: entry.issuedAt.toISOString(),
+            expiresAt: entry.expiresAt.toISOString(),
+            current: entry.current,
+          })),
+        });
+      }
+      if (pathname === "/v1/session/revoke") {
+        if (!enforceRate()) return rateLimited();
+        const revoked = await sessions.revokeSessionForCaller(
+          cookie,
+          requiredString(body, "sessionId"),
+        );
+        // Unknown and not-yours give the same answer, so this cannot be used to
+        // probe which session ids exist.
+        if (!revoked) return reject("session_not_found", 404, pathname);
+        logger.write({
+          event: "session_revoked",
+          outcome: "allowed",
+          endpoint: pathname,
+          status: 200,
+          occurredAt: new Date().toISOString(),
+        });
+        return jsonResponse({ revoked: true });
       }
       if (pathname === "/v1/session/sign-out") {
         if (!enforceRate()) return rateLimited();
@@ -597,10 +646,21 @@ function textResponse(
 function failure(error: string, status: number): Response {
   return jsonResponse({ error }, status);
 }
+/*
+ * Both cookies are persistent, and both carry the same lifetime.
+ *
+ * Without `Max-Age` these are browser-session cookies, so closing the browser
+ * signed the user out no matter what the server-side expiry said — which makes
+ * an offline grace measured in weeks meaningless. The CSRF cookie must outlive
+ * the browser too: it is the double-submit half of every authenticated
+ * mutation, so a session that survived a restart without it would read but fail
+ * to write.
+ */
 function cookieHeaders(config: AuthorityConfiguration, token: string, csrf: string): Headers {
+  const maxAge = `Max-Age=${config.sessionTtlMinutes * 60}`;
   const headers = new Headers();
-  headers.append("set-cookie", sessionCookie(config, token));
-  headers.append("set-cookie", csrfCookie(config, csrf));
+  headers.append("set-cookie", sessionCookie(config, token, maxAge));
+  headers.append("set-cookie", csrfCookie(config, csrf, maxAge));
   return headers;
 }
 function clearCookieHeaders(config: AuthorityConfiguration): Headers {

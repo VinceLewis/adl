@@ -10,6 +10,7 @@ import {
   createAuthorityHttpHandler,
   loadAuthorityConfiguration,
   resolveApplicationModel,
+  resolveSessionLifetime,
 } from "../src/index.js";
 import type { AuthorityConfiguration, SecurityLogger } from "../src/index.js";
 
@@ -35,16 +36,20 @@ const configuration: AuthorityConfiguration = {
   },
 };
 
-const model = resolveApplicationModel({
+const gracePartialModel = {
   app: { name: "HTTP fixture", startView: "DocumentList" },
   objects: [
     {
       name: "Document",
-      fields: [{ name: "Title", type: "text" }],
-      views: [{ name: "DocumentList", kind: "list", fields: ["Title"], actions: ["read"] }],
+      fields: [{ name: "Title", type: "text" as const }],
+      views: [
+        { name: "DocumentList", kind: "list" as const, fields: ["Title"], actions: ["read"] },
+      ],
     },
   ],
-});
+};
+
+const model = resolveApplicationModel(gracePartialModel);
 
 function request(path: string, body: unknown, headers: Record<string, string> = {}): Request {
   return new Request(`https://app.test${path}`, {
@@ -106,6 +111,45 @@ describe("production authority HTTP boundary", () => {
     ).toThrow("StaticSessionAdapter");
   });
 
+  /*
+   * The session must be able to span the grace the model declares, so the
+   * declared value is the lifetime and `ADL_SESSION_TTL_MINUTES` may only
+   * shorten it. An environment variable must never grant more time away than
+   * the application declared.
+   */
+  it("derives the session lifetime from the declared offline grace, capped by the operator", () => {
+    const environment = {
+      ADL_ENV: "test",
+      ADL_DATABASE_URL: "postgresql://authority.test/adl",
+      ADL_ALLOWED_ORIGINS: "https://app.test",
+      ADL_UPSTREAM_IDENTITY_ISSUER: "https://identity.test",
+      ADL_UPSTREAM_IDENTITY_AUDIENCE: "adl-test",
+    };
+    const graceModel = (days: number) =>
+      resolveApplicationModel({
+        ...gracePartialModel,
+        app: { ...gracePartialModel.app, offlineGraceDays: days },
+      });
+
+    const uncapped = loadAuthorityConfiguration(environment);
+    expect(uncapped.sessionTtlMinutesCap).toBeUndefined();
+    expect(resolveSessionLifetime(uncapped, graceModel(30)).sessionTtlMinutes).toBe(30 * 24 * 60);
+    expect(resolveSessionLifetime(uncapped, graceModel(7)).sessionTtlMinutes).toBe(7 * 24 * 60);
+
+    const capped = loadAuthorityConfiguration({
+      ...environment,
+      ADL_SESSION_TTL_MINUTES: "1440",
+    });
+    expect(capped.sessionTtlMinutesCap).toBe(1440);
+    expect(resolveSessionLifetime(capped, graceModel(30)).sessionTtlMinutes).toBe(1440);
+    // A cap longer than the declared grace never lengthens it.
+    const generous = loadAuthorityConfiguration({
+      ...environment,
+      ADL_SESSION_TTL_MINUTES: String(365 * 24 * 60),
+    });
+    expect(resolveSessionLifetime(generous, graceModel(30)).sessionTtlMinutes).toBe(30 * 24 * 60);
+  });
+
   it("requires HTTPS/origin/content shape, sets host-only secure cookies, and redacts proof failures", async () => {
     const { handle, entries } = fixture();
     const crossOrigin = await handle(
@@ -130,6 +174,15 @@ describe("production authority HTTP boundary", () => {
     });
     expect(issued.headers.get("set-cookie")).toContain("__Host-adl_session=");
     expect(issued.headers.get("set-cookie")).toContain("Secure; HttpOnly; SameSite=Strict");
+    // Persistent, not a browser-session cookie: closing the browser must not
+    // sign a user out inside the offline grace. The CSRF cookie carries the
+    // same lifetime, or a restored session could read but never write.
+    const cookies = issued.headers.getSetCookie();
+    expect(cookies).toEqual([
+      expect.stringContaining(`__Host-adl_session=`),
+      expect.stringContaining(`__Host-adl_csrf=`),
+    ]);
+    expect(cookies.every((cookie) => cookie.includes(`Max-Age=${480 * 60}`))).toBe(true);
     expect(JSON.stringify(entries)).not.toContain("valid-account-proof");
     const malformed = await handle(request("/v1/sync/replay", { operationId: "missing-kind" }));
     expect(malformed.status).toBe(401);

@@ -43,6 +43,8 @@ const passkeySignedOut: AdlSessionState = {
   identityMode: PASSKEY_IDENTITY_MODE,
   passkeySupported: true,
   busy: false,
+  /** No prior authentication here, so there is no grace to be inside. */
+  grace: { status: "noIdentity", offlineGraceDays: 30 },
 };
 
 const passkeySignedIn: AdlSessionState = {

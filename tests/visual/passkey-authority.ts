@@ -11,6 +11,7 @@ import {
   OpaqueSessionAdapter,
   PasskeyIdentityService,
   resolveApplicationModel,
+  resolveSessionLifetime,
   selectUpstreamIdentityVerifier,
 } from "../../src/index.js";
 import type { AuthorityConfiguration, RuntimeContext } from "../../src/index.js";
@@ -66,33 +67,39 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
   // The reference app the browser is running, read from the same ADL sources,
   // so a bootstrap after sign-in is model-compatible rather than a second model.
   const model = loadAuthorityModel("src/reference/giggle-band");
-  const configuration: AuthorityConfiguration = {
-    environment: "test",
-    databaseUrl: "postgresql://unused/unused",
-    allowedOrigins: [PASSKEY_APP_ORIGIN],
-    cookieName: "__Host-adl_session",
-    csrfCookieName: "__Host-adl_csrf",
-    sessionTtlMinutes: 60,
-    maxRequestBytes: 65_536,
-    upstreamIdentity: { issuer: "https://issuer.test", audience: "adl" },
-    identityVerification: { mode: "passkey" },
-    webauthn: {
-      relyingPartyId: PASSKEY_RELYING_PARTY_ID,
-      relyingPartyName: "ADL passkey fixture",
-      origins: [PASSKEY_APP_ORIGIN],
-      challengeTtlSeconds: 300,
+  // Derived from the model's declared offline grace exactly as the entrypoint
+  // derives it, so the browser sees the real session lifetime and the real
+  // persistent cookies rather than a shorter fixture value.
+  const configuration: AuthorityConfiguration = resolveSessionLifetime(
+    {
+      environment: "test",
+      databaseUrl: "postgresql://unused/unused",
+      allowedOrigins: [PASSKEY_APP_ORIGIN],
+      cookieName: "__Host-adl_session",
+      csrfCookieName: "__Host-adl_csrf",
+      sessionTtlMinutes: 60,
+      maxRequestBytes: 65_536,
+      upstreamIdentity: { issuer: "https://issuer.test", audience: "adl" },
+      identityVerification: { mode: "passkey" },
+      webauthn: {
+        relyingPartyId: PASSKEY_RELYING_PARTY_ID,
+        relyingPartyName: "ADL passkey fixture",
+        origins: [PASSKEY_APP_ORIGIN],
+        challengeTtlSeconds: 300,
+      },
+      rateLimits: {
+        accountProof: 500,
+        webauthn: 500,
+        session: 500,
+        invite: 500,
+        bootstrap: 500,
+        replay: 500,
+        report: 500,
+        administration: 500,
+      },
     },
-    rateLimits: {
-      accountProof: 500,
-      webauthn: 500,
-      session: 500,
-      invite: 500,
-      bootstrap: 500,
-      replay: 500,
-      report: 500,
-      administration: 500,
-    },
-  };
+    model,
+  );
 
   const storage = new InMemoryObjectStorageBackend();
   const sessions = new OpaqueSessionAdapter(new InMemoryAuthorityIdentitySessionStore(), {

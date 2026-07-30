@@ -19,6 +19,38 @@
 > a deployment ever holding data. Scope is unchanged except where the Phase 48
 > findings below correct it.
 >
+> **Phase 50 handoff (confirmed).** Phase 50 landed the declared offline grace,
+> the model-derived session lifetime, persistent cookies, session rotation, the
+> browser sync gate and cached identity, and the self-service device list. With
+> Phase 49 it closes the gate that stopped a deployment holding real user data.
+> This phase is the highest-value remaining gap **repository-wide**, and Phase 50
+> sharpened the argument rather than merely leaving it intact:
+>
+> - **The migration half is now the last pre-deployment blocker.** Phases 49 and
+>   50 together satisfy the standing rule, so a deployment *may* now hold real
+>   user data — and the moment one does, a model change destroys it, because
+>   there is still no migration path on either side. Every prior phase could say
+>   "no deployment exists yet, so this is not urgent". That sentence has just
+>   stopped being available.
+> - **Phase 50 supplied a demonstrated instance of the gap, with a security
+>   consequence.** See the third evidence item below: a model *content* change is
+>   not a model *version* change, so the guard never fires, and an author who
+>   shortens `OFFLINE_GRACE` silently shortens every device's session while every
+>   device still believes it has the old window. This is no longer an abstract
+>   "models should be able to evolve" argument.
+> - **The conformance half gained a third uncovered contract change**, and the
+>   first one that is a model property rather than a runtime behaviour.
+>
+> The alternatives were weighed and are genuinely lower value: Phase 52
+> (membership projection) and Phase 53 (retention scheduling and administration
+> UI) are optimisation and operation of a system that already functions, and
+> Phase 54 is reference-app and documentation hygiene. None of the three risks
+> data. Phase 50 did produce one input to Phase 53 — rotation writes a session row
+> per restart of the grace and nothing prunes revoked or expired rows — which is
+> recorded there rather than used to re-sequence, because revoked and expired rows
+> are excluded from every user-facing surface and unbounded row growth is an
+> operational concern, not a correctness or disclosure one.
+>
 > **Correction from Phase 48.** The previous evidence asserted that "after Phase 46
 > and 47 there is a real deployment with real PostgreSQL accepted records and real
 > browser IndexedDB state". Phase 48 established, with evidence, that no deployment
@@ -47,11 +79,31 @@ persisted data.
   status, authority replay, scoping and record-identity semantics without a
   matching growth in contract cases. A second runtime implemented against this
   suite today would not be constrained to ADL's actual semantics.
-- **The newest contract change is uncovered.** Phase 48 made the create intent
+- **The newest contract changes are uncovered.** Phase 48 made the create intent
   carry the client's record id, made a colliding id a rejection rather than an
   overwrite, and made a malformed id a refusal enforced independently at the HTTP
-  edge and in the runtime. None of that is expressible in the suite today, and it
-  is exactly the kind of semantics a second runtime would get wrong.
+  edge and in the runtime. Phase 50 added `app.offlineGraceDays` with a default
+  of 30, a 1-365 bound, and the `ADL_APP_OFFLINE_GRACE_INVALID` diagnostic —
+  the **first resolved-model property added since the suite was written**, and
+  therefore the first case of a defaulted, validated app-level value the suite
+  has to be able to express at all. None of this is expressible today, and it is
+  exactly the kind of semantics a second runtime would get wrong.
+- **A model content change is not a model version change — verified in Phase
+  50.** `resolveApplicationModel` sets `modelVersion: input.modelVersion ??
+  ADL_MODEL_VERSION` (`resolve-model.ts`), `ADL_MODEL_VERSION` is the constant
+  `"0.1.0"` in `src/model/defaults.ts`, and there is **no ADL syntax to set it**:
+  the parser has no version directive and `compile-adl.ts` never populates the
+  field. `startup-compatibility.ts:31` compares only that string against
+  persisted metadata. So editing `OFFLINE_GRACE 30 DAYS` to `7 DAYS`, or any
+  other model content, leaves the version identical and the guard silent. For
+  the grace specifically that has a security consequence, because the authority
+  derives its session lifetime from that value: it starts issuing 7-day sessions
+  while every already-running device still believes it has 30 and only discovers
+  otherwise when a sync is refused. Phase 50 deliberately did not fix this — its
+  non-goals assign migration across a model version change here — but a migration
+  path is worth little if nothing makes a change *be* a version change, so
+  deciding how a model version is derived or declared belongs in this phase's
+  scope.
 - **There is no migration path for persisted data.** Phase 11 deliberately
   shipped a version guard only: its task list says "Avoid implementing full
   migrations; add only the smallest placeholder or interface if needed to keep
@@ -75,7 +127,17 @@ server and the client, and on the existing startup compatibility guard.
   including status, matrix and calendar semantics, and authority outcome
   classification — the last of which now includes Phase 48 record identity: a
   create carrying its own id, a collision refused rather than merged, and a
-  malformed id refused before storage.
+  malformed id refused before storage. Add app-level resolution and validation
+  cases for Phase 50's `app.offlineGraceDays`: the default when undeclared, the
+  declared value when present, and `ADL_APP_OFFLINE_GRACE_INVALID` for a
+  non-positive, fractional or out-of-range value.
+- **Decide how a model version is derived or declared**, so that a model content
+  change can be one. This is a prerequisite for the migration work rather than an
+  addition to it: today `ADL_MODEL_VERSION` is a platform constant with no ADL
+  syntax behind it, so the compatibility guard never fires on a model edit and a
+  migration path would have nothing to trigger it. Either derive the version from
+  the resolved model's content or give ADL a way to declare it; whichever is
+  chosen, changing `OFFLINE_GRACE` must stop being silent.
 - Define and implement model migration for persisted state on both sides: server
   accepted-record projection and browser IndexedDB records, driven by the
   resolved model's version metadata and executed through the existing
@@ -105,6 +167,18 @@ server and the client, and on the existing startup compatibility guard.
   rules, and the disclosure boundaries throughout: migration diagnostics stay
   metadata-only. Membership-projection scoping is now Phase 52 and follows this
   phase, so there is nothing of it to preserve yet.
+- **Preserve Phase 50's session and grace behaviour.** The authority derives its
+  session lifetime from `app.offlineGraceDays` at startup, so anything that
+  changes how a model version or model content reaches the process must keep
+  `resolveSessionLifetime` running before the session adapter and HTTP edge are
+  composed. A migration that shortens the declared grace must not retroactively
+  invalidate sessions already issued under the longer one without saying so —
+  those devices are offline by definition and cannot be told.
+- **A model version change must not become a reason to destroy the cached
+  identity.** `{ userId, lastVerifiedAt }` in IndexedDB is what stops a signed-in
+  user losing their own data on an offline reload. It is not a record and carries
+  no schema of its own; clearing it as part of a persisted-state migration would
+  reintroduce the exact defect Phase 50 closed.
 
 ## Deliverables
 
@@ -156,6 +230,9 @@ server and the client, and on the existing startup compatibility guard.
 - Phase 44 atomicity, Phase 45 scope/retention.
 - Phase 46/47 server and client persistence paths, and the Phase 48 create-intent
   contract this phase codifies.
+- Phase 50's `app.offlineGraceDays`, the model-derived session lifetime, and the
+  cached browser identity — the first two are codified here, the third is
+  preserved.
 
 ## Parallel Execution Plan
 
@@ -204,19 +281,24 @@ disjoint files and do not need it.
 1. Inventory current conformance coverage against every semantic layer shipped
    since Phase 23 and produce the explicit gap list this phase must close.
 2. Extend the case schema and runner only where a new layer cannot be expressed
-   in the existing format.
-3. Author conformance cases per layer, recording any semantic defect found rather
+   in the existing format — including app-level resolution and validation, which
+   Phase 50's `app.offlineGraceDays` is the first property to need.
+3. Decide and implement how a model version is derived or declared, so a model
+   content change is a version change and the compatibility guard fires on one.
+   Do this before the migration work: a migration path needs something to trigger
+   it.
+4. Author conformance cases per layer, recording any semantic defect found rather
    than adjusting the case.
-4. Fix revealed runtime defects explicitly and record them in learnings.
-5. Implement model migration for server accepted records and browser persisted
+5. Fix revealed runtime defects explicitly and record them in learnings.
+6. Implement model migration for server accepted records and browser persisted
    records through the existing compatibility guard, fail-closed, atomic on the
    server.
-6. Add real-backend and browser tests: successful migration, unappliable
+7. Add real-backend and browser tests: successful migration, unappliable
    migration refusal, mid-migration failure rollback, and no-data-loss
    verification.
-7. Update the three-layer specification, the runbook migration procedure, and
+8. Update the three-layer specification, the runbook migration procedure, and
    learnings.
-8. **Required next-phase planning handoff:** before Phase 51 closes, review
+9. **Required next-phase planning handoff:** before Phase 51 closes, review
    `docs/phases/phase-52-authority-membership-projection-and-scoped-access.md` and
    revise it if this phase's results change its scope, constraints, deliverables,
    or tasks. The handoff must justify Phase 52 as the highest-value remaining gap

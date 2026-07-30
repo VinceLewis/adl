@@ -350,6 +350,80 @@ no access to it, and revision, actor, timestamps, accepted state and scope all
 remain server-derived. Never accept a client-supplied revision or actor as a
 remedy for one of these rejections.
 
+## Offline session lifetime and sync grace
+
+**The grace is in the model, not in your environment.** How long a device may
+keep syncing since its last successful authentication is
+`APP … OFFLINE_GRACE <days> DAYS` in the ADL source the authority serves
+(`ADL_MODEL_PATH`), resolving to `model.app.offlineGraceDays`. Giggle Band
+declares 30 days. Changing it is a model change and a redeploy, not a restart,
+and because it is part of the resolved model it is also a **model version
+change**: expect the startup compatibility guard to apply on the browser side
+exactly as it does for any other model change.
+
+**`ADL_SESSION_TTL_MINUTES` is now a cap, not the lifetime.** The effective
+session lifetime is the declared grace; the variable, if set, may only shorten
+it. Setting it longer than the declared grace has no effect — an environment
+variable must not grant more time away than the application declared. With it
+unset the lifetime is the full declared grace, which is why the old 480-minute
+default no longer applies.
+
+Confirm what actually resolved from the startup security log rather than from
+the environment:
+
+```text
+{"event":"session_lifetime_configured","sessionTtlMinutes":43200,"capped":false,...}
+```
+
+`capped: true` means your `ADL_SESSION_TTL_MINUTES` shortened the declared
+grace. If users report being signed out sooner than the application promises,
+read that line first.
+
+**Cookies are now persistent.** Both `__Host-adl_session` and `__Host-adl_csrf`
+carry `Max-Age` equal to the effective lifetime. Closing the browser no longer
+signs a user out. Both cookies carry the same lifetime deliberately: a session
+that outlived its CSRF cookie could read but would fail every write with
+`csrf_denied` (403). A cluster of `csrf_denied` from otherwise healthy
+long-lived sessions is the symptom to look for if that ever diverges.
+
+**Sessions rotate, so the sessions table churns.** The browser rotates on
+connect and again once more than half the grace has elapsed since its last
+confirmed authentication. Each rotation inserts a new session row and revokes
+the previous one with `rotated_to_session_id` set. Row growth in
+`adl_authority_sessions` is therefore expected and is not a leak; revoked and
+expired rows are excluded from everything user-facing. Nothing in this
+repository prunes them, so treat it as a retention item alongside expired
+ceremony challenges.
+
+**What a lapsed grace looks like.** The device keeps working — local reads and
+local-first writes are never gated on a session, before or after the grace
+lapses — and its queued work is preserved. What stops is sync: the browser
+refuses to attempt it and shows a "Syncing is paused" prompt offering a fresh
+passkey sign-in. Server-side, that device's session has genuinely expired, so a
+client that ignored its own gate is refused with `unauthenticated` (401) anyway.
+Triage consequence: a user reporting "my changes are not appearing on other
+devices" while the app otherwise works is a grace-expiry report, not an outage.
+Ask when they last signed in, and check for `unauthenticated` responses from
+their client rather than looking for a sync failure.
+
+**Users can list and revoke their own devices.** `POST /v1/session/list` and
+`POST /v1/session/revoke` back a device list in the signed-in surface. Both are
+scoped to the caller's own identity by their own session token, so there is no
+operator-facing endpoint here and no way for one user to reach another's
+sessions; an unknown id and someone else's id both answer `session_not_found`
+(404). This is the compensating control for a grace measured in weeks. When
+handling a lost-device report:
+
+1. Have the user revoke that device from their own device list. This is the
+   fastest path and needs no operator involvement.
+2. If they cannot, revoking their **membership** revokes their sessions first,
+   deliberately — that ends sync on the lost device's next contact regardless of
+   how much grace remains, at the cost of ending their access everywhere.
+3. **Data already on the device is not reclaimed, and there is no remote wipe.**
+   That is intentional and cannot be made reliable for a device that never
+   reconnects. Treat a lost device as a disclosure of whatever was cached on it
+   at the time, and scope the incident accordingly.
+
 ## Offline application shell
 
 The application ships a web app manifest (`/manifest.webmanifest`) and a service

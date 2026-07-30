@@ -169,6 +169,38 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  /*
+   * The grace is also the authority's session lifetime, so a value that is not
+   * a whole number of days in range must be a diagnostic rather than quietly
+   * becoming the default or a lifetime nobody declared.
+   */
+  it.each([
+    ["zero", 0],
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["not a number", Number.NaN],
+    ["beyond the bound", 366],
+  ])("refuses a %s offline grace", (_label, offlineGraceDays) => {
+    const model = resolveApplicationModel(validPartialModel);
+    const invalid = { ...model, app: { ...model.app, offlineGraceDays } };
+
+    expect(validateApplicationModel(invalid).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.APP_OFFLINE_GRACE_INVALID,
+    );
+  });
+
+  it("accepts a declared offline grace inside the bound", () => {
+    const model = resolveApplicationModel({
+      ...validPartialModel,
+      app: { ...validPartialModel.app, offlineGraceDays: 14 },
+    });
+
+    expect(model.app.offlineGraceDays).toBe(14);
+    expect(validateApplicationModel(model).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.APP_OFFLINE_GRACE_INVALID,
+    );
+  });
+
   it("does not mutate the resolved model", () => {
     const resolved = resolveApplicationModel(validPartialModel);
     const before = JSON.stringify(resolved);

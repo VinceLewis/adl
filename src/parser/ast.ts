@@ -101,6 +101,8 @@ export interface AppDeclarationAst {
   name: string;
   theme?: string;
   startView?: string;
+  /** Declared by `OFFLINE_GRACE <days> DAYS`; the unit word is required. */
+  offlineGraceDays?: number;
   end: EndMarkerNode;
   range: SourceRange;
 }

@@ -174,3 +174,37 @@ are gone from the row while only the verdict metadata remains in the recovery
 panel. That is consistent with every other `keepServer` resolution, and no
 client-side merge is invented to paper over it, but it is a real loss of local work
 and it is not yet surfaced as such to the user.
+
+## The offline session grace (Phase 50)
+
+The grace is a **deliberate widening** of the session lifetime, from 8 hours to
+the model's declared 30 days, made so that a device that has been away can still
+sync without a fresh logon. It is recorded here as an accepted trade with named
+compensating controls, not as a control in itself.
+
+| Threat | Control | Verification |
+| --- | --- | --- |
+| A lost or stolen device syncing for weeks on its existing session | The grace is a **maximum, never a minimum**: revoking a session, or a membership (which revokes the user's sessions first, deliberately), takes effect on that device's next contact regardless of remaining grace. The owner can end any of their own sessions from a self-service device list without an operator | Phase 50 real-PostgreSQL session-lifetime tests; Phase 41 access-lifecycle revocation tests |
+| A client ignoring its own grace check and syncing anyway | The client-side gate is an affordance only. The session it would present has genuinely expired, so `verify` refuses it and every authenticated endpoint answers `unauthenticated` (401). Rotation is not a way back in either: it requires a still-valid session | Phase 50 real-PostgreSQL refusal cases for expired, revoked and rotated-away sessions |
+| An operator lengthening the window past what the application declared | `ADL_SESSION_TTL_MINUTES` is a **cap**: it may only shorten the declared grace. The effective value is disclosed once at startup in a `session_lifetime_configured` event with a `capped` flag | Phase 50 configuration tests |
+| A persistent session cookie surviving where the CSRF cookie did not | Both cookies carry the same `Max-Age`, so a restored session cannot end up able to read but not write. Both remain `__Host-` Secure SameSite=Strict; the session cookie stays HttpOnly and unreadable to page script | Phase 50 cookie tests, real-PostgreSQL edge case |
+| The cached browser identity used as a credential | It is a user id and a timestamp in IndexedDB, never a token, and it is never sent to the authority as proof of anything. The server-derived identity wins on every successful contact, and an authority that reports no session causes it to be dropped rather than kept as a shadow account | Phase 50 offline-session tests |
+| A signed-out browser operating as a stand-in identity | With an authority configured and no session, the context runs as `adl-signed-out`, which matches no membership, so context roles resolve to nothing and policy denies. The previous fallback to `LOCAL_DEMO_IDENTITY` — a local demo device, not an account — is gone | Phase 50 offline-session regression tests |
+| The device list disclosing a session verifier or another identity's sessions | The list is scoped by the caller's own session token rather than any request field, carries no token hash, excludes revoked and expired rows, and is capped at 100. An unknown session id and someone else's session both answer `session_not_found` (404), so it cannot be used to probe which ids exist | Phase 50 real-PostgreSQL device-list tests |
+
+**Accepted, and unchanged by this phase: a device inside its grace retains sync
+capability.** That is the point of the grace, and revocation is the control. Two
+consequences follow and are intentional:
+
+- **Cached data is never reclaimed.** Revoking a session or a membership stops
+  future sync; it does not remove what is already in that device's IndexedDB.
+- **There is no remote wipe, and there cannot be a reliable one** for a device
+  that never reconnects. Treat a lost device as a disclosure of whatever was
+  cached on it at the time and scope the incident accordingly, rather than
+  expecting a revocation to undo it.
+
+**Residual risk — rotation grows the sessions table.** Each restart of the grace
+inserts a session row and revokes the previous one. Revoked and expired rows are
+excluded from everything user-facing and from the device list, so this is not a
+disclosure, but nothing in this repository prunes them; it sits alongside expired
+ceremony challenges as an operator retention item.

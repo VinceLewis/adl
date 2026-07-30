@@ -10,7 +10,9 @@ same resolved-model contract that JSON fixtures use.
 The current parser is line-oriented and block-based. Top-level declarations use
 uppercase keywords and explicit `END.*` block terminators.
 
-- `APP Name` declares the application. `START_VIEW` may name the initial view.
+- `APP Name` declares the application. `START_VIEW` may name the initial view,
+  and `OFFLINE_GRACE` may declare the offline sync grace (see
+  [Application Declaration](#application-declaration)).
 - `SHELL ... END.SHELL` declares application shell navigation and top-bar
   controls.
 - `ROLE Name` declares an application role.
@@ -35,6 +37,43 @@ Apps may list multiple ordered source files in `app.yaml`. The compiler reads
 them in manifest order. Later object declarations that contain only `VIEW`
 blocks extend the earlier object declaration, which allows UI source such as
 `ui.adl` to live beside domain source without redefining fields or policies.
+
+## Application Declaration
+
+```text
+APP 'Giggle Band ADL Example'
+  THEME CorporateLight
+  START_VIEW HomeDashboard
+  OFFLINE_GRACE 30 DAYS
+END.APP
+```
+
+- `THEME` names the application theme. It defaults to `CorporateLight`.
+- `START_VIEW` names the initial view. It defaults to the first resolved object
+  view.
+- `OFFLINE_GRACE <days> DAYS` declares how long a device may keep syncing since
+  its last successful authentication to the authority before a fresh logon is
+  required. It defaults to `30 DAYS`. The unit word is required, so a bare
+  number can never be read as the wrong unit if another unit is added later.
+
+`OFFLINE_GRACE` is a **sync-policy** declaration, not an identity one. ADL
+already models sync mode, conflict policy and offline dataset windows, and this
+belongs in that family; it never declares how a credential is verified, which
+remains deployment configuration. Three properties follow from that and are part
+of the language contract:
+
+- It gates **sync only**. Local reads and local-first writes work offline
+  indefinitely, inside the grace and outside it.
+- It is a **maximum, never a minimum**. Revoking a session or a membership takes
+  effect on the device's next contact regardless of how much grace remains.
+- The **authority is the enforcement point**. It loads the same resolved model
+  and derives its session lifetime from this value, so a client that skips its
+  own grace check gains nothing.
+
+The value must be a whole number of days between 1 and 365; anything else is the
+`ADL_APP_OFFLINE_GRACE_INVALID` diagnostic rather than a silent fallback to the
+default. Changing it changes the resolved model, so it is a model version change
+and passes through the startup compatibility guard like any other.
 
 ## Objects And Fields
 

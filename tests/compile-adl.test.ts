@@ -44,6 +44,8 @@ describe("compileAdl", () => {
       name: "UserDirectory",
       theme: "DirectoryTheme",
       startView: "UserList",
+      // Undeclared, so the documented default stands rather than a surprise.
+      offlineGraceDays: 30,
     });
     expect(theme).toMatchObject({
       name: "DirectoryTheme",
@@ -680,6 +682,7 @@ END.COMMAND
       name: "Giggle Band ADL Example",
       theme: "CorporateLight",
       startView: "HomeDashboard",
+      offlineGraceDays: 30,
     });
     expect(result.model.shell.nav.items.map((item) => [item.view, item.label, item.order])).toEqual(
       [

@@ -16,9 +16,13 @@ import {
   AdlSessionPanelElement,
   defineAdlSessionPanel,
 } from "../src/ui/components/adl-session-panel.js";
+import type { OfflineGraceState } from "../src/ui/offline-session.js";
 
 const ACCOUNT_PROOF = "development-account-proof-0001";
 const INVITE_TOKEN = "invite-token-0123456789abcdef0123456789abcdef";
+
+/** No prior authentication on this device, so there is no grace to be inside. */
+const NO_GRACE: OfflineGraceState = { status: "noIdentity", offlineGraceDays: 30 };
 
 const signedOut: AdlSessionState = {
   status: "signedOut",
@@ -26,6 +30,7 @@ const signedOut: AdlSessionState = {
   identityMode: "bypass",
   passkeySupported: true,
   busy: false,
+  grace: NO_GRACE,
 };
 
 const signedIn: AdlSessionState = {
@@ -35,6 +40,7 @@ const signedIn: AdlSessionState = {
   identityMode: "bypass",
   passkeySupported: true,
   busy: false,
+  grace: NO_GRACE,
 };
 
 describe("adl-session-panel", () => {
@@ -76,14 +82,69 @@ describe("adl-session-panel", () => {
         identityMode: "bypass",
         passkeySupported: true,
         busy: false,
+        grace: NO_GRACE,
       },
     });
 
     const note = requireElement<HTMLElement>(panel, "[data-session-unavailable='true']");
     expect(note.textContent).toContain("could not be reached");
-    expect(note.textContent).toContain("local data");
+    expect(note.textContent).toContain("keeps working offline");
     expect(panel.querySelector("[data-session-sign-in-form='true']")).toBeNull();
     expect(panel.querySelector("[data-session-invite-form='true']")).toBeNull();
+    // Nothing has ever authenticated here, so there is no grace to report on.
+    expect(panel.querySelector("[data-session-grace]")).toBeNull();
+  });
+
+  /*
+   * The offline states. Inside the grace this is a status line, because nothing
+   * is wrong; outside it, syncing has genuinely stopped and needs an action.
+   * Both must say who the app believes is using it, because that identity is
+   * what the local data is scoped to.
+   */
+  it("names the cached identity and the date the grace runs out while offline", () => {
+    const panel = mountPanel({
+      session: {
+        ...signedOut,
+        status: "unavailable",
+        userId: "user-9f3c",
+        grace: {
+          status: "withinGrace",
+          offlineGraceDays: 30,
+          lastVerifiedAt: "2026-07-20T09:00:00.000Z",
+          expiresAt: "2026-08-19T09:00:00.000Z",
+        },
+      },
+    });
+
+    const identity = requireElement<HTMLElement>(panel, "[data-session-identity='true']");
+    expect(identity.textContent).toContain("user-9f3c");
+    const grace = requireElement<HTMLElement>(panel, "[data-session-grace='withinGrace']");
+    expect(grace.textContent).toContain("2026-08-19");
+    expect(panel.querySelector("[data-session-grace='expired']")).toBeNull();
+  });
+
+  it("prompts for a fresh passkey sign-in when the grace has run out, with no credential field", () => {
+    const panel = mountPanel({
+      session: {
+        ...signedOut,
+        status: "unavailable",
+        identityMode: "passkey",
+        userId: "user-9f3c",
+        grace: {
+          status: "expired",
+          offlineGraceDays: 30,
+          lastVerifiedAt: "2026-05-01T09:00:00.000Z",
+          expiresAt: "2026-05-31T09:00:00.000Z",
+        },
+      },
+    });
+
+    const expired = requireElement<HTMLElement>(panel, "[data-session-grace='expired']");
+    expect(expired.textContent).toContain("Syncing is paused");
+    // It must not read as data loss, and it must not become a second way in.
+    expect(expired.textContent).toContain("still works offline");
+    expect(panel.querySelector("[data-session-account-proof='true']")).toBeNull();
+    expect(expired.querySelector("[data-session-passkey-sign-in='true']")).not.toBeNull();
   });
 
   it("warns that a development sign-in is not a verified identity in both states", () => {
@@ -331,6 +392,7 @@ describe("adl-session-panel", () => {
         identityMode: "bypass",
         passkeySupported: true,
         busy: false,
+        grace: NO_GRACE,
         error: "<script>alert(2)</script>",
       },
       invite: { status: "rejected", message: "<b>bad</b>" },

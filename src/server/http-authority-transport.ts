@@ -43,6 +43,25 @@ export interface PasskeyRegistrationOutcome {
   expiresAt?: Date;
 }
 
+/** What a rotation reports back. The replacement token itself stays in a cookie. */
+export interface AuthoritySessionRotation {
+  expiresAt?: Date;
+}
+
+/**
+ * One of the caller's own active sessions, as the device list shows it. It
+ * carries no token or token hash: the verifier for a live session never leaves
+ * the server.
+ */
+export interface AuthorityDeviceSession {
+  sessionId: string;
+  /** ISO instants, passed through unparsed so the surface formats them once. */
+  issuedAt: string;
+  expiresAt: string;
+  /** True for the session this request was made with. */
+  current: boolean;
+}
+
 /** Outcome of claiming an invitation. The membership itself is server-written. */
 export type AuthorityInviteClaimOutcome =
   | { status: "accepted"; inviteId: string; membershipRecordId: string }
@@ -216,6 +235,43 @@ export class HttpAuthorityTransport implements AuthorityTransport {
       if (error instanceof AuthorityTransportError && error.status === 401) return null;
       throw error;
     }
+  }
+
+  /**
+   * Restarts the offline grace using a still-valid session. The authority
+   * issues a replacement session and revokes the old one, so this is a
+   * successful authentication in its own right — no credential is presented,
+   * and a session that has already expired or been revoked is refused.
+   */
+  async rotateSession(): Promise<AuthoritySessionRotation> {
+    const body = await this.post("/v1/session/rotate", {});
+    const expiresAt = typeof body.expiresAt === "string" ? new Date(body.expiresAt) : undefined;
+    return expiresAt === undefined || Number.isNaN(expiresAt.getTime()) ? {} : { expiresAt };
+  }
+
+  /** The caller's own active sessions. The authority scopes this to their identity. */
+  async listSessions(): Promise<AuthorityDeviceSession[]> {
+    const body = await this.post("/v1/session/list", {});
+    const sessions = body.sessions;
+    if (!Array.isArray(sessions)) return [];
+    return sessions.flatMap((entry) => {
+      if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return [];
+      const row = entry as Record<string, unknown>;
+      if (typeof row.sessionId !== "string" || row.sessionId.length === 0) return [];
+      return [
+        {
+          sessionId: row.sessionId,
+          issuedAt: typeof row.issuedAt === "string" ? row.issuedAt : "",
+          expiresAt: typeof row.expiresAt === "string" ? row.expiresAt : "",
+          current: row.current === true,
+        },
+      ];
+    });
+  }
+
+  /** Ends one of the caller's own sessions. The authority refuses anyone else's. */
+  async revokeSession(sessionId: string): Promise<void> {
+    await this.post("/v1/session/revoke", { sessionId });
   }
 
   async signOut(): Promise<void> {

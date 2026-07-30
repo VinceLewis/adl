@@ -1,6 +1,7 @@
 APP 'Giggle Band ADL Example'
   THEME CorporateLight
   START_VIEW HomeDashboard
+  OFFLINE_GRACE 30 DAYS
 END.APP
 
 ROLE SystemAdmin

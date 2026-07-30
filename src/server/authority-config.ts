@@ -1,3 +1,5 @@
+import { DEFAULT_OFFLINE_GRACE_DAYS } from "../model/defaults.js";
+import type { ResolvedApplicationModel } from "../model/resolved-model.js";
 import { OpaqueSessionAdapter } from "./opaque-session-adapter.js";
 import { StaticSessionAdapter } from "./session-adapter.js";
 
@@ -54,7 +56,22 @@ export interface AuthorityConfiguration {
   allowedOrigins: readonly string[];
   cookieName: "__Host-adl_session";
   csrfCookieName: "__Host-adl_csrf";
+  /**
+   * The effective session lifetime. It is the model's declared offline grace,
+   * because a device must be able to sync anywhere inside that grace without a
+   * fresh logon, shortened by {@link sessionTtlMinutesCap} when an operator has
+   * set one. `loadAuthorityConfiguration` cannot know the model, so it seeds
+   * this with the language's default grace and
+   * {@link resolveSessionLifetime} replaces it once the model is loaded.
+   */
   sessionTtlMinutes: number;
+  /**
+   * `ADL_SESSION_TTL_MINUTES`, when set. It may only shorten the declared
+   * grace, never lengthen it: the model is the source of truth for how long a
+   * device may stay away, and an environment variable must not quietly grant
+   * more than the application declared.
+   */
+  sessionTtlMinutesCap?: number;
   maxRequestBytes: number;
   upstreamIdentity: { issuer: string; audience: string };
   identityVerification: AuthorityIdentityVerificationConfiguration;
@@ -91,7 +108,10 @@ export function loadAuthorityConfiguration(
     allowedOrigins,
     cookieName: "__Host-adl_session",
     csrfCookieName: "__Host-adl_csrf",
-    sessionTtlMinutes: positiveInteger(environment.ADL_SESSION_TTL_MINUTES, 480),
+    sessionTtlMinutes: minutesForDays(DEFAULT_OFFLINE_GRACE_DAYS),
+    ...(environment.ADL_SESSION_TTL_MINUTES === undefined
+      ? {}
+      : { sessionTtlMinutesCap: positiveInteger(environment.ADL_SESSION_TTL_MINUTES, 0) }),
     maxRequestBytes: positiveInteger(environment.ADL_MAX_REQUEST_BYTES, 65_536),
     upstreamIdentity: {
       issuer: required(environment, "ADL_UPSTREAM_IDENTITY_ISSUER"),
@@ -124,6 +144,30 @@ export function loadAuthorityConfiguration(
   return config;
 }
 
+/**
+ * Reconciles the deployment configuration with the model the authority serves.
+ *
+ * The declared offline grace is how long a device may keep syncing since its
+ * last successful authentication, so the session it authenticates into must be
+ * able to span it — an 8-hour session would expire a device that the model says
+ * has 30 days. An operator may shorten that with `ADL_SESSION_TTL_MINUTES`, and
+ * only shorten it: lengthening past the declared grace would hand out a
+ * capability the application never declared. The grace stays a *maximum* either
+ * way, because revocation takes effect on the next contact regardless of how
+ * much of it is left.
+ */
+export function resolveSessionLifetime(
+  configuration: AuthorityConfiguration,
+  model: ResolvedApplicationModel,
+): AuthorityConfiguration {
+  const graceMinutes = minutesForDays(model.app.offlineGraceDays);
+  const cap = configuration.sessionTtlMinutesCap;
+  return {
+    ...configuration,
+    sessionTtlMinutes: cap === undefined ? graceMinutes : Math.min(graceMinutes, cap),
+  };
+}
+
 /** Reject test wiring before a production HTTP process can serve traffic. */
 export function assertProductionSessionAdapter(
   configuration: AuthorityConfiguration,
@@ -141,6 +185,9 @@ function required(environment: Record<string, string | undefined>, name: string)
   if (value === undefined || value.length === 0)
     throw new AuthorityConfigurationError(`${name} is required.`);
   return value;
+}
+function minutesForDays(days: number): number {
+  return days * 24 * 60;
 }
 function positiveInteger(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;

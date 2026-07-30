@@ -18,6 +18,18 @@ export const DEFAULT_OBJECT_SCHEMA_VERSION = 1;
 export const SYSTEM_ID_FIELD = "_guid";
 export const DEFAULT_LIFECYCLE_STATE_FIELD = "_state";
 export const DEFAULT_THEME_NAME = "CorporateLight";
+/**
+ * How long a device may keep syncing since its last successful authentication
+ * before a fresh logon is required. It gates sync only: local reads and
+ * local-first writes work offline indefinitely, inside the grace and outside it.
+ */
+export const DEFAULT_OFFLINE_GRACE_DAYS = 30;
+/**
+ * An upper bound, not a recommendation. The grace is also the authority's
+ * session lifetime, so an unbounded value would mint sessions that outlive any
+ * plausible revocation window.
+ */
+export const MAX_OFFLINE_GRACE_DAYS = 365;
 export const DEFAULT_SYNC_MODE = "localFirst";
 export const DEFAULT_SYNC_SCOPE = "all";
 export const DEFAULT_CONFLICT_STRATEGY = "manual";

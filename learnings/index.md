@@ -23,6 +23,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 
 - `architecture/resolved-model-defaults.md`
 - `implementation/model-validator.md`
+- `implementation/offline-session-lifetime.md`
 - `implementation/policy-engine.md`
 - `implementation/runtime-services.md`
 - `implementation/expression-language.md`
@@ -52,6 +53,7 @@ Before tasks that change the authority entrypoint or its deployment configuratio
 
 - `implementation/first-deployment-slice.md`
 - `implementation/passkey-identity.md`
+- `implementation/offline-session-lifetime.md`
 - `implementation/production-authority-operations.md`
 - `implementation/identity-invites-and-access-lifecycle.md`
 - `implementation/remote-bootstrap-and-sync-state.md`
@@ -66,6 +68,7 @@ Before tasks that change client conflict/rejection recovery, the browser authori
 
 - `implementation/usable-sync-slice.md`
 - `implementation/passkey-identity.md`
+- `implementation/offline-session-lifetime.md`
 - `implementation/offline-operation-identity.md`
 - `implementation/first-deployment-slice.md`
 - `implementation/sync-policy.md`
@@ -206,3 +209,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
 - `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record.
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
+- `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.

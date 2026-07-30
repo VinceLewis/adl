@@ -45,13 +45,16 @@ import type {
   PresentationStateChangeDetail,
 } from "./adl-composed-view.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
+import type { AdlSessionDevicesElement } from "./adl-session-devices.js";
 import type { AdlSessionPanelElement } from "./adl-session-panel.js";
 import type { AdlSyncRecoveryElement } from "./adl-sync-recovery.js";
 import {
   ADL_CLAIM_INVITE_EVENT,
   ADL_PASSKEY_SIGN_IN_EVENT,
+  ADL_REFRESH_DEVICES_EVENT,
   ADL_REGISTER_PASSKEY_EVENT,
   ADL_RESOLVE_RECOVERY_EVENT,
+  ADL_REVOKE_DEVICE_EVENT,
   ADL_SIGN_IN_EVENT,
   ADL_SIGN_OUT_EVENT,
 } from "../authority-bridge.js";
@@ -60,6 +63,7 @@ import type {
   ClaimInviteDetail,
   RegisterPasskeyDetail,
   ResolveRecoveryDetail,
+  RevokeDeviceDetail,
   SignInDetail,
 } from "../authority-bridge.js";
 import { AdlDashboardViewElement } from "./adl-dashboard-view.js";
@@ -146,6 +150,25 @@ export class AdlAppElement extends HTMLElement {
     }
 
     void this.runAuthorityAction(() => bridge.signInWithPasskey());
+  };
+
+  private readonly handleRefreshDevices = (): void => {
+    const bridge = this._authority;
+    if (bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.refreshDevices());
+  };
+
+  private readonly handleRevokeDevice = (event: Event): void => {
+    const detail = (event as CustomEvent<RevokeDeviceDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.revokeDevice(detail.sessionId));
   };
 
   private readonly handleSignOut = (): void => {
@@ -835,6 +858,8 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("click", this.handleClick);
     this.addEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);
     this.addEventListener(ADL_REGISTER_PASSKEY_EVENT, this.handleRegisterPasskey);
+    this.addEventListener(ADL_REFRESH_DEVICES_EVENT, this.handleRefreshDevices);
+    this.addEventListener(ADL_REVOKE_DEVICE_EVENT, this.handleRevokeDevice);
     this.addEventListener(ADL_PASSKEY_SIGN_IN_EVENT, this.handlePasskeySignIn);
     this.addEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
     this.addEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
@@ -868,6 +893,8 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("click", this.handleClick);
     this.removeEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);
     this.removeEventListener(ADL_REGISTER_PASSKEY_EVENT, this.handleRegisterPasskey);
+    this.removeEventListener(ADL_REFRESH_DEVICES_EVENT, this.handleRefreshDevices);
+    this.removeEventListener(ADL_REVOKE_DEVICE_EVENT, this.handleRevokeDevice);
     this.removeEventListener(ADL_PASSKEY_SIGN_IN_EVENT, this.handlePasskeySignIn);
     this.removeEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
     this.removeEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
@@ -1207,6 +1234,12 @@ export class AdlAppElement extends HTMLElement {
       sessionPanel.online = this._context.online ?? true;
     }
 
+    const sessionDevices = this.querySelector<AdlSessionDevicesElement>("adl-session-devices");
+    if (sessionDevices !== null && bridge !== undefined) {
+      sessionDevices.devices = bridge.devices;
+      sessionDevices.busy = this.authorityBusy;
+    }
+
     const syncRecovery = this.querySelector<AdlSyncRecoveryElement>("adl-sync-recovery");
     if (syncRecovery !== null && bridge !== undefined) {
       syncRecovery.items = bridge.recovery;
@@ -1280,6 +1313,14 @@ export class AdlAppElement extends HTMLElement {
     return `
       <section class="adl-authority-chrome" data-authority-chrome="true">
         <adl-session-panel></adl-session-panel>
+        ${
+          // Only a signed-in caller has sessions to list, and only the authority
+          // can answer for them; signed out there is nothing to show and nothing
+          // to revoke.
+          this._authority.session.status === "signedIn"
+            ? "<adl-session-devices></adl-session-devices>"
+            : ""
+        }
         <adl-sync-recovery></adl-sync-recovery>
       </section>
     `;

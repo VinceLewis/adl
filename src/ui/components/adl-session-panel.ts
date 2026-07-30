@@ -13,6 +13,7 @@ import {
   type RegisterPasskeyDetail,
   type SignInDetail,
 } from "../authority-bridge.js";
+import { DEFAULT_OFFLINE_GRACE_DAYS } from "../../model/defaults.js";
 import { escapeHtml } from "./html.js";
 
 /**
@@ -76,12 +77,22 @@ const PASSKEY_UNSUPPORTED_TEXT =
   "This browser cannot use passkeys, so it cannot sign in to this deployment. " +
   "Use a browser with WebAuthn support.";
 
+const OFFLINE_IDENTITY_TEXT =
+  "The authority server could not be reached, so this device is working from its " +
+  "own data. Everything here keeps working offline.";
+
+const GRACE_EXPIRED_TEXT =
+  "Syncing is paused. This device has not reached the server for longer than the " +
+  "offline period allows, so it needs a fresh sign-in before it can sync again. " +
+  "Nothing has been lost: the app still works offline and any unsent changes are kept.";
+
 const DEFAULT_SESSION: AdlSessionState = {
   status: "unavailable",
   developmentMode: false,
   identityMode: "unknown",
   passkeySupported: false,
   busy: false,
+  grace: { status: "noIdentity", offlineGraceDays: DEFAULT_OFFLINE_GRACE_DAYS },
 };
 
 const DEFAULT_INVITE: AdlInviteState = { status: "idle" };
@@ -536,12 +547,75 @@ export class AdlSessionPanelElement extends HTMLElement {
     `;
   }
 
+  /**
+   * The offline state. It says who the app believes is using it, because that
+   * identity is what its local data is scoped to — losing it is what made a
+   * user's own records unreadable to them.
+   *
+   * Outside the grace this also carries the sync-paused prompt and, in passkey
+   * mode, the ceremony that clears it. There is deliberately no credential
+   * field: a grace-expired prompt must not become a second, weaker way in.
+   */
   private renderUnavailable(): string {
+    const identity = this._session.userId;
+
     return `
       <p class="adl-session-unavailable" data-session-unavailable="true">
-        The authority could not be reached. The app is running on local data.
+        ${escapeHtml(OFFLINE_IDENTITY_TEXT)}
       </p>
+      ${
+        identity === undefined
+          ? ""
+          : `
+      <p class="adl-session-identity" data-session-identity="true">
+        <span>Working offline as</span>
+        <strong class="adl-session-identity-value">${escapeHtml(identity)}</strong>
+      </p>`
+      }
+      ${this.renderGrace()}
       ${this.renderError()}
+    `;
+  }
+
+  /**
+   * The grace clock, rendered only when this device has actually authenticated
+   * here. `noIdentity` is not an expired grace — there is no session to extend
+   * — so it gets the ordinary sign-in surface instead of a scary refusal.
+   */
+  private renderGrace(): string {
+    const grace = this._session.grace;
+    if (grace.status === "noIdentity") {
+      return "";
+    }
+
+    if (grace.status === "withinGrace") {
+      const by = formatGraceDate(grace.expiresAt);
+      return `
+      <p class="adl-session-grace" data-session-grace="withinGrace" role="status">
+        Syncing resumes when this device reconnects${
+          by === "" ? "" : `, as long as it signs in again by ${escapeHtml(by)}`
+        }.
+      </p>
+    `;
+    }
+
+    const disabled = this._session.busy || !this._session.passkeySupported ? "disabled" : "";
+    return `
+      <section class="adl-session-grace-expired" data-session-grace="expired">
+        <p class="adl-session-grace-expired-text" role="alert">${escapeHtml(GRACE_EXPIRED_TEXT)}</p>
+        ${
+          this.passkeyMode && this._session.passkeySupported
+            ? `<button
+          class="adl-session-submit"
+          type="button"
+          data-session-passkey-sign-in="true"
+          ${disabled}
+        >
+          Sign in with a passkey
+        </button>`
+            : ""
+        }
+      </section>
     `;
   }
 
@@ -621,8 +695,20 @@ function sessionEquals(left: AdlSessionState, right: AdlSessionState): boolean {
     left.passkeySupported === right.passkeySupported &&
     left.busy === right.busy &&
     left.error === right.error &&
-    left.notice === right.notice
+    left.notice === right.notice &&
+    left.grace.status === right.grace.status &&
+    left.grace.expiresAt === right.grace.expiresAt
   );
+}
+
+/** Date only: the hour a grace lapses is noise, and the day is what a person acts on. */
+function formatGraceDate(value: string | undefined): string {
+  if (value === undefined) {
+    return "";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
 }
 
 function inviteEquals(left: AdlInviteState, right: AdlInviteState): boolean {

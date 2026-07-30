@@ -45,6 +45,15 @@ describe("ADL parser", () => {
     expect(startView?.range.start).toMatchObject({ line: 2, column: 3 });
   });
 
+  it("parses an APP offline grace declaration and requires its unit", () => {
+    const ast = parseAdl("APP Demo\n  OFFLINE_GRACE 14 DAYS\nEND.APP\n");
+
+    expect(ast.app.offlineGraceDays).toBe(14);
+    // Without the unit word a bare number could later be read as the wrong unit.
+    expect(() => parseAdl("APP Demo\n  OFFLINE_GRACE 14\nEND.APP\n")).toThrow();
+    expect(() => parseAdl("APP Demo\n  OFFLINE_GRACE forever DAYS\nEND.APP\n")).toThrow();
+  });
+
   it("parses field predicate validators and policy WHEN expressions", () => {
     const ast = parseAdl(`APP Expressions
 END.APP

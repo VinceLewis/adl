@@ -35,8 +35,26 @@ HTTP.
   hand-built request. After Phase 46 there is a real deployment whose operator
   has no way to use them.
 
+- **Two more unpruned tables, added since this phase was written.** Phase 49's
+  `adl_authority_webauthn_challenges` grows by one row per started ceremony;
+  `PasskeyIdentityService.pruneChallenges` exists and nothing schedules it, so
+  the runbook carries a manual operator procedure. Phase 50 then made
+  `adl_authority_sessions` grow the same way: the browser rotates its session on
+  connect and again past half the declared offline grace, and each rotation
+  inserts a row and revokes the previous one. Neither is a disclosure — revoked,
+  expired and consumed rows are excluded from every user-facing surface and from
+  the device list — and neither is a correctness risk, which is why Phase 50's
+  handoff recorded them here rather than re-sequencing. But they mean this phase
+  now has **four** projections growing without bound rather than two, and a
+  session or challenge prune must be as safeguarded as an audit prune: it must
+  never remove a session that is still active, because that would sign a user out
+  mid-grace with no way to tell them.
+
 This phase depends on Phase 45 retention safeguards, Phase 52 scoped membership
-reads, and the Phase 46/47 client transport and session UI.
+reads, and the Phase 46/47 client transport and session UI. It also depends on
+Phase 49's challenge storage and Phase 50's session rotation and device list —
+the device list is the surface an operator's session revocation must stay
+consistent with.
 
 ## Scope
 

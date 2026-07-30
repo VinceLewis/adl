@@ -6,6 +6,7 @@ import {
   DEFAULT_LIFECYCLE_STATE_FIELD,
   DEFAULT_OBJECT_SCHEMA_VERSION,
   DEFAULT_SYNC_MODE,
+  DEFAULT_OFFLINE_GRACE_DAYS,
   DEFAULT_THEME_NAME,
   SYSTEM_ID_FIELD,
   explainResolvedModel,
@@ -130,6 +131,7 @@ describe("resolveApplicationModel", () => {
       name: "CareOps",
       startView: "PatientRecordList",
       theme: DEFAULT_THEME_NAME,
+      offlineGraceDays: DEFAULT_OFFLINE_GRACE_DAYS,
     });
     expect(resolved.shell.nav.items[0]).toMatchObject({
       view: "PatientRecordList",
