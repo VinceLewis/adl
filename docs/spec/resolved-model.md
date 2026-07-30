@@ -271,3 +271,98 @@ model version change and passes through the startup compatibility guard.
 
 Runtime startup compatibility checks compare persisted application metadata and
 stored record schema versions against the resolved model.
+
+## Model Versions And Migrations
+
+The resolved model carries two version-shaped values, and they answer different
+questions:
+
+```json
+{
+  "modelVersion": "1.1.0",
+  "modelFingerprint": "sha256-…",
+  "migrations": [
+    {
+      "from": "1.0.0",
+      "to": "1.1.0",
+      "objects": [
+        {
+          "object": "Gig",
+          "schemaVersion": 2,
+          "steps": [
+            { "kind": "renameField", "from": "Venue", "to": "VenueName" },
+            { "kind": "addField", "field": "PayoutCents", "defaultValue": 0 },
+            { "kind": "dropField", "field": "LegacyNote" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`modelVersion` is what the author **declared** (`APP … MODEL_VERSION`),
+defaulting to `0.1.0`. It selects migrations.
+
+`modelFingerprint` is what the model **is**: a deterministic digest of the
+resolved model's own content, computed during resolution. It is contractual and
+must be reproducible by any conforming runtime:
+
+1. **Canonical form.** JSON with object keys sorted by UTF-16 code unit, array
+   order preserved, keys whose value is `undefined` omitted, no insignificant
+   whitespace, and `-0` written as `0`. Three keys are excluded:
+   `modelFingerprint`, because it is its own input; `generatedAt`, because it is
+   a build stamp rather than semantics; and `modelVersion`, because it is what
+   the author *declared* rather than what the model *is*.
+
+   Excluding the declared version matters more than it looks. The fingerprint is
+   consulted only when two versions already compare equal, so digesting the
+   version adds nothing — but it would make `1.1` and `1.1.0`, which are the same
+   version, disagree, and the only remedy the guard could then name (declare a
+   migration between them) is itself invalid because they do not move forward
+   relative to each other. A model that declares `1.0.0` therefore fingerprints
+   identically to one that declares nothing, provided their content matches.
+2. **Digest.** SHA-256 over the UTF-8 bytes of that text, lowercase hex,
+   prefixed `sha256-`.
+
+The two exist separately because a declared version alone was never evidence.
+Before this contract existed, `modelVersion` was a platform constant with no ADL
+syntax behind it, so editing model content left the version identical and every
+compatibility check silent. The fingerprint makes an undeclared content change
+detectable without making every content change an author's problem to remember.
+
+Validation covers both: `ADL_MODEL_VERSION_INVALID` for a version that is not a
+dotted number, and `ADL_MIGRATION_DUPLICATE`, `ADL_MIGRATION_VERSION_INVALID`,
+`ADL_MIGRATION_NOT_FORWARD`, `ADL_MIGRATION_OBJECT_UNKNOWN`,
+`ADL_MIGRATION_STEP_INVALID`, `ADL_MIGRATION_SCHEMA_VERSION_INVALID` and
+`ADL_MIGRATION_UNREACHABLE` for migrations. Step and schema-version checks apply
+only to the hop that ends at the model's own version: an earlier hop describes a
+shape the model no longer has, so checking it against today's fields would
+reject a correct chain.
+
+## Validation
+
+Model validation runs over the resolved model and returns diagnostics, each
+carrying a severity, a stable code and a path. An `error` blocks the model from
+being used; a `warning` does not.
+
+Validation covers the model's own consistency: references that must resolve
+(views, fields, policies, contexts, read-model sources, commands, decision
+tables, themes, migrations), declarations that must be unique, values that must
+be in range, and expressions that must type-check against the fields they name.
+
+Two limits are contractual because a conforming runtime should not assume more
+than they promise:
+
+- **Decision-table overlap detection is partial.** Only literal, `and`, and
+  `field <operator> literal` conditions are analyzable. Anything else is reported
+  as `ADL_DECISION_TABLE_ROW_CONDITION_UNANALYZABLE` (a warning) and excluded
+  from overlap analysis, so a `single`-match table can still be ambiguous at
+  runtime despite validating cleanly.
+- **Named field validators are not type-checked against their field.** A
+  validator whose kind does not suit the field's type, or which omits a value it
+  needs, is reported so it cannot silently do nothing.
+
+Runtime startup compatibility is a separate concern: model validation checks the
+current model, while the startup guard checks *persisted data* against it. See
+[runtime-semantics#model-migration](runtime-semantics.md).

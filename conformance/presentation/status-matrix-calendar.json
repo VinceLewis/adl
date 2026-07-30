@@ -1,0 +1,3610 @@
+{
+  "version": 1,
+  "models": {
+    "semanticStatus": {
+      "app": { "name": "SemanticStatus", "startView": "Board" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Slot",
+          "fields": [
+            { "name": "Name", "type": "text", "required": true },
+            { "name": "Kind", "type": "text", "required": true },
+            { "name": "Level", "type": "text", "required": true }
+          ],
+          "views": [
+            {
+              "name": "Board",
+              "kind": "composite",
+              "fields": ["Name", "Kind", "Level"],
+              "presentation": {
+                "iconMaps": [
+                  {
+                    "name": "KindIcon",
+                    "field": "Kind",
+                    "values": [
+                      { "value": "Gig", "icon": "music" },
+                      { "value": "Rehearsal", "icon": "microphone" }
+                    ],
+                    "defaultIcon": "calendar"
+                  }
+                ],
+                "statuses": [
+                  { "name": "event" },
+                  { "name": "rehearsal", "label": "Rehearsal", "precedence": 10 },
+                  { "name": "available" },
+                  { "name": "unavailable" },
+                  { "name": "busyElsewhere" },
+                  {
+                    "name": "conflict",
+                    "precedence": 50,
+                    "icon": { "kind": "map", "map": "KindIcon", "value": "Gig" }
+                  },
+                  { "name": "unset" },
+                  { "name": "customFlag", "label": "Custom", "accessibleLabel": "Custom flag" },
+                  { "name": "tieFirst", "precedence": 30 },
+                  { "name": "tieSecond", "precedence": 30 }
+                ],
+                "statusMaps": [
+                  {
+                    "name": "KindStatus",
+                    "field": "Kind",
+                    "values": [
+                      { "value": "Gig", "status": "event" },
+                      { "value": "Rehearsal", "status": "rehearsal" }
+                    ],
+                    "defaultStatus": "customFlag"
+                  },
+                  {
+                    "name": "LevelStatus",
+                    "field": "Level",
+                    "values": [
+                      { "value": "high", "status": "conflict" },
+                      { "value": "low", "status": "unset" }
+                    ]
+                  }
+                ],
+                "sections": [
+                  {
+                    "name": "Mapped",
+                    "lists": [
+                      {
+                        "name": "MappedList",
+                        "sourceKind": "object",
+                        "source": "Slot",
+                        "fields": ["Name", "Kind", "Level"],
+                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "status": { "candidates": [{ "kind": "map", "map": "KindStatus" }] },
+                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Direct",
+                    "lists": [
+                      {
+                        "name": "DirectList",
+                        "sourceKind": "object",
+                        "source": "Slot",
+                        "fields": ["Name", "Kind", "Level"],
+                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "status": {
+                          "candidates": [{ "kind": "status", "status": "busyElsewhere" }]
+                        },
+                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Precedence",
+                    "lists": [
+                      {
+                        "name": "PrecedenceList",
+                        "sourceKind": "object",
+                        "source": "Slot",
+                        "fields": ["Name", "Kind", "Level"],
+                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "status": {
+                          "candidates": [
+                            { "kind": "map", "map": "KindStatus" },
+                            { "kind": "map", "map": "LevelStatus" }
+                          ]
+                        },
+                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Tie",
+                    "lists": [
+                      {
+                        "name": "TieList",
+                        "sourceKind": "object",
+                        "source": "Slot",
+                        "fields": ["Name", "Kind", "Level"],
+                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "status": {
+                          "candidates": [
+                            { "kind": "status", "status": "tieSecond" },
+                            { "kind": "status", "status": "tieFirst" }
+                          ]
+                        },
+                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Fixed",
+                    "lists": [
+                      {
+                        "name": "FixedList",
+                        "sourceKind": "object",
+                        "source": "Slot",
+                        "fields": ["Name", "Kind", "Level"],
+                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "status": {
+                          "candidates": [
+                            { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                          ]
+                        },
+                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "StrictBoard",
+              "kind": "composite",
+              "fields": ["Name", "Kind", "Level"],
+              "presentation": {
+                "statuses": [{ "name": "event" }],
+                "statusMaps": [
+                  {
+                    "name": "StrictKindStatus",
+                    "field": "Kind",
+                    "values": [{ "value": "Gig", "status": "event" }]
+                  }
+                ],
+                "sections": [
+                  {
+                    "name": "Strict",
+                    "lists": [
+                      {
+                        "name": "StrictList",
+                        "sourceKind": "object",
+                        "source": "Slot",
+                        "fields": ["Name", "Kind", "Level"],
+                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "status": { "candidates": [{ "kind": "map", "map": "StrictKindStatus" }] },
+                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SlotPolicy",
+          "object": "Slot",
+          "rules": [
+            {
+              "name": "allowAdminAllSlotActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "statusLegends": {
+      "app": { "name": "StatusLegends", "startView": "Legends" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Item",
+          "fields": [
+            { "name": "Name", "type": "text", "required": true },
+            { "name": "Kind", "type": "text", "required": true }
+          ],
+          "views": [
+            {
+              "name": "Legends",
+              "kind": "composite",
+              "fields": ["Name", "Kind"],
+              "presentation": {
+                "statuses": [
+                  { "name": "event" },
+                  { "name": "rehearsal" },
+                  { "name": "customFlag", "label": "Custom" },
+                  { "name": "conflict" }
+                ],
+                "statusMaps": [
+                  {
+                    "name": "KindStatus",
+                    "field": "Kind",
+                    "values": [
+                      { "value": "Gig", "status": "event" },
+                      { "value": "Rehearsal", "status": "rehearsal" }
+                    ],
+                    "defaultStatus": "customFlag"
+                  }
+                ],
+                "legends": [
+                  {
+                    "name": "Visible",
+                    "title": "Schedule status",
+                    "statuses": ["event", "rehearsal", "customFlag"]
+                  },
+                  {
+                    "name": "Complete",
+                    "statuses": ["event", "rehearsal", "customFlag"],
+                    "include": "all"
+                  },
+                  {
+                    "name": "Ordered",
+                    "statuses": ["customFlag", "rehearsal", "event"],
+                    "include": "all"
+                  },
+                  { "name": "AllDeclared", "include": "all" }
+                ],
+                "sections": [
+                  {
+                    "name": "Main",
+                    "lists": [
+                      {
+                        "name": "Items",
+                        "sourceKind": "object",
+                        "source": "Item",
+                        "fields": ["Name", "Kind"],
+                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "status": { "candidates": [{ "kind": "map", "map": "KindStatus" }] },
+                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] },
+                        "emptyState": { "text": "No items" }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "ItemPolicy",
+          "object": "Item",
+          "rules": [
+            {
+              "name": "allowAdminAllItemActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "resourceMatrix": {
+      "app": { "name": "ResourceMatrix", "startView": "Grid" },
+      "roles": [{ "name": "Admin" }, { "name": "Viewer" }],
+      "objects": [
+        {
+          "name": "Member",
+          "fields": [
+            { "name": "MemberKey", "type": "text", "required": true },
+            { "name": "MemberName", "type": "text", "required": true }
+          ],
+          "views": [
+            {
+              "name": "Grid",
+              "kind": "composite",
+              "fields": ["MemberKey", "MemberName"],
+              "presentation": {
+                "statuses": [
+                  { "name": "available", "precedence": 10 },
+                  { "name": "unavailable", "precedence": 20 },
+                  { "name": "unset" }
+                ],
+                "statusMaps": [
+                  {
+                    "name": "StateStatus",
+                    "field": "State",
+                    "values": [
+                      { "value": "available", "status": "available" },
+                      { "value": "unavailable", "status": "unavailable" }
+                    ]
+                  }
+                ],
+                "legends": [{ "name": "Grid", "title": "Availability" }],
+                "sections": [
+                  {
+                    "name": "Availability",
+                    "matrices": [
+                      {
+                        "name": "AvailabilityMatrix",
+                        "rowSource": {
+                          "sourceKind": "object",
+                          "source": "Member",
+                          "keyField": "MemberKey",
+                          "labelField": "MemberName",
+                          "fields": ["MemberKey", "MemberName"],
+                          "sort": [{ "field": "MemberName", "direction": "asc" }]
+                        },
+                        "columnAxis": {
+                          "start": "2026-03-02",
+                          "end": "2026-03-06",
+                          "labelFormat": { "kind": "date", "pattern": "EEE d" }
+                        },
+                        "cellSource": {
+                          "sourceKind": "object",
+                          "source": "Availability",
+                          "rowField": "MemberKey",
+                          "columnField": "Day",
+                          "fields": ["MemberKey", "Day", "State"],
+                          "status": { "candidates": [{ "kind": "map", "map": "StateStatus" }] }
+                        },
+                        "cell": { "unsetStatus": "unset" },
+                        "edit": {
+                          "object": "Availability",
+                          "rowField": "MemberKey",
+                          "columnField": "Day",
+                          "valueField": "State",
+                          "cycle": ["available", "unavailable"],
+                          "unsetAsAbsence": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "SteppedGrid",
+              "kind": "composite",
+              "fields": ["MemberKey", "MemberName"],
+              "presentation": {
+                "statuses": [{ "name": "available" }, { "name": "unavailable" }],
+                "statusMaps": [
+                  {
+                    "name": "StateStatus",
+                    "field": "State",
+                    "values": [
+                      { "value": "available", "status": "available" },
+                      { "value": "unavailable", "status": "unavailable" }
+                    ]
+                  }
+                ],
+                "sections": [
+                  {
+                    "name": "Availability",
+                    "matrices": [
+                      {
+                        "name": "SteppedMatrix",
+                        "density": "compact",
+                        "rowSource": {
+                          "sourceKind": "object",
+                          "source": "Member",
+                          "keyField": "MemberKey",
+                          "labelField": "MemberName",
+                          "fields": ["MemberKey", "MemberName"],
+                          "sort": [{ "field": "MemberName", "direction": "desc" }]
+                        },
+                        "columnAxis": {
+                          "start": "2026-03-02",
+                          "end": "2026-03-08",
+                          "stepDays": 3
+                        },
+                        "cellSource": {
+                          "sourceKind": "object",
+                          "source": "Availability",
+                          "rowField": "MemberKey",
+                          "columnField": "Day",
+                          "fields": ["MemberKey", "Day", "State"],
+                          "status": { "candidates": [{ "kind": "map", "map": "StateStatus" }] }
+                        },
+                        "cell": { "accessibleLabel": "Availability cell" }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "fields": [
+            { "name": "MemberKey", "type": "text", "required": true },
+            { "name": "Day", "type": "date", "required": true },
+            { "name": "State", "type": "text" }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "MemberPolicy",
+          "object": "Member",
+          "rules": [
+            {
+              "name": "allowAdminAllMemberActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            },
+            {
+              "name": "allowViewerReadMember",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "read"
+            },
+            {
+              "name": "allowViewerSearchMember",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowAdminAllAvailabilityActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            },
+            {
+              "name": "allowViewerReadAvailability",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "read"
+            },
+            {
+              "name": "allowViewerSearchAvailability",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "action": "search"
+            }
+          ]
+        }
+      ]
+    },
+    "monthCalendar": {
+      "app": { "name": "MonthCalendar", "startView": "Planner" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Event",
+          "fields": [
+            { "name": "Title", "type": "text", "required": true },
+            { "name": "EventDate", "type": "date", "required": true },
+            { "name": "Kind", "type": "text", "required": true },
+            { "name": "Venue", "type": "text" }
+          ],
+          "views": [
+            {
+              "name": "Planner",
+              "kind": "composite",
+              "fields": ["Title", "EventDate", "Kind", "Venue"],
+              "presentation": {
+                "state": [{ "name": "month", "type": "text", "defaultValue": "2026-03" }],
+                "statuses": [
+                  { "name": "event", "precedence": 10 },
+                  { "name": "rehearsal", "precedence": 10 },
+                  { "name": "conflict", "precedence": 50 }
+                ],
+                "statusMaps": [
+                  {
+                    "name": "KindStatus",
+                    "field": "Kind",
+                    "values": [
+                      { "value": "Gig", "status": "event" },
+                      { "value": "Rehearsal", "status": "rehearsal" },
+                      { "value": "Clash", "status": "conflict" }
+                    ]
+                  }
+                ],
+                "sections": [
+                  {
+                    "name": "Month",
+                    "calendars": [
+                      {
+                        "name": "MonthPlan",
+                        "sourceKind": "object",
+                        "source": "Event",
+                        "dateField": "EventDate",
+                        "titleField": "Title",
+                        "summaryFields": ["Venue", "Kind"],
+                        "fields": ["Title", "EventDate", "Kind", "Venue"],
+                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "month": {
+                          "state": "month",
+                          "minDate": "2026-02-01",
+                          "maxDate": "2026-04-30"
+                        },
+                        "status": { "candidates": [{ "kind": "map", "map": "KindStatus" }] },
+                        "actions": [
+                          {
+                            "name": "addOnDay",
+                            "kind": "action",
+                            "label": "Add event",
+                            "create": { "object": "Event" },
+                            "input": { "EventDate": { "kind": "field", "field": "Date" } }
+                          }
+                        ],
+                        "emptyState": { "text": "No events this month" }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "SundayPlanner",
+              "kind": "composite",
+              "fields": ["Title", "EventDate", "Kind", "Venue"],
+              "presentation": {
+                "sections": [
+                  {
+                    "name": "Month",
+                    "calendars": [
+                      {
+                        "name": "SundayPlan",
+                        "sourceKind": "object",
+                        "source": "Event",
+                        "dateField": "EventDate",
+                        "titleField": "Title",
+                        "fields": ["Title", "EventDate"],
+                        "month": {
+                          "value": "2026-03",
+                          "weekStart": "sunday",
+                          "minDate": "2026-03-01",
+                          "maxDate": "2026-03-31"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "EventPolicy",
+          "object": "Event",
+          "rules": [
+            {
+              "name": "allowAdminAllEventActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "rowTemplate": {
+      "app": { "name": "RowTemplate", "startView": "Feed" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Task",
+          "fields": [
+            { "name": "Title", "type": "text", "required": true },
+            { "name": "Kind", "type": "text", "required": true },
+            { "name": "DueDate", "type": "date" },
+            { "name": "DueTime", "type": "time" },
+            { "name": "Amount", "type": "number" },
+            { "name": "Notes", "type": "text" }
+          ],
+          "views": [
+            {
+              "name": "Feed",
+              "kind": "composite",
+              "fields": ["Title", "Kind", "DueDate", "DueTime", "Amount", "Notes"],
+              "presentation": {
+                "iconMaps": [
+                  {
+                    "name": "KindIcon",
+                    "field": "Kind",
+                    "values": [{ "value": "Gig", "icon": "music" }],
+                    "defaultIcon": "dot"
+                  }
+                ],
+                "sections": [
+                  {
+                    "name": "Rows",
+                    "lists": [
+                      {
+                        "name": "Tasks",
+                        "sourceKind": "object",
+                        "source": "Task",
+                        "renderAs": "compactFeed",
+                        "density": "compact",
+                        "fields": ["Title", "Kind", "DueDate", "DueTime", "Amount", "Notes"],
+                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "row": {
+                          "layout": "stack",
+                          "density": "compact",
+                          "fragments": [
+                            {
+                              "kind": "icon",
+                              "icon": { "kind": "map", "map": "KindIcon", "field": "Kind" },
+                              "label": "Kind"
+                            },
+                            { "kind": "field", "field": "Title", "style": "bold" },
+                            { "kind": "text", "text": " on ", "style": "muted" },
+                            {
+                              "kind": "field",
+                              "field": "DueDate",
+                              "format": { "kind": "date", "pattern": "EEE d MMM yyyy" },
+                              "fallback": "no date"
+                            },
+                            { "kind": "text", "text": " at " },
+                            {
+                              "kind": "field",
+                              "field": "DueTime",
+                              "format": { "kind": "time", "pattern": "h:mma" }
+                            },
+                            { "kind": "text", "text": " " },
+                            {
+                              "kind": "field",
+                              "field": "Amount",
+                              "format": { "kind": "number", "pattern": "fixed:2" },
+                              "style": "caption"
+                            },
+                            {
+                              "kind": "conditional",
+                              "when": {
+                                "kind": "binary",
+                                "operator": "==",
+                                "left": { "kind": "field", "field": "Kind" },
+                                "right": { "kind": "literal", "value": "Gig" }
+                              },
+                              "fragments": [{ "kind": "text", "text": " [gig]", "style": "caption" }]
+                            }
+                          ]
+                        },
+                        "emptyState": {
+                          "text": "Nothing scheduled",
+                          "icon": { "kind": "named", "name": "check" }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "StrictIconFeed",
+              "kind": "composite",
+              "fields": ["Title", "Kind"],
+              "presentation": {
+                "iconMaps": [
+                  {
+                    "name": "StrictKindIcon",
+                    "field": "Kind",
+                    "values": [{ "value": "Gig", "icon": "music" }]
+                  }
+                ],
+                "sections": [
+                  {
+                    "name": "Rows",
+                    "lists": [
+                      {
+                        "name": "StrictIconTasks",
+                        "sourceKind": "object",
+                        "source": "Task",
+                        "fields": ["Title", "Kind"],
+                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "row": {
+                          "fragments": [
+                            { "kind": "icon", "icon": { "kind": "map", "map": "StrictKindIcon" } },
+                            { "kind": "field", "field": "Title" }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "BadFormatFeed",
+              "kind": "composite",
+              "fields": ["Title", "Kind", "DueDate"],
+              "presentation": {
+                "sections": [
+                  {
+                    "name": "Rows",
+                    "lists": [
+                      {
+                        "name": "BadFormatTasks",
+                        "sourceKind": "object",
+                        "source": "Task",
+                        "fields": ["Title", "DueDate"],
+                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "DueDate",
+                              "format": { "kind": "date", "pattern": "QQQ" }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "TaskPolicy",
+          "object": "Task",
+          "rules": [
+            {
+              "name": "allowAdminAllTaskActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "viewState": {
+      "app": { "name": "ViewState", "startView": "StateView" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Pref",
+          "fields": [{ "name": "Label", "type": "text", "required": true }],
+          "views": [
+            {
+              "name": "StateView",
+              "kind": "composite",
+              "fields": ["Label"],
+              "presentation": {
+                "state": [
+                  { "name": "flag" },
+                  { "name": "count", "type": "number" },
+                  { "name": "note", "type": "text" },
+                  { "name": "day", "type": "date" },
+                  { "name": "stamp", "type": "datetime" },
+                  { "name": "clock", "type": "time" },
+                  {
+                    "name": "pinned",
+                    "type": "boolean",
+                    "defaultValue": true,
+                    "persistence": "session"
+                  },
+                  {
+                    "name": "saved",
+                    "type": "text",
+                    "defaultValue": "kept",
+                    "persistence": "local"
+                  }
+                ],
+                "sections": [
+                  {
+                    "name": "Controls",
+                    "controls": [
+                      { "name": "flagToggle", "kind": "toggle", "state": "flag", "label": "Flag" },
+                      {
+                        "name": "noteSelect",
+                        "kind": "select",
+                        "state": "note",
+                        "label": "Note",
+                        "options": [
+                          { "value": "a", "label": "Alpha" },
+                          { "value": "b", "label": "Beta" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            { "name": "PlainList", "kind": "list", "fields": ["Label"], "actions": ["read"] }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "PrefPolicy",
+          "object": "Pref",
+          "rules": [
+            {
+              "name": "allowAdminAllPrefActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "presentation.status.resolve-defaults.001",
+      "title": "Status resolution defaults label, accessible label, theme token and precedence",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "resolveModel",
+      "modelRef": "semanticStatus",
+      "input": {
+        "select": [
+          "objects.0.views.0.presentation.statuses.0.label",
+          "objects.0.views.0.presentation.statuses.0.accessibleLabel",
+          "objects.0.views.0.presentation.statuses.0.precedence",
+          "objects.0.views.0.presentation.statuses.1.label",
+          "objects.0.views.0.presentation.statuses.1.accessibleLabel",
+          "objects.0.views.0.presentation.statuses.1.precedence",
+          "objects.0.views.0.presentation.statuses.4.label",
+          "objects.0.views.0.presentation.statuses.7.label",
+          "objects.0.views.0.presentation.statuses.7.accessibleLabel",
+          "objects.0.views.0.presentation.statuses.8.label"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.presentation.statuses.0.label": "Event",
+          "objects.0.views.0.presentation.statuses.0.accessibleLabel": "Event",
+          "objects.0.views.0.presentation.statuses.0.precedence": 0,
+          "objects.0.views.0.presentation.statuses.1.label": "Rehearsal",
+          "objects.0.views.0.presentation.statuses.1.accessibleLabel": "Rehearsal",
+          "objects.0.views.0.presentation.statuses.1.precedence": 10,
+          "objects.0.views.0.presentation.statuses.4.label": "Busy Elsewhere",
+          "objects.0.views.0.presentation.statuses.7.label": "Custom",
+          "objects.0.views.0.presentation.statuses.7.accessibleLabel": "Custom flag",
+          "objects.0.views.0.presentation.statuses.8.label": "Tie First"
+        }
+      }
+    },
+    {
+      "id": "presentation.status.resolve-theme-tokens.001",
+      "title": "Built-in status names default to their reserved theme tokens and unknown names to colorInfo",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "resolveModel",
+      "modelRef": "semanticStatus",
+      "input": {
+        "select": [
+          "objects.0.views.0.presentation.statuses.0.themeToken",
+          "objects.0.views.0.presentation.statuses.1.themeToken",
+          "objects.0.views.0.presentation.statuses.2.themeToken",
+          "objects.0.views.0.presentation.statuses.3.themeToken",
+          "objects.0.views.0.presentation.statuses.4.themeToken",
+          "objects.0.views.0.presentation.statuses.5.themeToken",
+          "objects.0.views.0.presentation.statuses.6.themeToken",
+          "objects.0.views.0.presentation.statuses.7.themeToken",
+          "objects.0.views.0.presentation.statuses.8.themeToken"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.presentation.statuses.0.themeToken": "colorStatusEvent",
+          "objects.0.views.0.presentation.statuses.1.themeToken": "colorStatusRehearsal",
+          "objects.0.views.0.presentation.statuses.2.themeToken": "colorStatusAvailable",
+          "objects.0.views.0.presentation.statuses.3.themeToken": "colorStatusUnavailable",
+          "objects.0.views.0.presentation.statuses.4.themeToken": "colorStatusBusyElsewhere",
+          "objects.0.views.0.presentation.statuses.5.themeToken": "colorStatusConflict",
+          "objects.0.views.0.presentation.statuses.6.themeToken": "colorStatusUnset",
+          "objects.0.views.0.presentation.statuses.7.themeToken": "colorInfo",
+          "objects.0.views.0.presentation.statuses.8.themeToken": "colorInfo"
+        }
+      }
+    },
+    {
+      "id": "presentation.status.map.001",
+      "title": "A status-map candidate resolves a row status and records its map source",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "B Rehearsal", "Kind": "Rehearsal", "Level": "low" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "object": "Slot",
+          "view": "Board",
+          "legends": [],
+          "diagnostics": [],
+          "sections": [
+            {
+              "name": "Mapped",
+              "lists": [
+                {
+                  "name": "MappedList",
+                  "sourceKind": "object",
+                  "source": "Slot",
+                  "rows": [
+                    {
+                      "values": { "Name": "A Gig" },
+                      "status": {
+                        "name": "event",
+                        "label": "Event",
+                        "accessibleLabel": "Event",
+                        "themeToken": "colorStatusEvent",
+                        "precedence": 0,
+                        "source": { "kind": "map", "map": "KindStatus", "value": "Gig" }
+                      }
+                    },
+                    {
+                      "values": { "Name": "B Rehearsal" },
+                      "status": {
+                        "name": "rehearsal",
+                        "label": "Rehearsal",
+                        "themeToken": "colorStatusRehearsal",
+                        "precedence": 10,
+                        "source": { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {},
+            {},
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.map-default.001",
+      "title": "A status map falls back to its default status when no value matches",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "C Other", "Kind": "Workshop", "Level": "low" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "name": "Mapped",
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "status": {
+                        "name": "customFlag",
+                        "label": "Custom",
+                        "accessibleLabel": "Custom flag",
+                        "themeToken": "colorInfo",
+                        "source": { "kind": "map", "map": "KindStatus", "value": "Workshop" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {},
+            {},
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.direct.001",
+      "title": "A direct status candidate resolves without a map and records a direct source",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {},
+            {
+              "name": "Direct",
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "status": {
+                        "name": "busyElsewhere",
+                        "label": "Busy Elsewhere",
+                        "accessibleLabel": "Busy Elsewhere",
+                        "themeToken": "colorStatusBusyElsewhere",
+                        "precedence": 0,
+                        "source": { "kind": "direct" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {},
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.precedence.001",
+      "title": "The highest-precedence matching candidate wins over a lower-precedence one",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {},
+            {},
+            {
+              "name": "Precedence",
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+                      "status": {
+                        "name": "conflict",
+                        "themeToken": "colorStatusConflict",
+                        "precedence": 50,
+                        "source": { "kind": "map", "map": "LevelStatus", "value": "high" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.precedence.002",
+      "title": "A lower-precedence candidate does not displace a higher-precedence one",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "B Rehearsal", "Kind": "Rehearsal", "Level": "low" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {},
+            {},
+            {
+              "name": "Precedence",
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "status": {
+                        "name": "rehearsal",
+                        "precedence": 10,
+                        "source": { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.precedence.003",
+      "title": "Equal precedence resolves by view status declaration order across different maps",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "C Other", "Kind": "Workshop", "Level": "low" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {},
+            {},
+            {
+              "name": "Precedence",
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "status": {
+                        "name": "unset",
+                        "themeToken": "colorStatusUnset",
+                        "precedence": 0,
+                        "source": { "kind": "map", "map": "LevelStatus", "value": "low" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.precedence.004",
+      "title": "Equal precedence ignores candidate order and uses status declaration order",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {},
+            {},
+            {},
+            {
+              "name": "Tie",
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "status": {
+                        "name": "tieFirst",
+                        "label": "Tie First",
+                        "themeToken": "colorInfo",
+                        "precedence": 30,
+                        "source": { "kind": "direct" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.fixed-value.001",
+      "title": "A status candidate with a literal value ignores row data",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "Board",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {},
+            {},
+            {},
+            {},
+            {
+              "name": "Fixed",
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "values": { "Kind": "Gig" },
+                      "status": {
+                        "name": "rehearsal",
+                        "source": { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.status.unmapped-value.001",
+      "title": "An unmapped value without a default status leaves the row unstyled and reports a diagnostic",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "semanticStatus",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Slot",
+          "values": { "Name": "B Rehearsal", "Kind": "Rehearsal", "Level": "low" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Slot",
+        "viewName": "StrictBoard",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_STATUS_VALUE_MISSING",
+              "path": "presentation.sections[0].lists[0].rows[1].status.candidates[0]",
+              "section": "Strict",
+              "list": "StrictList"
+            }
+          ],
+          "sections": [
+            {
+              "name": "Strict",
+              "lists": [
+                {
+                  "rows": [
+                    { "values": { "Name": "A Gig" }, "status": { "name": "event" } },
+                    { "values": { "Name": "B Rehearsal" }, "fragments": [{ "text": "B Rehearsal" }] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.legend.resolve-defaults.001",
+      "title": "Legends default to present-only inclusion and an empty declared status list",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "resolveModel",
+      "modelRef": "statusLegends",
+      "input": {
+        "select": [
+          "objects.0.views.0.presentation.legends.0.include",
+          "objects.0.views.0.presentation.legends.0.title",
+          "objects.0.views.0.presentation.legends.0.statuses",
+          "objects.0.views.0.presentation.legends.1.include",
+          "objects.0.views.0.presentation.legends.3.statuses",
+          "objects.0.views.0.presentation.legends.3.include"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.presentation.legends.0.include": "present",
+          "objects.0.views.0.presentation.legends.0.title": "Schedule status",
+          "objects.0.views.0.presentation.legends.0.statuses": [
+            "event",
+            "rehearsal",
+            "customFlag"
+          ],
+          "objects.0.views.0.presentation.legends.1.include": "all",
+          "objects.0.views.0.presentation.legends.3.statuses": [],
+          "objects.0.views.0.presentation.legends.3.include": "all"
+        }
+      }
+    },
+    {
+      "id": "presentation.legend.include-modes.001",
+      "title": "Legend include present filters to evaluated statuses while all keeps declared order",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "evaluatePresentationView",
+      "modelRef": "statusLegends",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Item",
+          "values": { "Name": "One", "Kind": "Gig" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Item",
+        "viewName": "Legends",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "legends": [
+            {
+              "name": "Visible",
+              "title": "Schedule status",
+              "include": "present",
+              "items": [{ "status": { "name": "event", "themeToken": "colorStatusEvent" } }]
+            },
+            {
+              "name": "Complete",
+              "include": "all",
+              "items": [
+                { "status": { "name": "event" } },
+                { "status": { "name": "rehearsal" } },
+                { "status": { "name": "customFlag", "label": "Custom" } }
+              ]
+            },
+            {
+              "name": "Ordered",
+              "include": "all",
+              "items": [
+                { "status": { "name": "customFlag" } },
+                { "status": { "name": "rehearsal" } },
+                { "status": { "name": "event" } }
+              ]
+            },
+            {
+              "name": "AllDeclared",
+              "include": "all",
+              "items": [
+                { "status": { "name": "event" } },
+                { "status": { "name": "rehearsal" } },
+                { "status": { "name": "customFlag" } },
+                { "status": { "name": "conflict" } }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.legend.present-empty.001",
+      "title": "A present-only legend with no evaluated statuses is omitted and the list reports its empty state",
+      "specRef": "ui-language-addendum#empty-states",
+      "operation": "evaluatePresentationView",
+      "modelRef": "statusLegends",
+      "input": {
+        "objectName": "Item",
+        "viewName": "Legends",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "legends": [
+            { "name": "Complete", "include": "all" },
+            { "name": "Ordered", "include": "all" },
+            { "name": "AllDeclared", "include": "all" }
+          ],
+          "sections": [
+            {
+              "name": "Main",
+              "lists": [{ "name": "Items", "rows": [], "emptyState": { "text": "No items" } }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.resolve-defaults.001",
+      "title": "Matrix resolution defaults the column kind, step, bulk behaviour and density",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "resolveModel",
+      "modelRef": "resourceMatrix",
+      "input": {
+        "select": [
+          "objects.0.views.0.presentation.sections.0.matrices.0.density",
+          "objects.0.views.0.presentation.sections.0.matrices.0.columnAxis.kind",
+          "objects.0.views.0.presentation.sections.0.matrices.0.columnAxis.stepDays",
+          "objects.0.views.0.presentation.sections.0.matrices.0.edit.bulkBehavior",
+          "objects.0.views.0.presentation.sections.0.matrices.0.edit.unsetAsAbsence",
+          "objects.0.views.0.presentation.sections.0.matrices.0.edit.cycle",
+          "objects.0.views.0.presentation.sections.0.matrices.0.cell.unsetStatus",
+          "objects.0.views.1.presentation.sections.0.matrices.0.density",
+          "objects.0.views.1.presentation.sections.0.matrices.0.columnAxis.stepDays"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.presentation.sections.0.matrices.0.density": "comfortable",
+          "objects.0.views.0.presentation.sections.0.matrices.0.columnAxis.kind": "dateRange",
+          "objects.0.views.0.presentation.sections.0.matrices.0.columnAxis.stepDays": 1,
+          "objects.0.views.0.presentation.sections.0.matrices.0.edit.bulkBehavior": "sequentialValidatedWrites",
+          "objects.0.views.0.presentation.sections.0.matrices.0.edit.unsetAsAbsence": true,
+          "objects.0.views.0.presentation.sections.0.matrices.0.edit.cycle": [
+            "available",
+            "unavailable"
+          ],
+          "objects.0.views.0.presentation.sections.0.matrices.0.cell.unsetStatus": "unset",
+          "objects.0.views.1.presentation.sections.0.matrices.0.density": "compact",
+          "objects.0.views.1.presentation.sections.0.matrices.0.columnAxis.stepDays": 3
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.columns.001",
+      "title": "Date columns are generated inclusively from start, end and a one-day step",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "name": "Availability",
+              "lists": [],
+              "calendars": [],
+              "matrices": [
+                {
+                  "name": "AvailabilityMatrix",
+                  "density": "comfortable",
+                  "columns": [
+                    { "key": "2026-03-02", "value": "2026-03-02", "label": "Mon 2" },
+                    { "key": "2026-03-03", "value": "2026-03-03", "label": "Tue 3" },
+                    { "key": "2026-03-04", "value": "2026-03-04", "label": "Wed 4" },
+                    { "key": "2026-03-05", "value": "2026-03-05", "label": "Thu 5" },
+                    { "key": "2026-03-06", "value": "2026-03-06", "label": "Fri 6" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.columns.002",
+      "title": "A multi-day step generates only stepped columns and labels default to the ISO date",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "SteppedGrid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "name": "SteppedMatrix",
+                  "density": "compact",
+                  "columns": [
+                    { "key": "2026-03-02", "label": "2026-03-02" },
+                    { "key": "2026-03-05", "label": "2026-03-05" },
+                    { "key": "2026-03-08", "label": "2026-03-08" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.rows.001",
+      "title": "Matrix rows come from the row source in declared sort order with key and label fields",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "bo", "MemberName": "Bo" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "alias": "ana",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [
+                    {
+                      "key": "ana",
+                      "label": "Ana",
+                      "values": { "MemberKey": "ana", "MemberName": "Ana" },
+                      "sources": [{ "objectName": "Member", "recordId": "$ana" }]
+                    },
+                    { "key": "bo", "label": "Bo" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.rows.002",
+      "title": "Descending row-source sort reverses matrix row order",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "bo", "MemberName": "Bo" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "SteppedGrid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [{ "key": "bo", "label": "Bo" }, { "key": "ana" }]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.cell-status.001",
+      "title": "Matrix cells resolve their status from the cell source record at that coordinate",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "alias": "cell-a",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-04", "State": "unavailable" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [
+                    {
+                      "key": "ana",
+                      "cells": [
+                        {
+                          "rowKey": "ana",
+                          "columnKey": "2026-03-02",
+                          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
+                          "sources": [{ "objectName": "Availability", "recordId": "$cell-a" }],
+                          "status": {
+                            "name": "available",
+                            "themeToken": "colorStatusAvailable",
+                            "precedence": 10,
+                            "source": { "kind": "map", "map": "StateStatus", "value": "available" }
+                          }
+                        },
+                        {},
+                        {
+                          "columnKey": "2026-03-04",
+                          "status": {
+                            "name": "unavailable",
+                            "themeToken": "colorStatusUnavailable",
+                            "precedence": 20
+                          }
+                        },
+                        {},
+                        {}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.unset-status.001",
+      "title": "A cell with no source record takes the declared unset status and carries no values",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [
+                    {
+                      "cells": [
+                        {
+                          "columnKey": "2026-03-02",
+                          "values": {},
+                          "sources": [],
+                          "status": {
+                            "name": "unset",
+                            "label": "Unset",
+                            "themeToken": "colorStatusUnset",
+                            "source": { "kind": "direct" }
+                          }
+                        },
+                        {},
+                        {},
+                        {},
+                        {}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.unset-status.002",
+      "title": "Without an unset status an absent cell has no status and reports a missing status field",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "SteppedGrid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_STATUS_FIELD_MISSING",
+              "path": "presentation.sections[0].matrices[0].rows[0].cells[1].candidates[0]",
+              "section": "Availability",
+              "field": "State"
+            },
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_STATUS_FIELD_MISSING",
+              "path": "presentation.sections[0].matrices[0].rows[0].cells[2].candidates[0]",
+              "section": "Availability",
+              "field": "State"
+            }
+          ],
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [
+                    {
+                      "cells": [
+                        { "columnKey": "2026-03-02", "status": { "name": "available" } },
+                        {
+                          "columnKey": "2026-03-05",
+                          "values": {},
+                          "sources": [],
+                          "accessibleLabel": "Availability cell"
+                        },
+                        { "columnKey": "2026-03-08" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.accessible-label.001",
+      "title": "Matrix cells derive an accessible label from row label, column label and status",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [
+                    {
+                      "cells": [
+                        { "accessibleLabel": "Ana, Mon 2: Available" },
+                        { "accessibleLabel": "Ana, Tue 3: Unset" },
+                        {},
+                        {},
+                        {}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.edit-metadata.001",
+      "title": "Matrix edit metadata exposes the target object, value field, cycle and bulk behaviour",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "edit": {
+                    "object": "Availability",
+                    "valueField": "State",
+                    "cycle": ["available", "unavailable"],
+                    "unsetAsAbsence": true,
+                    "bulkBehavior": "sequentialValidatedWrites"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.edit-cycle.001",
+      "title": "Cell edit plans create, update and delete from the declared cycle and unset-as-absence",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-04", "State": "unavailable" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [
+                    {
+                      "cells": [
+                        {
+                          "columnKey": "2026-03-02",
+                          "edit": {
+                            "enabled": true,
+                            "reasons": [],
+                            "nextValue": "unavailable",
+                            "operation": "update",
+                            "syncMode": "localFirst",
+                            "bulkBehavior": "sequentialValidatedWrites"
+                          }
+                        },
+                        {
+                          "columnKey": "2026-03-03",
+                          "edit": {
+                            "enabled": true,
+                            "nextValue": "available",
+                            "operation": "create"
+                          }
+                        },
+                        {
+                          "columnKey": "2026-03-04",
+                          "edit": {
+                            "enabled": true,
+                            "nextValue": null,
+                            "operation": "delete"
+                          }
+                        },
+                        {},
+                        {}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.edit-policy.001",
+      "title": "Cell editing is disabled with reasons when write policy denies the acting role",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "viewer", "roles": ["Viewer"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "matrices": [
+                {
+                  "rows": [
+                    {
+                      "cells": [
+                        {
+                          "columnKey": "2026-03-02",
+                          "status": { "name": "available" },
+                          "edit": {
+                            "enabled": false,
+                            "reasons": [
+                              "No policy rule allowed update; default deny applies."
+                            ],
+                            "operation": "update"
+                          }
+                        },
+                        {
+                          "edit": {
+                            "enabled": false,
+                            "reasons": [
+                              "No policy rule allowed create; default deny applies."
+                            ],
+                            "operation": "create"
+                          }
+                        },
+                        {},
+                        {},
+                        {}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.matrix.legend.001",
+      "title": "A present-only legend includes statuses that appear only on matrix cells",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "evaluatePresentationView",
+      "modelRef": "resourceMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Member",
+          "values": { "MemberKey": "ana", "MemberName": "Ana" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Availability",
+          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Member",
+        "viewName": "Grid",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "legends": [
+            {
+              "name": "Grid",
+              "title": "Availability",
+              "include": "present",
+              "items": [
+                { "status": { "name": "available" } },
+                { "status": { "name": "unset" } }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.resolve-defaults.001",
+      "title": "Calendar resolution defaults the week start, density, summary fields and empty state",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "resolveModel",
+      "modelRef": "monthCalendar",
+      "input": {
+        "select": [
+          "objects.0.views.0.presentation.sections.0.calendars.0.density",
+          "objects.0.views.0.presentation.sections.0.calendars.0.month.weekStart",
+          "objects.0.views.0.presentation.sections.0.calendars.0.actions.0.placement",
+          "objects.0.views.1.presentation.sections.0.calendars.0.month.weekStart",
+          "objects.0.views.1.presentation.sections.0.calendars.0.summaryFields",
+          "objects.0.views.1.presentation.sections.0.calendars.0.sort",
+          "objects.0.views.1.presentation.sections.0.calendars.0.actions",
+          "objects.0.views.1.presentation.sections.0.calendars.0.emptyState.text"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.presentation.sections.0.calendars.0.density": "comfortable",
+          "objects.0.views.0.presentation.sections.0.calendars.0.month.weekStart": "monday",
+          "objects.0.views.0.presentation.sections.0.calendars.0.actions.0.placement": "secondary",
+          "objects.0.views.1.presentation.sections.0.calendars.0.month.weekStart": "sunday",
+          "objects.0.views.1.presentation.sections.0.calendars.0.summaryFields": [],
+          "objects.0.views.1.presentation.sections.0.calendars.0.sort": [],
+          "objects.0.views.1.presentation.sections.0.calendars.0.actions": [],
+          "objects.0.views.1.presentation.sections.0.calendars.0.emptyState.text": ""
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.month-grid.001",
+      "title": "A month calendar emits a stable 42-cell grid padded from the declared week start",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "input": {
+        "objectName": "Event",
+        "viewName": "Planner",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "name": "Month",
+              "lists": [],
+              "matrices": [],
+              "calendars": [
+                {
+                  "name": "MonthPlan",
+                  "density": "comfortable",
+                  "sourceKind": "object",
+                  "source": "Event",
+                  "month": {
+                    "value": "2026-03",
+                    "label": "March 2026",
+                    "state": "month",
+                    "previous": "2026-02",
+                    "next": "2026-04",
+                    "canNavigatePrevious": true,
+                    "canNavigateNext": true
+                  },
+                  "weekdays": [
+                    { "key": "monday", "label": "Mon" },
+                    { "key": "tuesday", "label": "Tue" },
+                    { "key": "wednesday", "label": "Wed" },
+                    { "key": "thursday", "label": "Thu" },
+                    { "key": "friday", "label": "Fri" },
+                    { "key": "saturday", "label": "Sat" },
+                    { "key": "sunday", "label": "Sun" }
+                  ],
+                  "cells": [
+                    { "date": "2026-02-23", "day": 23, "inMonth": false, "withinRange": true },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-03-01", "day": 1, "inMonth": true },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-03-31", "day": 31, "inMonth": true },
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-04-05", "day": 5, "inMonth": false }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.week-start.001",
+      "title": "A Sunday week start shifts the weekday axis and the grid padding",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "input": {
+        "objectName": "Event",
+        "viewName": "SundayPlanner",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "calendars": [
+                {
+                  "name": "SundayPlan",
+                  "month": { "value": "2026-03", "label": "March 2026" },
+                  "weekdays": [
+                    { "key": "sunday", "label": "Sun" },
+                    { "key": "monday", "label": "Mon" },
+                    { "key": "tuesday", "label": "Tue" },
+                    { "key": "wednesday", "label": "Wed" },
+                    { "key": "thursday", "label": "Thu" },
+                    { "key": "friday", "label": "Fri" },
+                    { "key": "saturday", "label": "Sat" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.navigation-bounds.001",
+      "title": "Declared min and max dates close month navigation in both directions",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "input": {
+        "objectName": "Event",
+        "viewName": "SundayPlanner",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "calendars": [
+                {
+                  "month": {
+                    "previous": "2026-02",
+                    "next": "2026-04",
+                    "canNavigatePrevious": false,
+                    "canNavigateNext": false
+                  },
+                  "cells": [
+                    { "date": "2026-03-01", "withinRange": true, "actions": [] },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-03-31", "withinRange": true },
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-04-04", "withinRange": false },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-04-11", "withinRange": false }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.state-month.001",
+      "title": "A state-backed month follows local state updates and re-derives navigation bounds",
+      "specRef": "ui-language-addendum#local-view-state",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "input": {
+        "objectName": "Event",
+        "viewName": "Planner",
+        "updates": { "month": "2026-04" },
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "state": { "month": "2026-04" },
+          "diagnostics": [],
+          "sections": [
+            {
+              "calendars": [
+                {
+                  "month": {
+                    "value": "2026-04",
+                    "label": "April 2026",
+                    "state": "month",
+                    "previous": "2026-03",
+                    "next": "2026-05",
+                    "canNavigatePrevious": true,
+                    "canNavigateNext": false
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.invalid-month.001",
+      "title": "An unparseable month value reports a calendar date diagnostic and falls back deterministically",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "input": {
+        "objectName": "Event",
+        "viewName": "Planner",
+        "updates": { "month": "not-a-month" },
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "state": { "month": "not-a-month" },
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_CALENDAR_DATE_INVALID",
+              "path": "presentation.sections[0].calendars[0].month",
+              "section": "Month"
+            }
+          ],
+          "sections": [
+            {
+              "calendars": [
+                {
+                  "month": {
+                    "value": "1970-01",
+                    "label": "January 1970",
+                    "previous": "1969-12",
+                    "next": "1970-02"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.items.001",
+      "title": "Day cells carry their sorted events with title, summary, status counts and accessible label",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Event",
+          "values": {
+            "Title": "Zed gig",
+            "EventDate": "2026-03-05",
+            "Kind": "Gig",
+            "Venue": "Alpha Hall"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Event",
+          "values": {
+            "Title": "Alpha clash",
+            "EventDate": "2026-03-05",
+            "Kind": "Clash",
+            "Venue": ""
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Event",
+          "values": {
+            "Title": "Rehearsal",
+            "EventDate": "2026-03-31",
+            "Kind": "Rehearsal",
+            "Venue": "Studio"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Event",
+        "viewName": "Planner",
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-03-10T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "calendars": [
+                {
+                  "cells": [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "date": "2026-03-05",
+                      "eventCount": 2,
+                      "hasConflict": true,
+                      "accessibleLabel": "2026-03-05: 2 events, conflict",
+                      "statusCounts": { "conflict": 1, "event": 1 },
+                      "values": {
+                        "Date": "2026-03-05",
+                        "EventCount": 2,
+                        "HasEvents": true,
+                        "HasConflict": true
+                      },
+                      "items": [
+                        {
+                          "title": "Alpha clash",
+                          "summary": "Clash",
+                          "values": { "Title": "Alpha clash", "Kind": "Clash" },
+                          "status": { "name": "conflict" }
+                        },
+                        {
+                          "title": "Zed gig",
+                          "summary": "Alpha Hall Gig",
+                          "sources": [{ "objectName": "Event", "recordId": "$gig" }],
+                          "status": { "name": "event" }
+                        }
+                      ]
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-03-10", "isToday": true, "eventCount": 0 },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "date": "2026-03-31",
+                      "eventCount": 1,
+                      "hasConflict": false,
+                      "accessibleLabel": "2026-03-31: 1 event",
+                      "statusCounts": { "rehearsal": 1 },
+                      "items": [{ "title": "Rehearsal", "summary": "Studio Rehearsal" }]
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.cell-status.001",
+      "title": "A day cell takes the highest-precedence status among its events",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Event",
+          "values": {
+            "Title": "Zed gig",
+            "EventDate": "2026-03-05",
+            "Kind": "Gig",
+            "Venue": "Alpha Hall"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Event",
+          "values": {
+            "Title": "Alpha clash",
+            "EventDate": "2026-03-05",
+            "Kind": "Clash",
+            "Venue": ""
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Event",
+        "viewName": "Planner",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "calendars": [
+                {
+                  "cells": [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "date": "2026-03-05",
+                      "status": {
+                        "name": "conflict",
+                        "themeToken": "colorStatusConflict",
+                        "precedence": 50,
+                        "source": { "kind": "map", "map": "KindStatus", "value": "Clash" }
+                      }
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.actions.001",
+      "title": "Cell actions resolve the cell date pseudo-field and disappear outside the declared range",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "input": {
+        "objectName": "Event",
+        "viewName": "Planner",
+        "updates": { "month": "2026-04" },
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "calendars": [
+                {
+                  "cells": [
+                    {
+                      "date": "2026-03-30",
+                      "withinRange": true,
+                      "actions": [
+                        {
+                          "name": "addOnDay",
+                          "kind": "action",
+                          "label": "Add event",
+                          "placement": "secondary",
+                          "visible": true,
+                          "enabled": true,
+                          "reasons": [],
+                          "input": { "EventDate": "2026-03-30" },
+                          "create": { "object": "Event" }
+                        }
+                      ]
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-04-30", "withinRange": true },
+                    { "date": "2026-05-01", "withinRange": false, "actions": [] },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    { "date": "2026-05-10", "withinRange": false, "actions": [] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.calendar.empty-state.001",
+      "title": "A calendar with no events in view reports its declared empty state",
+      "specRef": "ui-language-addendum#empty-states",
+      "operation": "evaluatePresentationView",
+      "modelRef": "monthCalendar",
+      "input": {
+        "objectName": "Event",
+        "viewName": "Planner",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "calendars": [
+                { "name": "MonthPlan", "emptyState": { "text": "No events this month" } }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.row.fragments.001",
+      "title": "Row templates emit icon, literal, formatted field and conditional fragments in order",
+      "specRef": "ui-language-addendum#inline-text-fragments",
+      "operation": "evaluatePresentationView",
+      "modelRef": "rowTemplate",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Task",
+          "values": {
+            "Title": "Alpha",
+            "Kind": "Gig",
+            "DueDate": "2026-08-01",
+            "DueTime": "20:05",
+            "Amount": 12.5,
+            "Notes": "bring gear"
+          },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Task",
+        "viewName": "Feed",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "lists": [
+                {
+                  "name": "Tasks",
+                  "renderAs": "compactFeed",
+                  "density": "compact",
+                  "rows": [
+                    {
+                      "layout": "stack",
+                      "density": "compact",
+                      "fragments": [
+                        {
+                          "kind": "icon",
+                          "label": "Kind",
+                          "icon": {
+                            "name": "music",
+                            "source": { "kind": "map", "map": "KindIcon", "value": "Gig" }
+                          }
+                        },
+                        { "kind": "text", "text": "Alpha", "style": "bold" },
+                        { "kind": "text", "text": " on ", "style": "muted" },
+                        { "kind": "text", "text": "Sat 1 Aug 2026", "style": "plain" },
+                        { "kind": "text", "text": " at ", "style": "plain" },
+                        { "kind": "text", "text": "8:05PM", "style": "plain" },
+                        { "kind": "text", "text": " ", "style": "plain" },
+                        { "kind": "text", "text": "12.50", "style": "caption" },
+                        { "kind": "text", "text": " [gig]", "style": "caption" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.row.fallback.001",
+      "title": "A missing row field falls back to declared text and reports a field-missing diagnostic",
+      "specRef": "ui-language-addendum#row-templates",
+      "operation": "evaluatePresentationView",
+      "modelRef": "rowTemplate",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Task",
+          "values": { "Title": "Beta", "Kind": "Other" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Task",
+        "viewName": "Feed",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_FIELD_MISSING",
+              "path": "presentation.sections[0].lists[0].rows[0].fragments[3]",
+              "section": "Rows",
+              "list": "Tasks",
+              "field": "DueDate"
+            },
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_FIELD_MISSING",
+              "field": "DueTime"
+            },
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_FIELD_MISSING",
+              "field": "Amount"
+            }
+          ],
+          "sections": [
+            {
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "fragments": [
+                        {
+                          "kind": "icon",
+                          "icon": {
+                            "name": "dot",
+                            "source": { "kind": "map", "map": "KindIcon", "value": "Other" }
+                          }
+                        },
+                        { "kind": "text", "text": "Beta", "style": "bold" },
+                        { "kind": "text", "text": " on ", "style": "muted" },
+                        { "kind": "text", "text": "no date", "style": "plain" },
+                        { "kind": "text", "text": " at ", "style": "plain" },
+                        { "kind": "text", "text": "", "style": "plain" },
+                        { "kind": "text", "text": " ", "style": "plain" },
+                        { "kind": "text", "text": "", "style": "caption" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.row.format-unsupported.001",
+      "title": "An unsupported display format reports a diagnostic and falls back to the raw value",
+      "specRef": "ui-language-addendum#formatting",
+      "operation": "evaluatePresentationView",
+      "modelRef": "rowTemplate",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Task",
+          "values": { "Title": "Alpha", "Kind": "Gig", "DueDate": "2026-08-01" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Task",
+        "viewName": "BadFormatFeed",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_FORMAT_UNSUPPORTED",
+              "path": "presentation.sections[0].lists[0].rows[0].fragments[0]",
+              "section": "Rows",
+              "list": "BadFormatTasks",
+              "field": "DueDate"
+            }
+          ],
+          "sections": [
+            {
+              "lists": [
+                {
+                  "rows": [
+                    { "fragments": [{ "kind": "text", "text": "2026-08-01", "style": "plain" }] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.row.empty-state.001",
+      "title": "An empty list emits its declared empty-state text and named icon",
+      "specRef": "ui-language-addendum#empty-states",
+      "operation": "evaluatePresentationView",
+      "modelRef": "rowTemplate",
+      "input": {
+        "objectName": "Task",
+        "viewName": "Feed",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "sections": [
+            {
+              "lists": [
+                {
+                  "name": "Tasks",
+                  "rows": [],
+                  "emptyState": {
+                    "text": "Nothing scheduled",
+                    "icon": { "name": "check", "source": { "kind": "named" } }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.row.icon-unmapped.001",
+      "title": "An icon map with no default drops the icon fragment and reports a diagnostic",
+      "specRef": "ui-language-addendum#icon-mapping",
+      "operation": "evaluatePresentationView",
+      "modelRef": "rowTemplate",
+      "setup": [
+        {
+          "operation": "create",
+          "objectName": "Task",
+          "values": { "Title": "Alpha", "Kind": "Gig" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "objectName": "Task",
+          "values": { "Title": "Beta", "Kind": "Other" },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Task",
+        "viewName": "StrictIconFeed",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_ICON_VALUE_MISSING",
+              "path": "presentation.sections[0].lists[0].rows[1].fragments[0].icon",
+              "section": "Rows",
+              "list": "StrictIconTasks"
+            }
+          ],
+          "sections": [
+            {
+              "lists": [
+                {
+                  "rows": [
+                    {
+                      "fragments": [
+                        {
+                          "kind": "icon",
+                          "icon": {
+                            "name": "music",
+                            "source": { "kind": "map", "map": "StrictKindIcon", "value": "Gig" }
+                          }
+                        },
+                        { "kind": "text", "text": "Alpha", "style": "plain" }
+                      ]
+                    },
+                    { "fragments": [{ "kind": "text", "text": "Beta", "style": "plain" }] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.state.resolve-defaults.001",
+      "title": "Local view state defaults its type, per-type default value and memory persistence",
+      "specRef": "ui-language-addendum#local-view-state",
+      "operation": "resolveModel",
+      "modelRef": "viewState",
+      "input": {
+        "select": [
+          "objects.0.views.0.presentation.state.0.type",
+          "objects.0.views.0.presentation.state.0.defaultValue",
+          "objects.0.views.0.presentation.state.0.persistence",
+          "objects.0.views.0.presentation.state.1.defaultValue",
+          "objects.0.views.0.presentation.state.2.defaultValue",
+          "objects.0.views.0.presentation.state.3.defaultValue",
+          "objects.0.views.0.presentation.state.4.defaultValue",
+          "objects.0.views.0.presentation.state.5.defaultValue",
+          "objects.0.views.0.presentation.state.6.persistence",
+          "objects.0.views.0.presentation.state.7.persistence"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.presentation.state.0.type": "boolean",
+          "objects.0.views.0.presentation.state.0.defaultValue": false,
+          "objects.0.views.0.presentation.state.0.persistence": "memory",
+          "objects.0.views.0.presentation.state.1.defaultValue": 0,
+          "objects.0.views.0.presentation.state.2.defaultValue": "",
+          "objects.0.views.0.presentation.state.3.defaultValue": null,
+          "objects.0.views.0.presentation.state.4.defaultValue": null,
+          "objects.0.views.0.presentation.state.5.defaultValue": null,
+          "objects.0.views.0.presentation.state.6.persistence": "session",
+          "objects.0.views.0.presentation.state.7.persistence": "local"
+        }
+      }
+    },
+    {
+      "id": "presentation.state.initialize.001",
+      "title": "Evaluation initialises every declared state value and binds controls to it",
+      "specRef": "ui-language-addendum#local-view-state",
+      "operation": "evaluatePresentationView",
+      "modelRef": "viewState",
+      "input": {
+        "objectName": "Pref",
+        "viewName": "StateView",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "state": {
+            "flag": false,
+            "count": 0,
+            "note": "",
+            "day": null,
+            "stamp": null,
+            "clock": null,
+            "pinned": true,
+            "saved": "kept"
+          },
+          "sections": [
+            {
+              "name": "Controls",
+              "controls": [
+                { "name": "flagToggle", "kind": "toggle", "state": "flag", "value": false },
+                {
+                  "name": "noteSelect",
+                  "kind": "select",
+                  "state": "note",
+                  "value": "",
+                  "options": [
+                    { "value": "a", "label": "Alpha" },
+                    { "value": "b", "label": "Beta" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.state.updates.001",
+      "title": "Supplied state and updates apply by type, and unknown or mistyped keys are refused with diagnostics",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "viewState",
+      "input": {
+        "objectName": "Pref",
+        "viewName": "StateView",
+        "state": { "flag": true, "count": 7, "day": "2026-05-01" },
+        "updates": { "note": "b", "day": null, "missingState": 1, "count": "seven" },
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "state": {
+            "flag": true,
+            "count": 7,
+            "note": "b",
+            "day": null,
+            "pinned": true,
+            "saved": "kept"
+          },
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_STATE_UNKNOWN",
+              "path": "presentation.state.missingState"
+            },
+            {
+              "severity": "warning",
+              "code": "ADL_PRESENTATION_STATE_TYPE_MISMATCH",
+              "path": "presentation.state.count"
+            }
+          ],
+          "sections": [
+            {
+              "controls": [
+                { "kind": "toggle", "value": true },
+                { "kind": "select", "value": "b" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.state.not-composed.001",
+      "title": "Evaluating a view without composed presentation reports an error and no sections",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "viewState",
+      "input": {
+        "objectName": "Pref",
+        "viewName": "PlainList",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "object": "Pref",
+          "view": "PlainList",
+          "layout": "stack",
+          "density": "comfortable",
+          "state": {},
+          "legends": [],
+          "sections": [],
+          "diagnostics": [
+            { "severity": "error", "code": "ADL_PRESENTATION_VIEW_NOT_COMPOSED" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.validate.status-references.001",
+      "title": "Validation rejects duplicate, mistyped and dangling status, legend and status-map references",
+      "specRef": "ui-language-addendum#semantic-statuses-and-legends",
+      "operation": "validateModel",
+      "model": {
+        "app": { "name": "InvalidStatusReferences", "startView": "Board" },
+        "objects": [
+          {
+            "name": "Slot",
+            "fields": [
+              { "name": "Name", "type": "text" },
+              { "name": "Kind", "type": "text" }
+            ],
+            "views": [
+              {
+                "name": "Board",
+                "kind": "composite",
+                "fields": ["Name", "Kind"],
+                "presentation": {
+                  "statuses": [
+                    { "name": "event", "themeToken": "colorNope", "precedence": 1.5 },
+                    { "name": "event" }
+                  ],
+                  "statusMaps": [
+                    {
+                      "name": "KindStatus",
+                      "field": "Missing",
+                      "values": [{ "value": "Gig", "status": "ghost" }],
+                      "defaultStatus": "phantom"
+                    }
+                  ],
+                  "legends": [{ "name": "L", "statuses": ["ghost"] }],
+                  "sections": [
+                    {
+                      "name": "S",
+                      "lists": [
+                        {
+                          "name": "L1",
+                          "sourceKind": "object",
+                          "source": "Slot",
+                          "fields": ["Name"],
+                          "status": {
+                            "candidates": [
+                              { "kind": "map", "map": "NoSuchMap" },
+                              { "kind": "status", "status": "ghost" }
+                            ]
+                          },
+                          "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_STATUS_DUPLICATE",
+            "path": "objects[0].views[0].presentation.statuses[1].name"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_STATUS_THEME_TOKEN_INVALID",
+            "path": "objects[0].views[0].presentation.statuses[0].themeToken"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_STATUS_PRECEDENCE_INVALID",
+            "path": "objects[0].views[0].presentation.statuses[0].precedence"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_STATUS_MAP_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.statusMaps[0].field"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_STATUS_MAP_STATUS_UNKNOWN",
+            "path": "objects[0].views[0].presentation.statusMaps[0].values[0].status"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_STATUS_MAP_STATUS_UNKNOWN",
+            "path": "objects[0].views[0].presentation.statusMaps[0].defaultStatus"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_LEGEND_STATUS_UNKNOWN",
+            "path": "objects[0].views[0].presentation.legends[0].statuses[0]"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_LIST_STATUS_MAP_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].lists[0].status.candidates[0].map"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_LIST_STATUS_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].lists[0].status.candidates[1].status"
+          }
+        ]
+      }
+    },
+    {
+      "id": "presentation.validate.matrix-references.001",
+      "title": "Validation rejects unknown matrix sources, fields, edit targets and column axes",
+      "specRef": "ui-language-addendum#resourcedate-matrices",
+      "operation": "validateModel",
+      "model": {
+        "app": { "name": "InvalidMatrixReferences", "startView": "Grid" },
+        "objects": [
+          {
+            "name": "Member",
+            "fields": [
+              { "name": "MemberKey", "type": "text" },
+              { "name": "MemberName", "type": "text" }
+            ],
+            "views": [
+              {
+                "name": "Grid",
+                "kind": "composite",
+                "fields": ["MemberKey", "MemberName"],
+                "presentation": {
+                  "sections": [
+                    {
+                      "name": "S",
+                      "matrices": [
+                        {
+                          "name": "M",
+                          "rowSource": {
+                            "sourceKind": "object",
+                            "source": "NoSuchObject",
+                            "labelField": "MemberName"
+                          },
+                          "columnAxis": { "start": "not-a-date", "end": "2026-03-01", "stepDays": 0 },
+                          "cellSource": {
+                            "sourceKind": "readModel",
+                            "source": "NoSuchReadModel",
+                            "rowField": "MemberKey",
+                            "columnField": "Day"
+                          },
+                          "edit": {
+                            "object": "NoSuchEditObject",
+                            "rowField": "MemberKey",
+                            "columnField": "Day",
+                            "valueField": "State"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_SOURCE_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].rowSource.source"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].rowSource.labelField"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_SOURCE_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].cellSource.source"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].cellSource.rowField"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].cellSource.columnField"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_COLUMN_INVALID",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].columnAxis.start"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_COLUMN_INVALID",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].columnAxis.stepDays"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_MATRIX_EDIT_OBJECT_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].matrices[0].edit.object"
+          }
+        ]
+      }
+    },
+    {
+      "id": "presentation.validate.calendar-references.001",
+      "title": "Validation rejects unknown calendar sources, fields, status maps, week start and month value",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "validateModel",
+      "model": {
+        "app": { "name": "InvalidCalendarReferences", "startView": "Planner" },
+        "objects": [
+          {
+            "name": "Event",
+            "fields": [
+              { "name": "Title", "type": "text" },
+              { "name": "EventDate", "type": "date" }
+            ],
+            "views": [
+              {
+                "name": "Planner",
+                "kind": "composite",
+                "fields": ["Title", "EventDate"],
+                "presentation": {
+                  "sections": [
+                    {
+                      "name": "S",
+                      "calendars": [
+                        {
+                          "name": "C",
+                          "sourceKind": "object",
+                          "source": "NoSuchObject",
+                          "dateField": "NoSuchDate",
+                          "titleField": "NoSuchTitle",
+                          "summaryFields": ["NoSuchSummary"],
+                          "month": { "value": "nope", "weekStart": "funday" },
+                          "status": {
+                            "candidates": [{ "kind": "map", "map": "NoSuchStatusMap" }]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CALENDAR_SOURCE_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].calendars[0].source"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CALENDAR_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].calendars[0].dateField"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CALENDAR_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].calendars[0].titleField"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CALENDAR_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].calendars[0].summaryFields[0]"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CALENDAR_STATUS_MAP_UNKNOWN",
+            "path": "objects[0].views[0].presentation.sections[0].calendars[0].status.candidates[0].map"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CALENDAR_WEEK_START_INVALID",
+            "path": "objects[0].views[0].presentation.sections[0].calendars[0].month.weekStart"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_PRESENTATION_CALENDAR_DATE_INVALID",
+            "path": "objects[0].views[0].presentation.sections[0].calendars[0].month.value"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -87,35 +87,74 @@ export class IndexedDbObjectStorageBackend implements ObjectStorageBackend {
     await this.update(objectName, tombstone);
   }
 
+  /**
+   * Applies a batch atomically.
+   *
+   * Every refusal aborts the transaction before throwing. Throwing straight out
+   * of this function used to leave IndexedDB free to auto-commit the writes
+   * already issued earlier in the same batch, so the caller saw a rejection over
+   * a partially applied batch — and a migration's own diagnostic would then
+   * state that persisted data was unchanged when it was not. A request error
+   * (a duplicate `add`, say) aborts on its own; a refusal we raise ourselves has
+   * to say so explicitly.
+   */
   async commitTransaction(writes: ObjectStorageTransactionWrite[]): Promise<void> {
     const db = await this.openDatabase();
     const transaction = db.transaction(this.storeName, "readwrite");
     const store = transaction.objectStore(this.storeName);
+    const refuse = (error: StorageError): never => {
+      try {
+        transaction.abort();
+      } catch {
+        // Already finished or aborting: the refusal below is still the fault
+        // worth reporting, and swallowing this keeps it the one that surfaces.
+      }
+      throw error;
+    };
 
     for (const write of writes) {
+      if (write.operation === "applicationMetadata") {
+        // Inside the same IndexedDB transaction as the record writes, so a
+        // migration cannot record a version it did not finish applying.
+        await requestToPromise(
+          store.put({
+            kind: "applicationMetadata",
+            key: APPLICATION_METADATA_KEY,
+            object: APPLICATION_METADATA_OBJECT,
+            metadata: cloneJson(write.metadata),
+          } satisfies IndexedDbStoredApplicationMetadata),
+          "write application metadata in transaction",
+        );
+        continue;
+      }
+
       if (write.operation === "update") {
         const existing = await requestToPromise<IndexedDbStoredRecord | undefined>(
           store.get(recordKey(write.objectName, write.record.meta.guid)),
           "read record for transactional update",
         );
         if (existing === undefined) {
-          throw new StorageError(
-            `Record '${write.record.meta.guid}' for object '${write.objectName}' is missing.`,
-            {
-              objectName: write.objectName,
-              id: write.record.meta.guid,
-            },
+          refuse(
+            new StorageError(
+              `Record '${write.record.meta.guid}' for object '${write.objectName}' is missing.`,
+              {
+                objectName: write.objectName,
+                id: write.record.meta.guid,
+              },
+            ),
           );
         }
       }
 
       if (write.operation === "delete" && write.record.meta.deletedAt === undefined) {
-        throw new StorageError(
-          `Delete for record '${write.record.meta.guid}' on object '${write.objectName}' must persist a tombstone.`,
-          {
-            objectName: write.objectName,
-            id: write.record.meta.guid,
-          },
+        refuse(
+          new StorageError(
+            `Delete for record '${write.record.meta.guid}' on object '${write.objectName}' must persist a tombstone.`,
+            {
+              objectName: write.objectName,
+              id: write.record.meta.guid,
+            },
+          ),
         );
       }
 

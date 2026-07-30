@@ -1,0 +1,4536 @@
+{
+  "version": 1,
+  "models": {
+    "fieldValidators": {
+      "app": {
+        "name": "FieldValidatorConformance"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Reading",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "validators": [
+                {
+                  "kind": "email"
+                }
+              ]
+            },
+            {
+              "name": "Score",
+              "type": "number",
+              "validators": [
+                {
+                  "kind": "min",
+                  "value": 1
+                },
+                {
+                  "kind": "max",
+                  "value": 100
+                }
+              ]
+            },
+            {
+              "name": "Code",
+              "type": "text",
+              "validators": [
+                {
+                  "kind": "minLength",
+                  "value": 3
+                },
+                {
+                  "kind": "maxLength",
+                  "value": 6
+                }
+              ]
+            },
+            {
+              "name": "Category",
+              "type": "text",
+              "validators": [
+                {
+                  "kind": "in",
+                  "value": [
+                    "alpha",
+                    "beta"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Sku",
+              "type": "text",
+              "validators": [
+                {
+                  "kind": "regexp",
+                  "value": "^[A-Z]{2}-[0-9]{4}$"
+                }
+              ]
+            },
+            {
+              "name": "Currency",
+              "type": "text",
+              "validators": [
+                {
+                  "kind": "currencyCode"
+                }
+              ]
+            },
+            {
+              "name": "Doc",
+              "type": "attachment",
+              "validators": [
+                {
+                  "kind": "maxSize",
+                  "value": 64
+                },
+                {
+                  "kind": "mimeType",
+                  "value": [
+                    "application/pdf"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Ratio",
+              "type": "number",
+              "validators": [
+                {
+                  "kind": "predicate",
+                  "message": "Ratio must be positive.",
+                  "expression": {
+                    "kind": "binary",
+                    "operator": ">",
+                    "left": {
+                      "kind": "field",
+                      "field": "Ratio"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "value": 0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Bound",
+              "type": "number",
+              "validators": [
+                {
+                  "kind": "predicate",
+                  "expression": {
+                    "kind": "binary",
+                    "operator": "<=",
+                    "left": {
+                      "kind": "field",
+                      "field": "Bound"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "value": 10
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Locked",
+              "type": "text",
+              "readonly": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "ReadingPolicy",
+          "object": "Reading",
+          "rules": [
+            {
+              "name": "allowAdminAllReadingOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "objectValidations": {
+      "app": {
+        "name": "ObjectValidationConformance"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Invoice",
+          "fields": [
+            {
+              "name": "Amount",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Comment",
+              "type": "text"
+            },
+            {
+              "name": "Approved",
+              "type": "boolean",
+              "defaultValue": false
+            }
+          ],
+          "validations": [
+            {
+              "name": "CommentRequiredAboveLimit",
+              "message": "Comment is required above 1000.",
+              "expression": {
+                "kind": "binary",
+                "operator": "or",
+                "left": {
+                  "kind": "binary",
+                  "operator": "<=",
+                  "left": {
+                    "kind": "field",
+                    "field": "Amount"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 1000
+                  }
+                },
+                "right": {
+                  "kind": "binary",
+                  "operator": "!=",
+                  "left": {
+                    "kind": "field",
+                    "field": "Comment"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": null,
+                    "valueType": "null"
+                  }
+                }
+              }
+            },
+            {
+              "name": "ApprovedNeedsComment",
+              "expression": {
+                "kind": "binary",
+                "operator": "or",
+                "left": {
+                  "kind": "binary",
+                  "operator": "==",
+                  "left": {
+                    "kind": "field",
+                    "field": "Approved"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": false
+                  }
+                },
+                "right": {
+                  "kind": "binary",
+                  "operator": "!=",
+                  "left": {
+                    "kind": "field",
+                    "field": "Comment"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": null,
+                    "valueType": "null"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ratio",
+          "fields": [
+            {
+              "name": "Numerator",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Denominator",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "validations": [
+            {
+              "name": "PositiveRatio",
+              "message": "Ratio must be positive.",
+              "expression": {
+                "kind": "binary",
+                "operator": ">",
+                "left": {
+                  "kind": "binary",
+                  "operator": "/",
+                  "left": {
+                    "kind": "field",
+                    "field": "Numerator"
+                  },
+                  "right": {
+                    "kind": "field",
+                    "field": "Denominator"
+                  }
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 0
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "InvoicePolicy",
+          "object": "Invoice",
+          "rules": [
+            {
+              "name": "allowAdminAllInvoiceOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "RatioPolicy",
+          "object": "Ratio",
+          "rules": [
+            {
+              "name": "allowAdminAllRatioOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "lifecycleGuards": {
+      "app": {
+        "name": "LifecycleGuardConformance"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Agent"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Ticket",
+          "fields": [
+            {
+              "name": "Owner",
+              "type": "text"
+            },
+            {
+              "name": "Approved",
+              "type": "boolean",
+              "defaultValue": false
+            },
+            {
+              "name": "Blocked",
+              "type": "boolean",
+              "defaultValue": false
+            },
+            {
+              "name": "Cost",
+              "type": "number",
+              "defaultValue": 10
+            },
+            {
+              "name": "Divisor",
+              "type": "number",
+              "defaultValue": 0
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true,
+              "defaultValue": "Draft"
+            }
+          ],
+          "lifecycle": {
+            "name": "TicketLifecycle",
+            "stateField": "Status",
+            "initialState": "Draft",
+            "states": [
+              {
+                "name": "Draft"
+              },
+              {
+                "name": "Ready"
+              },
+              {
+                "name": "Closed",
+                "terminal": true
+              }
+            ],
+            "actions": [
+              {
+                "name": "prepare",
+                "from": "Draft",
+                "to": "Ready",
+                "policyRefs": [
+                  "TicketPolicy"
+                ],
+                "guards": [
+                  {
+                    "name": "HasOwner",
+                    "message": "Ticket needs an owner before it is ready.",
+                    "expression": {
+                      "kind": "binary",
+                      "operator": "!=",
+                      "left": {
+                        "kind": "field",
+                        "field": "Owner"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "value": null,
+                        "valueType": "null"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "close",
+                "from": "Ready",
+                "to": "Closed",
+                "policyRefs": [
+                  "TicketPolicy"
+                ],
+                "guards": [
+                  {
+                    "name": "IsApproved",
+                    "message": "Ticket must be approved before closing.",
+                    "expression": {
+                      "kind": "binary",
+                      "operator": "==",
+                      "left": {
+                        "kind": "field",
+                        "field": "Approved"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "value": true
+                      }
+                    }
+                  },
+                  {
+                    "name": "NoBlockers",
+                    "expression": {
+                      "kind": "binary",
+                      "operator": "==",
+                      "left": {
+                        "kind": "field",
+                        "field": "Blocked"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "value": false
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "audit",
+                "from": "Draft",
+                "to": "Ready",
+                "policyRefs": [
+                  "TicketPolicy"
+                ],
+                "guards": [
+                  {
+                    "name": "CostRatio",
+                    "message": "Cost ratio must be positive.",
+                    "expression": {
+                      "kind": "binary",
+                      "operator": ">",
+                      "left": {
+                        "kind": "binary",
+                        "operator": "/",
+                        "left": {
+                          "kind": "field",
+                          "field": "Cost"
+                        },
+                        "right": {
+                          "kind": "field",
+                          "field": "Divisor"
+                        }
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "value": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "stateAware",
+                "from": "Draft",
+                "to": "Ready",
+                "policyRefs": [
+                  "TicketPolicy"
+                ],
+                "guards": [
+                  {
+                    "name": "StillDraft",
+                    "message": "Guard observed a state other than Draft.",
+                    "expression": {
+                      "kind": "binary",
+                      "operator": "==",
+                      "left": {
+                        "kind": "field",
+                        "field": "Status"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "value": "Draft"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "Note",
+          "fields": [
+            {
+              "name": "Body",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "TicketPolicy",
+          "object": "Ticket",
+          "rules": [
+            {
+              "name": "allowAdminAllTicketOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAgentCreateTicket",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Agent"
+                ]
+              },
+              "action": "create"
+            },
+            {
+              "name": "allowAgentReadTicket",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Agent"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAgentUpdateTicket",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Agent"
+                ]
+              },
+              "action": "update"
+            }
+          ]
+        },
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAdminAllNoteOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "commandPreconditions": {
+      "app": {
+        "name": "CommandPreconditionConformance"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Clerk"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Expense",
+          "fields": [
+            {
+              "name": "Owner",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Amount",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Reason",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "SubmitExpense",
+          "inputs": [
+            {
+              "name": "Owner",
+              "type": "text"
+            },
+            {
+              "name": "Amount",
+              "type": "number"
+            },
+            {
+              "name": "Reason",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "preconditions": [
+            {
+              "name": "PositiveAmount",
+              "message": "Expense amount must be positive.",
+              "expression": {
+                "kind": "binary",
+                "operator": ">",
+                "left": {
+                  "kind": "field",
+                  "field": "Amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 0
+                }
+              }
+            },
+            {
+              "name": "ReasonRequired",
+              "expression": {
+                "kind": "binary",
+                "operator": "!=",
+                "left": {
+                  "kind": "field",
+                  "field": "Reason"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": null,
+                  "valueType": "null"
+                }
+              }
+            }
+          ],
+          "steps": [
+            {
+              "name": "createExpense",
+              "action": "create",
+              "object": "Expense",
+              "values": {
+                "Owner": {
+                  "kind": "input",
+                  "name": "Owner"
+                },
+                "Amount": {
+                  "kind": "input",
+                  "name": "Amount"
+                },
+                "Reason": {
+                  "kind": "input",
+                  "name": "Reason"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "SubmitExpenseAsCommand",
+          "inputs": [
+            {
+              "name": "Owner",
+              "type": "text"
+            },
+            {
+              "name": "Amount",
+              "type": "number"
+            }
+          ],
+          "preconditions": [
+            {
+              "name": "PositiveAmount",
+              "message": "Expense amount must be positive.",
+              "expression": {
+                "kind": "binary",
+                "operator": ">",
+                "left": {
+                  "kind": "field",
+                  "field": "Amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 0
+                }
+              }
+            }
+          ],
+          "steps": [
+            {
+              "name": "createExpense",
+              "action": "create",
+              "object": "Expense",
+              "authority": "command",
+              "values": {
+                "Owner": {
+                  "kind": "input",
+                  "name": "Owner"
+                },
+                "Amount": {
+                  "kind": "input",
+                  "name": "Amount"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "RecordLargeExpense",
+          "inputs": [
+            {
+              "name": "Owner",
+              "type": "text"
+            },
+            {
+              "name": "Amount",
+              "type": "number"
+            }
+          ],
+          "steps": [
+            {
+              "name": "createExpense",
+              "action": "create",
+              "object": "Expense",
+              "authority": "command",
+              "preconditions": [
+                {
+                  "kind": "binary",
+                  "operator": ">",
+                  "left": {
+                    "kind": "field",
+                    "field": "Amount"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 100
+                  }
+                }
+              ],
+              "values": {
+                "Owner": {
+                  "kind": "input",
+                  "name": "Owner"
+                },
+                "Amount": {
+                  "kind": "input",
+                  "name": "Amount"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "ExpensePolicy",
+          "object": "Expense",
+          "rules": [
+            {
+              "name": "allowAdminAllExpenseOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowClerkReadExpense",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Clerk"
+                ]
+              },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "decisionTables": {
+      "app": {
+        "name": "DecisionTableConformance"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Order",
+          "fields": [
+            {
+              "name": "Quantity",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "UnitPrice",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Region",
+              "type": "text"
+            },
+            {
+              "name": "Divisor",
+              "type": "number"
+            },
+            {
+              "name": "Zero",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "decisionTables": [
+        {
+          "name": "ShippingTier",
+          "object": "Order",
+          "match": "first",
+          "inputs": [
+            {
+              "name": "total",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "Quantity"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "UnitPrice"
+                }
+              }
+            },
+            {
+              "name": "region",
+              "expression": {
+                "kind": "field",
+                "field": "Region"
+              }
+            }
+          ],
+          "rows": [
+            {
+              "name": "free",
+              "condition": {
+                "kind": "binary",
+                "operator": ">=",
+                "left": {
+                  "kind": "field",
+                  "field": "total"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 100
+                }
+              },
+              "outputs": {
+                "tier": "free",
+                "cost": 0
+              }
+            },
+            {
+              "name": "standard",
+              "condition": {
+                "kind": "binary",
+                "operator": ">=",
+                "left": {
+                  "kind": "field",
+                  "field": "total"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 10
+                }
+              },
+              "outputs": {
+                "tier": "standard",
+                "cost": 5
+              }
+            }
+          ],
+          "defaultOutputs": {
+            "tier": "none",
+            "cost": 15
+          }
+        },
+        {
+          "name": "SizeBand",
+          "object": "Order",
+          "match": "single",
+          "inputs": [
+            {
+              "name": "total",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "Quantity"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "UnitPrice"
+                }
+              }
+            }
+          ],
+          "rows": [
+            {
+              "name": "small",
+              "condition": {
+                "kind": "binary",
+                "operator": "<",
+                "left": {
+                  "kind": "field",
+                  "field": "total"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 50
+                }
+              },
+              "outputs": {
+                "size": "small"
+              }
+            },
+            {
+              "name": "large",
+              "condition": {
+                "kind": "binary",
+                "operator": ">=",
+                "left": {
+                  "kind": "field",
+                  "field": "total"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 50
+                }
+              },
+              "outputs": {
+                "size": "large"
+              }
+            }
+          ],
+          "defaultOutputs": {
+            "size": "unknown"
+          }
+        },
+        {
+          "name": "AmbiguousBand",
+          "object": "Order",
+          "match": "single",
+          "inputs": [
+            {
+              "name": "count",
+              "expression": {
+                "kind": "field",
+                "field": "Quantity"
+              }
+            }
+          ],
+          "rows": [
+            {
+              "name": "notTiny",
+              "condition": {
+                "kind": "unary",
+                "operator": "not",
+                "operand": {
+                  "kind": "binary",
+                  "operator": "<",
+                  "left": {
+                    "kind": "field",
+                    "field": "count"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 10
+                  }
+                }
+              },
+              "outputs": {
+                "label": "notTiny"
+              }
+            },
+            {
+              "name": "notSmall",
+              "condition": {
+                "kind": "unary",
+                "operator": "not",
+                "operand": {
+                  "kind": "binary",
+                  "operator": "<",
+                  "left": {
+                    "kind": "field",
+                    "field": "count"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 20
+                  }
+                }
+              },
+              "outputs": {
+                "label": "notSmall"
+              }
+            }
+          ],
+          "defaultOutputs": {
+            "label": "none"
+          }
+        },
+        {
+          "name": "RatioBand",
+          "object": "Order",
+          "match": "first",
+          "inputs": [
+            {
+              "name": "ratio",
+              "expression": {
+                "kind": "binary",
+                "operator": "/",
+                "left": {
+                  "kind": "field",
+                  "field": "Quantity"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "Divisor"
+                }
+              }
+            },
+            {
+              "name": "zero",
+              "expression": {
+                "kind": "field",
+                "field": "Zero"
+              }
+            }
+          ],
+          "rows": [
+            {
+              "name": "positive",
+              "condition": {
+                "kind": "binary",
+                "operator": ">",
+                "left": {
+                  "kind": "binary",
+                  "operator": "/",
+                  "left": {
+                    "kind": "field",
+                    "field": "ratio"
+                  },
+                  "right": {
+                    "kind": "field",
+                    "field": "zero"
+                  }
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 0
+                }
+              },
+              "outputs": {
+                "ok": true
+              }
+            }
+          ],
+          "defaultOutputs": {
+            "ok": false
+          }
+        }
+      ],
+      "policies": [
+        {
+          "name": "OrderPolicy",
+          "object": "Order",
+          "rules": [
+            {
+              "name": "allowAdminAllOrderOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "validation.field.required.001",
+      "title": "A missing required field is refused with a required issue",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {},
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_REQUIRED",
+              "message": "Field 'Name' is required on object 'Reading'.",
+              "path": "values.Name",
+              "field": "Name"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.required-blank.001",
+      "title": "Whitespace-only text does not satisfy a required field",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "   "
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_REQUIRED",
+              "path": "values.Name",
+              "field": "Name"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.type.001",
+      "title": "A type-incompatible value is refused before its validators run",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Score": "high"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_TYPE",
+              "message": "Field 'Score' expects a number value.",
+              "path": "values.Score",
+              "field": "Score"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.unknown.001",
+      "title": "A value for a field the object does not declare is refused",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Bogus": 1
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_UNKNOWN",
+              "path": "values.Bogus",
+              "field": "Bogus"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.readonly.001",
+      "title": "A readonly field cannot be written by a caller",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Locked": "set by caller"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_READONLY",
+              "path": "values.Locked",
+              "field": "Locked"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.email.001",
+      "title": "The email validator refuses text without an address shape",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Email": "not-an-address"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Email' must contain an email address.",
+              "path": "values.Email",
+              "field": "Email"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.min.001",
+      "title": "The min validator refuses a value below the bound",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Score": 0
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Score' must be at least 1.",
+              "path": "values.Score",
+              "field": "Score"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.max.001",
+      "title": "The max validator refuses a value above the bound",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Score": 101
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Score' must be at most 100.",
+              "path": "values.Score",
+              "field": "Score"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.min-length.001",
+      "title": "The minLength validator refuses text that is too short",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Code": "ab"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Code' is shorter than 3 characters.",
+              "path": "values.Code",
+              "field": "Code"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.max-length.001",
+      "title": "The maxLength validator refuses text that is too long",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Code": "abcdefg"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Code' is longer than 6 characters.",
+              "path": "values.Code",
+              "field": "Code"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.in.001",
+      "title": "The in validator refuses a value outside the declared set",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Category": "gamma"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Category' contains a value outside the allowed set.",
+              "path": "values.Category",
+              "field": "Category"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.regexp.001",
+      "title": "The regexp validator refuses text that does not match the pattern",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Sku": "ab-12"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Sku' does not match the required pattern.",
+              "path": "values.Sku",
+              "field": "Sku"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.currency-code.001",
+      "title": "The currencyCode validator requires three upper-case letters",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Currency": "usd"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Currency' must contain an ISO-style currency code.",
+              "path": "values.Currency",
+              "field": "Currency"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.max-size.001",
+      "title": "The maxSize validator refuses an oversized attachment value",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Doc": "0123456789012345678901234567890123456789012345678901234567890123456789"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Doc' is larger than the allowed size.",
+              "path": "values.Doc",
+              "field": "Doc"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.mime-type.001",
+      "title": "The mimeType validator refuses a disallowed attachment MIME type",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Doc": {
+            "mimeType": "image/png"
+          }
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Doc' has a disallowed MIME type.",
+              "path": "values.Doc",
+              "field": "Doc"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.predicate-message.001",
+      "title": "A failing predicate validator reports its declared message",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Ratio": -1
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Ratio must be positive.",
+              "path": "values.Ratio",
+              "field": "Ratio"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.predicate-default-message.001",
+      "title": "A predicate validator with no declared message reports the platform default",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Bound": 11
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "message": "Field 'Bound' failed predicate validation.",
+              "path": "values.Bound",
+              "field": "Bound"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.field.satisfied.001",
+      "title": "Values that satisfy every declared validator are accepted, bounds inclusive",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Email": "ada@example.com",
+          "Score": 1,
+          "Code": "abc",
+          "Category": "beta",
+          "Sku": "AB-1234",
+          "Currency": "USD",
+          "Doc": {
+            "mimeType": "application/pdf"
+          },
+          "Ratio": 0.5,
+          "Bound": 10
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Reading",
+          "values": {
+            "Name": "Reading A",
+            "Email": "ada@example.com",
+            "Score": 1,
+            "Code": "abc",
+            "Category": "beta",
+            "Sku": "AB-1234",
+            "Currency": "USD",
+            "Ratio": 0.5,
+            "Bound": 10
+          }
+        }
+      }
+    },
+    {
+      "id": "validation.field.null-skips-validators.001",
+      "title": "An absent optional value skips its validators rather than failing them",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Name": "Reading A",
+          "Email": null,
+          "Sku": null
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Reading",
+          "values": {
+            "Name": "Reading A",
+            "Email": null,
+            "Sku": null
+          }
+        }
+      }
+    },
+    {
+      "id": "validation.field.issue-order.001",
+      "title": "All validation issues are collected, provided-value issues before field issues",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "fieldValidators",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Bogus": 1,
+          "Name": "",
+          "Score": 0,
+          "Code": "ab"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_FIELD_UNKNOWN",
+              "path": "values.Bogus"
+            },
+            {
+              "code": "ADL_RUNTIME_FIELD_REQUIRED",
+              "path": "values.Name"
+            },
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "path": "values.Score"
+            },
+            {
+              "code": "ADL_RUNTIME_FIELD_VALIDATOR",
+              "path": "values.Code"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.object.message.001",
+      "title": "A failing object validation reports its declared message",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "objectValidations",
+      "input": {
+        "objectName": "Invoice",
+        "values": {
+          "Amount": 2000
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_OBJECT_VALIDATION",
+              "message": "Comment is required above 1000.",
+              "path": "values"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.object.message-default.001",
+      "title": "An object validation with no declared message reports the platform default",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "objectValidations",
+      "input": {
+        "objectName": "Invoice",
+        "values": {
+          "Amount": 100,
+          "Approved": true
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_OBJECT_VALIDATION",
+              "message": "Object validation 'ApprovedNeedsComment' failed.",
+              "path": "values"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.object.order.001",
+      "title": "Every failing object validation is reported, in declaration order",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "objectValidations",
+      "input": {
+        "objectName": "Invoice",
+        "values": {
+          "Amount": 2000,
+          "Approved": true
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_OBJECT_VALIDATION",
+              "message": "Comment is required above 1000."
+            },
+            {
+              "code": "ADL_RUNTIME_OBJECT_VALIDATION",
+              "message": "Object validation 'ApprovedNeedsComment' failed."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.object.satisfied.001",
+      "title": "An object validation satisfied by the merged values accepts the write",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "objectValidations",
+      "input": {
+        "objectName": "Invoice",
+        "values": {
+          "Amount": 2000,
+          "Comment": "Signed off by finance"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Invoice",
+          "values": {
+            "Amount": 2000,
+            "Comment": "Signed off by finance",
+            "Approved": false
+          }
+        }
+      }
+    },
+    {
+      "id": "validation.object.update.001",
+      "title": "Object validations re-run over the merged record on update",
+      "specRef": "runtime-semantics#validation",
+      "operation": "update",
+      "modelRef": "objectValidations",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "invoice",
+          "objectName": "Invoice",
+          "values": {
+            "Amount": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Invoice",
+        "id": {
+          "$ref": "invoice.meta.guid"
+        },
+        "patch": {
+          "Amount": 2000
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_OBJECT_VALIDATION",
+              "message": "Comment is required above 1000.",
+              "path": "values"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "validation.object.eval-error.001",
+      "title": "An object validation that cannot be evaluated is an issue, not a silent pass",
+      "specRef": "runtime-semantics#validation",
+      "operation": "create",
+      "modelRef": "objectValidations",
+      "input": {
+        "objectName": "Ratio",
+        "values": {
+          "Numerator": 4,
+          "Denominator": 0
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_OBJECT_VALIDATION",
+              "message": "Object validation 'PositiveRatio' could not be evaluated: Expression division by zero.",
+              "path": "values"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lifecycle.guard.blocks.001",
+      "title": "A failing lifecycle guard blocks the transition with its declared message",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {},
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "prepare",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Ticket needs an owner before it is ready.",
+          "details": {
+            "objectName": "Ticket",
+            "actionName": "prepare",
+            "guardName": "HasOwner"
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.guard.permits.001",
+      "title": "A satisfied lifecycle guard permits the transition and persists the target state",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "prepare",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Ticket",
+          "recordId": "$ticket",
+          "state": "Ready",
+          "values": {
+            "Status": "Ready"
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.guard.order.001",
+      "title": "Guards evaluate in declaration order and the first failure ends the transition",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1",
+            "Blocked": true
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "transition",
+          "alias": "readyTicket",
+          "objectName": "Ticket",
+          "id": {
+            "$ref": "ticket.meta.guid"
+          },
+          "actionName": "prepare",
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:05:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "close",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:10:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Ticket must be approved before closing.",
+          "details": {
+            "actionName": "close",
+            "guardName": "IsApproved"
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.guard.default-message.001",
+      "title": "A guard with no declared message reports the platform default",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1",
+            "Approved": true,
+            "Blocked": true
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "transition",
+          "objectName": "Ticket",
+          "id": {
+            "$ref": "ticket.meta.guid"
+          },
+          "actionName": "prepare",
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:05:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "close",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:10:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Lifecycle guard 'NoBlockers' failed.",
+          "details": {
+            "guardName": "NoBlockers"
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.guard.pre-transition-values.001",
+      "title": "Guards evaluate over the stored record values, before the target state is applied",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "stateAware",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Ticket",
+          "state": "Ready",
+          "values": {
+            "Status": "Ready"
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.guard.eval-error.001",
+      "title": "A guard that cannot be evaluated blocks the transition rather than passing",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "audit",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Lifecycle action 'audit' guard 'CostRatio' could not be evaluated: Expression division by zero.",
+          "details": {
+            "guardName": "CostRatio"
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.state.disallowed-from.001",
+      "title": "An action whose from-states exclude the current state is refused",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1",
+            "Approved": true
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "close",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Lifecycle action 'close' cannot run from state 'Draft'.",
+          "details": {
+            "currentState": "Draft",
+            "allowedFrom": [
+              "Ready"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.state.precedes-policy.001",
+      "title": "Current-state legality is decided before transition policy",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "close",
+        "context": {
+          "userId": "agent-1",
+          "roles": [
+            "Agent"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Lifecycle action 'close' cannot run from state 'Draft'."
+        }
+      }
+    },
+    {
+      "id": "lifecycle.policy-precedes-guard.001",
+      "title": "Transition policy is decided before lifecycle guards run",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {},
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "prepare",
+        "context": {
+          "userId": "agent-1",
+          "roles": [
+            "Agent"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "TicketDefaultDeny",
+                "effect": "deny",
+                "message": "No policy rule allowed transition; default deny applies."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.state.terminal.001",
+      "title": "A terminal state has no outgoing action, so every transition from it is refused",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1",
+            "Approved": true
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "transition",
+          "objectName": "Ticket",
+          "id": {
+            "$ref": "ticket.meta.guid"
+          },
+          "actionName": "prepare",
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:05:00.000Z"
+          }
+        },
+        {
+          "operation": "transition",
+          "objectName": "Ticket",
+          "id": {
+            "$ref": "ticket.meta.guid"
+          },
+          "actionName": "close",
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:10:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "prepare",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:15:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Lifecycle action 'prepare' cannot run from state 'Closed'.",
+          "details": {
+            "currentState": "Closed"
+          }
+        }
+      }
+    },
+    {
+      "id": "lifecycle.action.unknown.001",
+      "title": "An undeclared lifecycle action is refused",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "actionName": "escalate",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Lifecycle action 'escalate' does not exist on 'Ticket'."
+        }
+      }
+    },
+    {
+      "id": "lifecycle.no-lifecycle.001",
+      "title": "An object without a lifecycle cannot be transitioned",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "transition",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Body": "No lifecycle here"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "actionName": "prepare",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_LIFECYCLE_ERROR",
+          "message": "Object 'Note' has no lifecycle."
+        }
+      }
+    },
+    {
+      "id": "lifecycle.initial-state.001",
+      "title": "A create cannot name a lifecycle state other than the initial one",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "create",
+      "modelRef": "lifecycleGuards",
+      "input": {
+        "objectName": "Ticket",
+        "values": {
+          "Owner": "agent-1",
+          "Status": "Ready"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_LIFECYCLE_INITIAL_STATE",
+              "message": "Lifecycle state field 'Status' must start in 'Draft'.",
+              "path": "values.Status",
+              "field": "Status"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lifecycle.state-direct-update.001",
+      "title": "The lifecycle state field cannot be changed by a plain update",
+      "specRef": "runtime-semantics#lifecycles",
+      "operation": "update",
+      "modelRef": "lifecycleGuards",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ticket",
+          "objectName": "Ticket",
+          "values": {
+            "Owner": "agent-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Ticket",
+        "id": {
+          "$ref": "ticket.meta.guid"
+        },
+        "patch": {
+          "Status": "Ready"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_LIFECYCLE_STATE_DIRECT_UPDATE",
+              "path": "patch.Status",
+              "field": "Status"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lifecycle.terminal-flag.001",
+      "title": "Lifecycle state terminality is resolved from the declaration and defaults to false",
+      "specRef": "resolved-model#lifecycles",
+      "operation": "resolveModel",
+      "modelRef": "lifecycleGuards",
+      "input": {
+        "select": [
+          "objects.0.lifecycle.initialState",
+          "objects.0.lifecycle.stateField",
+          "objects.0.lifecycle.states.0.terminal",
+          "objects.0.lifecycle.states.2.name",
+          "objects.0.lifecycle.states.2.terminal",
+          "objects.0.lifecycle.actions.0.from.0",
+          "objects.0.lifecycle.actions.0.to"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.lifecycle.initialState": "Draft",
+          "objects.0.lifecycle.stateField": "Status",
+          "objects.0.lifecycle.states.0.terminal": false,
+          "objects.0.lifecycle.states.2.name": "Closed",
+          "objects.0.lifecycle.states.2.terminal": true,
+          "objects.0.lifecycle.actions.0.from.0": "Draft",
+          "objects.0.lifecycle.actions.0.to": "Ready"
+        }
+      }
+    },
+    {
+      "id": "command.precondition.message.001",
+      "title": "A failing command precondition denies execution with its declared message",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpense",
+        "input": {
+          "Owner": "admin-1",
+          "Amount": -5,
+          "Reason": "Travel"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "message": "Command 'SubmitExpense' was denied.",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "Command:SubmitExpense",
+                "ruleName": "PositiveAmount",
+                "effect": "deny",
+                "message": "Expense amount must be positive."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "command.precondition.default-message.001",
+      "title": "A command precondition with no declared message reports the platform default",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpense",
+        "input": {
+          "Owner": "admin-1",
+          "Amount": 10
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "decision": {
+            "reasons": [
+              {
+                "policyName": "Command:SubmitExpense",
+                "ruleName": "ReasonRequired",
+                "message": "Command precondition 'ReasonRequired' failed."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "command.precondition.order.001",
+      "title": "The first failing command precondition in declaration order is reported",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpense",
+        "input": {
+          "Owner": "admin-1",
+          "Amount": -5
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "decision": {
+            "reasons": [
+              {
+                "ruleName": "PositiveAmount"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "command.precondition.precedes-policy.001",
+      "title": "Command preconditions are evaluated before any step policy check",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpense",
+        "input": {
+          "Owner": "clerk-1",
+          "Amount": -5,
+          "Reason": "Travel"
+        },
+        "context": {
+          "userId": "clerk-1",
+          "roles": [
+            "Clerk"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "message": "Command 'SubmitExpense' was denied.",
+          "decision": {
+            "reasons": [
+              {
+                "policyName": "Command:SubmitExpense",
+                "ruleName": "PositiveAmount"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "command.step-policy.001",
+      "title": "A caller-authority step is still subject to the object policy once preconditions pass",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpense",
+        "input": {
+          "Owner": "clerk-1",
+          "Amount": 10,
+          "Reason": "Travel"
+        },
+        "context": {
+          "userId": "clerk-1",
+          "roles": [
+            "Clerk"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "message": "Policy denied create on object 'Expense'.",
+          "decision": {
+            "reasons": [
+              {
+                "policyName": "ExpenseDefaultDeny",
+                "effect": "deny",
+                "message": "No policy rule allowed create; default deny applies."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "command.step-authority.001",
+      "title": "A command-authority step takes the precondition as its authorization boundary",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpenseAsCommand",
+        "input": {
+          "Owner": "clerk-1",
+          "Amount": 10
+        },
+        "context": {
+          "userId": "clerk-1",
+          "roles": [
+            "Clerk"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "createExpense",
+              "objectName": "Expense",
+              "values": {
+                "Owner": "clerk-1",
+                "Amount": 10
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.step-precondition.001",
+      "title": "A step precondition denies with the step's own rule name",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "RecordLargeExpense",
+        "input": {
+          "Owner": "admin-1",
+          "Amount": 50
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "message": "Command 'RecordLargeExpense' step 'createExpense' was denied.",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "Command:RecordLargeExpense",
+                "ruleName": "createExpensePrecondition",
+                "effect": "deny",
+                "message": "Command 'RecordLargeExpense' step 'createExpense' precondition failed."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "command.input-precedes-precondition.001",
+      "title": "Command input validation runs before command preconditions",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpense",
+        "input": {
+          "Amount": -5,
+          "Reason": "Travel"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_COMMAND_INPUT_REQUIRED",
+              "message": "Command 'SubmitExpense' requires input 'Owner'.",
+              "path": "input.Owner",
+              "field": "Owner"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.precondition.satisfied.001",
+      "title": "Satisfied preconditions let the command commit its declared steps",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandPreconditions",
+      "input": {
+        "commandName": "SubmitExpense",
+        "input": {
+          "Owner": "admin-1",
+          "Amount": 250,
+          "Reason": "Travel"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "createExpense",
+              "objectName": "Expense",
+              "values": {
+                "Owner": "admin-1",
+                "Amount": 250,
+                "Reason": "Travel"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "decision-table.first-match.001",
+      "title": "First-match returns the earliest matching row even when a later row also matches",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "ShippingTier",
+        "values": {
+          "Quantity": 10,
+          "UnitPrice": 20
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rowName": "free",
+          "outputs": {
+            "tier": "free",
+            "cost": 0
+          },
+          "inputValues": {
+            "total": 200,
+            "region": null
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.first-match.002",
+      "title": "First-match falls through to the next row when the earlier row does not match",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "ShippingTier",
+        "values": {
+          "Quantity": 1,
+          "UnitPrice": 20,
+          "Region": "EMEA"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rowName": "standard",
+          "outputs": {
+            "tier": "standard",
+            "cost": 5
+          },
+          "inputValues": {
+            "total": 20,
+            "region": "EMEA"
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.default-outputs.001",
+      "title": "Declared default outputs are returned under the reserved default row name",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "ShippingTier",
+        "values": {
+          "Quantity": 1,
+          "UnitPrice": 5
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rowName": "default",
+          "outputs": {
+            "tier": "none",
+            "cost": 15
+          },
+          "inputValues": {
+            "total": 5,
+            "region": null
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.single-match.001",
+      "title": "Single-match returns the one matching row",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "SizeBand",
+        "values": {
+          "Quantity": 10,
+          "UnitPrice": 10
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rowName": "large",
+          "outputs": {
+            "size": "large"
+          },
+          "inputValues": {
+            "total": 100
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.single-violation.001",
+      "title": "Single-match refuses an evaluation where more than one row matches",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "AmbiguousBand",
+        "values": {
+          "Quantity": 30
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_DECISION_TABLE_ERROR",
+          "message": "Decision table 'AmbiguousBand' matched multiple rows under single-match semantics.",
+          "details": {
+            "tableName": "AmbiguousBand",
+            "rows": [
+              "notTiny",
+              "notSmall"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.input-expression.001",
+      "title": "Input expressions evaluate against the source values before any row condition",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "ShippingTier",
+        "values": {
+          "Quantity": 3,
+          "UnitPrice": 12.5,
+          "Region": "APAC"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rowName": "standard",
+          "inputValues": {
+            "total": 37.5,
+            "region": "APAC"
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.input-eval-error.001",
+      "title": "An input expression that cannot be evaluated fails the whole evaluation",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "RatioBand",
+        "values": {
+          "Quantity": 10,
+          "Divisor": 0,
+          "Zero": 1
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_DECISION_TABLE_ERROR",
+          "message": "Decision table 'RatioBand' input 'ratio' could not be evaluated: Expression division by zero.",
+          "details": {
+            "tableName": "RatioBand",
+            "inputName": "ratio"
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.row-eval-error.001",
+      "title": "A row condition that cannot be evaluated fails rather than counting as no match",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "RatioBand",
+        "values": {
+          "Quantity": 10,
+          "Divisor": 2,
+          "Zero": 0
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_DECISION_TABLE_ERROR",
+          "message": "Decision table 'RatioBand' row 'positive' condition could not be evaluated: Expression division by zero.",
+          "details": {
+            "tableName": "RatioBand",
+            "rowName": "positive"
+          }
+        }
+      }
+    },
+    {
+      "id": "decision-table.unknown.001",
+      "title": "An undeclared decision table is refused by the runtime model index",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "evaluateDecisionTable",
+      "modelRef": "decisionTables",
+      "input": {
+        "tableName": "MissingBand",
+        "values": {
+          "Quantity": 1
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_MODEL_ERROR",
+          "message": "Decision table 'MissingBand' does not exist in the resolved model."
+        }
+      }
+    },
+    {
+      "id": "validation.model.object-validation-field-unknown.001",
+      "title": "An object validation referencing an unknown field is a model error",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "BrokenObjectValidation"
+        },
+        "objects": [
+          {
+            "name": "Invoice",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ],
+            "validations": [
+              {
+                "name": "TotalPositive",
+                "expression": {
+                  "kind": "binary",
+                  "operator": ">",
+                  "left": {
+                    "kind": "field",
+                    "field": "Total"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_VALIDATION_FIELD_UNKNOWN",
+            "path": "objects[0].validations[0].expression.left.field"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.object-validation-type.001",
+      "title": "An object validation that does not resolve to boolean is a model error",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "BrokenObjectValidationType"
+        },
+        "objects": [
+          {
+            "name": "Invoice",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ],
+            "validations": [
+              {
+                "name": "AmountAsCondition",
+                "expression": {
+                  "kind": "field",
+                  "field": "Amount"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_VALIDATION_TYPE",
+            "path": "objects[0].validations[0].expression"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.object-validation-duplicate.001",
+      "title": "Object validation names must be unique within an object",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "DuplicateObjectValidation"
+        },
+        "objects": [
+          {
+            "name": "Invoice",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ],
+            "validations": [
+              {
+                "name": "AmountPositive",
+                "expression": {
+                  "kind": "binary",
+                  "operator": ">",
+                  "left": {
+                    "kind": "field",
+                    "field": "Amount"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "name": "AmountPositive",
+                "expression": {
+                  "kind": "binary",
+                  "operator": ">=",
+                  "left": {
+                    "kind": "field",
+                    "field": "Amount"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_VALIDATION_DUPLICATE",
+            "path": "objects[0].validations[1].name"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.field-validator-type.001",
+      "title": "A predicate validator that does not resolve to boolean is a model error",
+      "specRef": "resolved-model#expressions",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "BrokenPredicateValidator"
+        },
+        "objects": [
+          {
+            "name": "Invoice",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number",
+                "validators": [
+                  {
+                    "kind": "predicate",
+                    "expression": {
+                      "kind": "field",
+                      "field": "Amount"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_FIELD_VALIDATOR_EXPRESSION_TYPE",
+            "path": "objects[0].fields[0].validators[0].expression"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.guard-field-unknown.001",
+      "title": "A lifecycle guard referencing an unknown field is a model error",
+      "specRef": "resolved-model#lifecycles",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "BrokenGuardField"
+        },
+        "objects": [
+          {
+            "name": "Ticket",
+            "fields": [
+              {
+                "name": "Status",
+                "type": "text"
+              }
+            ],
+            "lifecycle": {
+              "name": "TicketLifecycle",
+              "stateField": "Status",
+              "initialState": "Draft",
+              "states": [
+                {
+                  "name": "Draft"
+                },
+                {
+                  "name": "Ready"
+                }
+              ],
+              "actions": [
+                {
+                  "name": "prepare",
+                  "from": "Draft",
+                  "to": "Ready",
+                  "guards": [
+                    {
+                      "name": "HasOwner",
+                      "expression": {
+                        "kind": "binary",
+                        "operator": "!=",
+                        "left": {
+                          "kind": "field",
+                          "field": "Owner"
+                        },
+                        "right": {
+                          "kind": "literal",
+                          "value": null,
+                          "valueType": "null"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_LIFECYCLE_ACTION_GUARD_FIELD_UNKNOWN",
+            "path": "objects[0].lifecycle.actions[0].guards[0].expression.left.field"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.guard-type.001",
+      "title": "A lifecycle guard that does not resolve to boolean is a model error",
+      "specRef": "resolved-model#lifecycles",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "BrokenGuardType"
+        },
+        "objects": [
+          {
+            "name": "Ticket",
+            "fields": [
+              {
+                "name": "Status",
+                "type": "text"
+              }
+            ],
+            "lifecycle": {
+              "name": "TicketLifecycle",
+              "stateField": "Status",
+              "initialState": "Draft",
+              "states": [
+                {
+                  "name": "Draft"
+                },
+                {
+                  "name": "Ready"
+                }
+              ],
+              "actions": [
+                {
+                  "name": "prepare",
+                  "from": "Draft",
+                  "to": "Ready",
+                  "guards": [
+                    {
+                      "name": "StatusAsCondition",
+                      "expression": {
+                        "kind": "field",
+                        "field": "Status"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_LIFECYCLE_ACTION_GUARD_TYPE",
+            "path": "objects[0].lifecycle.actions[0].guards[0].expression"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.command-precondition-field-unknown.001",
+      "title": "A command precondition referencing an undeclared input is a model error",
+      "specRef": "resolved-model#commands",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "BrokenCommandPrecondition"
+        },
+        "objects": [
+          {
+            "name": "Expense",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "commands": [
+          {
+            "name": "SubmitExpense",
+            "inputs": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ],
+            "preconditions": [
+              {
+                "name": "PositiveTotal",
+                "expression": {
+                  "kind": "binary",
+                  "operator": ">",
+                  "left": {
+                    "kind": "field",
+                    "field": "Total"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 0
+                  }
+                }
+              }
+            ],
+            "steps": [
+              {
+                "name": "createExpense",
+                "action": "create",
+                "object": "Expense",
+                "authority": "command",
+                "values": {
+                  "Amount": {
+                    "kind": "input",
+                    "name": "Amount"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMMAND_PRECONDITION_FIELD_UNKNOWN",
+            "path": "commands[0].preconditions[0].expression.left.field"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.command-precondition-type.001",
+      "title": "A command precondition that does not resolve to boolean is a model error",
+      "specRef": "resolved-model#commands",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "BrokenCommandPreconditionType"
+        },
+        "objects": [
+          {
+            "name": "Expense",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "commands": [
+          {
+            "name": "SubmitExpense",
+            "inputs": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ],
+            "preconditions": [
+              {
+                "name": "AmountAsCondition",
+                "expression": {
+                  "kind": "field",
+                  "field": "Amount"
+                }
+              }
+            ],
+            "steps": [
+              {
+                "name": "createExpense",
+                "action": "create",
+                "object": "Expense",
+                "authority": "command",
+                "values": {
+                  "Amount": {
+                    "kind": "input",
+                    "name": "Amount"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMMAND_PRECONDITION_INVALID",
+            "path": "commands[0].preconditions[0].expression"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.decision-table-default-missing.001",
+      "title": "A decision table must declare explicit default outputs",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "DecisionTableWithoutDefault"
+        },
+        "objects": [
+          {
+            "name": "Order",
+            "fields": [
+              {
+                "name": "Quantity",
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "decisionTables": [
+          {
+            "name": "SizeBand",
+            "object": "Order",
+            "match": "first",
+            "inputs": [
+              {
+                "name": "count",
+                "expression": {
+                  "kind": "field",
+                  "field": "Quantity"
+                }
+              }
+            ],
+            "rows": [
+              {
+                "name": "any",
+                "condition": {
+                  "kind": "binary",
+                  "operator": ">=",
+                  "left": {
+                    "kind": "field",
+                    "field": "count"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 0
+                  }
+                },
+                "outputs": {
+                  "size": "any"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_DECISION_TABLE_DEFAULT_MISSING",
+            "path": "decisionTables[0].defaultOutputs"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.decision-table-single-overlap.001",
+      "title": "Overlapping rows under single-match are a model error, not a runtime surprise",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "DecisionTableOverlap"
+        },
+        "objects": [
+          {
+            "name": "Order",
+            "fields": [
+              {
+                "name": "Quantity",
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "decisionTables": [
+          {
+            "name": "SizeBand",
+            "object": "Order",
+            "match": "single",
+            "inputs": [
+              {
+                "name": "count",
+                "expression": {
+                  "kind": "field",
+                  "field": "Quantity"
+                }
+              }
+            ],
+            "rows": [
+              {
+                "name": "large",
+                "condition": {
+                  "kind": "binary",
+                  "operator": ">=",
+                  "left": {
+                    "kind": "field",
+                    "field": "count"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 10
+                  }
+                },
+                "outputs": {
+                  "size": "large"
+                }
+              },
+              {
+                "name": "medium",
+                "condition": {
+                  "kind": "binary",
+                  "operator": ">=",
+                  "left": {
+                    "kind": "field",
+                    "field": "count"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 5
+                  }
+                },
+                "outputs": {
+                  "size": "medium"
+                }
+              }
+            ],
+            "defaultOutputs": {
+              "size": "unknown"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_DECISION_TABLE_ROW_OVERLAP",
+            "path": "decisionTables[0].rows[1].condition"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.decision-table-warnings.001",
+      "title": "Overlap under first-match is a warning, and non-comparison conditions fall outside the analyzable subset",
+      "specRef": "runtime-semantics#decision-tables",
+      "operation": "validateModel",
+      "modelRef": "decisionTables",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "warning",
+            "code": "ADL_DECISION_TABLE_ROW_OVERLAP",
+            "path": "decisionTables[0].rows[1].condition"
+          },
+          {
+            "severity": "warning",
+            "code": "ADL_DECISION_TABLE_ROW_CONDITION_UNANALYZABLE",
+            "path": "decisionTables[2].rows[0].condition"
+          },
+          {
+            "severity": "warning",
+            "code": "ADL_DECISION_TABLE_ROW_CONDITION_UNANALYZABLE",
+            "path": "decisionTables[2].rows[1].condition"
+          },
+          {
+            "severity": "warning",
+            "code": "ADL_DECISION_TABLE_ROW_CONDITION_UNANALYZABLE",
+            "path": "decisionTables[3].rows[0].condition"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.field-validators-clean.001",
+      "title": "Every named field validator kind resolves without model diagnostics",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "modelRef": "fieldValidators",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "validation.model.valid.001",
+      "title": "A model whose object validations resolve cleanly reports no diagnostics",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "modelRef": "objectValidations",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "validation.model.valid.002",
+      "title": "A model whose guards and lifecycle resolve cleanly reports no diagnostics",
+      "specRef": "resolved-model#lifecycles",
+      "operation": "validateModel",
+      "modelRef": "lifecycleGuards",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "validation.model.valid.003",
+      "title": "A model whose command preconditions resolve cleanly reports no diagnostics",
+      "specRef": "resolved-model#commands",
+      "operation": "validateModel",
+      "modelRef": "commandPreconditions",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "validation.model.named-validator-kind-invalid.001",
+      "title": "A numeric bound on a text field is refused rather than silently inert",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ValidatorShape"
+        },
+        "roles": [
+          {
+            "name": "Admin"
+          }
+        ],
+        "objects": [
+          {
+            "name": "Thing",
+            "fields": [
+              {
+                "name": "Label",
+                "type": "text",
+                "validators": [
+                  {
+                    "kind": "min",
+                    "value": 5
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "ThingPolicy",
+            "object": "Thing",
+            "rules": [
+              {
+                "name": "allowAdmin",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": [
+                    "Admin"
+                  ]
+                },
+                "action": "*"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_FIELD_VALIDATOR_KIND_INVALID",
+            "path": "objects[0].fields[0].validators[0].kind"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.named-validator-kind-invalid.002",
+      "title": "A pattern validator on a number field is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ValidatorShape"
+        },
+        "roles": [
+          {
+            "name": "Admin"
+          }
+        ],
+        "objects": [
+          {
+            "name": "Thing",
+            "fields": [
+              {
+                "name": "Count",
+                "type": "number",
+                "validators": [
+                  {
+                    "kind": "regexp",
+                    "value": "^A$"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "ThingPolicy",
+            "object": "Thing",
+            "rules": [
+              {
+                "name": "allowAdmin",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": [
+                    "Admin"
+                  ]
+                },
+                "action": "*"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_FIELD_VALIDATOR_KIND_INVALID",
+            "path": "objects[0].fields[0].validators[0].kind"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.named-validator-value-missing.001",
+      "title": "A bound validator with no bound is refused: it could never fail",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ValidatorShape"
+        },
+        "roles": [
+          {
+            "name": "Admin"
+          }
+        ],
+        "objects": [
+          {
+            "name": "Thing",
+            "fields": [
+              {
+                "name": "Count",
+                "type": "number",
+                "validators": [
+                  {
+                    "kind": "min"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "ThingPolicy",
+            "object": "Thing",
+            "rules": [
+              {
+                "name": "allowAdmin",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": [
+                    "Admin"
+                  ]
+                },
+                "action": "*"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_FIELD_VALIDATOR_VALUE_INVALID",
+            "path": "objects[0].fields[0].validators[0].value"
+          }
+        ]
+      }
+    },
+    {
+      "id": "validation.model.named-validator-well-formed.001",
+      "title": "A well-formed named validator produces no diagnostic",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ValidatorShape"
+        },
+        "roles": [
+          {
+            "name": "Admin"
+          }
+        ],
+        "objects": [
+          {
+            "name": "Thing",
+            "fields": [
+              {
+                "name": "Label",
+                "type": "text",
+                "validators": [
+                  {
+                    "kind": "maxLength",
+                    "value": 10
+                  },
+                  {
+                    "kind": "email"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "ThingPolicy",
+            "object": "Thing",
+            "rules": [
+              {
+                "name": "allowAdmin",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": [
+                    "Admin"
+                  ]
+                },
+                "action": "*"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    }
+  ]
+}

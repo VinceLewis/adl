@@ -72,6 +72,7 @@ export type BlockName =
   | "ROW"
   | "ICON_MAP"
   | "STATUS_MAP"
+  | "MIGRATION"
   | "SHELL";
 
 export interface EndMarkerNode {
@@ -93,14 +94,40 @@ export interface AdlDocumentAst {
   policies: PolicyDeclarationAst[];
   themes: ThemeDeclarationAst[];
   sync: SyncDeclarationAst[];
+  migrations: MigrationDeclarationAst[];
   range: SourceRange;
 }
+
+export interface MigrationDeclarationAst {
+  kind: "MigrationDeclaration";
+  from: string;
+  to: string;
+  objects: MigrationObjectDeclarationAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface MigrationObjectDeclarationAst {
+  kind: "MigrationObjectDeclaration";
+  object: string;
+  schemaVersion?: number;
+  steps: MigrationStepAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export type MigrationStepAst =
+  | { kind: "renameField"; from: string; to: string; range: SourceRange }
+  | { kind: "addField"; field: string; defaultValue: JsonValue; range: SourceRange }
+  | { kind: "dropField"; field: string; range: SourceRange };
 
 export interface AppDeclarationAst {
   kind: "AppDeclaration";
   name: string;
   theme?: string;
   startView?: string;
+  /** Declared by `MODEL_VERSION "<dotted number>"`. */
+  modelVersion?: string;
   /** Declared by `OFFLINE_GRACE <days> DAYS`; the unit word is required. */
   offlineGraceDays?: number;
   end: EndMarkerNode;
@@ -192,6 +219,8 @@ export interface ObjectDeclarationAst {
   name: string;
   businessKey?: string;
   displayField?: string;
+  /** Declared by `SCHEMA_VERSION <n>`; defaults to 1 when absent. */
+  schemaVersion?: number;
   fields: FieldDeclarationAst[];
   computedFields: ComputedFieldDeclarationAst[];
   scope?: ObjectScopeDeclarationAst;

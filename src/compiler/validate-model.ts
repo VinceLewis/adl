@@ -1,4 +1,10 @@
-import { DEFAULT_LIFECYCLE_STATE_FIELD, MAX_OFFLINE_GRACE_DAYS } from "../model/defaults.js";
+import {
+  DEFAULT_LIFECYCLE_STATE_FIELD,
+  MAX_OFFLINE_GRACE_DAYS,
+  compareModelVersions,
+  isValidModelVersion,
+  normaliseModelVersion,
+} from "../model/defaults.js";
 import type {
   ConflictStrategy,
   CommandRuntimeProperty,
@@ -15,6 +21,7 @@ import type {
   ExpressionUnaryOperator,
   ExpressionValueType,
   FieldType,
+  ValidatorKind,
   PresentationDensity,
   PresentationActionPlacement,
   PresentationCalendarSourceKind,
@@ -52,6 +59,8 @@ import type {
   ResolvedHookRefs,
   ResolvedLifecycle,
   ResolvedLifecycleGuard,
+  ResolvedModelMigration,
+  ResolvedModelMigrationObject,
   ResolvedObject,
   ResolvedObjectConstraint,
   ResolvedObjectValidation,
@@ -123,6 +132,14 @@ export interface Diagnostic {
 
 export const MODEL_VALIDATION_CODES = {
   APP_OFFLINE_GRACE_INVALID: "ADL_APP_OFFLINE_GRACE_INVALID",
+  MODEL_VERSION_INVALID: "ADL_MODEL_VERSION_INVALID",
+  MIGRATION_DUPLICATE: "ADL_MIGRATION_DUPLICATE",
+  MIGRATION_VERSION_INVALID: "ADL_MIGRATION_VERSION_INVALID",
+  MIGRATION_NOT_FORWARD: "ADL_MIGRATION_NOT_FORWARD",
+  MIGRATION_OBJECT_UNKNOWN: "ADL_MIGRATION_OBJECT_UNKNOWN",
+  MIGRATION_STEP_INVALID: "ADL_MIGRATION_STEP_INVALID",
+  MIGRATION_SCHEMA_VERSION_INVALID: "ADL_MIGRATION_SCHEMA_VERSION_INVALID",
+  MIGRATION_UNREACHABLE: "ADL_MIGRATION_UNREACHABLE",
   APP_START_VIEW_UNKNOWN: "ADL_APP_START_VIEW_UNKNOWN",
   APP_THEME_UNKNOWN: "ADL_APP_THEME_UNKNOWN",
   AUTO_ID_NON_TEXT: "ADL_AUTO_ID_NON_TEXT",
@@ -138,6 +155,8 @@ export const MODEL_VALIDATION_CODES = {
   CONTEXT_SELECTION_ROUTE_PARAM_INVALID: "ADL_CONTEXT_SELECTION_ROUTE_PARAM_INVALID",
   CONTEXT_SELECTION_SOURCE_INVALID: "ADL_CONTEXT_SELECTION_SOURCE_INVALID",
   FIELD_DEFAULT_INCOMPATIBLE: "ADL_FIELD_DEFAULT_INCOMPATIBLE",
+  FIELD_VALIDATOR_KIND_INVALID: "ADL_FIELD_VALIDATOR_KIND_INVALID",
+  FIELD_VALIDATOR_VALUE_INVALID: "ADL_FIELD_VALIDATOR_VALUE_INVALID",
   FIELD_DUPLICATE: "ADL_FIELD_DUPLICATE",
   COMPUTED_FIELD_CYCLE: "ADL_COMPUTED_FIELD_CYCLE",
   COMPUTED_FIELD_DUPLICATE: "ADL_COMPUTED_FIELD_DUPLICATE",
@@ -738,6 +757,7 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
   );
 
   validateApplicationReferences(model, indexes, diagnostics);
+  validateModelMigrations(model, indexes, diagnostics);
   validateShell(model.shell, indexes, diagnostics);
 
   for (let contextIndex = 0; contextIndex < (model.contexts ?? []).length; contextIndex += 1) {
@@ -852,6 +872,218 @@ function validateApplicationReferences(
         "app.theme",
       ),
     );
+  }
+}
+
+/**
+ * Migrations are checked here rather than at execution time because an
+ * unappliable migration discovered mid-startup is a refusal to serve, and an
+ * author would rather find it at compile time. Everything asserted here is
+ * statically decidable from the model alone; nothing here reads persisted data.
+ */
+function validateModelMigrations(
+  model: ResolvedApplicationModel,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (!isValidModelVersion(model.modelVersion)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.MODEL_VERSION_INVALID,
+        `Model version must be a dotted number such as '1.2.0', but is '${String(model.modelVersion)}'.`,
+        "modelVersion",
+      ),
+    );
+  }
+
+  const seen = new Set<string>();
+  // Versions that continue somewhere: the model's own, plus every declared hop's
+  // origin. Anything a hop lands on that is outside this set is a dead end.
+  const reachesModelVersion = new Set<string>([normaliseModelVersion(model.modelVersion)]);
+  for (const migration of model.migrations) {
+    reachesModelVersion.add(normaliseModelVersion(migration.from));
+  }
+
+  for (let index = 0; index < model.migrations.length; index += 1) {
+    const migration = model.migrations[index];
+    if (migration === undefined) {
+      continue;
+    }
+
+    const path = `migrations[${index}]`;
+    const versionsValid = isValidModelVersion(migration.from) && isValidModelVersion(migration.to);
+    const movesForward = versionsValid && compareModelVersions(migration.from, migration.to) < 0;
+
+    if (!versionsValid) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.MIGRATION_VERSION_INVALID,
+          `Migration '${migration.from}' to '${migration.to}' declares a version that is not a dotted number.`,
+          path,
+        ),
+      );
+    } else if (compareModelVersions(migration.from, migration.to) >= 0) {
+      // A hop that does not move forward would either loop or silently undo a
+      // later hop when the chain is walked.
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.MIGRATION_NOT_FORWARD,
+          `Migration '${migration.from}' to '${migration.to}' must move forward to a later version.`,
+          path,
+        ),
+      );
+    }
+
+    const key = `${migration.from} ${migration.to}`;
+    if (seen.has(key)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.MIGRATION_DUPLICATE,
+          `Migration '${migration.from}' to '${migration.to}' is declared more than once, so which one applies is undefined.`,
+          path,
+        ),
+      );
+    }
+    seen.add(key);
+
+    if (movesForward && compareModelVersions(migration.to, model.modelVersion) > 0) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.MIGRATION_UNREACHABLE,
+          `Migration '${migration.from}' to '${migration.to}' targets a version later than the model's own version '${model.modelVersion}', so it can never run.`,
+          path,
+        ),
+      );
+    } else if (movesForward && !reachesModelVersion.has(normaliseModelVersion(migration.to))) {
+      // A hop that lands somewhere no further hop leaves is a chain that dead-ends
+      // short of the model. It is exactly as statically decidable as the case
+      // above, and it is what happens when an author bumps MODEL_VERSION and
+      // forgets the new MIGRATION block — so finding it here rather than at
+      // startup, on the one install that still holds the old data, matters.
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.MIGRATION_UNREACHABLE,
+          `Migration '${migration.from}' to '${migration.to}' leaves persisted data at '${migration.to}', which no further migration continues from and which is not the model's own version '${model.modelVersion}'.`,
+          path,
+        ),
+      );
+    }
+
+    for (let objectIndex = 0; objectIndex < migration.objects.length; objectIndex += 1) {
+      const migrationObject = migration.objects[objectIndex];
+      if (migrationObject === undefined) {
+        continue;
+      }
+      validateModelMigrationObject(
+        migration,
+        migrationObject,
+        `${path}.objects[${objectIndex}]`,
+        indexes,
+        model,
+        diagnostics,
+      );
+    }
+  }
+}
+
+function validateModelMigrationObject(
+  migration: ResolvedModelMigration,
+  migrationObject: ResolvedModelMigrationObject,
+  path: string,
+  indexes: ModelIndexes,
+  model: ResolvedApplicationModel,
+  diagnostics: Diagnostic[],
+): void {
+  const object = indexes.objectsByName.get(migrationObject.object)?.item;
+
+  if (object === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.MIGRATION_OBJECT_UNKNOWN,
+        `Migration '${migration.from}' to '${migration.to}' migrates object '${migrationObject.object}', which does not exist in this model.`,
+        `${path}.object`,
+      ),
+    );
+    return;
+  }
+
+  // Only the final hop's schema version has to agree with the model, because
+  // intermediate hops describe versions the model no longer is.
+  const isFinalHop = migration.to === model.modelVersion;
+  if (
+    migrationObject.schemaVersion !== undefined &&
+    isFinalHop &&
+    migrationObject.schemaVersion !== object.schemaVersion
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.MIGRATION_SCHEMA_VERSION_INVALID,
+        `Migration '${migration.from}' to '${migration.to}' leaves object '${object.name}' at schema version ${migrationObject.schemaVersion}, but the model expects ${object.schemaVersion}.`,
+        `${path}.schemaVersion`,
+      ),
+    );
+  }
+
+  const fieldNames = new Set([
+    ...object.fields.map((field) => field.name),
+    ...object.computedFields.map((field) => field.name),
+  ]);
+
+  for (let stepIndex = 0; stepIndex < migrationObject.steps.length; stepIndex += 1) {
+    const step = migrationObject.steps[stepIndex];
+    if (step === undefined) {
+      continue;
+    }
+    const stepPath = `${path}.steps[${stepIndex}]`;
+
+    if (step.kind === "renameField") {
+      // Only the last hop can be checked against the model's fields: an earlier
+      // hop renames into a field a later hop may rename again or drop.
+      if (isFinalHop && !fieldNames.has(step.to)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.MIGRATION_STEP_INVALID,
+            `Migration '${migration.from}' to '${migration.to}' renames '${object.name}.${step.from}' to '${step.to}', which is not a field of '${object.name}'.`,
+            stepPath,
+          ),
+        );
+      }
+      if (step.from === step.to) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.MIGRATION_STEP_INVALID,
+            `Migration '${migration.from}' to '${migration.to}' renames '${object.name}.${step.from}' to itself.`,
+            stepPath,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (step.kind === "addField") {
+      if (isFinalHop && !fieldNames.has(step.field)) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.MIGRATION_STEP_INVALID,
+            `Migration '${migration.from}' to '${migration.to}' adds '${object.name}.${step.field}', which is not a field of '${object.name}'.`,
+            stepPath,
+          ),
+        );
+      }
+      continue;
+    }
+
+    // A drop that leaves the field in the model would delete data the model
+    // still expects records to carry.
+    if (isFinalHop && fieldNames.has(step.field)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.MIGRATION_STEP_INVALID,
+          `Migration '${migration.from}' to '${migration.to}' drops '${object.name}.${step.field}', but '${step.field}' is still a field of '${object.name}'.`,
+          stepPath,
+        ),
+      );
+    }
   }
 }
 
@@ -1631,6 +1863,79 @@ function validateObjectValidation(
   }
 }
 
+/**
+ * What a named validator needs to do anything at all: the field types it can
+ * apply to, and whether it needs a declared value and of what shape.
+ *
+ * The runtime guards each named validator with a type test on the value *and*
+ * on the validator's own bound, and passes when either fails. That is the right
+ * runtime behaviour — a validator should not throw on unexpected data — but it
+ * meant `MIN 5` on a text field, `MIN` with no bound, and `REGEXP` on a number
+ * were all silently inert with nothing reported at any layer. A second runtime
+ * could implement `min` on text as a length check and be equally "conforming".
+ * These are compile-time errors so the model says what it means.
+ */
+const NAMED_VALIDATOR_RULES: Record<
+  Exclude<ValidatorKind, "predicate">,
+  { fieldTypes: readonly FieldType[]; value: "number" | "text" | "list" | "none" }
+> = {
+  email: { fieldTypes: ["text"], value: "none" },
+  min: { fieldTypes: ["number"], value: "number" },
+  max: { fieldTypes: ["number"], value: "number" },
+  minLength: { fieldTypes: ["text"], value: "number" },
+  maxLength: { fieldTypes: ["text"], value: "number" },
+  in: { fieldTypes: ["text", "number", "boolean"], value: "list" },
+  regexp: { fieldTypes: ["text"], value: "text" },
+  currencyCode: { fieldTypes: ["text"], value: "none" },
+  maxSize: { fieldTypes: ["attachment"], value: "number" },
+  mimeType: { fieldTypes: ["attachment"], value: "list" },
+};
+
+function validateNamedFieldValidator(
+  validator: { kind: ValidatorKind; value?: unknown },
+  field: ResolvedField,
+  path: string,
+  diagnostics: Diagnostic[],
+): void {
+  const rule = NAMED_VALIDATOR_RULES[validator.kind as Exclude<ValidatorKind, "predicate">];
+  if (rule === undefined) {
+    return;
+  }
+
+  if (!rule.fieldTypes.includes(field.type)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.FIELD_VALIDATOR_KIND_INVALID,
+        `Validator '${validator.kind}' cannot apply to ${field.type} field '${field.name}'; it applies to ${rule.fieldTypes.join(", ")} fields.`,
+        `${path}.kind`,
+      ),
+    );
+    return;
+  }
+
+  if (rule.value === "none") {
+    return;
+  }
+
+  const value = validator.value;
+  const satisfied =
+    rule.value === "number"
+      ? typeof value === "number"
+      : rule.value === "text"
+        ? typeof value === "string"
+        : Array.isArray(value) && value.length > 0;
+
+  if (!satisfied) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.FIELD_VALIDATOR_VALUE_INVALID,
+        `Validator '${validator.kind}' on field '${field.name}' needs a ${rule.value === "list" ? "non-empty list" : rule.value} value; without one it can never fail.`,
+        `${path}.value`,
+      ),
+    );
+  }
+}
+
 function validateField(
   field: ResolvedField,
   fieldIndex: number,
@@ -1713,7 +2018,17 @@ function validateField(
 
   for (let validatorIndex = 0; validatorIndex < field.validators.length; validatorIndex += 1) {
     const validator = field.validators[validatorIndex];
-    if (validator === undefined || validator.kind !== "predicate") {
+    if (validator === undefined) {
+      continue;
+    }
+
+    if (validator.kind !== "predicate") {
+      validateNamedFieldValidator(
+        validator,
+        field,
+        `${fieldPath}.validators[${validatorIndex}]`,
+        diagnostics,
+      );
       continue;
     }
 

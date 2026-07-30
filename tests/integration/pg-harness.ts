@@ -11,6 +11,7 @@ export const MIGRATION_FILES = [
   "0004_authority_transaction_integrity.sql",
   "0005_authority_audit_scope_and_retention.sql",
   "0006_passkey_identity.sql",
+  "0007_model_fingerprint.sql",
 ];
 
 /** Every projection table the integration tests read, write, or reset. */
@@ -30,10 +31,18 @@ export const AUTHORITY_TABLES = [
   "adl_authority_models",
 ];
 
-/** Apply the real migrations once. Idempotent: skips if already migrated. */
+/**
+ * Apply the real migrations once. Idempotent: skips if already migrated.
+ *
+ * The skip test must key off the **newest** migration, not a convenient index
+ * from some older one. Keying it on an artefact of `0006` meant that a reused
+ * `ADL_TEST_DATABASE_URL` database already at `0006` skipped every file, so
+ * `0007` could never be applied there — the list being correct would not have
+ * saved it.
+ */
 export async function applyMigrations(client: Client): Promise<void> {
   const already = await client.query(
-    "select 1 from pg_indexes where indexname = 'adl_authority_identity_links_user_idx'",
+    "select 1 from information_schema.columns where table_name = 'adl_authority_models' and column_name = 'model_fingerprint'",
   );
   if ((already.rowCount ?? 0) > 0) return;
   for (const file of MIGRATION_FILES) {

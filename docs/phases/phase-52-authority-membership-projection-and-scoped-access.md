@@ -11,6 +11,64 @@
 > and Phase 48 confirmed that no deployment exists, so the scans below are slow in
 > principle rather than slow in production today.
 
+> **Phase 51 handoff (re-sequencing recommended; see below).** Phase 51 landed
+> declared model versions, content fingerprints, declarative `MIGRATION` blocks,
+> fail-closed migration on both the authority projection and browser IndexedDB,
+> and grew the conformance corpus from 28 cases to roughly 470. It fixed eleven
+> runtime defects the new cases revealed and pinned every one.
+>
+> This phase's own evidence is intact and unchanged: the membership projection
+> still has no writer, and the three `listRecords()` scans are still O(all
+> accepted records). Nothing Phase 51 did touches them.
+>
+> **But this phase is probably no longer the highest-value remaining gap.** By
+> the standard this repository has applied since Phase 46 — a user-visible or
+> repository-wide effect outranks an optimisation of a subsystem with no
+> production users — the corpus's remaining *expressive* gaps now outrank it, and
+> the reason is specific rather than general. ADR 0004 makes the conformance
+> suite the cross-runtime contract. Phase 51 made that suite broad, and in doing
+> so established that its binding constraint is no longer size but what it can
+> *say*. Four things it still cannot say:
+>
+> - **`localPrivate` is indistinguishable from `localFirst`.** `queueable` is
+>   observable only inside a refusal payload, so "allows local writes but never
+>   queues them" — the entire distinction — cannot be pinned. A second runtime
+>   could implement one as an alias for the other and pass.
+> - **`ADL_MIGRATION_FAILED` and atomic rollback have zero corpus coverage**,
+>   because the in-memory backend always supports transactions and never throws.
+>   These are named in Phase 51's own acceptance criteria and are proven only by
+>   unit and real-PostgreSQL tests, not by the contract.
+> - **`baseRevision` cannot be named**, so five authority cases hard-code
+>   `"rev-1"` and thereby pin a revision *format* no spec defines. Those cases
+>   would fail a correct second runtime that minted ULIDs.
+> - **Setup outcomes are discarded** in `authorityReplay`, so a seed that was
+>   itself rejected leaves a case passing for the wrong reason.
+>
+> Phase 51 closed the most serious of these gaps in flight rather than deferring
+> it — absence assertion (`"$absent"`), without which no case could prove that a
+> hidden or policy-denied field is *omitted* rather than masked, and a runtime
+> leaking every hidden field would have passed the suite. The four above are a
+> coherent phase's worth of work and are recorded in
+> `learnings/implementation/conformance-suite.md`.
+>
+> **Recommendation:** insert that work as the next phase and renumber this
+> document and those after it, per the repository-wide handoff rule in
+> `learnings/process/phase-execution.md`. It was not done inside Phase 51 because
+> it is genuinely separate work rather than a loose end, and because renumbering
+> three documents is a decision the phase plan's owner should make deliberately.
+>
+> Two smaller findings belong to **this** phase's subsystem when it runs, and are
+> added to its scope below:
+>
+> - `migrateAcceptedState` takes **no advisory lock**. Two authority processes
+>   starting simultaneously against one projection would each plan and apply the
+>   same hop. The steps are total and both commits are atomic, so no corruption
+>   could be constructed, but it is untested and unguarded.
+> - The authority accepts `localPrivate` writes and then filters those records out
+>   of every bootstrap, so an accepted record can be written that nobody can ever
+>   read back. `cacheReadonly` is refused symmetrically. Either refuse it or
+>   document the asymmetry.
+
 ## Objective
 
 Populate and use the context-membership projection so authority membership
@@ -61,6 +119,17 @@ precedent.
   projection consistency (every projection row backed by a live accepted
   membership record, and no accepted membership record missing its projection
   row), metadata-only.
+
+- Take an advisory lock (or equivalent) around accepted-state migration in
+  `migrateAcceptedState`, so two authority processes starting simultaneously
+  against one projection cannot both plan and apply the same model migration.
+  Phase 51 left this unguarded and untested; the steps are total and each commit
+  is atomic, so this is a robustness gap rather than a demonstrated corruption.
+- Decide and implement the `localPrivate` asymmetry at the authority: a
+  `localPrivate` write is currently accepted and then filtered out of every
+  bootstrap, so it becomes an accepted record nobody can read. `cacheReadonly` is
+  refused symmetrically. Either refuse it with `ADL_SYNC_POLICY_DENIED` or state
+  in the spec why it is accepted.
 
 ## Constraints
 

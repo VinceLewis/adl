@@ -1,0 +1,5107 @@
+{
+  "version": 1,
+  "models": {
+    "policyDefaults": {
+      "app": {
+        "name": "PolicyDefaults"
+      },
+      "roles": [
+        {
+          "name": "Employee"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            {
+              "name": "Body",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAnyoneReadNote",
+              "effect": "allow",
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "policyMatrix": {
+      "app": {
+        "name": "PolicyMatrix"
+      },
+      "roles": [
+        {
+          "name": "Employee"
+        },
+        {
+          "name": "Manager",
+          "inherits": [
+            "Employee"
+          ]
+        },
+        {
+          "name": "Director",
+          "inherits": [
+            "Manager"
+          ]
+        },
+        {
+          "name": "Auditor"
+        },
+        {
+          "name": "Guest"
+        },
+        {
+          "name": "FinanceApprover"
+        },
+        {
+          "name": "SalesRep"
+        }
+      ],
+      "objects": [
+        {
+          "name": "SilentItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "EmptyPolicyItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "EveryoneItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "AuthenticatedItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "AnonymousItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "OwnedItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "OwnerId",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "RoleItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "GroupItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "UserListItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "SpecificOwnerItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "OwnerId",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "DenyItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "RestrictItem",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Salary",
+              "type": "text"
+            },
+            {
+              "name": "Ssn",
+              "type": "text"
+            },
+            {
+              "name": "Notes",
+              "type": "text"
+            },
+            {
+              "name": "Locked",
+              "type": "text"
+            },
+            {
+              "name": "Ratio",
+              "type": "text"
+            },
+            {
+              "name": "Confidential",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "FieldOnlyItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Code",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "StateItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true,
+              "defaultValue": "Draft"
+            }
+          ],
+          "lifecycle": {
+            "name": "StateItemLifecycle",
+            "stateField": "Status",
+            "initialState": "Draft",
+            "states": [
+              {
+                "name": "Draft"
+              },
+              {
+                "name": "Review"
+              },
+              {
+                "name": "Published",
+                "terminal": true
+              }
+            ],
+            "actions": [
+              {
+                "name": "submit",
+                "from": "Draft",
+                "to": "Review",
+                "policyRefs": [
+                  "StateItemPolicy"
+                ]
+              },
+              {
+                "name": "publish",
+                "from": "Review",
+                "to": "Published",
+                "policyRefs": [
+                  "StateItemPolicy"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ChannelItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "ConditionItem",
+          "fields": [
+            {
+              "name": "OwnerId",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Amount",
+              "type": "number",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "EmptyPolicyItemPolicy",
+          "object": "EmptyPolicyItem",
+          "rules": []
+        },
+        {
+          "name": "EveryoneItemPolicy",
+          "object": "EveryoneItem",
+          "rules": [
+            {
+              "name": "allowEveryoneReadEveryoneItem",
+              "effect": "allow",
+              "principal": {
+                "match": "everyone"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "AuthenticatedItemPolicy",
+          "object": "AuthenticatedItem",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllAuthenticatedItem",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "AnonymousItemPolicy",
+          "object": "AnonymousItem",
+          "rules": [
+            {
+              "name": "allowAnonymousReadAnonymousItem",
+              "effect": "allow",
+              "principal": {
+                "match": "anonymous"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "OwnedItemPolicy",
+          "object": "OwnedItem",
+          "rules": [
+            {
+              "name": "allowOwnerAllOwnedItem",
+              "effect": "allow",
+              "principal": {
+                "match": "owner"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "RoleItemPolicy",
+          "object": "RoleItem",
+          "rules": [
+            {
+              "name": "allowEmployeeReadRoleItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowManagerUpdateRoleItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Manager"
+                ]
+              },
+              "action": "update"
+            }
+          ]
+        },
+        {
+          "name": "GroupItemPolicy",
+          "object": "GroupItem",
+          "rules": [
+            {
+              "name": "allowFinanceGroupReadGroupItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "groupRoles": [
+                  "FinanceApprover"
+                ]
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "UserListItemPolicy",
+          "object": "UserListItem",
+          "rules": [
+            {
+              "name": "allowNamedUserReadUserListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "users": [
+                  "user-42"
+                ]
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "SpecificOwnerItemPolicy",
+          "object": "SpecificOwnerItem",
+          "rules": [
+            {
+              "name": "allowAuditorOrOwnerUpdateSpecificOwnerItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Auditor"
+                ],
+                "owner": true
+              },
+              "action": "update"
+            }
+          ]
+        },
+        {
+          "name": "DenyItemPolicy",
+          "object": "DenyItem",
+          "rules": [
+            {
+              "name": "allowEmployeeAllDenyItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "denyAuditorDeleteDenyItem",
+              "effect": "deny",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Auditor"
+                ]
+              },
+              "action": "delete"
+            }
+          ]
+        },
+        {
+          "name": "RestrictItemPolicy",
+          "object": "RestrictItem",
+          "rules": [
+            {
+              "name": "allowEmployeeCreateRestrictItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "create"
+            },
+            {
+              "name": "allowEmployeeReadRestrictItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowEmployeeUpdateRestrictItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "update"
+            },
+            {
+              "name": "maskEmployeeSalaryRead",
+              "effect": "mask",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Salary"
+              ]
+            },
+            {
+              "name": "hideEmployeeSsnRead",
+              "effect": "hidden",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Ssn"
+              ]
+            },
+            {
+              "name": "maskEmployeeNotesRead",
+              "effect": "mask",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Notes"
+              ]
+            },
+            {
+              "name": "hideEmployeeNotesRead",
+              "effect": "hidden",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Notes"
+              ]
+            },
+            {
+              "name": "readonlyEmployeeRatioRead",
+              "effect": "readonly",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Ratio"
+              ]
+            },
+            {
+              "name": "maskEmployeeRatioRead",
+              "effect": "mask",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Ratio"
+              ]
+            },
+            {
+              "name": "readonlyEmployeeLockedUpdate",
+              "effect": "readonly",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "update",
+              "fields": [
+                "Locked"
+              ]
+            },
+            {
+              "name": "hideEmployeeConfidentialRead",
+              "effect": "hidden",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Confidential"
+              ]
+            },
+            {
+              "name": "denyEmployeeConfidentialRead",
+              "effect": "deny",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Confidential"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "FieldOnlyItemPolicy",
+          "object": "FieldOnlyItem",
+          "rules": [
+            {
+              "name": "allowEmployeeNameFieldReadFieldOnlyItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "fields": [
+                "Name"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "StateItemPolicy",
+          "object": "StateItem",
+          "rules": [
+            {
+              "name": "allowEmployeeReadStateItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowEmployeeUpdateDraftStateItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "update",
+              "state": [
+                "Draft"
+              ]
+            },
+            {
+              "name": "allowEmployeeSubmitStateItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "transition",
+              "lifecycleAction": "submit"
+            },
+            {
+              "name": "allowManagerPublishStateItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Manager"
+                ]
+              },
+              "action": "transition",
+              "state": [
+                "Review"
+              ],
+              "lifecycleAction": "publish"
+            }
+          ]
+        },
+        {
+          "name": "ChannelItemPolicy",
+          "object": "ChannelItem",
+          "rules": [
+            {
+              "name": "allowEmployeeReadChannelItemUiApi",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "channels": [
+                "ui",
+                "api"
+              ]
+            },
+            {
+              "name": "allowEmployeeCreateChannelItemImport",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "create",
+              "channels": [
+                "import"
+              ]
+            },
+            {
+              "name": "allowEmployeeSearchChannelItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "ConditionItemPolicy",
+          "object": "ConditionItem",
+          "rules": [
+            {
+              "name": "allowOwnerUpdateConditionItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "update",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "OwnerId"
+                },
+                "right": {
+                  "kind": "runtime",
+                  "property": "userId"
+                }
+              }
+            },
+            {
+              "name": "allowSmallAmountReadConditionItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "read",
+              "condition": {
+                "kind": "binary",
+                "operator": "<=",
+                "left": {
+                  "kind": "field",
+                  "field": "Amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 1000
+                }
+              }
+            },
+            {
+              "name": "allowEmployeeDeleteConditionItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "delete"
+            },
+            {
+              "name": "denyLargeAmountDeleteConditionItem",
+              "effect": "deny",
+              "principal": {
+                "match": "everyone"
+              },
+              "action": "delete",
+              "condition": {
+                "kind": "binary",
+                "operator": ">",
+                "left": {
+                  "kind": "field",
+                  "field": "Amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 5000
+                }
+              }
+            },
+            {
+              "name": "allowOwnedNonZeroExportConditionItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Employee"
+                ]
+              },
+              "action": "export",
+              "condition": {
+                "kind": "all",
+                "conditions": [
+                  {
+                    "kind": "equals",
+                    "left": {
+                      "kind": "field",
+                      "field": "OwnerId"
+                    },
+                    "right": {
+                      "kind": "runtime",
+                      "property": "userId"
+                    }
+                  },
+                  {
+                    "kind": "not",
+                    "condition": {
+                      "kind": "equals",
+                      "left": {
+                        "kind": "field",
+                        "field": "Amount"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "value": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "contextPolicy": {
+      "app": {
+        "name": "ContextPolicy"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "BandLeader"
+        },
+        {
+          "name": "BandOwner",
+          "inherits": [
+            "BandLeader"
+          ]
+        },
+        {
+          "name": "Roadie"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "required"
+          },
+          "membership": {
+            "object": "BandMembership",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMembership",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gig",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "GigsAcrossBands",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            },
+            {
+              "name": "Fee",
+              "source": "gig",
+              "field": "Fee"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GigsInSelectedBand",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GigsInOptionalBand",
+          "context": {
+            "mode": "optional",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ]
+        },
+        {
+          "name": "GigsAnywhere",
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowAdminAllBands",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandMembershipPolicy",
+          "object": "BandMembership",
+          "rules": [
+            {
+              "name": "allowAdminAllBandMemberships",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAllGigs",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandLeaderAllGigs",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandLeader"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "policy.resolution.rule-defaults.001",
+      "title": "Policy resolution synthesises a default-deny policy per object and defaults a rule to every channel and every principal",
+      "specRef": "resolved-model#policies",
+      "operation": "resolveModel",
+      "modelRef": "policyDefaults",
+      "input": {
+        "select": [
+          "policies.0.name",
+          "policies.0.object",
+          "policies.0.defaultEffect",
+          "policies.0.rules",
+          "policies.1.name",
+          "policies.1.defaultEffect",
+          "policies.1.rules.0.principal",
+          "policies.1.rules.0.channels",
+          "policies.1.rules.0.state",
+          "policies.1.rules.0.fields"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "policies.0.name": "NoteDefaultDeny",
+          "policies.0.object": "Note",
+          "policies.0.defaultEffect": "deny",
+          "policies.0.rules": [],
+          "policies.1.name": "NotePolicy",
+          "policies.1.defaultEffect": "deny",
+          "policies.1.rules.0.principal": {
+            "match": "everyone",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "policies.1.rules.0.channels": [
+            "ui",
+            "api",
+            "sync",
+            "import",
+            "test"
+          ],
+          "policies.1.rules.0.state": [],
+          "policies.1.rules.0.fields": []
+        }
+      }
+    },
+    {
+      "id": "policy.default-deny.no-policy.001",
+      "title": "An object with no declared policy denies by default under a synthesised policy name",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "SilentItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee",
+            "Manager",
+            "Director",
+            "Auditor"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "SilentItemDefaultDeny",
+                "effect": "deny",
+                "message": "No policy rule allowed read; default deny applies."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.default-deny.empty-policy.001",
+      "title": "A declared policy with no rules grants nothing; the refusal still names the synthesised default-deny policy",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "EmptyPolicyItem",
+          "action": "create"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "EmptyPolicyItemDefaultDeny",
+                "effect": "deny",
+                "message": "No policy rule allowed create; default deny applies."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.default-everyone.001",
+      "title": "A rule with no declared principal or channels matches every caller on every channel",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyDefaults",
+      "input": {
+        "request": {
+          "objectName": "Note",
+          "action": "read"
+        },
+        "context": {
+          "userId": "",
+          "roles": [],
+          "channel": "sync"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "NotePolicy",
+                "ruleName": "allowAnyoneReadNote",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.everyone.001",
+      "title": "An everyone principal matches an unauthenticated caller",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "EveryoneItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "EveryoneItemPolicy",
+                "ruleName": "allowEveryoneReadEveryoneItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.action.specific-does-not-widen.001",
+      "title": "A rule naming a single action does not authorise a different action",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "EveryoneItem",
+          "action": "create"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "EveryoneItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.action.wildcard.001",
+      "title": "A wildcard action rule authorises every action it is otherwise eligible for",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "AuthenticatedItem",
+          "action": "delete"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "AuthenticatedItemPolicy",
+                "ruleName": "allowAuthenticatedAllAuthenticatedItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.authenticated.001",
+      "title": "An authenticated principal does not match an empty user id",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "AuthenticatedItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "AuthenticatedItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.anonymous.001",
+      "title": "An anonymous principal matches only an empty user id",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "AnonymousItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "AnonymousItemPolicy",
+                "ruleName": "allowAnonymousReadAnonymousItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.anonymous.002",
+      "title": "An anonymous principal does not match a signed-in caller",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "AnonymousItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "AnonymousItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.owner.owner-field.001",
+      "title": "An owner principal matches when the record's ownership field holds the caller",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "OwnedItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "owned-1",
+              "object": "OwnedItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "someone-else",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "someone-else",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Owned",
+              "OwnerId": "user-1"
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "OwnedItemPolicy",
+                "ruleName": "allowOwnerAllOwnedItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.owner.created-by.001",
+      "title": "An owner principal also matches the record creator recorded in platform metadata",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "OwnedItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "owned-2",
+              "object": "OwnedItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Owned",
+              "OwnerId": "someone-else"
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.owner.mismatch.001",
+      "title": "An owner principal denies a caller who neither owns nor created the record",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "OwnedItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "owned-3",
+              "object": "OwnedItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "someone-else",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "someone-else",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Owned",
+              "OwnerId": "someone-else"
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "OwnedItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.owner.no-record.001",
+      "title": "An owner principal cannot match a request that carries no record",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "OwnedItem",
+          "action": "create"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.role.001",
+      "title": "A named role principal matches a caller holding that global role",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RoleItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "RoleItemPolicy",
+                "ruleName": "allowEmployeeReadRoleItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.role.inherited.001",
+      "title": "A role principal matches through declared role inheritance",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RoleItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Manager"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.role.transitive-inheritance.001",
+      "title": "Role inheritance is transitive across a chain of roles",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RoleItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Director"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.role.inheritance-not-symmetric.001",
+      "title": "Role inheritance does not run upwards from an inherited role to the role that inherits it",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RoleItem",
+          "action": "update"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "RoleItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.role.mismatch.001",
+      "title": "A role principal denies a caller holding unrelated roles",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RoleItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Auditor",
+            "Guest"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "RoleItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.group-role.001",
+      "title": "A group-role principal matches a role carried by any of the caller's groups",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "GroupItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "groups": {
+            "acme": [
+              "SalesRep",
+              "FinanceApprover"
+            ]
+          },
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "GroupItemPolicy",
+                "ruleName": "allowFinanceGroupReadGroupItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.group-role.mismatch.001",
+      "title": "A group-role principal denies a caller whose groups carry other roles",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "GroupItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "groups": {
+            "acme": [
+              "SalesRep"
+            ]
+          },
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.group-role.not-global.001",
+      "title": "A group role is not satisfied by holding the same name as a global role",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "GroupItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "FinanceApprover"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.users.001",
+      "title": "A user-list principal matches the named user id",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "UserListItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-42",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "UserListItemPolicy",
+                "ruleName": "allowNamedUserReadUserListItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.users.mismatch.001",
+      "title": "A user-list principal denies any user id it does not name",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "UserListItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-43",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.specific-owner.001",
+      "title": "A specific principal with an owner flag matches the record owner without any role",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "SpecificOwnerItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "specific-owner-1",
+              "object": "SpecificOwnerItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "someone-else",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "someone-else",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Owned",
+              "OwnerId": "user-1"
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "SpecificOwnerItemPolicy",
+                "ruleName": "allowAuditorOrOwnerUpdateSpecificOwnerItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.specific-owner.role-arm.001",
+      "title": "A specific principal's role arm and owner arm are alternatives, not requirements",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "SpecificOwnerItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "specific-owner-2",
+              "object": "SpecificOwnerItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "someone-else",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "someone-else",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Owned",
+              "OwnerId": "someone-else"
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Auditor"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.principal.specific-owner.neither.001",
+      "title": "A specific principal denies a caller matching neither its roles nor its owner flag",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "SpecificOwnerItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "specific-owner-3",
+              "object": "SpecificOwnerItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "someone-else",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "someone-else",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Owned",
+              "OwnerId": "someone-else"
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.deny-over-allow.001",
+      "title": "An explicit deny wins over a matching allow and reports only the deny reasons",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "DenyItem",
+          "action": "delete"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee",
+            "Auditor"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "explicitDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "DenyItemPolicy",
+                "ruleName": "denyAuditorDeleteDenyItem",
+                "effect": "deny",
+                "message": "Policy rule 'denyAuditorDeleteDenyItem' explicitly denied delete."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.allow-without-deny.001",
+      "title": "The same allow rule stands when the deny rule's principal does not match",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "DenyItem",
+          "action": "delete"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "DenyItemPolicy",
+                "ruleName": "allowEmployeeAllDenyItem",
+                "effect": "allow",
+                "message": "Policy rule 'allowEmployeeAllDenyItem' allowed delete."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.deny-over-hidden.001",
+      "title": "An explicit deny wins over a matching presentation restriction",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "read",
+          "field": "Confidential"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "explicitDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "denyEmployeeConfidentialRead",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.hidden-over-mask.001",
+      "title": "Hidden is more restrictive than mask when both match the same field read",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "read",
+          "field": "Notes"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "presentationRestriction",
+          "decision": {
+            "effect": "hidden",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "hideEmployeeNotesRead",
+                "effect": "hidden"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.mask-over-readonly.001",
+      "title": "Mask is more restrictive than readonly when both match the same field read",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "read",
+          "field": "Ratio"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "presentationRestriction",
+          "decision": {
+            "effect": "mask",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "maskEmployeeRatioRead",
+                "effect": "mask"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.readonly-over-allow.001",
+      "title": "A readonly field rule wins over a matching row-level allow on update",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "update",
+          "field": "Locked"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "presentationRestriction",
+          "decision": {
+            "effect": "readonly",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "readonlyEmployeeLockedUpdate",
+                "effect": "readonly",
+                "message": "Policy rule 'readonlyEmployeeLockedUpdate' returned readonly."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.field.row-request-ignores-field-rules.001",
+      "title": "A row-level request never matches a rule that restricts itself to fields",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "allowEmployeeReadRestrictItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.field.unrestricted-field.001",
+      "title": "A rule with no field list applies to a field-level request",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "read",
+          "field": "Title"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "allowEmployeeReadRestrictItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.field.mask.001",
+      "title": "A field-scoped mask rule applies only to the field it names",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "read",
+          "field": "Salary"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "presentationRestriction",
+          "request": {
+            "objectName": "RestrictItem",
+            "action": "read",
+            "field": "Salary",
+            "channel": "api"
+          },
+          "decision": {
+            "effect": "mask",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "maskEmployeeSalaryRead",
+                "effect": "mask"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.field.hidden.001",
+      "title": "A field-scoped hidden rule wins over the row-level allow for that field",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "RestrictItem",
+          "action": "read",
+          "field": "Ssn"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "presentationRestriction",
+          "decision": {
+            "effect": "hidden",
+            "reasons": [
+              {
+                "policyName": "RestrictItemPolicy",
+                "ruleName": "hideEmployeeSsnRead",
+                "effect": "hidden"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.field.allow-does-not-grant-row.001",
+      "title": "A field-level allow does not grant row read permission",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "FieldOnlyItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "FieldOnlyItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.field.allow-named-field.001",
+      "title": "A field-level allow grants exactly the field it names",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "FieldOnlyItem",
+          "action": "read",
+          "field": "Name"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "FieldOnlyItemPolicy",
+                "ruleName": "allowEmployeeNameFieldReadFieldOnlyItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.field.allow-other-field-denied.001",
+      "title": "A field-level allow does not extend to an unnamed field",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "FieldOnlyItem",
+          "action": "read",
+          "field": "Code"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.read-shaping.001",
+      "title": "Read shaping applies field policy to an allowed row read",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "policyMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "restrict",
+          "objectName": "RestrictItem",
+          "values": {
+            "Title": "Contract",
+            "Salary": "120000",
+            "Ssn": "123-45-6789",
+            "Notes": "internal",
+            "Locked": "yes",
+            "Ratio": "0.4",
+            "Confidential": "secret"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [
+              "Employee"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "RestrictItem",
+        "id": {
+          "$ref": "restrict.meta.guid"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "RestrictItem",
+          "recordId": "$restrict",
+          "values": {
+            "Title": "Contract",
+            "Salary": "\u2022\u2022\u2022\u2022\u2022\u2022",
+            "Locked": "yes",
+            "Ratio": "\u2022\u2022\u2022\u2022\u2022\u2022"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.state.match.001",
+      "title": "A state-scoped rule applies in the state it names",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "update",
+          "currentState": "Draft"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "request": {
+            "currentState": "Draft"
+          },
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "StateItemPolicy",
+                "ruleName": "allowEmployeeUpdateDraftStateItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.state.mismatch.001",
+      "title": "A state-scoped rule does not apply in another state",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "update",
+          "currentState": "Review"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "StateItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.state.derived-from-record.001",
+      "title": "The current state is derived from the record when the request does not state one",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "state-1",
+              "object": "StateItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Draft item",
+              "Status": "Draft"
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "StateItemPolicy",
+                "ruleName": "allowEmployeeUpdateDraftStateItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.state.unknown-state.001",
+      "title": "A state-scoped rule cannot match when no current state is known",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "update"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.lifecycle-action.match.001",
+      "title": "A lifecycle-action rule matches its named action in its named state",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "transition",
+          "currentState": "Review",
+          "lifecycleAction": "publish"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Manager"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "request": {
+            "lifecycleAction": "publish",
+            "currentState": "Review"
+          },
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "StateItemPolicy",
+                "ruleName": "allowManagerPublishStateItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.lifecycle-action.state-mismatch.001",
+      "title": "A lifecycle-action rule still requires its state scope to hold",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "transition",
+          "currentState": "Draft",
+          "lifecycleAction": "publish"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Manager"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.lifecycle-action.missing.001",
+      "title": "A lifecycle-action rule cannot match a transition request naming no action",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "transition",
+          "currentState": "Review"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Manager"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.lifecycle-action.state-unscoped.001",
+      "title": "A lifecycle-action rule with no state scope applies in any state",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "StateItem",
+          "action": "transition",
+          "currentState": "Published",
+          "lifecycleAction": "submit"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "StateItemPolicy",
+                "ruleName": "allowEmployeeSubmitStateItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.channel.declared.001",
+      "title": "A channel-scoped rule applies on a channel it declares",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ChannelItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "ui"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "request": {
+            "channel": "ui"
+          },
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "ChannelItemPolicy",
+                "ruleName": "allowEmployeeReadChannelItemUiApi",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.channel.undeclared.001",
+      "title": "A channel-scoped rule does not apply on a channel it omits",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ChannelItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "sync"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "request": {
+            "channel": "sync"
+          },
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "ChannelItemDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.channel.request-override.001",
+      "title": "A channel named on the request overrides the runtime context channel",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ChannelItem",
+          "action": "read",
+          "channel": "test"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "ui"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "request": {
+            "channel": "test"
+          },
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.channel.import.001",
+      "title": "An import-only rule authorises the import channel and nothing else",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ChannelItem",
+          "action": "create"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "import"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "ChannelItemPolicy",
+                "ruleName": "allowEmployeeCreateChannelItemImport",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.channel.import-only.001",
+      "title": "An import-only rule does not authorise the same action on the ui channel",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ChannelItem",
+          "action": "create"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "ui"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.channel.default-all.001",
+      "title": "A rule declaring no channels applies on every channel including sync",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ChannelItem",
+          "action": "search"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "sync"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "ChannelItemPolicy",
+                "ruleName": "allowEmployeeSearchChannelItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.runtime-user.001",
+      "title": "A rule condition comparing a field to the runtime user id matches the owner",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "condition-1",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 10
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "ConditionItemPolicy",
+                "ruleName": "allowOwnerUpdateConditionItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.runtime-user.mismatch.001",
+      "title": "The same condition denies a caller who is not the record owner",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "condition-2",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-2",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-2",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-2",
+              "Amount": 10
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.patch-overlay.001",
+      "title": "Conditions evaluate the record values overlaid with the requested patch",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "update",
+          "record": {
+            "meta": {
+              "guid": "condition-3",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 10
+            }
+          },
+          "patch": {
+            "OwnerId": "user-2"
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.comparison.001",
+      "title": "A comparison condition gates an allow rule on record data",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "read",
+          "record": {
+            "meta": {
+              "guid": "condition-4",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 1000
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "ConditionItemPolicy",
+                "ruleName": "allowSmallAmountReadConditionItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.comparison.mismatch.001",
+      "title": "The same comparison condition withholds the allow above its bound",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "read",
+          "record": {
+            "meta": {
+              "guid": "condition-5",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 1001
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.conditional-deny.001",
+      "title": "A conditional deny rule wins over an unconditional allow when its condition holds",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "delete",
+          "record": {
+            "meta": {
+              "guid": "condition-6",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 9000
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "explicitDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "ConditionItemPolicy",
+                "ruleName": "denyLargeAmountDeleteConditionItem",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.conditional-deny.inactive.001",
+      "title": "A conditional deny rule leaves the allow standing when its condition fails",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "delete",
+          "record": {
+            "meta": {
+              "guid": "condition-7",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 100
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "ConditionItemPolicy",
+                "ruleName": "allowEmployeeDeleteConditionItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.composite.001",
+      "title": "A composite all/not condition requires every branch to hold",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "export",
+          "record": {
+            "meta": {
+              "guid": "condition-8",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 5
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "ConditionItemPolicy",
+                "ruleName": "allowOwnedNonZeroExportConditionItem",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.condition.composite.negated-branch.001",
+      "title": "A composite condition fails when its negated branch is violated",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "policyMatrix",
+      "input": {
+        "request": {
+          "objectName": "ConditionItem",
+          "action": "export",
+          "record": {
+            "meta": {
+              "guid": "condition-9",
+              "object": "ConditionItem",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "user-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "user-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "OwnerId": "user-1",
+              "Amount": 0
+            }
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "context.resolution.view-context-modes.001",
+      "title": "A view context mode selects the default read-model source scope",
+      "specRef": "resolved-model#contexts",
+      "operation": "resolveModel",
+      "modelRef": "contextPolicy",
+      "input": {
+        "select": [
+          "contexts.0.selection.mode",
+          "contexts.0.membership.roles",
+          "readModels.0.context.mode",
+          "readModels.0.sources.0.scope",
+          "readModels.1.context.mode",
+          "readModels.1.sources.0.scope",
+          "readModels.2.context.mode",
+          "readModels.2.sources.0.scope",
+          "readModels.3.sources.0.scope"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "contexts.0.selection.mode": "required",
+          "contexts.0.membership.roles": [],
+          "readModels.0.context.mode": "all",
+          "readModels.0.sources.0.scope": "allAvailableContexts",
+          "readModels.1.context.mode": "required",
+          "readModels.1.sources.0.scope": "currentContext",
+          "readModels.2.context.mode": "optional",
+          "readModels.2.sources.0.scope": "currentContext",
+          "readModels.3.sources.0.scope": "all"
+        }
+      }
+    },
+    {
+      "id": "context.policy.scoped-role-instance-match.001",
+      "title": "A context-scoped role authorises a record in the same context instance",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "policyDecision",
+      "modelRef": "contextPolicy",
+      "input": {
+        "request": {
+          "objectName": "Gig",
+          "action": "read",
+          "record": {
+            "meta": {
+              "guid": "gig-alpha",
+              "object": "Gig",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "admin-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "admin-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Band": "band-alpha",
+              "Venue": "Alpha Hall",
+              "Fee": 100
+            }
+          }
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": "band-alpha",
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow",
+            "reasons": [
+              {
+                "policyName": "GigPolicy",
+                "ruleName": "allowBandLeaderAllGigs",
+                "effect": "allow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "context.policy.scoped-role-instance-mismatch.001",
+      "title": "A context-scoped role does not authorise a record in another context instance",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "policyDecision",
+      "modelRef": "contextPolicy",
+      "input": {
+        "request": {
+          "objectName": "Gig",
+          "action": "read",
+          "record": {
+            "meta": {
+              "guid": "gig-beta",
+              "object": "Gig",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "admin-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "admin-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Band": "band-beta",
+              "Venue": "Beta Hall",
+              "Fee": 200
+            }
+          }
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": "band-alpha",
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "GigDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "context.policy.selected-context-narrows-roles.001",
+      "title": "A selected context suppresses scoped roles held for other instances",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "policyDecision",
+      "modelRef": "contextPolicy",
+      "input": {
+        "request": {
+          "objectName": "Gig",
+          "action": "read",
+          "record": {
+            "meta": {
+              "guid": "gig-beta",
+              "object": "Gig",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "admin-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "admin-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Band": "band-beta",
+              "Venue": "Beta Hall",
+              "Fee": 200
+            }
+          }
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": {
+            "Band": "band-alpha"
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": "band-alpha",
+              "role": "BandLeader"
+            },
+            {
+              "context": "Band",
+              "contextId": "band-beta",
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "id": "context.policy.global-role-is-instance-independent.001",
+      "title": "A global role authorises any context instance, unlike a scoped role",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "policyDecision",
+      "modelRef": "contextPolicy",
+      "input": {
+        "request": {
+          "objectName": "Gig",
+          "action": "read",
+          "record": {
+            "meta": {
+              "guid": "gig-beta",
+              "object": "Gig",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "admin-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "admin-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Band": "band-beta",
+              "Venue": "Beta Hall",
+              "Fee": 200
+            }
+          }
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [
+            "BandLeader"
+          ],
+          "selectedContexts": {
+            "Band": "band-alpha"
+          },
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow"
+          }
+        }
+      }
+    },
+    {
+      "id": "context.policy.scoped-role-inheritance.001",
+      "title": "Role inheritance applies to context-scoped roles as well as global roles",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "policyDecision",
+      "modelRef": "contextPolicy",
+      "input": {
+        "request": {
+          "objectName": "Gig",
+          "action": "read",
+          "record": {
+            "meta": {
+              "guid": "gig-alpha",
+              "object": "Gig",
+              "schemaVersion": 1,
+              "revision": "1",
+              "createdAt": "2026-07-17T09:00:00.000Z",
+              "createdBy": "admin-1",
+              "updatedAt": "2026-07-17T09:00:00.000Z",
+              "updatedBy": "admin-1",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Band": "band-alpha",
+              "Venue": "Alpha Hall",
+              "Fee": 100
+            }
+          }
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": "band-alpha",
+              "role": "BandOwner"
+            }
+          ],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "allow",
+          "decision": {
+            "effect": "allow"
+          }
+        }
+      }
+    },
+    {
+      "id": "context.scope.read-inside.001",
+      "title": "A scoped record is readable inside its selected business context",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "read",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Gig",
+        "id": {
+          "$ref": "alphaGig.meta.guid"
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Gig",
+          "recordId": "$alphaGig",
+          "values": {
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          }
+        }
+      }
+    },
+    {
+      "id": "context.scope.read-outside.001",
+      "title": "A scoped record is refused outside the selected business context even with a role for it",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "read",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Fee": 200
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Gig",
+        "id": {
+          "$ref": "betaGig.meta.guid"
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandLeader"
+            },
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "beta.meta.guid"
+              },
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "GigContextScope",
+                "ruleName": "requireRuntimeContextScope",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "context.scope.create-outside.001",
+      "title": "A scoped create naming another context instance is refused before any write",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "create",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Gig",
+        "values": {
+          "Band": {
+            "$ref": "beta.meta.guid"
+          },
+          "Venue": "Beta Hall",
+          "Fee": 200
+        },
+        "context": {
+          "userId": "musician-1",
+          "roles": [
+            "BandLeader"
+          ],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "GigContextScope",
+                "ruleName": "requireRuntimeContextScope",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "context.scope.search-across-available-contexts.001",
+      "title": "With no selected context a scoped search spans every context instance the caller holds a role for",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "search",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gamma",
+          "objectName": "Band",
+          "values": {
+            "Name": "Gamma"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Fee": 200
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gammaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "gamma.meta.guid"
+            },
+            "Venue": "Gamma Hall",
+            "Fee": 300
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "gamma.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Gig",
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandLeader"
+            },
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "beta.meta.guid"
+              },
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "objectName": "Gig",
+            "recordId": "$alphaGig",
+            "values": {
+              "Venue": "Alpha Hall"
+            }
+          },
+          {
+            "objectName": "Gig",
+            "recordId": "$betaGig",
+            "values": {
+              "Venue": "Beta Hall"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "context.scope.search-without-any-context.001",
+      "title": "A global role does not bypass context scope on a scoped search",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "search",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Gig",
+        "context": {
+          "userId": "musician-1",
+          "roles": [
+            "BandLeader"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "GigContextScope",
+                "ruleName": "requireRuntimeContextScope",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "context.membership.all-mode-read-model.001",
+      "title": "An all-mode read model resolves context roles from the membership object across every membership",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "executeReadModel",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gamma",
+          "objectName": "Band",
+          "values": {
+            "Name": "Gamma"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Fee": 200
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gammaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "gamma.meta.guid"
+            },
+            "Venue": "Gamma Hall",
+            "Fee": 300
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "gamma.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsAcrossBands",
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Venue": "Alpha Hall",
+                "Fee": 100
+              }
+            },
+            {
+              "values": {
+                "Venue": "Beta Hall",
+                "Fee": 200
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "context.membership.non-member.001",
+      "title": "An all-mode read model returns nothing to a caller with no membership",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "executeReadModel",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsAcrossBands",
+        "context": {
+          "userId": "stranger-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "context.read-model.required-mode-current-context.001",
+      "title": "A required-mode read model reports only the selected context instance",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "executeReadModel",
+      "modelRef": "contextPolicy",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Fee": 200
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsInSelectedBand",
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandLeader"
+            },
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "beta.meta.guid"
+              },
+              "role": "BandLeader"
+            }
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Venue": "Alpha Hall"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.explicit-deny-named-like-default.001",
+      "title": "An explicit deny is classified explicitDeny regardless of the rule's name",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "model": {
+        "app": {
+          "name": "PrecedenceNaming"
+        },
+        "roles": [
+          {
+            "name": "Admin"
+          }
+        ],
+        "objects": [
+          {
+            "name": "SilentItem",
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text"
+              }
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "ProbePolicy",
+            "object": "SilentItem",
+            "rules": [
+              {
+                "name": "the default deny probe",
+                "effect": "deny",
+                "principal": {
+                  "match": "everyone"
+                },
+                "action": "read"
+              }
+            ]
+          }
+        ]
+      },
+      "input": {
+        "request": {
+          "objectName": "SilentItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "u",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "explicitDeny"
+        }
+      }
+    },
+    {
+      "id": "policy.precedence.default-deny-has-no-rule.001",
+      "title": "A refusal with no rule behind it is classified defaultDeny",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "model": {
+        "app": {
+          "name": "PrecedenceDefault"
+        },
+        "roles": [
+          {
+            "name": "Admin"
+          }
+        ],
+        "objects": [
+          {
+            "name": "SilentItem",
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text"
+              }
+            ]
+          }
+        ]
+      },
+      "input": {
+        "request": {
+          "objectName": "SilentItem",
+          "action": "read"
+        },
+        "context": {
+          "userId": "u",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny"
+        }
+      }
+    },
+    {
+      "id": "policy.read-shaping.hidden-fields-omitted.001",
+      "title": "A hidden or policy-denied field is omitted from the read, not merely masked",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "policyMatrix",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "restrict",
+          "objectName": "RestrictItem",
+          "values": {
+            "Title": "Contract",
+            "Salary": "120000",
+            "Ssn": "123-45-6789",
+            "Notes": "internal",
+            "Locked": "yes",
+            "Ratio": "0.4",
+            "Confidential": "secret"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [
+              "Employee"
+            ],
+            "channel": "api",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "RestrictItem",
+        "id": {
+          "$ref": "restrict.meta.guid"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [
+            "Employee"
+          ],
+          "channel": "api",
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "RestrictItem",
+          "recordId": "$restrict",
+          "values": {
+            "Title": "Contract",
+            "Salary": "\u2022\u2022\u2022\u2022\u2022\u2022",
+            "Ratio": "\u2022\u2022\u2022\u2022\u2022\u2022",
+            "Locked": "yes",
+            "Ssn": "$absent",
+            "Notes": "$absent",
+            "Confidential": "$absent"
+          }
+        }
+      }
+    }
+  ]
+}

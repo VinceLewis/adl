@@ -153,6 +153,7 @@ describe("object storage backends", () => {
       new IndexedDbObjectStorageBackend({ databaseName }).readApplicationMetadata(),
     ).resolves.toEqual({
       modelVersion: model.modelVersion,
+      modelFingerprint: model.modelFingerprint,
     });
 
     const reloadedRuntime = new ApplicationRuntime(model, {
@@ -279,6 +280,73 @@ describe("object storage backends", () => {
       },
     });
     await expect(storage.read("Customer", duplicate.meta.guid)).resolves.toBeNull();
+  });
+
+  /**
+   * The test above fails through a duplicate `add`, which is a *request* error
+   * and aborts the IndexedDB transaction on its own. A refusal the backend
+   * raises itself — a missing update target, a delete without a tombstone — used
+   * to throw straight out of `commitTransaction` with no `abort()`, leaving
+   * IndexedDB free to auto-commit the writes already issued. The caller saw a
+   * rejection over a partially applied batch, which is exactly the state a
+   * migration's own diagnostic promises cannot happen.
+   */
+  it("rolls back earlier writes when it refuses a later one itself", async () => {
+    installFakeIndexedDb();
+    const databaseName = nextDatabaseName();
+    const model = resolveApplicationModel(storagePartialModel);
+    const object = requireObject(model.objects[0]);
+    const storage = new IndexedDbObjectStorageBackend({ databaseName });
+    const existing = createStoredRecord(object);
+    await storage.create("Customer", existing);
+
+    const rewritten = {
+      ...existing,
+      meta: { ...existing.meta, revision: "rev-2" },
+      values: { ...existing.values, Name: "PARTIALLY COMMITTED" },
+    };
+    const absent = createStoredRecord(object, "customer-missing", {
+      Name: "Never stored",
+      Email: "missing@example.com",
+    });
+
+    await expect(
+      storage.commitTransaction?.([
+        { operation: "update", objectName: "Customer", record: rewritten },
+        { operation: "update", objectName: "Customer", record: absent },
+      ]),
+    ).rejects.toBeInstanceOf(StorageError);
+
+    await expect(storage.read("Customer", existing.meta.guid)).resolves.toMatchObject({
+      values: { Name: "Ada Lovelace" },
+    });
+  });
+
+  it("rolls back earlier writes when it refuses a delete carrying no tombstone", async () => {
+    installFakeIndexedDb();
+    const databaseName = nextDatabaseName();
+    const model = resolveApplicationModel(storagePartialModel);
+    const object = requireObject(model.objects[0]);
+    const storage = new IndexedDbObjectStorageBackend({ databaseName });
+    const existing = createStoredRecord(object);
+    await storage.create("Customer", existing);
+
+    const rewritten = {
+      ...existing,
+      meta: { ...existing.meta, revision: "rev-2" },
+      values: { ...existing.values, Name: "PARTIALLY COMMITTED" },
+    };
+
+    await expect(
+      storage.commitTransaction?.([
+        { operation: "update", objectName: "Customer", record: rewritten },
+        { operation: "delete", objectName: "Customer", record: existing },
+      ]),
+    ).rejects.toBeInstanceOf(StorageError);
+
+    await expect(storage.read("Customer", existing.meta.guid)).resolves.toMatchObject({
+      values: { Name: "Ada Lovelace" },
+    });
   });
 });
 

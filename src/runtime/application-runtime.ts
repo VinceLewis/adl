@@ -55,6 +55,7 @@ import type {
   RuntimeSearchInput,
   RuntimeStartupDiagnostic,
 } from "./runtime-types.js";
+import { migrateSyncState, planModelMigration } from "./model-migration.js";
 import { runRuntimeStartupCompatibilityChecks } from "./startup-compatibility.js";
 import { SyncPolicyService } from "./sync-policy-service.js";
 import { SyncQueue } from "./sync-queue.js";
@@ -608,21 +609,36 @@ export class ApplicationRuntime {
         this.model,
         storage,
         this.logger,
+        // A runtime owns its persisted records, so it is the caller entitled to
+        // migrate them. Refusing instead would leave a user unable to open an
+        // app whose model moved on, with data they cannot reach.
+        { applyMigrations: true },
       );
       if (syncStateStorage !== undefined) {
-        const state = await syncStateStorage.read();
-        if (state !== null && state.modelVersion !== this.model.modelVersion) {
-          throw new RuntimeStartupError([
-            {
-              severity: "error",
-              code: "ADL_PERSISTED_SYNC_STATE_MODEL_VERSION_MISMATCH",
-              message: `Persisted sync state model version '${state.modelVersion}' is incompatible with current model version '${this.model.modelVersion}'.`,
-              path: "syncState.modelVersion",
-              expected: this.model.modelVersion,
-              actual: state.modelVersion,
-            },
-          ]);
+        const persisted = await syncStateStorage.read();
+        let state = persisted;
+
+        if (persisted !== null && persisted.modelVersion !== this.model.modelVersion) {
+          // Sync state is protocol state, not records, but the pending patches
+          // inside it name fields, so the same declared migration has to reach
+          // them. Without a declared path this stays a refusal: a queued write
+          // the authority would reject is not something to guess at.
+          const planned = planModelMigration(this.model, persisted.modelVersion);
+          if (planned.status !== "migrate") {
+            throw new RuntimeStartupError([
+              {
+                severity: "error",
+                code: "ADL_PERSISTED_SYNC_STATE_MODEL_VERSION_MISMATCH",
+                message: `Persisted sync state model version '${persisted.modelVersion}' is incompatible with current model version '${this.model.modelVersion}'.`,
+                path: "syncState.modelVersion",
+                expected: this.model.modelVersion,
+                actual: persisted.modelVersion,
+              },
+            ]);
+          }
+          state = migrateSyncState(persisted, planned.plan);
         }
+
         if (state !== null) {
           this.operationLog.restore(state.operations);
           this.syncQueue.restore(state.queue);

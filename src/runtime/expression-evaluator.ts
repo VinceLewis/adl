@@ -256,7 +256,9 @@ function evaluateBinary(
     case "in":
       return failure(
         "ADL_EXPRESSION_OPERATOR_UNSUPPORTED",
-        "Expression operator 'in' requires parser/list support and is reserved for Phase 21 expansion.",
+        // No repository phase number here: this message is part of the
+        // cross-runtime contract, and a second runtime has no phases.
+        "Expression operator 'in' is reserved and not yet supported; it requires list-valued operands.",
         path,
       );
   }
@@ -420,10 +422,28 @@ function temporalSortValue(
       return /^\d{4}-\d{2}-\d{2}$/.test(value.value)
         ? { ok: true, value: value.value }
         : invalidTemporal(value.kind, path);
-    case "time":
-      return /^\d{2}:\d{2}(:\d{2}(\.\d{3})?)?$/.test(value.value)
-        ? { ok: true, value: value.value }
-        : invalidTemporal(value.kind, path);
+    case "time": {
+      // Normalised to milliseconds-of-day rather than compared as raw text.
+      // Comparing the accepted spellings lexicographically made `09:00` sort
+      // before `09:00:00`, which are the same time of day — and `datetime` is
+      // already normalised through `Date.parse`, so `time` was the one temporal
+      // kind compared by how it was written rather than by what it denotes.
+      const parts = /^(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{3}))?)?$/.exec(value.value);
+      if (parts === null) {
+        return invalidTemporal(value.kind, path);
+      }
+      const hours = Number(parts[1]);
+      const minutes = Number(parts[2]);
+      const seconds = Number(parts[3] ?? "0");
+      const milliseconds = Number(parts[4] ?? "0");
+      if (hours > 23 || minutes > 59 || seconds > 59) {
+        return invalidTemporal(value.kind, path);
+      }
+      return {
+        ok: true,
+        value: ((hours * 60 + minutes) * 60 + seconds) * 1000 + milliseconds,
+      };
+    }
     case "datetime": {
       const timestamp = Date.parse(value.value);
       return Number.isNaN(timestamp)
@@ -513,7 +533,20 @@ function decimalFromValue(
 }
 
 function decimalFromNumber(value: number): bigint | undefined {
-  const text = value.toString();
+  // `toFixed` rather than `toString`, because JavaScript switches to exponential
+  // notation below 1e-6 and at or above 1e21, and neither form matches the
+  // decimal pattern below. That made `0.0000001` — a magnitude comfortably
+  // inside the supported range — parse as nothing and report itself as a
+  // DECIMAL_OVERFLOW, the opposite of what had happened. It also made the whole
+  // rule an artifact of one language's number formatting rather than of ADL, so
+  // a second runtime would naturally round to zero here and diverge.
+  //
+  // One extra place is kept so the existing round-half-up on the digit after the
+  // scale still sees it; a magnitude below that rounds to zero, as any other
+  // value below the scale already does.
+  const text = Number.isFinite(value)
+    ? value.toFixed(Math.min(DECIMAL_SCALE_PLACES + 1, 100))
+    : String(value);
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text);
   if (match === null) {
     return undefined;

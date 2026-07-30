@@ -3,6 +3,13 @@ import { StorageError, cloneJson } from "./runtime-types.js";
 
 export interface PersistedApplicationMetadata {
   modelVersion: string;
+  /**
+   * The fingerprint of the model that last wrote this state. Optional because
+   * state persisted before fingerprints existed has none: a missing value is
+   * backfilled with a warning rather than treated as a mismatch, while a present
+   * value that disagrees is a refusal.
+   */
+  modelFingerprint?: string;
 }
 
 export interface PersistedObjectRecord {
@@ -32,6 +39,16 @@ export type ObjectStorageTransactionWrite =
       operation: "delete";
       objectName: string;
       record: StoredObjectRecord;
+    }
+  /**
+   * Only a migration writes this. It exists so the record rewrites and the
+   * metadata row that declares them migrated commit or roll back together: a
+   * commit that recorded the new version over unmigrated records, or migrated
+   * records under the old version, would be worse than either failure alone.
+   */
+  | {
+      operation: "applicationMetadata";
+      metadata: PersistedApplicationMetadata;
     };
 
 export interface ObjectStorageBackend {
@@ -112,8 +129,14 @@ export class InMemoryObjectStorageBackend implements ObjectStorageBackend {
 
   async commitTransaction(writes: ObjectStorageTransactionWrite[]): Promise<void> {
     const nextRecords = cloneRecordMaps(this.recordsByObject);
+    let nextMetadata = this.applicationMetadata;
 
     for (const write of writes) {
+      if (write.operation === "applicationMetadata") {
+        nextMetadata = cloneJson(write.metadata);
+        continue;
+      }
+
       const records = recordsForObjectMap(nextRecords, write.objectName);
       if (write.operation === "create") {
         if (records.has(write.record.meta.guid)) {
@@ -157,6 +180,7 @@ export class InMemoryObjectStorageBackend implements ObjectStorageBackend {
     for (const [objectName, records] of nextRecords.entries()) {
       this.recordsByObject.set(objectName, records);
     }
+    this.applicationMetadata = nextMetadata;
   }
 
   async listRecords(): Promise<PersistedObjectRecord[]> {

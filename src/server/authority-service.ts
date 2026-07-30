@@ -280,7 +280,18 @@ export class AuthorityService {
       intent.recordId,
     );
     if (record === null)
-      throw new RevisionConflictError("The record no longer exists.", intent.objectName, false);
+      // The object's declared conflict strategy governs here exactly as it does
+      // for a stale revision below. Hard-coding `false` meant an object that
+      // explicitly asks a human to resolve conflicts had the update-versus-delete
+      // race — the case where the local edit is about to be discarded entirely,
+      // so arguably where a human is most needed — resolved automatically in the
+      // server's favour, while the stale-revision path on the same object
+      // escalated. The two paths disagreed.
+      throw new RevisionConflictError(
+        "The record no longer exists.",
+        intent.objectName,
+        this.manualConflict(intent.objectName),
+      );
     if (record.meta.revision !== intent.baseRevision)
       throw new RevisionConflictError(
         "The record changed on the authority server.",

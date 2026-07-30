@@ -13,7 +13,62 @@ import type {
   ResolvedThemeTokens,
 } from "./resolved-model.js";
 
+/**
+ * The version a model resolves to when it declares none. It is a default, not a
+ * platform constant: `APP ... MODEL_VERSION "1.1.0"` overrides it, and a model
+ * that declares nothing and then changes content is caught by its fingerprint
+ * rather than passing unnoticed.
+ */
 export const ADL_MODEL_VERSION = "0.1.0";
+/**
+ * Declared versions are ordered dotted numbers (`1`, `1.2`, `1.2.3`, up to four
+ * components). Ordering matters because migrations chain, and a free-form string
+ * would leave "is this persisted version older or newer?" unanswerable.
+ */
+export const MODEL_VERSION_PATTERN = /^\d+(?:\.\d+){0,3}$/u;
+
+/** True when `value` is a well-formed declared model version. */
+export function isValidModelVersion(value: unknown): value is string {
+  return typeof value === "string" && MODEL_VERSION_PATTERN.test(value);
+}
+
+/**
+ * The canonical spelling of a declared version: trailing zero components are
+ * dropped, so `1.2.0`, `1.2` and `1.2.0.0` all become `1.2`.
+ *
+ * Anywhere a version is used as a map key or set member it must go through this
+ * first. Comparing component-wise but *keying* on the raw text is how `1.1` and
+ * `1.1.0` became different versions to the migration planner while being the
+ * same version to everything else.
+ */
+export function normaliseModelVersion(value: string): string {
+  const parts = value.split(".");
+  while (parts.length > 1 && parts[parts.length - 1] === "0") {
+    parts.pop();
+  }
+  return parts.join(".");
+}
+
+/**
+ * Orders two declared versions component-wise, treating missing components as
+ * zero, so `1.2` and `1.2.0` compare equal. Returns a negative number when
+ * `left` precedes `right`.
+ */
+export function compareModelVersions(left: string, right: string): number {
+  const leftParts = left.split(".").map(Number);
+  const rightParts = right.split(".").map(Number);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+
+  return 0;
+}
+
 export const DEFAULT_OBJECT_SCHEMA_VERSION = 1;
 export const SYSTEM_ID_FIELD = "_guid";
 export const DEFAULT_LIFECYCLE_STATE_FIELD = "_state";

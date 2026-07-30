@@ -6,6 +6,8 @@ import { Pool } from "pg";
 import { compileAdlProject, parseAdlProjectManifest } from "../compiler/compile-adl-project.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import type { ResolvedApplicationModel } from "../model/resolved-model.js";
+import { RuntimeStartupError, noopRuntimeLogger } from "../runtime/runtime-types.js";
+import { runRuntimeStartupCompatibilityChecks } from "../runtime/startup-compatibility.js";
 import {
   AuthorityAccessLifecycleService,
   PostgresAuthorityAccessStore,
@@ -110,9 +112,10 @@ export function loadAuthorityModel(modelPath: string): ResolvedApplicationModel 
 
 /**
  * Composition root. Every store is the PostgreSQL implementation: the in-memory
- * ones are test wiring and must never serve a process. Migrations are applied
- * out of band with the migration role, so this function only upserts the
- * application metadata row that accepted records reference by foreign key.
+ * ones are test wiring and must never serve a process. Projection *schema*
+ * migrations are applied out of band with the migration role; what this function
+ * does is bring the accepted *records* to the model it is about to serve, and
+ * refuse to start if it cannot.
  */
 export async function createAuthorityProcess(
   options: AuthorityProcessOptions = {},
@@ -182,9 +185,10 @@ export async function createAuthorityProcess(
         );
 
   try {
-    await storage.writeApplicationMetadata({ modelVersion: model.modelVersion });
+    await migrateAcceptedState(pool, applicationId, model);
   } catch (error) {
     await pool.end().catch(() => undefined);
+    if (error instanceof AuthorityConfigurationError) throw error;
     // The driver's message can name infrastructure; keep only its error name so
     // no connection string, credential or protected value can escape here.
     throw new AuthorityConfigurationError(
@@ -277,6 +281,67 @@ export async function startAuthorityProcess(
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
   return authorityProcess;
+}
+
+/**
+ * Brings the accepted-record projection to the model this process is running,
+ * before anything that could serve it is composed.
+ *
+ * The authority refuses to start rather than serving state it cannot read. That
+ * is the whole point: a process that starts anyway would answer bootstraps from
+ * records shaped for a different model, and every device that pulled them would
+ * persist the damage locally. Nothing here deletes a record — an unappliable
+ * migration leaves the projection exactly as it was, for an operator to fix by
+ * deploying a model that declares the missing hop.
+ *
+ * The work runs on one pinned client, not the pool: `commitTransaction` issues
+ * its own `begin`/`commit`, and on an unpinned pool those could land on
+ * different connections and lose atomicity entirely.
+ */
+async function migrateAcceptedState(
+  pool: Pool,
+  applicationId: string,
+  model: ResolvedApplicationModel,
+): Promise<void> {
+  const client = await pool.connect();
+  try {
+    const storage = new PostgresObjectStorageBackend(
+      client as unknown as PostgresQueryable,
+      applicationId,
+      model,
+    );
+    const diagnostics = await runRuntimeStartupCompatibilityChecks(
+      model,
+      storage,
+      noopRuntimeLogger,
+      { applyMigrations: true },
+    );
+    for (const diagnostic of diagnostics) {
+      // Metadata only: a code, a message about versions, and counts. No
+      // accepted record, audit payload, token or outcome body is ever in here.
+      new StructuredSecurityLogger().write({
+        event: "authority_model_migration",
+        outcome: diagnostic.severity === "error" ? "denied" : "allowed",
+        applicationId,
+        modelVersion: model.modelVersion,
+        diagnosticCode: diagnostic.code,
+        diagnosticMessage: diagnostic.message,
+        occurredAt: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    if (error instanceof RuntimeStartupError) {
+      throw new AuthorityConfigurationError(
+        `The accepted-record projection is not compatible with this model and was left unchanged: ${error.diagnostics
+          .filter((diagnostic) => diagnostic.severity === "error")
+          .map((diagnostic) => `${diagnostic.code} ${diagnostic.message}`)
+          .join("; ")}`,
+      );
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**

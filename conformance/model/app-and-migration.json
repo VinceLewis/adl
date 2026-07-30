@@ -1,0 +1,3832 @@
+{
+  "version": 1,
+  "models": {
+    "appMinimal": {
+      "app": {
+        "name": "AppContract"
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "appDeclared": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "AppContract",
+        "startView": "ThingForm",
+        "theme": "CorporateDark",
+        "offlineGraceDays": 7
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "fpBase": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "fpBaseReorderedKeys": {
+      "objects": [
+        {
+          "fields": [
+            {
+              "type": "text",
+              "name": "Venue"
+            },
+            {
+              "type": "number",
+              "name": "Fee"
+            }
+          ],
+          "name": "Gig"
+        }
+      ],
+      "policies": [
+        {
+          "object": "Gig",
+          "rules": [
+            {
+              "action": "*",
+              "principal": {
+                "roles": [
+                  "Admin"
+                ],
+                "match": "specific"
+              },
+              "effect": "allow",
+              "name": "allowAdminAll"
+            }
+          ],
+          "name": "GigPolicy"
+        }
+      ],
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "app": {
+        "offlineGraceDays": 30,
+        "theme": "CorporateLight",
+        "name": "Fingerprint"
+      }
+    },
+    "fpGraceSeven": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 7
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "fpThemeChanged": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateDark",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "fpFieldRenamed": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "fpObjectAdded": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "fpPolicyChanged": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowViewerRead",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Viewer"
+                ]
+              },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "fpRolesReordered": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Viewer"
+        },
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "fpVersionOneZero": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ],
+      "modelVersion": "1.0.0"
+    },
+    "fpVersionOneOne": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ],
+      "modelVersion": "1.1.0"
+    },
+    "fpVersionOneOneWithMigration": {
+      "app": {
+        "name": "Fingerprint",
+        "theme": "CorporateLight",
+        "offlineGraceDays": 30
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ],
+      "modelVersion": "1.1.0",
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": []
+        }
+      ]
+    },
+    "gigV090": {
+      "modelVersion": "0.9.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "LegacyNote",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "gigV100": {
+      "modelVersion": "1.0.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "LegacyNote",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "gigV110": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 2,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Venue",
+                  "to": "VenueName"
+                },
+                {
+                  "kind": "addField",
+                  "field": "PayoutCents",
+                  "defaultValue": 0
+                },
+                {
+                  "kind": "dropField",
+                  "field": "LegacyNote"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "gigV110GraceSeven": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract",
+        "offlineGraceDays": 7
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 2,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Venue",
+                  "to": "VenueName"
+                },
+                {
+                  "kind": "addField",
+                  "field": "PayoutCents",
+                  "defaultValue": 0
+                },
+                {
+                  "kind": "dropField",
+                  "field": "LegacyNote"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "gigV120": {
+      "modelVersion": "1.2.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 3,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutPence",
+              "type": "number"
+            },
+            {
+              "name": "Currency",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 2,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Venue",
+                  "to": "VenueName"
+                },
+                {
+                  "kind": "addField",
+                  "field": "PayoutCents",
+                  "defaultValue": 0
+                },
+                {
+                  "kind": "dropField",
+                  "field": "LegacyNote"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "from": "1.1.0",
+          "to": "1.2.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 3,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "PayoutCents",
+                  "to": "PayoutPence"
+                },
+                {
+                  "kind": "addField",
+                  "field": "Currency",
+                  "defaultValue": "GBP"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "gigV120TwoRoutes": {
+      "modelVersion": "1.2.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 3,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutPence",
+              "type": "number"
+            },
+            {
+              "name": "Currency",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 2,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Venue",
+                  "to": "VenueName"
+                },
+                {
+                  "kind": "addField",
+                  "field": "PayoutCents",
+                  "defaultValue": 0
+                },
+                {
+                  "kind": "dropField",
+                  "field": "LegacyNote"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "from": "1.1.0",
+          "to": "1.2.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 3,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "PayoutCents",
+                  "to": "PayoutPence"
+                },
+                {
+                  "kind": "addField",
+                  "field": "Currency",
+                  "defaultValue": "EUR"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "from": "1.0.0",
+          "to": "1.2.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 3,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Venue",
+                  "to": "VenueName"
+                },
+                {
+                  "kind": "addField",
+                  "field": "PayoutPence",
+                  "defaultValue": 0
+                },
+                {
+                  "kind": "addField",
+                  "field": "Currency",
+                  "defaultValue": "GBP"
+                },
+                {
+                  "kind": "dropField",
+                  "field": "LegacyNote"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "migrationDuplicateHop": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": []
+        },
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": []
+        }
+      ]
+    },
+    "migrationVersionNotDotted": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "one-oh",
+          "to": "1.1.0",
+          "objects": []
+        }
+      ]
+    },
+    "migrationBackwardHop": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.1.0",
+          "to": "1.0.0",
+          "objects": []
+        }
+      ]
+    },
+    "migrationUnknownObject": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Ghost",
+              "steps": []
+            }
+          ]
+        }
+      ]
+    },
+    "migrationRenameToUnknownField": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Venue",
+                  "to": "VenueLabel"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "migrationRenameFieldToItself": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "VenueName",
+                  "to": "VenueName"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "migrationAddsUnknownField": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "steps": [
+                {
+                  "kind": "addField",
+                  "field": "Promoter",
+                  "defaultValue": ""
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "migrationDropsLiveField": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "steps": [
+                {
+                  "kind": "dropField",
+                  "field": "VenueName"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "migrationSchemaVersionDisagrees": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "schemaVersion": 5,
+              "steps": []
+            }
+          ]
+        }
+      ]
+    },
+    "migrationTargetsLaterVersion": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "GigContract"
+      },
+      "objects": [
+        {
+          "name": "Gig",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.1.0",
+          "to": "1.2.0",
+          "objects": []
+        }
+      ]
+    },
+    "modelVersionNotDotted": {
+      "modelVersion": "1.x",
+      "app": {
+        "name": "AppContract"
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "modelVersionPrefixed": {
+      "modelVersion": "v1.0.0",
+      "app": {
+        "name": "AppContract"
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "modelVersionFourComponents": {
+      "modelVersion": "1.2.3.4",
+      "app": {
+        "name": "AppContract"
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "graceZero": {
+      "app": {
+        "name": "AppContract",
+        "offlineGraceDays": 0
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "graceNegative": {
+      "app": {
+        "name": "AppContract",
+        "offlineGraceDays": -5
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "graceFractional": {
+      "app": {
+        "name": "AppContract",
+        "offlineGraceDays": 2.5
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "graceAboveMaximum": {
+      "app": {
+        "name": "AppContract",
+        "offlineGraceDays": 366
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "graceMinimum": {
+      "app": {
+        "name": "AppContract",
+        "offlineGraceDays": 1
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "graceMaximum": {
+      "app": {
+        "name": "AppContract",
+        "offlineGraceDays": 365
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "startViewUnknown": {
+      "app": {
+        "name": "AppContract",
+        "startView": "NoSuchView"
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "themeUnknown": {
+      "app": {
+        "name": "AppContract",
+        "theme": "NeonMidnight"
+      },
+      "objects": [
+        {
+          "name": "Thing",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "versionSpelledShort": {
+      "modelVersion": "1.1",
+      "app": {
+        "name": "VersionSpelling"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdmin",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "versionSpelledLong": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "VersionSpelling"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdmin",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "danglingChain": {
+      "modelVersion": "1.2.0",
+      "app": {
+        "name": "VersionSpelling"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Gig",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdmin",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Gig",
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Name",
+                  "to": "Title"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "app.offline-grace.default.001",
+      "title": "An undeclared offline grace resolves to the platform default of 30 days",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "resolveModel",
+      "modelRef": "appMinimal",
+      "input": {
+        "select": [
+          "app.offlineGraceDays"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.offlineGraceDays": 30
+        }
+      }
+    },
+    {
+      "id": "app.offline-grace.declared.001",
+      "title": "A declared offline grace resolves to the declared number of days",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "resolveModel",
+      "modelRef": "appDeclared",
+      "input": {
+        "select": [
+          "app.offlineGraceDays"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.offlineGraceDays": 7
+        }
+      }
+    },
+    {
+      "id": "app.start-view.derived.001",
+      "title": "An undeclared start view derives the first resolved view of the first object",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "appMinimal",
+      "input": {
+        "select": [
+          "app.startView"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.startView": "ThingList"
+        }
+      }
+    },
+    {
+      "id": "app.start-view.declared.001",
+      "title": "A declared start view is preserved rather than derived",
+      "specRef": "language#application-declaration",
+      "operation": "resolveModel",
+      "modelRef": "appDeclared",
+      "input": {
+        "select": [
+          "app.startView"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.startView": "ThingForm"
+        }
+      }
+    },
+    {
+      "id": "app.theme.default.001",
+      "title": "An undeclared application theme resolves to CorporateLight",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "appMinimal",
+      "input": {
+        "select": [
+          "app.theme"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.theme": "CorporateLight"
+        }
+      }
+    },
+    {
+      "id": "app.theme.declared.001",
+      "title": "A declared application theme is preserved",
+      "specRef": "language#application-declaration",
+      "operation": "resolveModel",
+      "modelRef": "appDeclared",
+      "input": {
+        "select": [
+          "app.theme"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.theme": "CorporateDark"
+        }
+      }
+    },
+    {
+      "id": "model-version.default.001",
+      "title": "An undeclared model version resolves to the default 0.1.0",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "resolveModel",
+      "modelRef": "appMinimal",
+      "input": {
+        "select": [
+          "modelVersion"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "modelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "model-version.declared.001",
+      "title": "A declared model version is preserved",
+      "specRef": "language#model-versions-and-migrations",
+      "operation": "resolveModel",
+      "modelRef": "appDeclared",
+      "input": {
+        "select": [
+          "modelVersion"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "modelVersion": "1.1.0"
+        }
+      }
+    },
+    {
+      "id": "model-migrations.default-empty.001",
+      "title": "A model that declares no migration resolves an empty migration list",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "resolveModel",
+      "modelRef": "appMinimal",
+      "input": {
+        "select": [
+          "migrations"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "migrations": []
+        }
+      }
+    },
+    {
+      "id": "app.resolution.whole-app-block.001",
+      "title": "The resolved app block carries exactly name, start view, theme and offline grace",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "resolveModel",
+      "modelRef": "appDeclared",
+      "input": {
+        "select": [
+          "app"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app": {
+            "name": "AppContract",
+            "startView": "ThingForm",
+            "theme": "CorporateDark",
+            "offlineGraceDays": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "model-migrations.declared-hop.001",
+      "title": "A declared migration resolves to an ordered hop with its object steps",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "resolveModel",
+      "modelRef": "gigV110",
+      "input": {
+        "select": [
+          "migrations"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "migrations": [
+            {
+              "from": "1.0.0",
+              "to": "1.1.0",
+              "objects": [
+                {
+                  "object": "Gig",
+                  "schemaVersion": 2,
+                  "steps": [
+                    {
+                      "kind": "renameField",
+                      "from": "Venue",
+                      "to": "VenueName"
+                    },
+                    {
+                      "kind": "addField",
+                      "field": "PayoutCents",
+                      "defaultValue": 0
+                    },
+                    {
+                      "kind": "dropField",
+                      "field": "LegacyNote"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "app.offline-grace.invalid.zero.001",
+      "title": "An offline grace of zero days is refused rather than treated as the default",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "validateModel",
+      "modelRef": "graceZero",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_APP_OFFLINE_GRACE_INVALID",
+            "path": "app.offlineGraceDays"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app.offline-grace.invalid.negative.001",
+      "title": "A negative offline grace is refused",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "validateModel",
+      "modelRef": "graceNegative",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_APP_OFFLINE_GRACE_INVALID",
+            "path": "app.offlineGraceDays"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app.offline-grace.invalid.fractional.001",
+      "title": "A fractional offline grace is refused: the value is a whole number of days",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "validateModel",
+      "modelRef": "graceFractional",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_APP_OFFLINE_GRACE_INVALID",
+            "path": "app.offlineGraceDays"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app.offline-grace.invalid.above-maximum.001",
+      "title": "An offline grace above 365 days is refused: it is also the authority session lifetime",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "validateModel",
+      "modelRef": "graceAboveMaximum",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_APP_OFFLINE_GRACE_INVALID",
+            "path": "app.offlineGraceDays"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app.offline-grace.valid.minimum.001",
+      "title": "An offline grace of one day is inside the bound",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "validateModel",
+      "modelRef": "graceMinimum",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "app.offline-grace.valid.maximum.001",
+      "title": "An offline grace of 365 days is inside the bound",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "validateModel",
+      "modelRef": "graceMaximum",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "app.start-view.unknown.001",
+      "title": "A start view naming no resolved view is a validation error",
+      "specRef": "resolved-model#defaults",
+      "operation": "validateModel",
+      "modelRef": "startViewUnknown",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_APP_START_VIEW_UNKNOWN",
+            "path": "app.startView"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app.theme.unknown.001",
+      "title": "An application theme naming no declared or built-in theme is a validation error",
+      "specRef": "resolved-model#defaults",
+      "operation": "validateModel",
+      "modelRef": "themeUnknown",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_APP_THEME_UNKNOWN",
+            "path": "app.theme"
+          }
+        ]
+      }
+    },
+    {
+      "id": "model-version.invalid.not-dotted-number.001",
+      "title": "A model version that is not a dotted number is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "modelVersionNotDotted",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MODEL_VERSION_INVALID",
+            "path": "modelVersion"
+          }
+        ]
+      }
+    },
+    {
+      "id": "model-version.invalid.prefixed.001",
+      "title": "A model version carrying a prefix such as 'v1.0.0' is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "modelVersionPrefixed",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MODEL_VERSION_INVALID",
+            "path": "modelVersion"
+          }
+        ]
+      }
+    },
+    {
+      "id": "model-version.valid.four-components.001",
+      "title": "A model version of up to four dotted components is accepted",
+      "specRef": "language#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "modelVersionFourComponents",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "fingerprint.canonical-key-order.001",
+      "title": "Two structurally identical models whose keys are written in a different order fingerprint the same",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpBaseReorderedKeys"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": true,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.deterministic-resolution.001",
+      "title": "Resolving the same model twice produces the same fingerprint",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpBase"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": true,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.offline-grace-change.001",
+      "title": "PHASE 51 DEFECT CASE: changing app.offlineGraceDays alone changes the fingerprint, so shortening OFFLINE_GRACE can no longer pass in silence",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpGraceSeven"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": false,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.theme-change.001",
+      "title": "Changing the application theme changes the fingerprint",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpThemeChanged"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": false,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.field-rename.001",
+      "title": "Renaming a field changes the fingerprint",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpFieldRenamed"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": false,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.object-added.001",
+      "title": "Adding an object changes the fingerprint",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpObjectAdded"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": false,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.policy-changed.001",
+      "title": "Adding a policy rule changes the fingerprint",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpPolicyChanged"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": false,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.array-order-significant.001",
+      "title": "Array order is content: reordering two roles changes the fingerprint",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpRolesReordered"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": false,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "0.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.declared-version-only.001",
+      "title": "The declared version is not model content: changing only MODEL_VERSION leaves the fingerprint alone",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpVersionOneZero"
+        },
+        "right": {
+          "modelRef": "fpVersionOneOne"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": true,
+          "leftModelVersion": "1.0.0",
+          "rightModelVersion": "1.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.migration-declaration.001",
+      "title": "Declaring a migration is model content and changes the fingerprint at an unchanged declared version",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpVersionOneOne"
+        },
+        "right": {
+          "modelRef": "fpVersionOneOneWithMigration"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": false,
+          "leftModelVersion": "1.1.0",
+          "rightModelVersion": "1.1.0"
+        }
+      }
+    },
+    {
+      "id": "fingerprint.default-version-differs-from-declared.001",
+      "title": "A model declaring 1.0.0 fingerprints identically to one that declares nothing, because only content is digested",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "compareModelFingerprints",
+      "input": {
+        "left": {
+          "modelRef": "fpBase"
+        },
+        "right": {
+          "modelRef": "fpVersionOneZero"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "equal": true,
+          "leftModelVersion": "0.1.0",
+          "rightModelVersion": "1.0.0"
+        }
+      }
+    },
+    {
+      "id": "migration.validation.duplicate.001",
+      "title": "The same version hop declared twice is refused: which one applies would be undefined",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationDuplicateHop",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_DUPLICATE",
+            "path": "migrations[1]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.version-invalid.001",
+      "title": "A migration whose from-version is not a dotted number is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationVersionNotDotted",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_VERSION_INVALID",
+            "path": "migrations[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.not-forward.001",
+      "title": "A migration hop that moves backwards is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationBackwardHop",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_NOT_FORWARD",
+            "path": "migrations[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.unreachable.001",
+      "title": "A migration targeting a version later than the model's own can never run and is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationTargetsLaterVersion",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_UNREACHABLE",
+            "path": "migrations[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.object-unknown.001",
+      "title": "A migration naming an object the model does not declare is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationUnknownObject",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_OBJECT_UNKNOWN",
+            "path": "migrations[0].objects[0].object"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.step-rename-to-unknown-field.001",
+      "title": "A final hop renaming into a field the model does not declare is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationRenameToUnknownField",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_STEP_INVALID",
+            "path": "migrations[0].objects[0].steps[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.step-rename-to-itself.001",
+      "title": "A rename step whose source and target are the same field is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationRenameFieldToItself",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_STEP_INVALID",
+            "path": "migrations[0].objects[0].steps[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.step-add-unknown-field.001",
+      "title": "A final hop adding a field the model does not declare is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationAddsUnknownField",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_STEP_INVALID",
+            "path": "migrations[0].objects[0].steps[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.step-drop-live-field.001",
+      "title": "A final hop dropping a field the model still declares is refused: it would delete live data",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationDropsLiveField",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_STEP_INVALID",
+            "path": "migrations[0].objects[0].steps[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.schema-version-invalid.001",
+      "title": "A final hop leaving an object at a schema version the model does not expect is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "migrationSchemaVersionDisagrees",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_SCHEMA_VERSION_INVALID",
+            "path": "migrations[0].objects[0].schemaVersion"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration.validation.chain-is-valid.001",
+      "title": "A two-hop chain validates clean: only the hop ending at the model's own version is checked against today's fields",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "gigV120",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "migration.validation.two-routes-are-valid.001",
+      "title": "Declaring more than one route forward from the same version is legal",
+      "specRef": "language#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "gigV120TwoRoutes",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "migration.validation.single-hop-is-valid.001",
+      "title": "A well-formed single hop produces no diagnostics",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "gigV110",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "migration.apply.single-hop.001",
+      "title": "A single-hop migration renames a field, backfills an added field, drops a removed one and bumps the schema version",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV100"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r3-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.apply.add-field-backfills-only-where-absent.001",
+      "title": "addField writes its default only into records that do not already carry the field",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV100"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r2-gig-b",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Anvil",
+                "LegacyNote": "import note",
+                "PayoutCents": 4500
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            },
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Anvil",
+                "PayoutCents": 4500
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.apply.untouched-object-left-alone.001",
+      "title": "A record of an object no hop mentions keeps its values and schema version",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV100"
+        },
+        "records": [
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r3-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.apply.two-hop-chain.001",
+      "title": "Persisted state at 1.0.0 opened by a 1.2.0 model applies both declared hops in order",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV120",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV100"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r3-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED",
+              "expected": "1.2.0",
+              "actual": "1.0.0"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.2.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 3,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutPence": 0,
+                "Currency": "GBP"
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.apply.shortest-route-wins.001",
+      "title": "When two routes forward are declared, the shortest is taken so the same field change is not applied twice",
+      "specRef": "language#model-versions-and-migrations",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV120TwoRoutes",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV100"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED",
+              "expected": "1.2.0",
+              "actual": "1.0.0"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.2.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 3,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutPence": 0,
+                "Currency": "GBP"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.refusal.unrecognised-persisted-version.001",
+      "title": "A persisted version that is not a recognised dotted number fails closed and leaves records alone",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "applicationMetadata": {
+          "modelVersion": "not-a-version"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_MODEL_VERSION_MISMATCH",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "not-a-version"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "not-a-version"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.current.no-op.001",
+      "title": "Persisted state at the model's own version with a matching fingerprint proceeds and rewrites nothing",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV110"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.warning.fingerprint-missing-backfilled.001",
+      "title": "Metadata predating fingerprints warns and proceeds rather than refusing",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "applicationMetadata": {
+          "modelVersion": "1.1.0"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "warning",
+              "code": "ADL_PERSISTED_MODEL_FINGERPRINT_MISSING",
+              "path": "metadata.modelFingerprint",
+              "actual": null
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.refusal.no-path-leaves-records.001",
+      "title": "No declared migration reaches the persisted version: refuse, and leave every record exactly as it was",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV090"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r3-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_MODEL_VERSION_MISMATCH",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "0.9.0"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Gig.r1-gig-a.meta.schemaVersion",
+              "expected": 2,
+              "actual": 1
+            }
+          ],
+          "metadata": {
+            "modelVersion": "0.9.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 1,
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.refusal.persisted-ahead-leaves-records.001",
+      "title": "Persisted state at a later version than the model is refused rather than read, and nothing is rewritten",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV100",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV110"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_MIGRATION_PERSISTED_VERSION_AHEAD",
+              "path": "metadata.modelVersion",
+              "expected": "1.0.0",
+              "actual": "1.1.0"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Gig.r1-gig-a.meta.schemaVersion",
+              "expected": 1,
+              "actual": 2
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.refusal.fingerprint-stale-leaves-records.001",
+      "title": "The declared version is unchanged but the content is not: refuse, and leave every record as it was",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV110GraceSeven"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_MODEL_FINGERPRINT_STALE",
+              "path": "metadata.modelFingerprint"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.plan-only.refuses-without-rewriting.001",
+      "title": "With migrations planned but not applied, an out-of-date version is refused and no record is rewritten",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV100"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r3-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ],
+        "applyMigrations": false
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_MODEL_VERSION_MISMATCH",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Gig.r1-gig-a.meta.schemaVersion",
+              "expected": 2,
+              "actual": 1
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.0.0"
+          },
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 1,
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "startup.persisted-model.same-model-proceeds.001",
+      "title": "State written by the same model opens with no startup diagnostics",
+      "specRef": "runtime-semantics#schema-version-compatibility",
+      "operation": "startupCompatibility",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV110"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "startup.persisted-model.migration-applied.001",
+      "title": "A runtime opening its own older state migrates it rather than refusing to start",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "startupCompatibility",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV100"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r3-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "info",
+            "code": "ADL_MODEL_MIGRATION_APPLIED",
+            "expected": "1.1.0",
+            "actual": "1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "startup.persisted-model.fingerprint-stale-refuses.001",
+      "title": "State written by a model with the same declared version but different content refuses startup",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "startupCompatibility",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV110GraceSeven"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeStartupError",
+          "code": "ADL_RUNTIME_STARTUP_COMPATIBILITY_FAILED",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_MODEL_FINGERPRINT_STALE"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "startup.persisted-model.ahead-refuses.001",
+      "title": "State written by a later model refuses startup rather than being read by an older one",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "startupCompatibility",
+      "modelRef": "gigV100",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV110"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeStartupError",
+          "code": "ADL_RUNTIME_STARTUP_COMPATIBILITY_FAILED",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_MIGRATION_PERSISTED_VERSION_AHEAD"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "startup.persisted-model.no-metadata-warns.001",
+      "title": "Records persisted without application metadata warn and proceed",
+      "specRef": "runtime-semantics#schema-version-compatibility",
+      "operation": "startupCompatibility",
+      "modelRef": "gigV110",
+      "input": {
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 2,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "warning",
+            "code": "ADL_PERSISTED_MODEL_VERSION_MISSING",
+            "expected": "1.1.0",
+            "actual": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "startup.persisted-model.no-path-refuses.001",
+      "title": "State at a version no declared migration reaches refuses startup",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "startupCompatibility",
+      "modelRef": "gigV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "gigV090"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "r1-gig-a",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeStartupError",
+          "code": "ADL_RUNTIME_STARTUP_COMPATIBILITY_FAILED",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_MODEL_VERSION_MISMATCH"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.version.equal-spellings-are-current.001",
+      "title": "Versions '1.1' and '1.1.0' are the same version, so nothing is migrated",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "versionSpelledLong",
+      "input": {
+        "persistedModel": {
+          "modelRef": "versionSpelledShort"
+        },
+        "applicationMetadata": {
+          "modelVersion": "1.1"
+        },
+        "records": [
+          {
+            "objectName": "Gig",
+            "record": {
+              "meta": {
+                "guid": "gig-1",
+                "object": "Gig",
+                "schemaVersion": 1,
+                "revision": "rev-1",
+                "createdAt": "2026-07-17T09:00:00.000Z",
+                "createdBy": "admin-1",
+                "updatedAt": "2026-07-17T09:00:00.000Z",
+                "updatedBy": "admin-1",
+                "syncStatus": "local"
+              },
+              "values": {
+                "Title": "Opening night"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "records": [
+            {
+              "objectName": "Gig",
+              "schemaVersion": 1,
+              "values": {
+                "Title": "Opening night"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.validation.chain-dead-ends.001",
+      "title": "A migration chain that stops short of the model's own version is refused",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "danglingChain",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_MIGRATION_UNREACHABLE",
+            "path": "migrations[0]"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -104,6 +104,9 @@ import type {
   SourceRange,
   StateDeclarationAst,
   SyncDeclarationAst,
+  MigrationDeclarationAst,
+  MigrationObjectDeclarationAst,
+  MigrationStepAst,
   ThemeDeclarationAst,
   ThemeTokenDeclarationAst,
   ThemeTokenName,
@@ -188,6 +191,7 @@ class AdlParser {
     const policies: PolicyDeclarationAst[] = [];
     const themes: ThemeDeclarationAst[] = [];
     const sync: SyncDeclarationAst[] = [];
+    const migrations: MigrationDeclarationAst[] = [];
 
     while (!this.isAtEnd()) {
       this.skipNewlines();
@@ -216,9 +220,11 @@ class AdlParser {
         themes.push(this.parseTheme());
       } else if (this.checkWord("SYNC")) {
         sync.push(this.parseSync(false));
+      } else if (this.checkWord("MIGRATION")) {
+        migrations.push(this.parseMigration());
       } else {
         this.failUnexpected(
-          "a top-level ROLE, OBJECT, READ_MODEL, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, or end of file",
+          "a top-level ROLE, OBJECT, READ_MODEL, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, MIGRATION, or end of file",
         );
       }
     }
@@ -236,6 +242,7 @@ class AdlParser {
       policies,
       themes,
       sync,
+      migrations,
       range: { start, end: this.previous().range.end },
     };
   }
@@ -246,6 +253,7 @@ class AdlParser {
     let theme: string | undefined;
     let startView: string | undefined;
     let offlineGraceDays: number | undefined;
+    let modelVersion: string | undefined;
     this.consumeLineEnd("APP declaration");
 
     while (true) {
@@ -263,6 +271,7 @@ class AdlParser {
           ...(theme === undefined ? {} : { theme }),
           ...(startView === undefined ? {} : { startView }),
           ...(offlineGraceDays === undefined ? {} : { offlineGraceDays }),
+          ...(modelVersion === undefined ? {} : { modelVersion }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -280,8 +289,142 @@ class AdlParser {
         offlineGraceDays = this.consumeNumber("APP OFFLINE_GRACE day count");
         this.expectWord("DAYS", "APP OFFLINE_GRACE unit");
         this.consumeLineEnd("APP OFFLINE_GRACE directive");
+      } else if (this.matchWord("MODEL_VERSION") || this.matchDottedWord("MODEL", "VERSION")) {
+        // Quoted, and read as text rather than a number, so `1.1.0` survives:
+        // a bare dotted literal is not a number the lexer can carry intact.
+        modelVersion = this.consumeName("APP MODEL_VERSION value");
+        this.consumeLineEnd("APP MODEL_VERSION directive");
       } else {
-        this.failUnexpected("APP directive THEME, START_VIEW, OFFLINE_GRACE, or END.APP");
+        this.failUnexpected(
+          "APP directive THEME, START_VIEW, OFFLINE_GRACE, MODEL_VERSION, or END.APP",
+        );
+      }
+    }
+  }
+
+  /**
+   * ```text
+   * MIGRATION FROM "1.0.0" TO "1.1.0"
+   *   OBJECT Gig
+   *     SCHEMA_VERSION 2
+   *     RENAME FIELD Venue TO VenueName
+   *     ADD FIELD PayoutCents DEFAULT 0
+   *     DROP FIELD LegacyNote
+   *   END.OBJECT
+   * END.MIGRATION
+   * ```
+   *
+   * A migration declares how persisted records reach this model from an earlier
+   * one. It never mentions storage engines, tables or SQL: the projection's own
+   * tables migrate out of band through ordered SQL files, and this block is only
+   * about the shape of a record.
+   */
+  private parseMigration(): MigrationDeclarationAst {
+    const startToken = this.expectWord("MIGRATION", "MIGRATION declaration");
+    this.expectWord("FROM", "MIGRATION FROM version");
+    const from = this.consumeName("MIGRATION FROM version");
+    this.expectWord("TO", "MIGRATION TO version");
+    const to = this.consumeName("MIGRATION TO version");
+    this.consumeLineEnd("MIGRATION declaration");
+    const objects: MigrationObjectDeclarationAst[] = [];
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.MIGRATION", this.current());
+      }
+
+      if (this.checkEnd("MIGRATION")) {
+        const end = this.parseEnd("MIGRATION");
+        return {
+          kind: "MigrationDeclaration",
+          from,
+          to,
+          objects,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.checkWord("OBJECT")) {
+        objects.push(this.parseMigrationObject());
+      } else {
+        this.failUnexpected("MIGRATION directive OBJECT or END.MIGRATION");
+      }
+    }
+  }
+
+  private parseMigrationObject(): MigrationObjectDeclarationAst {
+    const startToken = this.expectWord("OBJECT", "MIGRATION OBJECT declaration");
+    const object = this.consumeName("MIGRATION OBJECT name");
+    this.consumeLineEnd("MIGRATION OBJECT declaration");
+    const steps: MigrationStepAst[] = [];
+    let schemaVersion: number | undefined;
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.OBJECT", this.current());
+      }
+
+      if (this.checkEnd("OBJECT")) {
+        const end = this.parseEnd("OBJECT");
+        return {
+          kind: "MigrationObjectDeclaration",
+          object,
+          ...(schemaVersion === undefined ? {} : { schemaVersion }),
+          steps,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      const stepToken = this.current();
+
+      if (this.matchWord("SCHEMA_VERSION") || this.matchDottedWord("SCHEMA", "VERSION")) {
+        schemaVersion = this.consumeNumber("MIGRATION OBJECT SCHEMA_VERSION value");
+        this.consumeLineEnd("MIGRATION OBJECT SCHEMA_VERSION directive");
+      } else if (this.matchWord("RENAME")) {
+        this.expectWord("FIELD", "MIGRATION RENAME FIELD directive");
+        const from = this.consumeName("MIGRATION RENAME source field");
+        this.expectWord("TO", "MIGRATION RENAME target field");
+        const to = this.consumeName("MIGRATION RENAME target field");
+        this.consumeLineEnd("MIGRATION RENAME FIELD directive");
+        steps.push({
+          kind: "renameField",
+          from,
+          to,
+          range: { start: stepToken.range.start, end: this.previous().range.end },
+        });
+      } else if (this.matchWord("ADD")) {
+        this.expectWord("FIELD", "MIGRATION ADD FIELD directive");
+        const field = this.consumeName("MIGRATION ADD FIELD name");
+        // Required, not optional: a record that silently gains `null` where the
+        // model says the field is required would fail validation on next write.
+        this.expectWord("DEFAULT", "MIGRATION ADD FIELD DEFAULT value");
+        const defaultValue = this.consumeModifierValue("MIGRATION ADD FIELD DEFAULT value");
+        this.consumeLineEnd("MIGRATION ADD FIELD directive");
+        steps.push({
+          kind: "addField",
+          field,
+          defaultValue,
+          range: { start: stepToken.range.start, end: this.previous().range.end },
+        });
+      } else if (this.matchWord("DROP")) {
+        this.expectWord("FIELD", "MIGRATION DROP FIELD directive");
+        const field = this.consumeName("MIGRATION DROP FIELD name");
+        this.consumeLineEnd("MIGRATION DROP FIELD directive");
+        steps.push({
+          kind: "dropField",
+          field,
+          range: { start: stepToken.range.start, end: this.previous().range.end },
+        });
+      } else {
+        this.failUnexpected(
+          "MIGRATION OBJECT directive SCHEMA_VERSION, RENAME FIELD, ADD FIELD, DROP FIELD, or END.OBJECT",
+        );
       }
     }
   }
@@ -606,6 +749,7 @@ class AdlParser {
     const name = this.consumeName("object name");
     let businessKey: string | undefined;
     let displayField: string | undefined;
+    let schemaVersion: number | undefined;
     let lifecycle: LifecycleDeclarationAst | undefined;
     let sync: SyncDeclarationAst | undefined;
     let scope: ObjectScopeDeclarationAst | undefined;
@@ -631,6 +775,7 @@ class AdlParser {
           name,
           ...(businessKey === undefined ? {} : { businessKey }),
           ...(displayField === undefined ? {} : { displayField }),
+          ...(schemaVersion === undefined ? {} : { schemaVersion }),
           fields,
           computedFields,
           ...(scope === undefined ? {} : { scope }),
@@ -651,6 +796,13 @@ class AdlParser {
       } else if (this.matchWord("DISPLAY")) {
         displayField = this.consumeName("display field name");
         this.consumeLineEnd("OBJECT DISPLAY directive");
+      } else if (this.matchWord("SCHEMA_VERSION") || this.matchDottedWord("SCHEMA", "VERSION")) {
+        // Without this an object could never leave schema version 1, which made
+        // `SCHEMA_VERSION` inside a MIGRATION block unusable from ADL source: a
+        // migration bumping a record to 2 was refused because the model still
+        // said 1, so the only legal value was the one that changes nothing.
+        schemaVersion = this.consumeNumber("OBJECT SCHEMA_VERSION value");
+        this.consumeLineEnd("OBJECT SCHEMA_VERSION directive");
       } else if (this.checkWord("FIELD")) {
         fields.push(this.parseField());
       } else if (this.checkWord("COMPUTED")) {

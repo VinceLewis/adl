@@ -1229,6 +1229,7 @@ describe("ApplicationRuntime", () => {
     await expect(runtime.whenReady()).resolves.toBeUndefined();
     await expect(storage.readApplicationMetadata()).resolves.toEqual({
       modelVersion: model.modelVersion,
+      modelFingerprint: model.modelFingerprint,
     });
     expect(runtime.getStartupDiagnostics()).toEqual([
       expect.objectContaining({
@@ -1253,6 +1254,9 @@ describe("ApplicationRuntime", () => {
         schemaVersion: syncObject.schemaVersion + 1,
       },
     };
+    // Deliberately without a fingerprint: this is state persisted before
+    // fingerprints existed, which is warned about and backfilled rather than
+    // refused, so the schema-version error below is still the blocking one.
     await storage.writeApplicationMetadata({ modelVersion: model.modelVersion });
     await storage.create("SyncItem", cachedRecord);
 
@@ -1261,6 +1265,10 @@ describe("ApplicationRuntime", () => {
     await expect(runtime.whenReady()).rejects.toMatchObject({
       code: "ADL_RUNTIME_STARTUP_COMPATIBILITY_FAILED",
       diagnostics: [
+        expect.objectContaining({
+          severity: "warning",
+          code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MODEL_FINGERPRINT_MISSING,
+        }),
         expect.objectContaining({
           severity: "error",
           code: RUNTIME_STARTUP_COMPATIBILITY_CODES.RECORD_SCHEMA_VERSION_MISMATCH,
@@ -1279,7 +1287,7 @@ describe("ApplicationRuntime", () => {
   it("returns structured diagnostics for incompatible persisted application model versions", async () => {
     const storage = new InMemoryObjectStorageBackend();
     const model = resolveApplicationModel(createSyncModePartialModel("cacheReadonly"));
-    await storage.writeApplicationMetadata({ modelVersion: "legacy-model-version" });
+    await storage.writeApplicationMetadata({ modelVersion: "0.0.1" });
 
     const runtime = new ApplicationRuntime(model, { storage });
 
@@ -1289,7 +1297,7 @@ describe("ApplicationRuntime", () => {
           severity: "error",
           code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MODEL_VERSION_MISMATCH,
           expected: model.modelVersion,
-          actual: "legacy-model-version",
+          actual: "0.0.1",
         }),
       ],
     });

@@ -332,3 +332,161 @@ remain validation diagnostics with `ADL_SHELL_*` codes.
 Runtime startup checks persisted application model metadata and stored record
 schema versions. Mismatches produce structured startup diagnostics and block
 runtime use when severity is error.
+
+## Model Migration
+
+Startup compares persisted application metadata against the running model and
+resolves exactly one of the situations below. Every one of them either proceeds or
+refuses; none of them destroys persisted data.
+
+| Persisted state | Outcome |
+| --- | --- |
+| Same version, same fingerprint | Proceeds. |
+| Same version, no fingerprint recorded | Proceeds with `ADL_PERSISTED_MODEL_FINGERPRINT_MISSING` (warning) and backfills it. |
+| Same version, different fingerprint | Refuses with `ADL_PERSISTED_MODEL_FINGERPRINT_STALE`. |
+| Earlier version, a declared chain reaches it | Migrates, then proceeds, reporting `ADL_MODEL_MIGRATION_APPLIED` (info). |
+| Earlier version, no chain reaches it | Refuses with `ADL_PERSISTED_MODEL_VERSION_MISMATCH`. |
+| Later version than the model's | Refuses with `ADL_MIGRATION_PERSISTED_VERSION_AHEAD`. |
+
+Versions are compared **component-wise**, so `1.1` and `1.1.0` are the same
+version and neither migrates to the other. Anywhere a version is used as a key —
+selecting a migration, walking a chain — it is normalised first.
+
+`renameField` onto a key the record already carries replaces the occupant. An
+author who renames into an occupied field is asserting that the source is the
+surviving value; declare a `dropField` first if the intent is otherwise.
+
+The stale-fingerprint case is the one that used to pass in silence. The model
+that persisted the state is not the model now running, so no migration can be
+selected and none can be assumed unnecessary; the remediation is to declare a
+new `MODEL_VERSION` and a `MIGRATION` to it.
+
+Persisted state ahead of the running model is refused rather than read, because
+an older process silently reading newer records is how a downgrade destroys data
+it does not understand.
+
+Migration semantics:
+
+- Records are migrated **before** their schema versions are checked. Making
+  records that would otherwise fail that check pass it is the entire purpose.
+- A record of an object no hop mentions is left byte-identical. It does not
+  acquire a new revision or a reordered value map as a side effect of an
+  unrelated migration.
+- `revision`, actor and timestamps are preserved on migrated records. A
+  migration is not an edit by anyone: rewriting them would make a schema change
+  look like a user's change in every audit surface, and would break optimistic
+  concurrency for a client holding the pre-migration revision.
+- Record rewrites and the metadata row that declares them migrated commit
+  together, atomically. A backend that cannot commit atomically is refused
+  rather than migrated write by write: a half-applied migration is the one
+  outcome no diagnostic can describe honestly afterwards.
+- A migration that fails is rolled back and reported as
+  `ADL_MIGRATION_FAILED`, leaving persisted state exactly as it was.
+- Pending local operations are migrated by the same steps, minus `addField`: a
+  patch is a set of changes rather than a whole record, so backfilling a default
+  into one would assert a change the user never made. Nothing is created —
+  no audit event, operation-log entry or queue entry is ever fabricated.
+- Cached identity is not a record, carries no schema, and is never touched.
+
+An authority refuses to start when it cannot reconcile its accepted-record
+projection. A process that started anyway would answer bootstraps from records
+shaped for a different model, and every device that pulled them would persist the
+damage locally.
+
+## Expression Errors
+
+Every expression failure is one of these codes. A conforming runtime returns the
+code; the message is advisory.
+
+| Code | Raised when |
+| --- | --- |
+| `ADL_EXPRESSION_FIELD_UNSUPPORTED_VALUE` | A field reference resolves to a value that is not a supported expression value. |
+| `ADL_EXPRESSION_RUNTIME_REFERENCE_MISSING` | A runtime property is referenced but absent from the runtime context. |
+| `ADL_EXPRESSION_RUNTIME_REFERENCE_UNSUPPORTED` | A runtime property is referenced that this contract does not define. |
+| `ADL_EXPRESSION_OPERATOR_UNSUPPORTED` | An operator is reserved and not yet supported (`in`). |
+| `ADL_EXPRESSION_TYPE_MISMATCH` | Operand kinds cannot be combined or compared. |
+| `ADL_EXPRESSION_DIVIDE_BY_ZERO` | Division or modulo by zero. |
+| `ADL_EXPRESSION_DECIMAL_OVERFLOW` | A value or result exceeds the supported decimal magnitude. |
+| `ADL_EXPRESSION_INVALID_TEMPORAL_VALUE` | A `date`, `datetime` or `time` value is not well formed. |
+
+Two rules about this table are contractual because they are easy to get wrong:
+
+- **Overflow means magnitude, never precision below the scale.** A value smaller
+  than the decimal scale rounds toward zero like any other; it is not an
+  overflow. Formatting a number for parsing must not introduce an exponential
+  form that the decimal grammar then rejects — that would make the rule an
+  artifact of one language's number formatting rather than of ADL.
+- **Reserved-operator failures and internal faults share
+  `ADL_EXPRESSION_OPERATOR_UNSUPPORTED` today.** A second runtime should treat
+  the reserved-operator meaning as the contractual one.
+
+### Value Kinds And Comparison
+
+An expression value has one of seven kinds: `text`, `number`, `boolean`, `date`,
+`datetime`, `time`, `null`.
+
+- A literal's `valueType` reclassifies **only** the three temporal kinds and is
+  otherwise ignored.
+- A **field reference never carries a temporal kind**: its kind is inferred from
+  the stored primitive, so a date-typed field evaluates as `text`.
+- **Ordering** (`<`, `<=`, `>`, `>=`) coerces text to the other operand's
+  temporal kind, in both directions.
+- **Equality** (`==`, `!=`) does **not** coerce: operands of different kinds are
+  unequal. Combined with the rule above, `SomeDateField == DATE '2026-01-31'` is
+  therefore always false while `>=` on the same pair compares as intended. This
+  is a known sharp edge, recorded rather than endorsed.
+- `datetime` ordering normalises to the instant, so two spellings of the same
+  instant in different offsets compare equal. `time` ordering normalises to
+  milliseconds-of-day, so `09:00` and `09:00:00` compare equal. `date` ordering
+  is textual over a fixed-width form, which is equivalent.
+- Equality for temporal kinds remains **textual**, so two spellings of one
+  instant are ordered equal but compared unequal. Also a known sharp edge.
+
+## Authority Replay And Outcomes
+
+A client replays an operation intent to the authority. Every intent carries an
+`operationId` and, for a create, the **record id the client already holds** — an
+authority-minted id would come back naming a record the client does not have,
+stranding the local row it was replayed from.
+
+A record id is untrusted input. It is an identifier and never an authorisation:
+naming a record grants nothing, and the caller may not assert revision, actor,
+timestamps, accepted state or scope. A usable id is 1 to 320 characters, carries
+no surrounding whitespace, and contains no control characters. It is never
+trimmed — the accepted record has to come back under the exact id the caller
+holds, so a whitespace-padded id is refused rather than silently rewritten.
+
+An outcome is one of four:
+
+| Status | Meaning |
+| --- | --- |
+| `accepted` | Applied; the accepted records are returned. |
+| `rejected` | Refused with a code. |
+| `conflict` | The record moved; `recovery` names the resolution. |
+| `manualResolution` | The record moved and the object asks a human to resolve. |
+
+`recovery` follows the object's declared `CONFLICT` strategy: `serverWins`,
+`clientWins`, `stateTransitionWins`, or `manual`, the last escalating the status
+to `manualResolution`. **A missing or already-deleted record follows the same
+declared strategy as a stale revision.** An object that asks for manual
+resolution gets it for the update-versus-delete race too — that race is where a
+local edit is about to be discarded entirely, so it is the last place to resolve
+automatically.
+
+Ordering on the create path is contractual, and two parts of it are security
+decisions rather than conveniences:
+
+    record id shape → context scope → policy → field policy → sync mode → id collision
+
+- **Shape is checked before policy** because it is pure input validation and
+  reveals nothing.
+- **Collision is checked after policy** so that a caller who may not write the
+  object cannot use id collisions as an existence oracle: an unauthorised caller
+  colliding with a real id gets a policy denial, not a collision refusal.
+
+A colliding id is refused, never merged and never overwritten, and the collision
+check reads through tombstones — deleting a record does not free its id.
+
+Replay is **idempotent and bound to the actor**: the same `operationId` from the
+same actor returns the stored outcome verbatim, while a different actor reusing
+that id is applied afresh.

@@ -1,0 +1,2485 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "expression.literal.text.001",
+      "title": "A string literal evaluates to a text value",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": "Draft"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "text",
+          "value": "Draft"
+        }
+      }
+    },
+    {
+      "id": "expression.literal.number.001",
+      "title": "A numeric literal evaluates to a number value",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": 42
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 42
+        }
+      }
+    },
+    {
+      "id": "expression.literal.null.001",
+      "title": "A null literal evaluates to the null value kind",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": null
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "null",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "expression.literal.date-value-type.001",
+      "title": "A literal valueType of date reclassifies the value kind",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": "2026-01-31",
+          "valueType": "date"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "date",
+          "value": "2026-01-31"
+        }
+      }
+    },
+    {
+      "id": "expression.literal.datetime-value-type.001",
+      "title": "A literal valueType of datetime reclassifies the value kind without normalising the text",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": "2026-07-17T13:30:00+01:00",
+          "valueType": "datetime"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "datetime",
+          "value": "2026-07-17T13:30:00+01:00"
+        }
+      }
+    },
+    {
+      "id": "expression.literal.time-value-type.001",
+      "title": "A literal valueType of time reclassifies the value kind",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": "09:00",
+          "valueType": "time"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "time",
+          "value": "09:00"
+        }
+      }
+    },
+    {
+      "id": "expression.literal.null-value-type-ignored.001",
+      "title": "A null literal stays null even when a temporal valueType is declared",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": null,
+          "valueType": "date"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "null",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "expression.literal.non-temporal-value-type-ignored.001",
+      "title": "A non-temporal valueType does not reclassify a literal; the JSON type decides",
+      "specRef": "resolved-model#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "literal",
+          "value": "7",
+          "valueType": "number"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "text",
+          "value": "7"
+        }
+      }
+    },
+    {
+      "id": "expression.field.missing-is-null.001",
+      "title": "A field absent from the supplied values evaluates as null",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "field",
+          "field": "Nickname"
+        },
+        "values": {
+          "Name": "Ada"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "null",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "expression.field.explicit-null.001",
+      "title": "A field present with a null value evaluates as null",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "field",
+          "field": "Nickname"
+        },
+        "values": {
+          "Nickname": null
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "null",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "expression.field.kind-from-value.001",
+      "title": "A field takes its value kind from the stored primitive, never from a declared temporal type",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "field",
+          "field": "DueDate"
+        },
+        "values": {
+          "DueDate": "2026-01-31"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "text",
+          "value": "2026-01-31"
+        }
+      }
+    },
+    {
+      "id": "expression.field.non-primitive.001",
+      "title": "A field holding a non-primitive value is an expression error",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "field",
+          "field": "Tags"
+        },
+        "values": {
+          "Tags": [
+            "urgent",
+            "finance"
+          ]
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_FIELD_UNSUPPORTED_VALUE",
+          "message": "Expression field 'Tags' resolved to a non-primitive value."
+        }
+      }
+    },
+    {
+      "id": "expression.runtime.user-id.001",
+      "title": "runtime.userId resolves to the context user id as text",
+      "specRef": "runtime-semantics#runtime-context",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "runtime",
+          "property": "userId"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-42",
+          "roles": [
+            "Manager"
+          ],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "text",
+          "value": "user-42"
+        }
+      }
+    },
+    {
+      "id": "expression.runtime.now-normalised.001",
+      "title": "runtime.now resolves to the context instant as a UTC ISO datetime",
+      "specRef": "runtime-semantics#runtime-context",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "runtime",
+          "property": "now"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T13:30:00+01:00"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "datetime",
+          "value": "2026-07-17T12:30:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "expression.runtime.now-missing.001",
+      "title": "runtime.now without a context instant is a structured missing-reference error",
+      "specRef": "runtime-semantics#runtime-context",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "runtime",
+          "property": "now"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_RUNTIME_REFERENCE_MISSING",
+          "message": "Expression runtime.now requires RuntimeContext.now."
+        }
+      }
+    },
+    {
+      "id": "expression.runtime.unsupported-property.001",
+      "title": "An unknown runtime property is refused rather than resolved",
+      "specRef": "runtime-semantics#runtime-context",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "runtime",
+          "property": "today"
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_RUNTIME_REFERENCE_UNSUPPORTED",
+          "message": "Unsupported runtime reference 'today'."
+        }
+      }
+    },
+    {
+      "id": "expression.runtime.now-ordering.001",
+      "title": "runtime.now orders against a datetime literal by instant",
+      "specRef": "runtime-semantics#runtime-context",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": ">",
+          "left": {
+            "kind": "runtime",
+            "property": "now"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "2026-07-17T00:00:00.000Z",
+            "valueType": "datetime"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.unary.not.001",
+      "title": "Unary not inverts a boolean operand",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "unary",
+          "operator": "not",
+          "operand": {
+            "kind": "field",
+            "field": "Archived"
+          }
+        },
+        "values": {
+          "Archived": false
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.unary.not-non-boolean.001",
+      "title": "Unary not requires a boolean operand and does not coerce",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "unary",
+          "operator": "not",
+          "operand": {
+            "kind": "literal",
+            "value": 1
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected boolean expression value; received number."
+        }
+      }
+    },
+    {
+      "id": "expression.unary.not-null.001",
+      "title": "Unary not on null is a type mismatch, not a truthiness test",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "unary",
+          "operator": "not",
+          "operand": {
+            "kind": "field",
+            "field": "Missing"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected boolean expression value; received null."
+        }
+      }
+    },
+    {
+      "id": "expression.unary.negate.001",
+      "title": "Unary negate returns the fixed-scale decimal negation",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "unary",
+          "operator": "negate",
+          "operand": {
+            "kind": "literal",
+            "value": 12.5
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": -12.5
+        }
+      }
+    },
+    {
+      "id": "expression.unary.negate-non-number.001",
+      "title": "Unary negate requires a number operand",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "unary",
+          "operator": "negate",
+          "operand": {
+            "kind": "literal",
+            "value": "12.5"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected number expression value; received text."
+        }
+      }
+    },
+    {
+      "id": "expression.binary.add.001",
+      "title": "Addition is fixed-scale decimal addition, not binary floating point",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": 0.1
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0.2
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 0.3
+        }
+      }
+    },
+    {
+      "id": "expression.binary.subtract.001",
+      "title": "Subtraction is fixed-scale decimal subtraction",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "-",
+          "left": {
+            "kind": "literal",
+            "value": 10.5
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0.25
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 10.25
+        }
+      }
+    },
+    {
+      "id": "expression.binary.multiply.001",
+      "title": "Multiplication returns a product at the fixed decimal scale",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "*",
+          "left": {
+            "kind": "literal",
+            "value": 1.5
+          },
+          "right": {
+            "kind": "literal",
+            "value": 1.5
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 2.25
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.divide-rounds-half-away.001",
+      "title": "Division rounds half away from zero at scale 4",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "/",
+          "left": {
+            "kind": "literal",
+            "value": 2
+          },
+          "right": {
+            "kind": "literal",
+            "value": 3
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 0.6667
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.divide-negative-rounds-away-from-zero.001",
+      "title": "Negative division rounds away from zero rather than toward negative infinity",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "/",
+          "left": {
+            "kind": "literal",
+            "value": -2
+          },
+          "right": {
+            "kind": "literal",
+            "value": 3
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": -0.6667
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.multiply-rounds-half-away.001",
+      "title": "A product exactly on the half rounds up at scale 4",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "*",
+          "left": {
+            "kind": "literal",
+            "value": 0.0001
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0.5
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 0.0001
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.multiply-underflows-to-zero.001",
+      "title": "A product below half of the smallest representable unit underflows to zero",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "*",
+          "left": {
+            "kind": "literal",
+            "value": 0.0001
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0.0005
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 0
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.literal-rounds-to-scale.001",
+      "title": "A literal with more than four fractional digits is rounded to scale on input",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": 5e-05
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 0.0001
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.maximum-absolute-value.001",
+      "title": "The maximum absolute decimal value is representable",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": 999999999999.9999
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 999999999999.9999
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.overflow-on-result.001",
+      "title": "A result beyond the maximum absolute value overflows rather than losing precision",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": 999999999999
+          },
+          "right": {
+            "kind": "literal",
+            "value": 1
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_DECIMAL_OVERFLOW",
+          "message": "Expression decimal value exceeds supported precision."
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.overflow-on-operand.001",
+      "title": "An operand beyond the maximum absolute value overflows before the operation runs",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": 1000000000000
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_DECIMAL_OVERFLOW",
+          "message": "Expression decimal value exceeds supported precision."
+        }
+      }
+    },
+    {
+      "id": "expression.arithmetic.null-operand.001",
+      "title": "Arithmetic with a null operand is a type mismatch, not a null result",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "field",
+            "field": "Missing"
+          },
+          "right": {
+            "kind": "literal",
+            "value": 1
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected number expression value; received null."
+        }
+      }
+    },
+    {
+      "id": "expression.arithmetic.text-operand.001",
+      "title": "Arithmetic never coerces text to a number and never concatenates",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": "1"
+          },
+          "right": {
+            "kind": "literal",
+            "value": 1
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected number expression value; received text."
+        }
+      }
+    },
+    {
+      "id": "expression.arithmetic.temporal-operand.001",
+      "title": "There is no date arithmetic; a temporal operand is a type mismatch",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": "2026-01-31",
+            "valueType": "date"
+          },
+          "right": {
+            "kind": "literal",
+            "value": 1
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected number expression value; received date."
+        }
+      }
+    },
+    {
+      "id": "expression.equality.null-equals-null.001",
+      "title": "Equality can compare nulls and two nulls are equal",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "==",
+          "left": {
+            "kind": "field",
+            "field": "Missing"
+          },
+          "right": {
+            "kind": "literal",
+            "value": null
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.equality.null-equals-value.001",
+      "title": "Null equals no non-null value, including zero",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "==",
+          "left": {
+            "kind": "field",
+            "field": "Missing"
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.equality.null-inequality.001",
+      "title": "Inequality of two nulls is false rather than unknown",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "!=",
+          "left": {
+            "kind": "literal",
+            "value": null
+          },
+          "right": {
+            "kind": "literal",
+            "value": null
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.equality.cross-kind.001",
+      "title": "Equality across value kinds is false; text is never coerced to a number",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "==",
+          "left": {
+            "kind": "literal",
+            "value": "1"
+          },
+          "right": {
+            "kind": "literal",
+            "value": 1
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.equality.number-at-decimal-scale.001",
+      "title": "Number equality is equality after rounding to the fixed decimal scale",
+      "specRef": "runtime-semantics#decimal-semantics",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "==",
+          "left": {
+            "kind": "literal",
+            "value": 1.00004
+          },
+          "right": {
+            "kind": "literal",
+            "value": 1.00001
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.equality.boolean.001",
+      "title": "Boolean equality compares the boolean values",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "!=",
+          "left": {
+            "kind": "field",
+            "field": "Archived"
+          },
+          "right": {
+            "kind": "literal",
+            "value": true
+          }
+        },
+        "values": {
+          "Archived": false
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.text-ordering.001",
+      "title": "Text ordering compares text values, not their lengths",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "apple"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "banana"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.number-boundary.001",
+      "title": "A less-than-or-equal comparison of equal numbers is true",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<=",
+          "left": {
+            "kind": "field",
+            "field": "Value"
+          },
+          "right": {
+            "kind": "literal",
+            "value": 100
+          }
+        },
+        "values": {
+          "Value": 100
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.date-ordering.001",
+      "title": "Date ordering compares calendar dates",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "2026-01-31",
+            "valueType": "date"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "2026-02-01",
+            "valueType": "date"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.datetime-instant.001",
+      "title": "Datetime ordering compares instants, so equal instants in different offsets order as equal",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "and",
+          "left": {
+            "kind": "binary",
+            "operator": "<=",
+            "left": {
+              "kind": "literal",
+              "value": "2026-07-17T12:30:00.000Z",
+              "valueType": "datetime"
+            },
+            "right": {
+              "kind": "literal",
+              "value": "2026-07-17T13:30:00+01:00",
+              "valueType": "datetime"
+            }
+          },
+          "right": {
+            "kind": "binary",
+            "operator": ">=",
+            "left": {
+              "kind": "literal",
+              "value": "2026-07-17T12:30:00.000Z",
+              "valueType": "datetime"
+            },
+            "right": {
+              "kind": "literal",
+              "value": "2026-07-17T13:30:00+01:00",
+              "valueType": "datetime"
+            }
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.time-ordering.001",
+      "title": "Time ordering compares times of day",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "09:00",
+            "valueType": "time"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "17:30",
+            "valueType": "time"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.temporal-text-coercion.001",
+      "title": "Ordering a temporal value against text reads the text as that temporal kind",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "2026-01-31",
+            "valueType": "date"
+          },
+          "right": {
+            "kind": "field",
+            "field": "DueDate"
+          }
+        },
+        "values": {
+          "DueDate": "2026-02-01"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.temporal-text-coercion.002",
+      "title": "Temporal coercion in ordering is symmetric; text on the left is read as the temporal kind on the right",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "field",
+            "field": "DueDate"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "2026-02-01",
+            "valueType": "date"
+          }
+        },
+        "values": {
+          "DueDate": "2026-01-31"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.null-is-false.001",
+      "title": "A relational comparison with null is false before any type check runs",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": ">=",
+          "left": {
+            "kind": "field",
+            "field": "Missing"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "text"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.null-both-sides-is-false.001",
+      "title": "Null is not ordered against itself; the comparison is false, not true",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<=",
+          "left": {
+            "kind": "literal",
+            "value": null
+          },
+          "right": {
+            "kind": "literal",
+            "value": null
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.number-versus-text.001",
+      "title": "Ordering a number against text is a type mismatch",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": 1
+          },
+          "right": {
+            "kind": "literal",
+            "value": "2"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Cannot compare number with text."
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.booleans-unordered.001",
+      "title": "Booleans are not ordered",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": false
+          },
+          "right": {
+            "kind": "literal",
+            "value": true
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Cannot compare boolean with boolean."
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.date-versus-datetime.001",
+      "title": "Two different temporal kinds are not ordered against one another",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "2026-01-31",
+            "valueType": "date"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "2026-02-01T00:00:00.000Z",
+            "valueType": "datetime"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Cannot compare date with datetime."
+        }
+      }
+    },
+    {
+      "id": "expression.temporal.invalid-date.001",
+      "title": "A date value that is not an ISO calendar date is refused when ordered",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "31/01/2026",
+            "valueType": "date"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "2026-02-01",
+            "valueType": "date"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_INVALID_TEMPORAL_VALUE",
+          "message": "Invalid date expression value."
+        }
+      }
+    },
+    {
+      "id": "expression.temporal.invalid-time.001",
+      "title": "A time value without two-digit fields is refused when ordered",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "9:00",
+            "valueType": "time"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "10:00",
+            "valueType": "time"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_INVALID_TEMPORAL_VALUE",
+          "message": "Invalid time expression value."
+        }
+      }
+    },
+    {
+      "id": "expression.temporal.invalid-datetime.001",
+      "title": "A datetime value that is not a parseable instant is refused when ordered",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "not-a-datetime",
+            "valueType": "datetime"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "2026-07-17T00:00:00.000Z",
+            "valueType": "datetime"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_INVALID_TEMPORAL_VALUE",
+          "message": "Invalid datetime expression value."
+        }
+      }
+    },
+    {
+      "id": "expression.boolean.and-short-circuits.001",
+      "title": "A false left operand of and short-circuits, so a failing right operand is never evaluated",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "and",
+          "left": {
+            "kind": "literal",
+            "value": false
+          },
+          "right": {
+            "kind": "binary",
+            "operator": "==",
+            "left": {
+              "kind": "binary",
+              "operator": "/",
+              "left": {
+                "kind": "literal",
+                "value": 1
+              },
+              "right": {
+                "kind": "literal",
+                "value": 0
+              }
+            },
+            "right": {
+              "kind": "literal",
+              "value": 1
+            }
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.boolean.and-evaluates-right.001",
+      "title": "A true left operand of and evaluates the right operand and propagates its error",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "and",
+          "left": {
+            "kind": "literal",
+            "value": true
+          },
+          "right": {
+            "kind": "binary",
+            "operator": "==",
+            "left": {
+              "kind": "binary",
+              "operator": "/",
+              "left": {
+                "kind": "literal",
+                "value": 1
+              },
+              "right": {
+                "kind": "literal",
+                "value": 0
+              }
+            },
+            "right": {
+              "kind": "literal",
+              "value": 1
+            }
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_DIVIDE_BY_ZERO",
+          "message": "Expression division by zero."
+        }
+      }
+    },
+    {
+      "id": "expression.boolean.or-short-circuits.001",
+      "title": "A true left operand of or short-circuits, so a failing right operand is never evaluated",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "or",
+          "left": {
+            "kind": "literal",
+            "value": true
+          },
+          "right": {
+            "kind": "binary",
+            "operator": "==",
+            "left": {
+              "kind": "binary",
+              "operator": "/",
+              "left": {
+                "kind": "literal",
+                "value": 1
+              },
+              "right": {
+                "kind": "literal",
+                "value": 0
+              }
+            },
+            "right": {
+              "kind": "literal",
+              "value": 1
+            }
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.boolean.or-evaluates-right.001",
+      "title": "A false left operand of or yields the right operand's boolean value",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "or",
+          "left": {
+            "kind": "literal",
+            "value": false
+          },
+          "right": {
+            "kind": "field",
+            "field": "Archived"
+          }
+        },
+        "values": {
+          "Archived": true
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.boolean.and-non-boolean-left.001",
+      "title": "and requires a boolean left operand and does not treat a number as truthy",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "and",
+          "left": {
+            "kind": "literal",
+            "value": 1
+          },
+          "right": {
+            "kind": "literal",
+            "value": true
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected boolean expression value; received number."
+        }
+      }
+    },
+    {
+      "id": "expression.boolean.or-non-boolean-right.001",
+      "title": "or requires a boolean right operand once the left operand fails to short-circuit",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "or",
+          "left": {
+            "kind": "literal",
+            "value": false
+          },
+          "right": {
+            "kind": "literal",
+            "value": "yes"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_TYPE_MISMATCH",
+          "message": "Expected boolean expression value; received text."
+        }
+      }
+    },
+    {
+      "id": "expression.coalesce.null-left.001",
+      "title": "Null coalescing returns the right operand when the left operand is null",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "??",
+          "left": {
+            "kind": "field",
+            "field": "Nickname"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "Anonymous"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "text",
+          "value": "Anonymous"
+        }
+      }
+    },
+    {
+      "id": "expression.coalesce.present-left.001",
+      "title": "Null coalescing returns the left operand unchanged when it is not null",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "??",
+          "left": {
+            "kind": "field",
+            "field": "Nickname"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "Anonymous"
+          }
+        },
+        "values": {
+          "Nickname": "Ada"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "text",
+          "value": "Ada"
+        }
+      }
+    },
+    {
+      "id": "expression.coalesce.false-is-not-null.001",
+      "title": "Null coalescing tests for null only, so false and zero pass through",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "??",
+          "left": {
+            "kind": "field",
+            "field": "Archived"
+          },
+          "right": {
+            "kind": "literal",
+            "value": true
+          }
+        },
+        "values": {
+          "Archived": false
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.coalesce.null-right.001",
+      "title": "Null coalescing to a null right operand still yields null",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "??",
+          "left": {
+            "kind": "field",
+            "field": "Nickname"
+          },
+          "right": {
+            "kind": "literal",
+            "value": null
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "null",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "expression.coalesce.left-error-propagates.001",
+      "title": "Null coalescing propagates a failing left operand rather than falling back",
+      "specRef": "runtime-semantics#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "??",
+          "left": {
+            "kind": "field",
+            "field": "Tags"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "none"
+          }
+        },
+        "values": {
+          "Tags": {
+            "first": "urgent"
+          }
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_FIELD_UNSUPPORTED_VALUE",
+          "message": "Expression field 'Tags' resolved to a non-primitive value."
+        }
+      }
+    },
+    {
+      "id": "expression.operator.in-unsupported.001",
+      "title": "The reserved in operator is refused rather than silently evaluated",
+      "specRef": "language#expressions",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "in",
+          "left": {
+            "kind": "field",
+            "field": "Status"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "Draft"
+          }
+        },
+        "values": {
+          "Status": "Draft"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_EXPRESSION_OPERATOR_UNSUPPORTED"
+        }
+      }
+    },
+    {
+      "id": "expression.decimal.underflow-rounds-to-zero.001",
+      "title": "A magnitude below the decimal scale rounds to zero rather than overflowing",
+      "specRef": "runtime-semantics#expression-errors",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "+",
+          "left": {
+            "kind": "literal",
+            "value": 1e-07
+          },
+          "right": {
+            "kind": "literal",
+            "value": 0
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "number",
+          "value": 0
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.time-precision-normalised.001",
+      "title": "Time ordering ignores the precision the value was written with",
+      "specRef": "runtime-semantics#expression-errors",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "09:00",
+            "valueType": "time"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "09:00:00",
+            "valueType": "time"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.time-precision-normalised.002",
+      "title": "Two spellings of one time of day are ordered equal in both directions",
+      "specRef": "runtime-semantics#expression-errors",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "and",
+          "left": {
+            "kind": "binary",
+            "operator": "<=",
+            "left": {
+              "kind": "literal",
+              "value": "09:00",
+              "valueType": "time"
+            },
+            "right": {
+              "kind": "literal",
+              "value": "09:00:00.000",
+              "valueType": "time"
+            }
+          },
+          "right": {
+            "kind": "binary",
+            "operator": ">=",
+            "left": {
+              "kind": "literal",
+              "value": "09:00",
+              "valueType": "time"
+            },
+            "right": {
+              "kind": "literal",
+              "value": "09:00:00.000",
+              "valueType": "time"
+            }
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "expression.comparison.time-ordering-by-instant.001",
+      "title": "Time ordering compares time of day, not text length",
+      "specRef": "runtime-semantics#expression-errors",
+      "operation": "expression",
+      "input": {
+        "expression": {
+          "kind": "binary",
+          "operator": "<",
+          "left": {
+            "kind": "literal",
+            "value": "09:30",
+            "valueType": "time"
+          },
+          "right": {
+            "kind": "literal",
+            "value": "09:30:01",
+            "valueType": "time"
+          }
+        },
+        "values": {},
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "test",
+          "now": "2026-07-17T12:30:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    }
+  ]
+}

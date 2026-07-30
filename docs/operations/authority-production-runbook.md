@@ -476,8 +476,9 @@ Use a database owner only to create roles. Run
 `0001_authority_projection.sql`, `0002_security_operations.sql`,
 `0003_reporting_administration.sql`,
 `0004_authority_transaction_integrity.sql`,
-`0005_authority_audit_scope_and_retention.sql`, and
-`0006_passkey_identity.sql` as `adl_migrator`. Run the process as
+`0005_authority_audit_scope_and_retention.sql`,
+`0006_passkey_identity.sql`, and `0007_model_fingerprint.sql` as
+`adl_migrator`. Run the process as
 `adl_authority`; it has DML only and cannot create schema objects or run
 migrations. Use a pinned PostgreSQL client for any multi-statement transaction.
 
@@ -496,9 +497,91 @@ one transaction; an infrastructure failure at any stage rolls all three back and
 surfaces as a retryable error rather than a durable rejection. The in-process
 backend without a unit-of-work remains test/development wiring only.
 
+`0007_model_fingerprint.sql` adds a nullable `model_fingerprint` column to
+`adl_authority_models`. It is additive and re-appliable, and it needs no
+backfill: an existing row keeps a null fingerprint, which the authority treats
+as "written before fingerprints existed" and backfills on its next start rather
+than refusing.
+
 Before release: backup, apply migration, run readiness and HTTP smoke tests,
 then retain the previous application build until the restore point is verified.
 Never run DDL through the traffic connection string.
+
+## Model versions and model migrations
+
+There are two different things called a migration and they must not be confused.
+
+- The ordered SQL files above migrate the authority's **projection tables**.
+  They are applied out of band as `adl_migrator` and are not part of ADL.
+- A `MIGRATION` block in an ADL model migrates the **accepted records** the
+  projection holds. It is applied by the authority process itself, at startup,
+  inside its own transaction, as `adl_authority`. It never emits DDL.
+
+### Why a model change is now visible at all
+
+The resolved model carries a declared `modelVersion` (`APP … MODEL_VERSION`) and
+a derived `modelFingerprint`, a digest of the model's own content. Before this
+existed, `modelVersion` was a platform constant with no ADL syntax behind it, so
+editing model content left the version identical and the startup guard silent.
+That had a security consequence rather than merely an operational one: the
+authority derives its session lifetime from `app.offlineGraceDays`, so shortening
+the declared grace began issuing shorter sessions while every already-running
+device still believed it had the longer window, and nothing said so.
+
+### Authoring a model migration
+
+1. Change the model.
+2. Bump `MODEL_VERSION` in the `APP` block.
+3. Add a top-level `MIGRATION FROM '<old>' TO '<new>'` block describing what the
+   change means for each affected object's records: `RENAME FIELD … TO …`,
+   `ADD FIELD … DEFAULT …`, `DROP FIELD …`, and `SCHEMA_VERSION` where the
+   object's schema version moved.
+4. Compile. Validation refuses a migration that names an unknown object, renames
+   into a field the model does not have, drops a field the model still has, does
+   not move forward, is declared twice, or targets a version later than the
+   model's own.
+
+Skipping step 2 is not a silent success: the authority refuses to start with
+`ADL_PERSISTED_MODEL_FINGERPRINT_STALE`, because the model that wrote the
+persisted state is demonstrably not the model now running.
+
+### Verifying a model migration before release
+
+1. Restore the latest backup into a scratch database.
+2. Point a staging authority at it with the new build. Starting successfully is
+   the primary signal: the process applies the migration in one transaction and
+   refuses to start if it cannot.
+3. Check the startup log for `authority_model_migration` with
+   `ADL_MODEL_MIGRATION_APPLIED` and the changed-record count. Those lines are
+   metadata only — they carry codes, versions and counts, never record values.
+4. Query the scratch projection for a sample of migrated records and confirm the
+   shape.
+5. Only then promote. Keep the backup until the restore point is verified.
+
+### When a model migration cannot be applied
+
+The authority refuses to start and leaves the projection **exactly as it was**.
+Nothing is deleted, and no partial migration is ever committed. The refusal names
+one of:
+
+| Code | Meaning | Action |
+| --- | --- | --- |
+| `ADL_PERSISTED_MODEL_VERSION_MISMATCH` | No declared migration reaches the persisted version. | Deploy a build whose model declares a `MIGRATION` from that version. |
+| `ADL_PERSISTED_MODEL_FINGERPRINT_STALE` | Same declared version, changed content. | Bump `MODEL_VERSION` and declare the migration. |
+| `ADL_MIGRATION_PERSISTED_VERSION_AHEAD` | The projection is newer than this build. | This is a downgrade. Redeploy the newer build; do not "fix" the data. |
+| `ADL_MIGRATION_FAILED` | The migration transaction rolled back. | The projection is unchanged and still at the old version. Treat as an infrastructure fault, investigate, retry. |
+
+Rolling back an application build across a model migration is not supported by
+the migration mechanism itself, because migrations only move forward. Roll back
+by restoring the backup taken before the release, which is why step 5 above keeps
+it until the restore point is verified.
+
+The same mechanism runs in the browser over IndexedDB, so a device that has been
+offline across several releases migrates its local records on next open. Two
+things are deliberately never touched there: the cached identity, which is not a
+record and is what stops a signed-in user losing their own data on an offline
+reload; and the pending sync queue, whose operations are transformed by the same
+declared steps but never created or discarded.
 
 ## Backup, recovery, and retention
 

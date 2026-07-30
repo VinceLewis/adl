@@ -13,7 +13,16 @@ import { validateApplicationModel } from "../compiler/validate-model.js";
 import { evaluateExpression } from "../runtime/expression-evaluator.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import { InMemoryObjectStorageBackend } from "../runtime/object-storage-backend.js";
-import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
+import type {
+  ObjectStorageBackend,
+  PersistedApplicationMetadata,
+} from "../runtime/object-storage-backend.js";
+import { runRuntimeStartupCompatibilityChecks } from "../runtime/startup-compatibility.js";
+import { RuntimeStartupError, noopRuntimeLogger } from "../runtime/runtime-types.js";
+import type { RuntimeStartupDiagnostic } from "../runtime/runtime-types.js";
+import { AuthorityService } from "../server/authority-service.js";
+import { StaticSessionAdapter } from "../server/session-adapter.js";
+import type { AuthorityOperationIntent, AuthorityOutcome } from "../server/authority-types.js";
 import type {
   PolicyRequest,
   RuntimeContext,
@@ -33,7 +42,10 @@ export type ConformanceCase =
   | ModelValidationConformanceCase
   | InspectConformanceCase
   | RuntimeConformanceCase
-  | StartupCompatibilityConformanceCase;
+  | StartupCompatibilityConformanceCase
+  | ModelFingerprintConformanceCase
+  | ModelMigrationConformanceCase
+  | AuthorityConformanceCase;
 
 export interface ConformanceCaseBase {
   id: string;
@@ -81,9 +93,82 @@ export interface StartupCompatibilityConformanceCase extends ConformanceCaseBase
   model?: PartialApplicationModel;
   modelRef?: string;
   input?: {
-    applicationMetadata?: { modelVersion: string };
+    /**
+     * The model that wrote the persisted state. The runner resolves it and
+     * derives the persisted version and fingerprint from it, so a case can say
+     * "state written by this model, opened by that one" without ever naming a
+     * digest — which would pin the whole resolved-model shape and break on any
+     * unrelated model addition.
+     */
+    persistedModel?: PartialApplicationModel | { modelRef: string };
+    /** Literal metadata; overrides anything `persistedModel` derived. */
+    applicationMetadata?: PersistedApplicationMetadata;
     records?: Array<{ objectName: string; record: StoredObjectRecord }>;
   };
+}
+
+/**
+ * Fingerprint equality between two models, rather than a literal digest.
+ *
+ * A case that pinned the hash text would pin the entire resolved-model shape
+ * with it and break on every unrelated model addition, which would teach a
+ * second runtime nothing. What is actually contractual is the *relation*: two
+ * resolutions of the same content agree, and any content change disagrees.
+ */
+export interface ModelFingerprintConformanceCase extends ConformanceCaseBase {
+  operation: "compareModelFingerprints";
+  input: {
+    left: PartialApplicationModel | { modelRef: string };
+    right: PartialApplicationModel | { modelRef: string };
+  };
+}
+
+/**
+ * Persisted state carried across a model version change. The case seeds records
+ * and metadata at an older version, runs the startup guard with migration
+ * enabled, and asserts both the diagnostics and the resulting records — so a
+ * conforming runtime is pinned on what a migration does, not only on whether it
+ * was allowed.
+ */
+export interface ModelMigrationConformanceCase extends ConformanceCaseBase {
+  operation: "migratePersistedState";
+  model?: PartialApplicationModel;
+  modelRef?: string;
+  input: {
+    /** The model that wrote the state; see the startup-compatibility case. */
+    persistedModel?: PartialApplicationModel | { modelRef: string };
+    /** Literal metadata; overrides anything `persistedModel` derived. */
+    applicationMetadata?: PersistedApplicationMetadata;
+    records?: Array<{ objectName: string; record: StoredObjectRecord }>;
+    /** Off means plan only: the case asserts a refusal without rewriting state. */
+    applyMigrations?: boolean;
+  };
+}
+
+/**
+ * An authority replay outcome and its classification. This is the only layer
+ * whose semantics live on the server rather than in the runtime, and it is where
+ * record identity is decided: a create carries the id the client already holds,
+ * a colliding id is refused rather than merged, and a malformed id never reaches
+ * storage.
+ */
+export interface AuthorityConformanceCase extends ConformanceCaseBase {
+  operation: "authorityReplay";
+  model?: PartialApplicationModel;
+  modelRef?: string;
+  input: {
+    /** Seeded through the same replay path, so nothing bypasses the authority. */
+    setup?: AuthorityConformanceIntent[];
+    intent: AuthorityOperationIntent;
+    /** Which seeded session submits the intent; defaults to the first declared. */
+    session?: string;
+    sessions?: Record<string, { userId: string }>;
+  };
+}
+
+export interface AuthorityConformanceIntent {
+  session?: string;
+  intent: AuthorityOperationIntent;
 }
 
 export interface RuntimeConformanceCase extends ConformanceCaseBase {
@@ -254,6 +339,12 @@ async function runCaseActual(
         return runInspectCase(conformanceCase, models);
       case "startupCompatibility":
         return await runStartupCompatibilityCase(conformanceCase, models);
+      case "compareModelFingerprints":
+        return runCompareModelFingerprintsCase(conformanceCase, models);
+      case "migratePersistedState":
+        return await runMigratePersistedStateCase(conformanceCase, models);
+      case "authorityReplay":
+        return await runAuthorityReplayCase(conformanceCase, models);
       default:
         return await runRuntimeCase(conformanceCase, models, state);
     }
@@ -352,8 +443,9 @@ async function runStartupCompatibilityCase(
   const source = getPartialModel(conformanceCase, models);
   const model = resolveApplicationModel(source);
   const storage = new InMemoryObjectStorageBackend();
-  if (conformanceCase.input?.applicationMetadata !== undefined) {
-    await storage.writeApplicationMetadata(conformanceCase.input.applicationMetadata);
+  const seeded = seedMetadata(conformanceCase.input, models);
+  if (seeded !== undefined) {
+    await storage.writeApplicationMetadata(seeded);
   }
   for (const item of conformanceCase.input?.records ?? []) {
     await storage.create(item.objectName, item.record);
@@ -380,6 +472,185 @@ async function runStartupCompatibilityCase(
       ...(diagnostic.actual === undefined ? {} : { actual: diagnostic.actual }),
     })),
   };
+}
+
+function runCompareModelFingerprintsCase(
+  conformanceCase: ModelFingerprintConformanceCase,
+  models: Record<string, PartialApplicationModel>,
+): ConformanceActual {
+  const left = resolveApplicationModel(selectModel(conformanceCase.input.left, models));
+  const right = resolveApplicationModel(selectModel(conformanceCase.input.right, models));
+
+  return {
+    ok: true,
+    result: {
+      equal: left.modelFingerprint === right.modelFingerprint,
+      // Both halves are asserted because "same fingerprint" only means what it
+      // should when the versions it is compared under are also known.
+      leftModelVersion: left.modelVersion,
+      rightModelVersion: right.modelVersion,
+    },
+  };
+}
+
+/**
+ * The metadata a case wants persisted state to carry, derived from the model
+ * that wrote it and then overridden by anything the case stated literally.
+ */
+function seedMetadata(
+  input:
+    | {
+        persistedModel?: PartialApplicationModel | { modelRef: string };
+        applicationMetadata?: PersistedApplicationMetadata;
+      }
+    | undefined,
+  models: Record<string, PartialApplicationModel>,
+): PersistedApplicationMetadata | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+
+  const derived =
+    input.persistedModel === undefined
+      ? undefined
+      : (() => {
+          const model = resolveApplicationModel(selectModel(input.persistedModel!, models));
+          return {
+            modelVersion: model.modelVersion,
+            modelFingerprint: model.modelFingerprint,
+          };
+        })();
+
+  if (derived === undefined && input.applicationMetadata === undefined) {
+    return undefined;
+  }
+
+  return { ...derived, ...input.applicationMetadata } as PersistedApplicationMetadata;
+}
+
+function selectModel(
+  source: PartialApplicationModel | { modelRef: string },
+  models: Record<string, PartialApplicationModel>,
+): PartialApplicationModel {
+  return "modelRef" in source && typeof source.modelRef === "string"
+    ? getPartialModel({ modelRef: source.modelRef }, models)
+    : (source as PartialApplicationModel);
+}
+
+async function runMigratePersistedStateCase(
+  conformanceCase: ModelMigrationConformanceCase,
+  models: Record<string, PartialApplicationModel>,
+): Promise<ConformanceActual> {
+  const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
+  const storage = new InMemoryObjectStorageBackend();
+  const seeded = seedMetadata(conformanceCase.input, models);
+  if (seeded !== undefined) {
+    await storage.writeApplicationMetadata(seeded);
+  }
+  for (const item of conformanceCase.input.records ?? []) {
+    await storage.create(item.objectName, item.record);
+  }
+
+  const report = async (diagnostics: RuntimeStartupDiagnostic[]): Promise<JsonValue> => ({
+    diagnostics: diagnostics.map((diagnostic) => ({
+      severity: diagnostic.severity,
+      code: diagnostic.code,
+      ...(diagnostic.path === undefined ? {} : { path: diagnostic.path }),
+      ...(diagnostic.expected === undefined ? {} : { expected: diagnostic.expected }),
+      ...(diagnostic.actual === undefined ? {} : { actual: diagnostic.actual }),
+    })),
+    // Read back from storage rather than reported by the migration, so a case
+    // proves what was persisted and not merely what was intended.
+    metadata: (await storage.readApplicationMetadata()) as unknown as JsonValue,
+    records: (await storage.listRecords())
+      .slice()
+      .sort((left, right) => left.record.meta.guid.localeCompare(right.record.meta.guid))
+      .map((persisted) => ({
+        objectName: persisted.objectName,
+        schemaVersion: persisted.record.meta.schemaVersion,
+        values: persisted.record.values,
+      })) as unknown as JsonValue,
+  });
+
+  try {
+    const diagnostics = await runRuntimeStartupCompatibilityChecks(
+      model,
+      storage,
+      noopRuntimeLogger,
+      { applyMigrations: conformanceCase.input.applyMigrations ?? true },
+    );
+    return { ok: true, result: await report(diagnostics) };
+  } catch (error) {
+    if (error instanceof RuntimeStartupError) {
+      // A refusal is a legitimate expected outcome, and the state it left
+      // behind is the substance of the fail-closed guarantee, so it is reported
+      // in the same shape as a success rather than as an opaque error.
+      return { ok: false, error: await report(error.diagnostics) };
+    }
+    throw error;
+  }
+}
+
+async function runAuthorityReplayCase(
+  conformanceCase: AuthorityConformanceCase,
+  models: Record<string, PartialApplicationModel>,
+): Promise<ConformanceActual> {
+  const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
+  const declaredSessions = Object.entries(
+    conformanceCase.input.sessions ?? { primary: { userId: "user-1" } },
+  );
+  const tokensByName = new Map(
+    declaredSessions.map(([name], index) => [name, `${name}-${"t".repeat(48)}${index}`]),
+  );
+  const sessions = new StaticSessionAdapter(
+    new Map(
+      declaredSessions.map(([name, session]) => [
+        tokensByName.get(name) ?? name,
+        { userId: session.userId },
+      ]),
+    ),
+  );
+  const firstSessionName = declaredSessions[0]?.[0] ?? "primary";
+  const authority = new AuthorityService(model, new InMemoryObjectStorageBackend(), sessions);
+
+  for (const step of conformanceCase.input.setup ?? []) {
+    await authority.replay(tokensByName.get(step.session ?? firstSessionName), step.intent);
+  }
+
+  const outcome = await authority.replay(
+    tokensByName.get(conformanceCase.input.session ?? firstSessionName),
+    conformanceCase.input.intent,
+  );
+
+  return { ok: true, result: normaliseAuthorityOutcome(outcome) };
+}
+
+/**
+ * Reduces an outcome to its classification. Revisions, timestamps and actor ids
+ * are generated, so a case asserts the record ids and values an outcome carries
+ * rather than the whole record, which would make every case a snapshot.
+ */
+function normaliseAuthorityOutcome(outcome: AuthorityOutcome): JsonValue {
+  if (outcome.status === "accepted") {
+    return {
+      status: outcome.status,
+      operationId: outcome.operationId,
+      records: outcome.records.map((record) => ({
+        object: record.meta.object,
+        recordId: record.meta.guid,
+        schemaVersion: record.meta.schemaVersion,
+        values: record.values,
+        deleted: record.meta.deletedAt !== undefined,
+      })),
+    } as unknown as JsonValue;
+  }
+
+  return {
+    status: outcome.status,
+    operationId: outcome.operationId,
+    code: outcome.code,
+    ...("recovery" in outcome ? { recovery: outcome.recovery } : {}),
+  } as unknown as JsonValue;
 }
 
 async function runRuntimeCase(
@@ -735,7 +1006,22 @@ function matchesExpected(actual: ConformanceActual, expected: ConformanceExpecte
   return partialDeepMatch(expected, actual);
 }
 
+/**
+ * Asserts that a key is **absent** from the actual result.
+ *
+ * Expected objects match partially, which walks only the keys a case names — so
+ * without this a case could prove that a masked field carries a sentinel, but
+ * never that a hidden or policy-denied field was *dropped*. That omission is the
+ * actual disclosure guarantee, and a runtime that returned every hidden field
+ * verbatim would have passed the entire suite. Absence has to be sayable.
+ */
+export const CONFORMANCE_ABSENT = "$absent";
+
 function partialDeepMatch(expected: unknown, actual: unknown): boolean {
+  if (expected === CONFORMANCE_ABSENT) {
+    return actual === undefined;
+  }
+
   if (Array.isArray(expected)) {
     return (
       Array.isArray(actual) &&

@@ -42,12 +42,18 @@ blocks extend the earlier object declaration, which allows UI source such as
 
 ```text
 APP 'Giggle Band ADL Example'
+  MODEL_VERSION '1.0.0'
   THEME CorporateLight
   START_VIEW HomeDashboard
   OFFLINE_GRACE 30 DAYS
 END.APP
 ```
 
+- `MODEL_VERSION` declares the model's version as a quoted dotted number of up
+  to four components (`1`, `1.2`, `1.2.3`). It defaults to `0.1.0`. It is
+  quoted and read as text rather than as a number, because `1.1.0` is not a
+  number a lexer can carry intact. See
+  [Model Versions And Migrations](#model-versions-and-migrations).
 - `THEME` names the application theme. It defaults to `CorporateLight`.
 - `START_VIEW` names the initial view. It defaults to the first resolved object
   view.
@@ -281,3 +287,43 @@ step fields or metadata such as generated record ids.
 Commands remain model data; runtime services execute them. They describe a
 business action and its affected records, not UI scripts, generated application
 code, SQL transactions, or browser-only orchestration.
+
+## Model Versions And Migrations
+
+A model declares its version with `MODEL_VERSION` in the `APP` block, and
+declares how persisted data reaches that version with top-level `MIGRATION`
+blocks:
+
+```text
+MIGRATION FROM '1.0.0' TO '1.1.0'
+  OBJECT Gig
+    SCHEMA_VERSION 2
+    RENAME FIELD Venue TO VenueName
+    ADD FIELD PayoutCents DEFAULT 0
+    DROP FIELD LegacyNote
+  END.OBJECT
+END.MIGRATION
+```
+
+A migration declares one version hop. Several hops chain: data at `1.0.0` opened
+by a `1.2.0` model applies `1.0.0 -> 1.1.0` and then `1.1.0 -> 1.2.0`. When more
+than one route forward is declared, the shortest is taken, so a long-way-round
+chain kept for old installs does not also apply to a recent one.
+
+The whole step vocabulary is `RENAME FIELD … TO …`, `ADD FIELD … DEFAULT …`,
+`DROP FIELD …`, and a per-object `SCHEMA_VERSION`. Every step is total: it
+cannot fail on a well-formed record. `DEFAULT` on `ADD FIELD` is required rather
+than optional, because a record that silently gained `null` where the model says
+the field is required would fail validation on its next write.
+
+A migration is a **persistence** declaration, not a storage one. It never
+mentions SQL, tables, indexes or storage engines: the authority's own projection
+tables are migrated out of band through ordered SQL files, which are not part of
+this language and never will be. What a `MIGRATION` block describes is the shape
+of a record, which is the only thing every conforming runtime has in common.
+
+Declaring a version is not the same as proving one. See
+[resolved-model#model-versions-and-migrations](resolved-model.md) for the
+fingerprint that makes an undeclared content change visible, and
+[runtime-semantics#model-migration](runtime-semantics.md) for what a runtime does
+with persisted data at an earlier version.

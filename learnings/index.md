@@ -109,9 +109,17 @@ Before tasks that change runtime persistence, object storage backends, browser d
 - `implementation/model-versioning-guard.md`
 - `implementation/sync-policy.md`
 
-Before tasks that change runtime startup compatibility checks, persisted application metadata, object schema version guards, or future migration handling, also read:
+Before tasks that change runtime startup compatibility checks, persisted application metadata, object schema version guards, or migration handling, also read:
 
 - `implementation/model-versioning-guard.md`
+- `implementation/model-versions-and-migrations.md`
+
+Before tasks that change model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, or anything that decides whether persisted data may be read, also read:
+
+- `implementation/model-versions-and-migrations.md`
+- `implementation/model-versioning-guard.md`
+- `implementation/conformance-suite.md`
+- `implementation/offline-session-lifetime.md`
 
 Before tasks that change browser UI runtime components, browser demo fixtures, UI policy or sync presentation, or browser verification, also read:
 
@@ -209,4 +217,5 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
 - `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record.
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
+- `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read.
 - `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.

@@ -2,12 +2,22 @@
   "version": 1,
   "models": {
     "coreRuntime": {
-      "app": { "name": "ConformanceCore" },
+      "app": {
+        "name": "ConformanceCore"
+      },
       "roles": [
-        { "name": "Admin" },
-        { "name": "Viewer" },
-        { "name": "Requester" },
-        { "name": "Approver" }
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        },
+        {
+          "name": "Requester"
+        },
+        {
+          "name": "Approver"
+        }
       ],
       "objects": [
         {
@@ -15,20 +25,60 @@
           "businessKey": "Email",
           "displayField": "Name",
           "fields": [
-            { "name": "Name", "type": "text", "required": true },
-            { "name": "Email", "type": "text", "required": true, "validators": [{ "kind": "email" }] },
-            { "name": "Phone", "type": "text" },
-            { "name": "Active", "type": "boolean", "defaultValue": true }
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true,
+              "validators": [
+                {
+                  "kind": "email"
+                }
+              ]
+            },
+            {
+              "name": "Phone",
+              "type": "text"
+            },
+            {
+              "name": "Active",
+              "type": "boolean",
+              "defaultValue": true
+            }
           ]
         },
         {
           "name": "PurchaseOrder",
           "fields": [
-            { "name": "Owner", "type": "text", "required": true },
-            { "name": "Value", "type": "number", "required": true },
-            { "name": "ApprovalComment", "type": "text" },
-            { "name": "Reviewed", "type": "boolean", "defaultValue": false },
-            { "name": "Status", "type": "text", "required": true, "defaultValue": "Draft" }
+            {
+              "name": "Owner",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Value",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "ApprovalComment",
+              "type": "text"
+            },
+            {
+              "name": "Reviewed",
+              "type": "boolean",
+              "defaultValue": false
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true,
+              "defaultValue": "Draft"
+            }
           ],
           "validations": [
             {
@@ -40,14 +90,27 @@
                 "left": {
                   "kind": "binary",
                   "operator": "<=",
-                  "left": { "kind": "field", "field": "Value" },
-                  "right": { "kind": "literal", "value": 10000 }
+                  "left": {
+                    "kind": "field",
+                    "field": "Value"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 10000
+                  }
                 },
                 "right": {
                   "kind": "binary",
                   "operator": "!=",
-                  "left": { "kind": "field", "field": "ApprovalComment" },
-                  "right": { "kind": "literal", "value": null, "valueType": "null" }
+                  "left": {
+                    "kind": "field",
+                    "field": "ApprovalComment"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": null,
+                    "valueType": "null"
+                  }
                 }
               }
             }
@@ -57,15 +120,22 @@
             "stateField": "Status",
             "initialState": "Draft",
             "states": [
-              { "name": "Draft" },
-              { "name": "Approved", "terminal": true }
+              {
+                "name": "Draft"
+              },
+              {
+                "name": "Approved",
+                "terminal": true
+              }
             ],
             "actions": [
               {
                 "name": "approve",
                 "from": "Draft",
                 "to": "Approved",
-                "policyRefs": ["PurchaseOrderPolicy"],
+                "policyRefs": [
+                  "PurchaseOrderPolicy"
+                ],
                 "guards": [
                   {
                     "name": "ReviewedBeforeApproval",
@@ -73,8 +143,14 @@
                     "expression": {
                       "kind": "binary",
                       "operator": "==",
-                      "left": { "kind": "field", "field": "Reviewed" },
-                      "right": { "kind": "literal", "value": true }
+                      "left": {
+                        "kind": "field",
+                        "field": "Reviewed"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "value": true
+                      }
                     }
                   }
                 ]
@@ -85,9 +161,21 @@
         {
           "name": "LineItem",
           "fields": [
-            { "name": "UnitPrice", "type": "number", "required": true },
-            { "name": "Quantity", "type": "number", "required": true },
-            { "name": "Discount", "type": "number", "defaultValue": 0 }
+            {
+              "name": "UnitPrice",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Quantity",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Discount",
+              "type": "number",
+              "defaultValue": 0
+            }
           ],
           "computedFields": [
             {
@@ -96,8 +184,14 @@
               "expression": {
                 "kind": "binary",
                 "operator": "*",
-                "left": { "kind": "field", "field": "UnitPrice" },
-                "right": { "kind": "field", "field": "Quantity" }
+                "left": {
+                  "kind": "field",
+                  "field": "UnitPrice"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "Quantity"
+                }
               }
             },
             {
@@ -106,33 +200,67 @@
               "expression": {
                 "kind": "binary",
                 "operator": "-",
-                "left": { "kind": "field", "field": "Gross" },
-                "right": { "kind": "field", "field": "Discount" }
+                "left": {
+                  "kind": "field",
+                  "field": "Gross"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "Discount"
+                }
               }
             }
           ]
         },
         {
           "name": "SyncItem",
-          "fields": [{ "name": "Name", "type": "text", "required": true }],
-          "sync": { "mode": "localFirst", "scope": "all" }
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
         }
       ],
       "readModels": [
         {
           "name": "LineItemSummary",
-          "sources": [{ "name": "line", "object": "LineItem" }],
+          "sources": [
+            {
+              "name": "line",
+              "object": "LineItem"
+            }
+          ],
           "fields": [
-            { "name": "Quantity", "source": "line", "field": "Quantity" },
-            { "name": "Net", "source": "line", "field": "Net" },
+            {
+              "name": "Quantity",
+              "source": "line",
+              "field": "Quantity"
+            },
+            {
+              "name": "Net",
+              "source": "line",
+              "field": "Net"
+            },
             {
               "name": "NetWithTax",
               "type": "number",
               "expression": {
                 "kind": "binary",
                 "operator": "*",
-                "left": { "kind": "field", "field": "Net" },
-                "right": { "kind": "literal", "value": 1.2 }
+                "left": {
+                  "kind": "field",
+                  "field": "Net"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 1.2
+                }
               }
             }
           ]
@@ -143,38 +271,72 @@
           "name": "ApprovalTier",
           "object": "PurchaseOrder",
           "match": "single",
-          "inputs": [{ "name": "amount", "expression": { "kind": "field", "field": "Value" } }],
+          "inputs": [
+            {
+              "name": "amount",
+              "expression": {
+                "kind": "field",
+                "field": "Value"
+              }
+            }
+          ],
           "rows": [
             {
               "name": "standard",
               "condition": {
                 "kind": "binary",
                 "operator": "<=",
-                "left": { "kind": "field", "field": "amount" },
-                "right": { "kind": "literal", "value": 10000 }
+                "left": {
+                  "kind": "field",
+                  "field": "amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 10000
+                }
               },
-              "outputs": { "tier": "standard" }
+              "outputs": {
+                "tier": "standard"
+              }
             },
             {
               "name": "senior",
               "condition": {
                 "kind": "binary",
                 "operator": ">",
-                "left": { "kind": "field", "field": "amount" },
-                "right": { "kind": "literal", "value": 10000 }
+                "left": {
+                  "kind": "field",
+                  "field": "amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 10000
+                }
               },
-              "outputs": { "tier": "senior" }
+              "outputs": {
+                "tier": "senior"
+              }
             }
           ],
-          "defaultOutputs": { "tier": "unknown" }
+          "defaultOutputs": {
+            "tier": "unknown"
+          }
         }
       ],
       "commands": [
         {
           "name": "CreatePurchaseOrder",
           "inputs": [
-            { "name": "Owner", "type": "text", "required": true },
-            { "name": "Value", "type": "number", "required": true }
+            {
+              "name": "Owner",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Value",
+              "type": "number",
+              "required": true
+            }
           ],
           "preconditions": [
             {
@@ -183,8 +345,14 @@
               "expression": {
                 "kind": "binary",
                 "operator": ">",
-                "left": { "kind": "field", "field": "Value" },
-                "right": { "kind": "literal", "value": 0 }
+                "left": {
+                  "kind": "field",
+                  "field": "Value"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 0
+                }
               }
             }
           ],
@@ -195,10 +363,22 @@
               "object": "PurchaseOrder",
               "authority": "command",
               "values": {
-                "Owner": { "kind": "input", "name": "Owner" },
-                "Value": { "kind": "input", "name": "Value" },
-                "Reviewed": { "kind": "literal", "value": true },
-                "Status": { "kind": "literal", "value": "Draft" }
+                "Owner": {
+                  "kind": "input",
+                  "name": "Owner"
+                },
+                "Value": {
+                  "kind": "input",
+                  "name": "Value"
+                },
+                "Reviewed": {
+                  "kind": "literal",
+                  "value": true
+                },
+                "Status": {
+                  "kind": "literal",
+                  "value": "Draft"
+                }
               }
             }
           ]
@@ -212,34 +392,63 @@
             {
               "name": "allowAdminAllUserOps",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
               "action": "*"
             },
             {
               "name": "allowViewerReadUsers",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Viewer"
+                ]
+              },
               "action": "read"
             },
             {
               "name": "allowViewerSearchUsers",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Viewer"
+                ]
+              },
               "action": "search"
             },
             {
               "name": "maskViewerUserEmailRead",
               "effect": "mask",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Viewer"
+                ]
+              },
               "action": "read",
-              "fields": ["Email"]
+              "fields": [
+                "Email"
+              ]
             },
             {
               "name": "hideViewerUserPhoneRead",
               "effect": "hidden",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Viewer"
+                ]
+              },
               "action": "read",
-              "fields": ["Phone"]
+              "fields": [
+                "Phone"
+              ]
             }
           ]
         },
@@ -250,43 +459,78 @@
             {
               "name": "allowAdminAllPurchaseOrderOps",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
               "action": "*"
             },
             {
               "name": "allowRequesterCreatePurchaseOrder",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Requester"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Requester"
+                ]
+              },
               "action": "create"
             },
             {
               "name": "allowRequesterReadPurchaseOrder",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Requester"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Requester"
+                ]
+              },
               "action": "read"
             },
             {
               "name": "allowRequesterUpdatePurchaseOrder",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Requester"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Requester"
+                ]
+              },
               "action": "update"
             },
             {
               "name": "allowApproverReadPurchaseOrder",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Approver"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Approver"
+                ]
+              },
               "action": "read"
             },
             {
               "name": "allowApproverUpdatePurchaseOrder",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Approver"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Approver"
+                ]
+              },
               "action": "update"
             },
             {
               "name": "allowApproverApprovePurchaseOrder",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Approver"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Approver"
+                ]
+              },
               "action": "transition",
               "state": "Draft",
               "lifecycleAction": "approve"
@@ -300,7 +544,12 @@
             {
               "name": "allowAdminAllLineItemOps",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
               "action": "*"
             }
           ]
@@ -312,7 +561,12 @@
             {
               "name": "allowAdminAllSyncItemOps",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
               "action": "*"
             }
           ]
@@ -320,47 +574,103 @@
       ]
     },
     "contextRuntime": {
-      "app": { "name": "ContextConformance" },
-      "roles": [{ "name": "Admin" }, { "name": "BandAdmin" }],
+      "app": {
+        "name": "ContextConformance"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "BandAdmin"
+        }
+      ],
       "contexts": [
         {
           "name": "Band",
           "object": "Band",
-          "selection": { "mode": "required" }
+          "selection": {
+            "mode": "required"
+          }
         }
       ],
       "objects": [
         {
           "name": "Band",
           "displayField": "Name",
-          "fields": [{ "name": "Name", "type": "text", "required": true }]
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
         },
         {
           "name": "Gig",
-          "scope": { "context": "Band", "field": "Band" },
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
           "fields": [
             {
               "name": "Band",
               "type": "text",
               "required": true,
-              "lookup": { "targetObject": "Band", "displayField": "Name" }
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
             },
-            { "name": "Venue", "type": "text", "required": true },
-            { "name": "Date", "type": "date", "required": true }
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Date",
+              "type": "date",
+              "required": true
+            }
           ],
-          "sync": { "mode": "localFirst", "scope": "currentContext" }
+          "sync": {
+            "mode": "localFirst",
+            "scope": "currentContext"
+          }
         }
       ],
       "readModels": [
         {
           "name": "GigsByBand",
-          "context": { "mode": "all", "context": "Band" },
-          "sources": [{ "name": "gig", "object": "Gig", "scope": "allAvailableContexts" }],
-          "fields": [
-            { "name": "Venue", "source": "gig", "field": "Venue" },
-            { "name": "Date", "source": "gig", "field": "Date" }
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig",
+              "scope": "allAvailableContexts"
+            }
           ],
-          "sort": [{ "field": "Date", "direction": "asc" }]
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            },
+            {
+              "name": "Date",
+              "source": "gig",
+              "field": "Date"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ]
         }
       ],
       "policies": [
@@ -371,19 +681,34 @@
             {
               "name": "allowAdminAllBands",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
               "action": "*"
             },
             {
               "name": "allowBandAdminReadBands",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["BandAdmin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandAdmin"
+                ]
+              },
               "action": "read"
             },
             {
               "name": "allowBandAdminSearchBands",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["BandAdmin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandAdmin"
+                ]
+              },
               "action": "search"
             }
           ]
@@ -395,13 +720,23 @@
             {
               "name": "allowAdminAllGigs",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
               "action": "*"
             },
             {
               "name": "allowBandAdminAllGigs",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["BandAdmin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandAdmin"
+                ]
+              },
               "action": "*"
             }
           ]
@@ -409,13 +744,28 @@
       ]
     },
     "onlineRequiredSync": {
-      "app": { "name": "OnlineRequiredSync" },
-      "roles": [{ "name": "Admin" }],
+      "app": {
+        "name": "OnlineRequiredSync"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
       "objects": [
         {
           "name": "SyncItem",
-          "fields": [{ "name": "Name", "type": "text", "required": true }],
-          "sync": { "mode": "onlineRequired", "scope": "all" }
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "onlineRequired",
+            "scope": "all"
+          }
         }
       ],
       "policies": [
@@ -426,7 +776,12 @@
             {
               "name": "allowAdminAllSyncItemOps",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
               "action": "*"
             }
           ]
@@ -483,10 +838,22 @@
         "ok": true,
         "result": {
           "origins": [
-            { "path": "app.theme", "origin": "platformDefault" },
-            { "path": "app.startView", "origin": "derivedDefault" },
-            { "path": "objects[0].tableName", "origin": "derivedDefault" },
-            { "path": "objects[0].fields[0].storageName", "origin": "derivedDefault" }
+            {
+              "path": "app.theme",
+              "origin": "platformDefault"
+            },
+            {
+              "path": "app.startView",
+              "origin": "derivedDefault"
+            },
+            {
+              "path": "objects[0].tableName",
+              "origin": "derivedDefault"
+            },
+            {
+              "path": "objects[0].fields[0].storageName",
+              "origin": "derivedDefault"
+            }
           ]
         }
       }
@@ -497,12 +864,28 @@
       "specRef": "resolved-model#validation",
       "operation": "validateModel",
       "model": {
-        "app": { "name": "InvalidView", "startView": "BrokenList" },
+        "app": {
+          "name": "InvalidView",
+          "startView": "BrokenList"
+        },
         "objects": [
           {
             "name": "Broken",
-            "fields": [{ "name": "Name", "type": "text" }],
-            "views": [{ "name": "BrokenList", "kind": "list", "fields": ["Missing"] }]
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text"
+              }
+            ],
+            "views": [
+              {
+                "name": "BrokenList",
+                "kind": "list",
+                "fields": [
+                  "Missing"
+                ]
+              }
+            ]
           }
         ]
       },
@@ -525,10 +908,16 @@
       "modelRef": "coreRuntime",
       "input": {
         "objectName": "LineItem",
-        "values": { "UnitPrice": 12.5, "Quantity": 4, "Discount": 5 },
+        "values": {
+          "UnitPrice": 12.5,
+          "Quantity": 4,
+          "Discount": 5
+        },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -538,7 +927,13 @@
         "result": {
           "objectName": "LineItem",
           "state": null,
-          "values": { "UnitPrice": 12.5, "Quantity": 4, "Discount": 5, "Gross": 50, "Net": 45 }
+          "values": {
+            "UnitPrice": 12.5,
+            "Quantity": 4,
+            "Discount": 5,
+            "Gross": 50,
+            "Net": 45
+          }
         }
       }
     },
@@ -553,10 +948,16 @@
           "operation": "create",
           "alias": "line",
           "objectName": "LineItem",
-          "values": { "UnitPrice": 10, "Quantity": 3, "Discount": 2 },
+          "values": {
+            "UnitPrice": 10,
+            "Quantity": 3,
+            "Discount": 2
+          },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -566,14 +967,26 @@
         "readModelName": "LineItemSummary",
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
       },
       "expected": {
         "ok": true,
-        "result": { "rows": [{ "values": { "Quantity": 3, "Net": 28, "NetWithTax": 33.6 } }] }
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Quantity": 3,
+                "Net": 28,
+                "NetWithTax": 33.6
+              }
+            }
+          ]
+        }
       }
     },
     {
@@ -587,10 +1000,16 @@
           "operation": "create",
           "alias": "user",
           "objectName": "User",
-          "values": { "Name": "Ada Lovelace", "Email": "ada@example.com", "Phone": "123" },
+          "values": {
+            "Name": "Ada Lovelace",
+            "Email": "ada@example.com",
+            "Phone": "123"
+          },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -601,11 +1020,15 @@
           "objectName": "User",
           "action": "read",
           "field": "Email",
-          "record": { "$ref": "user" }
+          "record": {
+            "$ref": "user"
+          }
         },
         "context": {
           "userId": "viewer-1",
-          "roles": ["Viewer"],
+          "roles": [
+            "Viewer"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -617,7 +1040,11 @@
           "decision": {
             "effect": "mask",
             "reasons": [
-              { "policyName": "UserPolicy", "ruleName": "maskViewerUserEmailRead", "effect": "mask" }
+              {
+                "policyName": "UserPolicy",
+                "ruleName": "maskViewerUserEmailRead",
+                "effect": "mask"
+              }
             ]
           }
         }
@@ -631,10 +1058,14 @@
       "modelRef": "coreRuntime",
       "input": {
         "tableName": "ApprovalTier",
-        "values": { "Value": 12000 },
+        "values": {
+          "Value": 12000
+        },
         "context": {
           "userId": "requester-1",
-          "roles": ["Requester"],
+          "roles": [
+            "Requester"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -643,15 +1074,19 @@
         "ok": true,
         "result": {
           "rowName": "senior",
-          "outputs": { "tier": "senior" },
-          "inputValues": { "amount": 12000 }
+          "outputs": {
+            "tier": "senior"
+          },
+          "inputValues": {
+            "amount": 12000
+          }
         }
       }
     },
     {
       "id": "lifecycle.guard-deny.001",
       "title": "Lifecycle guards run after transition policy and before writes",
-      "specRef": "runtime-semantics#lifecycle",
+      "specRef": "runtime-semantics#lifecycles",
       "operation": "transition",
       "modelRef": "coreRuntime",
       "setup": [
@@ -659,10 +1094,16 @@
           "operation": "create",
           "alias": "po",
           "objectName": "PurchaseOrder",
-          "values": { "Owner": "requester-1", "Value": 12000, "ApprovalComment": "Budget approved" },
+          "values": {
+            "Owner": "requester-1",
+            "Value": 12000,
+            "ApprovalComment": "Budget approved"
+          },
           "context": {
             "userId": "requester-1",
-            "roles": ["Requester"],
+            "roles": [
+              "Requester"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -670,11 +1111,15 @@
       ],
       "input": {
         "objectName": "PurchaseOrder",
-        "id": { "$ref": "po.meta.guid" },
+        "id": {
+          "$ref": "po.meta.guid"
+        },
         "actionName": "approve",
         "context": {
           "userId": "approver-1",
-          "roles": ["Approver"],
+          "roles": [
+            "Approver"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -690,7 +1135,7 @@
     {
       "id": "lifecycle.transition.001",
       "title": "Allowed lifecycle transitions persist the target state",
-      "specRef": "runtime-semantics#lifecycle",
+      "specRef": "runtime-semantics#lifecycles",
       "operation": "transition",
       "modelRef": "coreRuntime",
       "setup": [
@@ -698,10 +1143,16 @@
           "operation": "create",
           "alias": "po",
           "objectName": "PurchaseOrder",
-          "values": { "Owner": "requester-1", "Value": 12000, "ApprovalComment": "Budget approved" },
+          "values": {
+            "Owner": "requester-1",
+            "Value": 12000,
+            "ApprovalComment": "Budget approved"
+          },
           "context": {
             "userId": "requester-1",
-            "roles": ["Requester"],
+            "roles": [
+              "Requester"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -710,11 +1161,17 @@
           "operation": "update",
           "alias": "reviewedPo",
           "objectName": "PurchaseOrder",
-          "id": { "$ref": "po.meta.guid" },
-          "patch": { "Reviewed": true },
+          "id": {
+            "$ref": "po.meta.guid"
+          },
+          "patch": {
+            "Reviewed": true
+          },
           "context": {
             "userId": "requester-1",
-            "roles": ["Requester"],
+            "roles": [
+              "Requester"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:05:00.000Z"
           }
@@ -722,18 +1179,28 @@
       ],
       "input": {
         "objectName": "PurchaseOrder",
-        "id": { "$ref": "po.meta.guid" },
+        "id": {
+          "$ref": "po.meta.guid"
+        },
         "actionName": "approve",
         "context": {
           "userId": "approver-1",
-          "roles": ["Approver"],
+          "roles": [
+            "Approver"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:10:00.000Z"
         }
       },
       "expected": {
         "ok": true,
-        "result": { "objectName": "PurchaseOrder", "state": "Approved", "values": { "Status": "Approved" } }
+        "result": {
+          "objectName": "PurchaseOrder",
+          "state": "Approved",
+          "values": {
+            "Status": "Approved"
+          }
+        }
       }
     },
     {
@@ -744,10 +1211,15 @@
       "modelRef": "coreRuntime",
       "input": {
         "commandName": "CreatePurchaseOrder",
-        "input": { "Owner": "requester-1", "Value": -1 },
+        "input": {
+          "Owner": "requester-1",
+          "Value": -1
+        },
         "context": {
           "userId": "requester-1",
-          "roles": ["Requester"],
+          "roles": [
+            "Requester"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -757,7 +1229,12 @@
         "error": {
           "code": "ADL_POLICY_DENIED",
           "decision": {
-            "reasons": [{ "policyName": "Command:CreatePurchaseOrder", "ruleName": "PositiveValue" }]
+            "reasons": [
+              {
+                "policyName": "Command:CreatePurchaseOrder",
+                "ruleName": "PositiveValue"
+              }
+            ]
           }
         }
       }
@@ -770,10 +1247,15 @@
       "modelRef": "coreRuntime",
       "input": {
         "commandName": "CreatePurchaseOrder",
-        "input": { "Owner": "requester-1", "Value": 100 },
+        "input": {
+          "Owner": "requester-1",
+          "Value": 100
+        },
         "context": {
           "userId": "requester-1",
-          "roles": ["Requester"],
+          "roles": [
+            "Requester"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -785,7 +1267,12 @@
             {
               "step": "createOrder",
               "objectName": "PurchaseOrder",
-              "values": { "Owner": "requester-1", "Value": 100, "Reviewed": true, "Status": "Draft" }
+              "values": {
+                "Owner": "requester-1",
+                "Value": 100,
+                "Reviewed": true,
+                "Status": "Draft"
+              }
             }
           ]
         }
@@ -802,10 +1289,14 @@
           "operation": "create",
           "alias": "alpha",
           "objectName": "Band",
-          "values": { "Name": "The Alphas" },
+          "values": {
+            "Name": "The Alphas"
+          },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -814,10 +1305,14 @@
           "operation": "create",
           "alias": "beta",
           "objectName": "Band",
-          "values": { "Name": "The Betas" },
+          "values": {
+            "Name": "The Betas"
+          },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -826,11 +1321,23 @@
           "operation": "create",
           "alias": "alphaGig",
           "objectName": "Gig",
-          "values": { "Band": { "$ref": "alpha.meta.guid" }, "Venue": "Alpha Hall", "Date": "2026-08-01" },
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Date": "2026-08-01"
+          },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
-            "selectedContexts": { "Band": { "$ref": "alpha.meta.guid" } },
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -839,11 +1346,23 @@
           "operation": "create",
           "alias": "betaGig",
           "objectName": "Gig",
-          "values": { "Band": { "$ref": "beta.meta.guid" }, "Venue": "Beta Hall", "Date": "2026-08-02" },
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Date": "2026-08-02"
+          },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
-            "selectedContexts": { "Band": { "$ref": "beta.meta.guid" } },
+            "roles": [
+              "Admin"
+            ],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -854,10 +1373,26 @@
         "context": {
           "userId": "musician-1",
           "roles": [],
-          "selectedContexts": { "Band": { "$ref": "alpha.meta.guid" } },
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
           "contextRoles": [
-            { "context": "Band", "contextId": { "$ref": "alpha.meta.guid" }, "role": "BandAdmin" },
-            { "context": "Band", "contextId": { "$ref": "beta.meta.guid" }, "role": "BandAdmin" }
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandAdmin"
+            },
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "beta.meta.guid"
+              },
+              "role": "BandAdmin"
+            }
           ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
@@ -865,7 +1400,15 @@
       },
       "expected": {
         "ok": true,
-        "result": [{ "objectName": "Gig", "recordId": "$alphaGig", "values": { "Venue": "Alpha Hall" } }]
+        "result": [
+          {
+            "objectName": "Gig",
+            "recordId": "$alphaGig",
+            "values": {
+              "Venue": "Alpha Hall"
+            }
+          }
+        ]
       }
     },
     {
@@ -879,10 +1422,14 @@
           "operation": "create",
           "alias": "syncItem",
           "objectName": "SyncItem",
-          "values": { "Name": "Cached item" },
+          "values": {
+            "Name": "Cached item"
+          },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api",
             "now": "2026-07-17T09:00:00.000Z"
           }
@@ -891,7 +1438,9 @@
       "input": {
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -903,7 +1452,13 @@
             {
               "objectName": "SyncItem",
               "recordId": "$syncItem",
-              "reasons": [{ "kind": "objectSync", "mode": "localFirst", "scope": "all" }]
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "all"
+                }
+              ]
             }
           ]
         }
@@ -917,10 +1472,14 @@
       "modelRef": "onlineRequiredSync",
       "input": {
         "objectName": "SyncItem",
-        "values": { "Name": "Offline item" },
+        "values": {
+          "Name": "Offline item"
+        },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api",
           "online": false,
           "now": "2026-07-17T09:00:00.000Z"
@@ -928,7 +1487,9 @@
       },
       "expected": {
         "ok": false,
-        "error": { "code": "ADL_SYNC_POLICY_DENIED" }
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED"
+        }
       }
     },
     {
@@ -937,12 +1498,24 @@
       "specRef": "runtime-semantics#schema-version-compatibility",
       "operation": "startupCompatibility",
       "model": {
-        "app": { "name": "StartupCompatibility" },
-        "roles": [{ "name": "Admin" }],
+        "app": {
+          "name": "StartupCompatibility"
+        },
+        "roles": [
+          {
+            "name": "Admin"
+          }
+        ],
         "objects": [
           {
             "name": "SyncItem",
-            "fields": [{ "name": "Name", "type": "text", "required": true }]
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true
+              }
+            ]
           }
         ],
         "policies": [
@@ -953,7 +1526,12 @@
               {
                 "name": "allowAdminAll",
                 "effect": "allow",
-                "principal": { "match": "specific", "roles": ["Admin"] },
+                "principal": {
+                  "match": "specific",
+                  "roles": [
+                    "Admin"
+                  ]
+                },
                 "action": "*"
               }
             ]
@@ -961,7 +1539,47 @@
         ]
       },
       "input": {
-        "applicationMetadata": { "modelVersion": "0.1.0" },
+        "persistedModel": {
+          "app": {
+            "name": "StartupCompatibility"
+          },
+          "roles": [
+            {
+              "name": "Admin"
+            }
+          ],
+          "objects": [
+            {
+              "name": "SyncItem",
+              "fields": [
+                {
+                  "name": "Name",
+                  "type": "text",
+                  "required": true
+                }
+              ]
+            }
+          ],
+          "policies": [
+            {
+              "name": "SyncItemPolicy",
+              "object": "SyncItem",
+              "rules": [
+                {
+                  "name": "allowAdminAll",
+                  "effect": "allow",
+                  "principal": {
+                    "match": "specific",
+                    "roles": [
+                      "Admin"
+                    ]
+                  },
+                  "action": "*"
+                }
+              ]
+            }
+          ]
+        },
         "records": [
           {
             "objectName": "SyncItem",
@@ -977,7 +1595,9 @@
                 "updatedBy": "admin-1",
                 "syncStatus": "local"
               },
-              "values": { "Name": "Stale cached item" }
+              "values": {
+                "Name": "Stale cached item"
+              }
             }
           }
         ]

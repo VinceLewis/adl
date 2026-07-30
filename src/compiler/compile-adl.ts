@@ -10,6 +10,8 @@ import type {
   CommandStepDeclarationAst,
   DecisionTableDeclarationAst,
   FieldDeclarationAst,
+  MigrationDeclarationAst,
+  MigrationStepAst,
   ObjectConstraintDeclarationAst,
   ObjectDeclarationAst,
   PolicyDeclarationAst,
@@ -51,6 +53,7 @@ import type {
   PartialLifecycleActionModel,
   PartialObjectModel,
   PartialObjectConstraintModel,
+  PartialModelMigrationModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
   PartialPresentationControlModel,
@@ -78,6 +81,7 @@ import type {
   PartialViewModel,
   PartialViewContextModel,
   ResolvedApplicationModel,
+  ResolvedModelMigrationStep,
   ResolvedThemeTokens,
 } from "../model/resolved-model.js";
 
@@ -109,6 +113,7 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
   );
 
   return {
+    ...(ast.app.modelVersion === undefined ? {} : { modelVersion: ast.app.modelVersion }),
     app: {
       name: ast.app.name,
       ...(ast.app.startView === undefined ? {} : { startView: ast.app.startView }),
@@ -131,7 +136,32 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
     policies: [...ast.policies.map(policyToPartial), ...generatedPolicies],
     themes: ast.themes.map(themeToPartial),
     sync: ast.sync.map(syncToPartial),
+    migrations: ast.migrations.map(migrationToPartial),
   };
+}
+
+function migrationToPartial(migration: MigrationDeclarationAst): PartialModelMigrationModel {
+  return {
+    from: migration.from,
+    to: migration.to,
+    objects: migration.objects.map((object) => ({
+      object: object.object,
+      ...(object.schemaVersion === undefined ? {} : { schemaVersion: object.schemaVersion }),
+      steps: object.steps.map(migrationStepToPartial),
+    })),
+  };
+}
+
+function migrationStepToPartial(step: MigrationStepAst): ResolvedModelMigrationStep {
+  if (step.kind === "renameField") {
+    return { kind: "renameField", from: step.from, to: step.to };
+  }
+
+  if (step.kind === "addField") {
+    return { kind: "addField", field: step.field, defaultValue: step.defaultValue };
+  }
+
+  return { kind: "dropField", field: step.field };
 }
 
 function shellToPartial(shell: ShellDeclarationAst): PartialShellModel {
@@ -236,6 +266,7 @@ function objectToPartial(
     name: object.name,
     ...(object.businessKey === undefined ? {} : { businessKey: object.businessKey }),
     ...(object.displayField === undefined ? {} : { displayField: object.displayField }),
+    ...(object.schemaVersion === undefined ? {} : { schemaVersion: object.schemaVersion }),
     fields: object.fields.map(fieldToPartial),
     computedFields: object.computedFields.map((field) => ({
       name: field.name,

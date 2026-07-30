@@ -1,0 +1,3093 @@
+{
+  "version": 1,
+  "models": {
+    "derivedComputed": {
+      "app": {
+        "name": "DerivedComputed"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "LineItem",
+          "fields": [
+            {
+              "name": "UnitPrice",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Quantity",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Discount",
+              "type": "number",
+              "defaultValue": 0
+            }
+          ],
+          "computedFields": [
+            {
+              "name": "NetWithTax",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "Net"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 1.2
+                }
+              }
+            },
+            {
+              "name": "Net",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "-",
+                "left": {
+                  "kind": "field",
+                  "field": "Gross"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "Discount"
+                }
+              }
+            },
+            {
+              "name": "Gross",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "UnitPrice"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "Quantity"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reading",
+          "fields": [
+            {
+              "name": "Base",
+              "type": "number"
+            },
+            {
+              "name": "Bonus",
+              "type": "number"
+            }
+          ],
+          "computedFields": [
+            {
+              "name": "Doubled",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "Total"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 2
+                }
+              }
+            },
+            {
+              "name": "Total",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "+",
+                "left": {
+                  "kind": "field",
+                  "field": "Base"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "Bonus"
+                }
+              }
+            },
+            {
+              "name": "Safe",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "+",
+                "left": {
+                  "kind": "binary",
+                  "operator": "??",
+                  "left": {
+                    "kind": "field",
+                    "field": "Base"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 0
+                  }
+                },
+                "right": {
+                  "kind": "binary",
+                  "operator": "??",
+                  "left": {
+                    "kind": "field",
+                    "field": "Bonus"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 0
+                  }
+                }
+              }
+            }
+          ],
+          "views": [
+            {
+              "name": "ReadingSummary",
+              "kind": "list",
+              "fields": ["Base", "Total", "Doubled", "Safe"]
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "LineItemPolicy",
+          "object": "LineItem",
+          "rules": [
+            {
+              "name": "allowAdminAllLineItemOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "ReadingPolicy",
+          "object": "Reading",
+          "rules": [
+            {
+              "name": "allowAdminAllReadingOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "derivedJoin": {
+      "app": {
+        "name": "DerivedJoin"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Customer",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Tier",
+              "type": "text"
+            },
+            {
+              "name": "Reference",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "Order",
+          "fields": [
+            {
+              "name": "Customer",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Customer",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Amount",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Reference",
+              "type": "text"
+            }
+          ],
+          "computedFields": [
+            {
+              "name": "AmountWithTax",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "Amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 1.2
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "OrderWithCustomer",
+          "sources": [
+            {
+              "name": "order",
+              "object": "Order"
+            },
+            {
+              "name": "customer",
+              "object": "Customer"
+            }
+          ],
+          "fields": [
+            {
+              "name": "CustomerName",
+              "source": "customer",
+              "field": "Name"
+            },
+            {
+              "name": "CustomerReference",
+              "source": "customer",
+              "field": "Reference"
+            },
+            {
+              "name": "OrderReference",
+              "source": "order",
+              "field": "Reference"
+            },
+            {
+              "name": "Tier",
+              "source": "customer",
+              "field": "Tier"
+            },
+            {
+              "name": "Amount",
+              "source": "order",
+              "field": "Amount"
+            },
+            {
+              "name": "AmountWithTax",
+              "source": "order",
+              "field": "AmountWithTax"
+            },
+            {
+              "name": "Doubled",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "Amount"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": 2
+                }
+              }
+            },
+            {
+              "name": "DoubledPlusTax",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "+",
+                "left": {
+                  "kind": "field",
+                  "field": "Doubled"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "AmountWithTax"
+                }
+              }
+            }
+          ],
+          "sort": [
+            {
+              "field": "Amount",
+              "direction": "desc"
+            }
+          ]
+        },
+        {
+          "name": "CustomerRoster",
+          "sources": [
+            {
+              "name": "customer",
+              "object": "Customer"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Name",
+              "source": "customer",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "ConstantRow",
+          "sources": [],
+          "fields": [
+            {
+              "name": "Constant",
+              "type": "number",
+              "expression": {
+                "kind": "literal",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "CustomerPolicy",
+          "object": "Customer",
+          "rules": [
+            {
+              "name": "allowAdminAllCustomerOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "OrderPolicy",
+          "object": "Order",
+          "rules": [
+            {
+              "name": "allowAdminAllOrderOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "derivedContext": {
+      "app": {
+        "name": "DerivedContext"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "BandAdmin"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "required"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandAdmin"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gig",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Fee",
+              "type": "number",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "GigsCurrentContext",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            },
+            {
+              "name": "Fee",
+              "source": "gig",
+              "field": "Fee"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GigsAllContexts",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            },
+            {
+              "name": "Fee",
+              "source": "gig",
+              "field": "Fee"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GigsUnscopedDefault",
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GigsOptionalContext",
+          "context": {
+            "mode": "optional",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GigsExplicitAllScope",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "BandRoster",
+          "sources": [
+            {
+              "name": "band",
+              "object": "Band"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Name",
+              "source": "band",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowAdminAllBandOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowAdminAllBandMemberOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAllGigOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "computed.evaluation.create.001",
+      "title": "Computed fields evaluate on the create response through a dependency chain",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "create",
+      "modelRef": "derivedComputed",
+      "input": {
+        "objectName": "LineItem",
+        "values": {
+          "UnitPrice": 10,
+          "Quantity": 3,
+          "Discount": 5
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LineItem",
+          "values": {
+            "UnitPrice": 10,
+            "Quantity": 3,
+            "Discount": 5,
+            "Gross": 30,
+            "Net": 25,
+            "NetWithTax": 30
+          }
+        }
+      }
+    },
+    {
+      "id": "computed.evaluation.read.001",
+      "title": "Computed fields evaluate on the read response",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "read",
+      "modelRef": "derivedComputed",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "line",
+          "objectName": "LineItem",
+          "values": {
+            "UnitPrice": 4,
+            "Quantity": 5,
+            "Discount": 0
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LineItem",
+        "id": {
+          "$ref": "line.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LineItem",
+          "recordId": "$line",
+          "values": {
+            "Gross": 20,
+            "Net": 20,
+            "NetWithTax": 24
+          }
+        }
+      }
+    },
+    {
+      "id": "computed.evaluation.update.001",
+      "title": "Computed fields re-evaluate on the update response",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "update",
+      "modelRef": "derivedComputed",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "line",
+          "objectName": "LineItem",
+          "values": {
+            "UnitPrice": 10,
+            "Quantity": 3,
+            "Discount": 5
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LineItem",
+        "id": {
+          "$ref": "line.meta.guid"
+        },
+        "patch": {
+          "Discount": 10
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LineItem",
+          "recordId": "$line",
+          "values": {
+            "Discount": 10,
+            "Gross": 30,
+            "Net": 20,
+            "NetWithTax": 24
+          }
+        }
+      }
+    },
+    {
+      "id": "computed.evaluation.search.001",
+      "title": "Computed fields evaluate on every search result record",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "search",
+      "modelRef": "derivedComputed",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "first",
+          "objectName": "LineItem",
+          "values": {
+            "UnitPrice": 2,
+            "Quantity": 3,
+            "Discount": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "second",
+          "objectName": "LineItem",
+          "values": {
+            "UnitPrice": 5,
+            "Quantity": 4,
+            "Discount": 0
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LineItem",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "recordId": "$first",
+            "values": {
+              "Gross": 6,
+              "Net": 5,
+              "NetWithTax": 6
+            }
+          },
+          {
+            "recordId": "$second",
+            "values": {
+              "Gross": 20,
+              "Net": 20,
+              "NetWithTax": 24
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "computed.evaluation.delete.001",
+      "title": "Computed fields evaluate on the delete response",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "delete",
+      "modelRef": "derivedComputed",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "line",
+          "objectName": "LineItem",
+          "values": {
+            "UnitPrice": 3,
+            "Quantity": 3,
+            "Discount": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LineItem",
+        "id": {
+          "$ref": "line.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LineItem",
+          "recordId": "$line",
+          "values": {
+            "Gross": 9,
+            "Net": 8,
+            "NetWithTax": 9.6
+          }
+        }
+      }
+    },
+    {
+      "id": "computed.order.dependency-chain.001",
+      "title": "Computed field evaluation order follows dependencies, not declaration order",
+      "specRef": "resolved-model#objects",
+      "operation": "resolveModel",
+      "modelRef": "derivedComputed",
+      "input": {
+        "select": [
+          "objects.0.computedFields.0.name",
+          "objects.0.computedFields.0.dependencies",
+          "objects.0.computedFields.0.evaluationOrder",
+          "objects.0.computedFields.1.name",
+          "objects.0.computedFields.1.dependencies",
+          "objects.0.computedFields.1.evaluationOrder",
+          "objects.0.computedFields.2.name",
+          "objects.0.computedFields.2.dependencies",
+          "objects.0.computedFields.2.evaluationOrder"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.computedFields.0.name": "NetWithTax",
+          "objects.0.computedFields.0.dependencies": ["Net"],
+          "objects.0.computedFields.0.evaluationOrder": 2,
+          "objects.0.computedFields.1.name": "Net",
+          "objects.0.computedFields.1.dependencies": ["Discount", "Gross"],
+          "objects.0.computedFields.1.evaluationOrder": 1,
+          "objects.0.computedFields.2.name": "Gross",
+          "objects.0.computedFields.2.dependencies": ["Quantity", "UnitPrice"],
+          "objects.0.computedFields.2.evaluationOrder": 0
+        }
+      }
+    },
+    {
+      "id": "computed.metadata.system-managed.001",
+      "title": "Resolved computed fields are readonly, system managed, visible, and read-time",
+      "specRef": "resolved-model#objects",
+      "operation": "resolveModel",
+      "modelRef": "derivedComputed",
+      "input": {
+        "select": [
+          "objects.0.computedFields.2.name",
+          "objects.0.computedFields.2.storageName",
+          "objects.0.computedFields.2.type",
+          "objects.0.computedFields.2.strategy",
+          "objects.0.computedFields.2.readonly",
+          "objects.0.computedFields.2.hidden",
+          "objects.0.computedFields.2.systemManaged"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.computedFields.2.name": "Gross",
+          "objects.0.computedFields.2.storageName": "gross",
+          "objects.0.computedFields.2.type": "number",
+          "objects.0.computedFields.2.strategy": "readTime",
+          "objects.0.computedFields.2.readonly": true,
+          "objects.0.computedFields.2.hidden": false,
+          "objects.0.computedFields.2.systemManaged": true
+        }
+      }
+    },
+    {
+      "id": "computed.write.create-refused.001",
+      "title": "A create that supplies a computed field value is refused",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "create",
+      "modelRef": "derivedComputed",
+      "input": {
+        "objectName": "LineItem",
+        "values": {
+          "UnitPrice": 10,
+          "Quantity": 3,
+          "Gross": 999
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_COMPUTED_FIELD_WRITE",
+              "field": "Gross",
+              "path": "values.Gross"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "computed.write.update-refused.001",
+      "title": "An update patch that targets a computed field is refused",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "update",
+      "modelRef": "derivedComputed",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "line",
+          "objectName": "LineItem",
+          "values": {
+            "UnitPrice": 10,
+            "Quantity": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LineItem",
+        "id": {
+          "$ref": "line.meta.guid"
+        },
+        "patch": {
+          "Net": 1
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_COMPUTED_FIELD_WRITE",
+              "field": "Net",
+              "path": "patch.Net"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "computed.null-dependency.missing.001",
+      "title": "A computed field over missing dependencies evaluates to null rather than failing",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "create",
+      "modelRef": "derivedComputed",
+      "input": {
+        "objectName": "Reading",
+        "values": {},
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Reading",
+          "values": {
+            "Total": null,
+            "Doubled": null,
+            "Safe": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "computed.null-dependency.partial.001",
+      "title": "A computed field over one present and one absent dependency evaluates to null",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "create",
+      "modelRef": "derivedComputed",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Base": 5
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Reading",
+          "values": {
+            "Base": 5,
+            "Total": null,
+            "Doubled": null,
+            "Safe": 5
+          }
+        }
+      }
+    },
+    {
+      "id": "computed.null-dependency.explicit-null.001",
+      "title": "A computed field over an explicitly null dependency evaluates to null",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "create",
+      "modelRef": "derivedComputed",
+      "input": {
+        "objectName": "Reading",
+        "values": {
+          "Base": null,
+          "Bonus": 7
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Reading",
+          "values": {
+            "Total": null,
+            "Doubled": null,
+            "Safe": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "computed.default-view.list-fields.001",
+      "title": "Default views list computed fields after stored fields in evaluation order",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "derivedComputed",
+      "input": {
+        "select": [
+          "objects.0.views.0.name",
+          "objects.0.views.0.fields",
+          "objects.0.views.1.name",
+          "objects.0.views.1.fields"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.name": "LineItemList",
+          "objects.0.views.0.fields": [
+            "UnitPrice",
+            "Quantity",
+            "Discount",
+            "Gross",
+            "Net",
+            "NetWithTax"
+          ],
+          "objects.0.views.1.name": "LineItemForm",
+          "objects.0.views.1.fields": [
+            "UnitPrice",
+            "Quantity",
+            "Discount",
+            "Gross",
+            "Net",
+            "NetWithTax"
+          ]
+        }
+      }
+    },
+    {
+      "id": "computed.default-view.edit-sections.001",
+      "title": "Default edit sections carry the computed fields from the default field list",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "derivedComputed",
+      "input": {
+        "select": ["objects.0.views.0.editSections.0.fields"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editSections.0.fields": [
+            "UnitPrice",
+            "Quantity",
+            "Discount",
+            "Gross",
+            "Net",
+            "NetWithTax"
+          ]
+        }
+      }
+    },
+    {
+      "id": "computed.declared-view.field-list.001",
+      "title": "A declared view may name computed fields alongside stored fields",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "derivedComputed",
+      "input": {
+        "select": ["objects.1.views.0.name", "objects.1.views.0.fields"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.1.views.0.name": "ReadingSummary",
+          "objects.1.views.0.fields": ["Base", "Total", "Doubled", "Safe"]
+        }
+      }
+    },
+    {
+      "id": "computed.validation.cycle.001",
+      "title": "Model validation reports a computed field dependency cycle",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ComputedCycle"
+        },
+        "objects": [
+          {
+            "name": "Cyclic",
+            "fields": [
+              {
+                "name": "Seed",
+                "type": "number"
+              }
+            ],
+            "computedFields": [
+              {
+                "name": "Left",
+                "type": "number",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "+",
+                  "left": {
+                    "kind": "field",
+                    "field": "Right"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 1
+                  }
+                }
+              },
+              {
+                "name": "Right",
+                "type": "number",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "+",
+                  "left": {
+                    "kind": "field",
+                    "field": "Left"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 1
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMPUTED_FIELD_CYCLE",
+            "path": "objects[0].computedFields[0].expression"
+          }
+        ]
+      }
+    },
+    {
+      "id": "computed.validation.unknown-field.001",
+      "title": "Model validation reports a computed field referencing an unknown field",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ComputedUnknownField"
+        },
+        "objects": [
+          {
+            "name": "Broken",
+            "fields": [
+              {
+                "name": "Seed",
+                "type": "number"
+              }
+            ],
+            "computedFields": [
+              {
+                "name": "Derived",
+                "type": "number",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "+",
+                  "left": {
+                    "kind": "field",
+                    "field": "Missing"
+                  },
+                  "right": {
+                    "kind": "field",
+                    "field": "Seed"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMPUTED_FIELD_EXPRESSION_FIELD_UNKNOWN",
+            "path": "objects[0].computedFields[0].expression.left.field"
+          }
+        ]
+      }
+    },
+    {
+      "id": "computed.validation.expression-type.001",
+      "title": "Model validation reports a computed field whose expression contradicts its type",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ComputedTypeMismatch"
+        },
+        "objects": [
+          {
+            "name": "Mismatch",
+            "fields": [
+              {
+                "name": "Seed",
+                "type": "number"
+              }
+            ],
+            "computedFields": [
+              {
+                "name": "Label",
+                "type": "text",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "*",
+                  "left": {
+                    "kind": "field",
+                    "field": "Seed"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 2
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMPUTED_FIELD_EXPRESSION_TYPE",
+            "path": "objects[0].computedFields[0].expression"
+          }
+        ]
+      }
+    },
+    {
+      "id": "computed.validation.name-conflict.001",
+      "title": "Model validation reports a computed field that shadows a stored field",
+      "specRef": "resolved-model#objects",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ComputedNameConflict"
+        },
+        "objects": [
+          {
+            "name": "Shadow",
+            "fields": [
+              {
+                "name": "Seed",
+                "type": "number"
+              },
+              {
+                "name": "Total",
+                "type": "number"
+              }
+            ],
+            "computedFields": [
+              {
+                "name": "Total",
+                "type": "number",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "*",
+                  "left": {
+                    "kind": "field",
+                    "field": "Seed"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 2
+                  }
+                }
+              }
+            ],
+            "views": [
+              {
+                "name": "ShadowList",
+                "kind": "list",
+                "fields": ["Seed"]
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMPUTED_FIELD_NAME_CONFLICT",
+            "path": "objects[0].computedFields[0].name"
+          }
+        ]
+      }
+    },
+    {
+      "id": "read-model.join.two-sources.001",
+      "title": "A join read model projects one row per primary record with its related source",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Bravo",
+            "Tier": "Silver",
+            "Reference": "C-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "smallOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "largeOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "bravo.meta.guid"
+            },
+            "Amount": 250,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "CustomerName": "Bravo",
+                "Tier": "Silver",
+                "Amount": 250
+              }
+            },
+            {
+              "values": {
+                "CustomerName": "Acme",
+                "Tier": "Gold",
+                "Amount": 100
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.field.named-source.001",
+      "title": "Read model fields resolve same-named source fields through their named source",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "CustomerReference": "C-1",
+                "OrderReference": "O-1"
+              },
+              "sources": {
+                "order": {
+                  "objectName": "Order",
+                  "recordId": "$order"
+                },
+                "customer": {
+                  "objectName": "Customer",
+                  "recordId": "$acme"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.unresolvable-source.001",
+      "title": "A join row is dropped when a joined source cannot be resolved",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "goodOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "orphanOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": "customer-that-does-not-exist",
+            "Amount": 999,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "OrderReference": "O-1",
+                "Amount": 100
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.expression-field.projected-values.001",
+      "title": "Read model expression fields evaluate over projected row values",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Amount": 100,
+                "Doubled": 200
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.expression-field.declaration-order.001",
+      "title": "A read model expression field may reference an earlier expression field",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 250,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Amount": 250,
+                "AmountWithTax": 300,
+                "Doubled": 500,
+                "DoubledPlusTax": 800
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.source-computed-field.001",
+      "title": "Read model source projections can read object computed fields",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Amount": 100,
+                "AmountWithTax": 120
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.sort.declared.001",
+      "title": "Declared read model sort orders rows without a query sort",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "smallOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 10,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "largeOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 40,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "mediumOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 25,
+            "Reference": "O-3"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "OrderReference": "O-2",
+                "Amount": 40
+              }
+            },
+            {
+              "values": {
+                "OrderReference": "O-3",
+                "Amount": 25
+              }
+            },
+            {
+              "values": {
+                "OrderReference": "O-1",
+                "Amount": 10
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.sort.query-override.001",
+      "title": "A query sort replaces the declared read model sort",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "smallOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 10,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "largeOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 40,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "query": {
+          "sort": [
+            {
+              "field": "Amount",
+              "direction": "asc"
+            }
+          ]
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "OrderReference": "O-1",
+                "Amount": 10
+              }
+            },
+            {
+              "values": {
+                "OrderReference": "O-2",
+                "Amount": 40
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.limit.001",
+      "title": "A query limit truncates read model rows after sorting",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold",
+            "Reference": "C-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "smallOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 10,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "largeOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 40,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "query": {
+          "limit": 1
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "OrderReference": "O-2",
+                "Amount": 40
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.empty-source-set.001",
+      "title": "A read model that declares no sources produces no rows",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "input": {
+        "readModelName": "ConstantRow",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "read-model.no-source-records.001",
+      "title": "A read model over a source with no records produces no rows",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedJoin",
+      "input": {
+        "readModelName": "CustomerRoster",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "read-model.validation.expression-forward-reference.001",
+      "title": "Model validation rejects a read model expression field referencing a later field",
+      "specRef": "resolved-model#read-models",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ReadModelForwardReference"
+        },
+        "objects": [
+          {
+            "name": "Thing",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "readModels": [
+          {
+            "name": "ThingRows",
+            "sources": [
+              {
+                "name": "thing",
+                "object": "Thing"
+              }
+            ],
+            "fields": [
+              {
+                "name": "Doubled",
+                "type": "number",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "*",
+                  "left": {
+                    "kind": "field",
+                    "field": "Amount"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "value": 2
+                  }
+                }
+              },
+              {
+                "name": "Amount",
+                "source": "thing",
+                "field": "Amount"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_READ_MODEL_FIELD_EXPRESSION_FIELD_UNKNOWN",
+            "path": "readModels[0].fields[0].expression.left.field"
+          }
+        ]
+      }
+    },
+    {
+      "id": "read-model.validation.expression-with-source.001",
+      "title": "Model validation rejects an expression field that also projects a source field",
+      "specRef": "resolved-model#read-models",
+      "operation": "validateModel",
+      "model": {
+        "app": {
+          "name": "ReadModelFieldShape"
+        },
+        "objects": [
+          {
+            "name": "Thing",
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "readModels": [
+          {
+            "name": "ThingRows",
+            "sources": [
+              {
+                "name": "thing",
+                "object": "Thing"
+              }
+            ],
+            "fields": [
+              {
+                "name": "Amount",
+                "type": "number",
+                "source": "thing",
+                "field": "Amount",
+                "expression": {
+                  "kind": "literal",
+                  "value": 1
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_READ_MODEL_FIELD_SHAPE_INVALID",
+            "path": "readModels[0].fields[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "read-model.scope.defaults-from-context-mode.001",
+      "title": "Read model source scope defaults are derived from the read model context mode",
+      "specRef": "resolved-model#read-models",
+      "operation": "resolveModel",
+      "modelRef": "derivedContext",
+      "input": {
+        "select": [
+          "readModels.0.name",
+          "readModels.0.sources.0.scope",
+          "readModels.1.name",
+          "readModels.1.sources.0.scope",
+          "readModels.2.name",
+          "readModels.2.sources.0.scope",
+          "readModels.3.name",
+          "readModels.3.sources.0.scope",
+          "readModels.4.name",
+          "readModels.4.sources.0.scope",
+          "readModels.0.strategy"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "readModels.0.name": "GigsCurrentContext",
+          "readModels.0.sources.0.scope": "currentContext",
+          "readModels.1.name": "GigsAllContexts",
+          "readModels.1.sources.0.scope": "allAvailableContexts",
+          "readModels.2.name": "GigsUnscopedDefault",
+          "readModels.2.sources.0.scope": "all",
+          "readModels.3.name": "GigsOptionalContext",
+          "readModels.3.sources.0.scope": "currentContext",
+          "readModels.4.name": "GigsExplicitAllScope",
+          "readModels.4.sources.0.scope": "all",
+          "readModels.0.strategy": "join"
+        }
+      }
+    },
+    {
+      "id": "read-model.scope.current-context.001",
+      "title": "A currentContext source returns only records of the selected context instance",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 500
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Fee": 700
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsCurrentContext",
+        "context": {
+          "userId": "musician-1",
+          "roles": ["Admin"],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandAdmin"
+            },
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "beta.meta.guid"
+              },
+              "role": "BandAdmin"
+            }
+          ],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Venue": "Alpha Hall",
+                "Fee": 500
+              },
+              "sources": {
+                "gig": {
+                  "objectName": "Gig",
+                  "recordId": "$alphaGig"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.scope.current-context-without-selection.001",
+      "title": "A currentContext source returns no rows when no context instance is selected",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 500
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsCurrentContext",
+        "context": {
+          "userId": "musician-1",
+          "roles": ["Admin"],
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandAdmin"
+            }
+          ],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "read-model.scope.all-available-contexts.001",
+      "title": "An all-context read model returns records from every context the user belongs to",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMember",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaMembership",
+          "objectName": "BandMember",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 500
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Fee": 700
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsAllContexts",
+        "context": {
+          "userId": "musician-1",
+          "roles": ["Admin"],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Venue": "Alpha Hall",
+                "Fee": 500
+              }
+            },
+            {
+              "values": {
+                "Venue": "Beta Hall",
+                "Fee": 700
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.scope.all-context-without-membership.001",
+      "title": "An all-context read model returns no rows when the user has no available context",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 500
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsAllContexts",
+        "context": {
+          "userId": "outsider-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "read-model.scope.all-respects-object-scope.001",
+      "title": "An all source scope still respects the object context scope",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 500
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall",
+            "Fee": 700
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsExplicitAllScope",
+        "context": {
+          "userId": "musician-1",
+          "roles": ["Admin"],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Venue": "Alpha Hall"
+              },
+              "sources": {
+                "gig": {
+                  "objectName": "Gig",
+                  "recordId": "$alphaGig"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.scope.all-over-unscoped-object.001",
+      "title": "An all source scope over an unscoped object returns every readable record",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "derivedContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "Beta"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "BandRoster",
+        "context": {
+          "userId": "musician-1",
+          "roles": ["Admin"],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Name": "Alpha"
+              }
+            },
+            {
+              "values": {
+                "Name": "Beta"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

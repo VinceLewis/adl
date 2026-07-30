@@ -75,36 +75,57 @@ export class PostgresObjectStorageBackend implements ObjectStorageBackend {
     }));
   }
   async readApplicationMetadata(): Promise<PersistedApplicationMetadata | null> {
-    const result = await this.database.query<{ model_version: string }>(
-      "select model_version from adl_authority_models where application_id = $1",
+    const result = await this.database.query<{
+      model_version: string;
+      model_fingerprint: string | null;
+    }>(
+      "select model_version, model_fingerprint from adl_authority_models where application_id = $1",
       [this.applicationId],
     );
-    return result.rows[0] === undefined ? null : { modelVersion: result.rows[0].model_version };
+    const row = result.rows[0];
+    return row === undefined
+      ? null
+      : {
+          modelVersion: row.model_version,
+          ...(row.model_fingerprint === null ? {} : { modelFingerprint: row.model_fingerprint }),
+        };
   }
   async writeApplicationMetadata(metadata: PersistedApplicationMetadata): Promise<void> {
     await this.database.query(
-      "insert into adl_authority_models (application_id, model_version, resolved_model) values ($1, $2, $3::jsonb) on conflict (application_id) do update set model_version = excluded.model_version, resolved_model = excluded.resolved_model, updated_at = now()",
-      [this.applicationId, metadata.modelVersion, JSON.stringify(this.model)],
+      "insert into adl_authority_models (application_id, model_version, model_fingerprint, resolved_model) values ($1, $2, $3, $4::jsonb) on conflict (application_id) do update set model_version = excluded.model_version, model_fingerprint = excluded.model_fingerprint, resolved_model = excluded.resolved_model, updated_at = now()",
+      [
+        this.applicationId,
+        metadata.modelVersion,
+        metadata.modelFingerprint ?? null,
+        JSON.stringify(this.model),
+      ],
     );
   }
   async commitTransaction(writes: ObjectStorageTransactionWrite[]): Promise<void> {
     if (this.ambientTransaction) {
       // The outer authority unit-of-work owns begin/commit/rollback; applying a
       // nested begin here would prematurely commit the outer transaction.
-      for (const write of writes) await this.write(write.operation, write.objectName, write.record);
+      for (const write of writes) await this.applyWrite(write);
       return;
     }
     await this.database.query("begin");
     try {
-      for (const write of writes) await this.write(write.operation, write.objectName, write.record);
+      for (const write of writes) await this.applyWrite(write);
       await this.database.query("commit");
     } catch (error) {
       await this.database.query("rollback");
       throw error;
     }
   }
+  private async applyWrite(write: ObjectStorageTransactionWrite): Promise<void> {
+    if (write.operation === "applicationMetadata") {
+      await this.writeApplicationMetadata(write.metadata);
+      return;
+    }
+    await this.write(write.operation, write.objectName, write.record);
+  }
   private async write(
-    operation: ObjectStorageTransactionWrite["operation"],
+    operation: Exclude<ObjectStorageTransactionWrite["operation"], "applicationMetadata">,
     objectName: string,
     record: StoredObjectRecord,
   ): Promise<void> {

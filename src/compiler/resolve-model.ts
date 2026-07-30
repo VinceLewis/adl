@@ -19,6 +19,14 @@ import {
   toStorageName,
   toTableName,
 } from "../model/defaults.js";
+import { computeModelFingerprint } from "../model/fingerprint.js";
+import type {
+  PartialModelMigrationModel,
+  PartialModelMigrationObjectModel,
+  ResolvedModelMigration,
+  ResolvedModelMigrationObject,
+  ResolvedModelMigrationStep,
+} from "../model/resolved-model.js";
 import type {
   PartialApplicationModel,
   PartialAutoIdModel,
@@ -203,7 +211,7 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
   const startView = input.app.startView ?? objectsWithPolicies[0]?.views[0]?.name ?? "";
   const shell = resolveShell(input.shell, objectsWithPolicies);
 
-  return {
+  const withoutFingerprint: Omit<ResolvedApplicationModel, "modelFingerprint"> = {
     modelVersion: input.modelVersion ?? ADL_MODEL_VERSION,
     app: {
       name: input.app.name,
@@ -223,8 +231,51 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
     sync,
     audit: createDefaultAuditModel(),
     operationLog: createDefaultOperationLogModel(),
+    migrations: resolveModelMigrations(input.migrations ?? []),
     defaults: createDefaultModelDefaults(),
   };
+
+  // Computed last and over everything else, so the digest covers exactly the
+  // content that was resolved, and excluding the field itself so it is never
+  // its own input.
+  return {
+    ...withoutFingerprint,
+    modelFingerprint: computeModelFingerprint(withoutFingerprint),
+  };
+}
+
+function resolveModelMigrations(input: PartialModelMigrationModel[]): ResolvedModelMigration[] {
+  return input.map((migration) => ({
+    from: migration.from,
+    to: migration.to,
+    objects: (migration.objects ?? []).map(resolveModelMigrationObject),
+  }));
+}
+
+function resolveModelMigrationObject(
+  input: PartialModelMigrationObjectModel,
+): ResolvedModelMigrationObject {
+  return {
+    object: input.object,
+    ...(input.schemaVersion === undefined ? {} : { schemaVersion: input.schemaVersion }),
+    steps: (input.steps ?? []).map(resolveModelMigrationStep),
+  };
+}
+
+function resolveModelMigrationStep(input: ResolvedModelMigrationStep): ResolvedModelMigrationStep {
+  if (input.kind === "renameField") {
+    return { kind: "renameField", from: input.from, to: input.to };
+  }
+
+  if (input.kind === "addField") {
+    return {
+      kind: "addField",
+      field: input.field,
+      defaultValue: cloneJsonValue(input.defaultValue),
+    };
+  }
+
+  return { kind: "dropField", field: input.field };
 }
 
 function resolveShell(

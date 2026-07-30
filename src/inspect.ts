@@ -324,6 +324,33 @@ function explainTopLevelDefaults(
           : "Start view was supplied by the source model.",
     },
     {
+      path: "app.offlineGraceDays",
+      value: model.app.offlineGraceDays,
+      origin: source?.app.offlineGraceDays === undefined ? "platformDefault" : "source",
+      note:
+        source?.app.offlineGraceDays === undefined
+          ? "Default offline sync grace was applied."
+          : "Offline sync grace was supplied by the source model.",
+    },
+    {
+      path: "modelVersion",
+      value: model.modelVersion,
+      origin: source?.modelVersion === undefined ? "platformDefault" : "source",
+      note:
+        source?.modelVersion === undefined
+          ? "Default model version was applied because the model declared none."
+          : "Model version was declared by the source model.",
+    },
+    {
+      // Never "source": the fingerprint is computed from content and cannot be
+      // supplied, which is the entire reason it can contradict a declared
+      // version that an author forgot to bump.
+      path: "modelFingerprint",
+      value: model.modelFingerprint,
+      origin: "derivedDefault",
+      note: "Model fingerprint is derived from the resolved model's content.",
+    },
+    {
       path: "defaults",
       value: model.defaults as unknown as JsonValue,
       origin: "platformDefault",
@@ -1239,9 +1266,15 @@ function originForOptionalSourceValue(
 function explainPolicyPrecedence(
   decision: PolicyDecision,
 ): PolicyDecisionExplanation["precedence"] {
+  // Classified from structure, never from prose. Substring-matching the
+  // human-readable message for "default deny" meant a rule whose *name*
+  // contained that text made an explicit, rule-driven refusal report itself as
+  // `defaultDeny` — and telling "no rule matched" apart from "a rule forbade
+  // this" is the entire job of this surface for an audit or UI consumer.
+  // The synthesised default-deny reason is the only one with no rule behind it.
   if (
     decision.effect === "deny" &&
-    decision.reasons.some((reason) => reason.message.includes("default deny"))
+    decision.reasons.some((reason) => reason.ruleName === undefined)
   ) {
     return "defaultDeny";
   }

@@ -1,0 +1,3288 @@
+{
+  "version": 1,
+  "models": {
+    "syncModes": {
+      "app": {
+        "name": "SyncModes"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "LocalFirstItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "CacheReadonlyItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "cacheReadonly",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "OnlineRequiredItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "onlineRequired",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "LocalPrivateItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localPrivate",
+            "scope": "all"
+          }
+        }
+      ],
+      "policies": [
+        {
+          "name": "LocalFirstItemPolicy",
+          "object": "LocalFirstItem",
+          "rules": [
+            {
+              "name": "allowAdminAllLocalFirstItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "CacheReadonlyItemPolicy",
+          "object": "CacheReadonlyItem",
+          "rules": [
+            {
+              "name": "allowAdminAllCacheReadonlyItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "OnlineRequiredItemPolicy",
+          "object": "OnlineRequiredItem",
+          "rules": [
+            {
+              "name": "allowAdminAllOnlineRequiredItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "LocalPrivateItemPolicy",
+          "object": "LocalPrivateItem",
+          "rules": [
+            {
+              "name": "allowAdminAllLocalPrivateItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "syncScopes": {
+      "app": {
+        "name": "SyncScopes"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "AllScopeItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "RecentDaysItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "recent",
+            "window": {
+              "field": "_updatedAt",
+              "days": 7
+            }
+          }
+        },
+        {
+          "name": "RecentLimitItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "recent",
+            "window": {
+              "field": "_updatedAt",
+              "days": 3650,
+              "limit": 1
+            }
+          }
+        }
+      ],
+      "policies": [
+        {
+          "name": "AllScopeItemPolicy",
+          "object": "AllScopeItem",
+          "rules": [
+            {
+              "name": "allowAdminAllAllScopeItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "RecentDaysItemPolicy",
+          "object": "RecentDaysItem",
+          "rules": [
+            {
+              "name": "allowAdminAllRecentDaysItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "RecentLimitItemPolicy",
+          "object": "RecentLimitItem",
+          "rules": [
+            {
+              "name": "allowAdminAllRecentLimitItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "contextSync": {
+      "app": {
+        "name": "ContextSync"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "BandAdmin"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "required"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "onlineRequired",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "GigAll",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "allAvailableContexts"
+          }
+        },
+        {
+          "name": "GigCurrent",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "currentContext"
+          }
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "GigAllPolicy",
+          "object": "GigAll",
+          "rules": [
+            {
+              "name": "allowAdminAllGigAll",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "GigCurrentPolicy",
+          "object": "GigCurrent",
+          "rules": [
+            {
+              "name": "allowAdminAllGigCurrent",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "Admin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "authorityModel": {
+      "app": {
+        "name": "AuthoritySync"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Body",
+              "type": "text"
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all",
+            "conflict": "serverWins"
+          }
+        },
+        {
+          "name": "ManualNote",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all",
+            "conflict": "manual"
+          }
+        },
+        {
+          "name": "ClientNote",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all",
+            "conflict": "clientWins"
+          }
+        },
+        {
+          "name": "CachedNote",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "cacheReadonly",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "OnlineNote",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "onlineRequired",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "Restricted",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all",
+            "conflict": "serverWins"
+          }
+        }
+      ],
+      "commands": [
+        {
+          "name": "CreateNote",
+          "inputs": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createNote",
+              "action": "create",
+              "object": "Note",
+              "authority": "command",
+              "values": {
+                "Title": {
+                  "kind": "input",
+                  "name": "Title"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "ManualNotePolicy",
+          "object": "ManualNote",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllManualNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "ClientNotePolicy",
+          "object": "ClientNote",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllClientNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "CachedNotePolicy",
+          "object": "CachedNote",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllCachedNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "OnlineNotePolicy",
+          "object": "OnlineNote",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllOnlineNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "RestrictedPolicy",
+          "object": "Restricted",
+          "rules": [
+            {
+              "name": "allowOwnerUserAllRestricted",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "users": [
+                  "owner-user"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "sync.local-first.create-online-allowed.001",
+      "title": "Local-first objects accept local creates while online",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "LocalFirstItem",
+        "values": {
+          "Name": "Online item"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LocalFirstItem",
+          "values": {
+            "Name": "Online item"
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.local-first.create-offline-allowed.001",
+      "title": "Local-first objects accept local creates while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "LocalFirstItem",
+        "values": {
+          "Name": "Offline item"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LocalFirstItem",
+          "values": {
+            "Name": "Offline item"
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.local-first.update-offline-allowed.001",
+      "title": "Local-first objects accept local updates while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "update",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "item",
+          "objectName": "LocalFirstItem",
+          "values": {
+            "Name": "Seeded"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": false,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalFirstItem",
+        "id": {
+          "$ref": "item.meta.guid"
+        },
+        "patch": {
+          "Name": "Edited offline"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LocalFirstItem",
+          "recordId": "$item",
+          "values": {
+            "Name": "Edited offline"
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.local-first.delete-offline-allowed.001",
+      "title": "Local-first objects accept local deletes while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "delete",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "item",
+          "objectName": "LocalFirstItem",
+          "values": {
+            "Name": "Seeded"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": false,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalFirstItem",
+        "id": {
+          "$ref": "item.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LocalFirstItem",
+          "recordId": "$item"
+        }
+      }
+    },
+    {
+      "id": "sync.cache-readonly.create-online-refused.001",
+      "title": "Cache-readonly objects refuse local creates even while online",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "CacheReadonlyItem",
+        "values": {
+          "Name": "Blocked item"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED",
+          "decision": {
+            "allowed": false,
+            "objectName": "CacheReadonlyItem",
+            "operation": "create",
+            "mode": "cacheReadonly",
+            "online": true,
+            "queueable": false,
+            "readonly": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.cache-readonly.create-offline-refused.001",
+      "title": "Cache-readonly objects refuse local creates while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "CacheReadonlyItem",
+        "values": {
+          "Name": "Blocked item"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED",
+          "decision": {
+            "allowed": false,
+            "objectName": "CacheReadonlyItem",
+            "operation": "create",
+            "mode": "cacheReadonly",
+            "online": false,
+            "queueable": false,
+            "readonly": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.online-required.create-online-allowed.001",
+      "title": "Online-required objects accept writes while online",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "values": {
+          "Name": "Online write"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Online write"
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.online-required.create-offline-refused.001",
+      "title": "Online-required objects refuse creates when the context is offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "values": {
+          "Name": "Offline write"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED",
+          "decision": {
+            "allowed": false,
+            "objectName": "OnlineRequiredItem",
+            "operation": "create",
+            "mode": "onlineRequired",
+            "online": false,
+            "queueable": false,
+            "readonly": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.online-required.update-online-allowed.001",
+      "title": "Online-required objects accept updates while online",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "update",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "item",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Seeded"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "id": {
+          "$ref": "item.meta.guid"
+        },
+        "patch": {
+          "Name": "Edited online"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "OnlineRequiredItem",
+          "recordId": "$item",
+          "values": {
+            "Name": "Edited online"
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.online-required.update-offline-refused.001",
+      "title": "Online-required objects refuse updates when the context is offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "update",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "item",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Seeded"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "id": {
+          "$ref": "item.meta.guid"
+        },
+        "patch": {
+          "Name": "Edited offline"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED",
+          "decision": {
+            "allowed": false,
+            "objectName": "OnlineRequiredItem",
+            "operation": "update",
+            "mode": "onlineRequired",
+            "online": false,
+            "queueable": false,
+            "readonly": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.online-required.delete-offline-refused.001",
+      "title": "Online-required objects refuse deletes when the context is offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "delete",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "item",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Seeded"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "id": {
+          "$ref": "item.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED",
+          "decision": {
+            "allowed": false,
+            "objectName": "OnlineRequiredItem",
+            "operation": "delete",
+            "mode": "onlineRequired",
+            "online": false,
+            "queueable": false,
+            "readonly": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.local-private.create-offline-allowed.001",
+      "title": "Local-private objects accept local creates while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "LocalPrivateItem",
+        "values": {
+          "Name": "Private item"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LocalPrivateItem",
+          "values": {
+            "Name": "Private item"
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.local-private.update-offline-allowed.001",
+      "title": "Local-private objects accept local updates while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "update",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "item",
+          "objectName": "LocalPrivateItem",
+          "values": {
+            "Name": "Seeded"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": false,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalPrivateItem",
+        "id": {
+          "$ref": "item.meta.guid"
+        },
+        "patch": {
+          "Name": "Edited privately"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LocalPrivateItem",
+          "recordId": "$item",
+          "values": {
+            "Name": "Edited privately"
+          }
+        }
+      }
+    },
+    {
+      "id": "sync.local-private.delete-offline-allowed.001",
+      "title": "Local-private objects accept local deletes while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "delete",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "item",
+          "objectName": "LocalPrivateItem",
+          "values": {
+            "Name": "Seeded"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": false,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalPrivateItem",
+        "id": {
+          "$ref": "item.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-17T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "LocalPrivateItem",
+          "recordId": "$item"
+        }
+      }
+    },
+    {
+      "id": "sync.policy-runs-before-sync-mode.001",
+      "title": "Policy denial precedes the sync-mode write check",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "create",
+      "modelRef": "syncModes",
+      "input": {
+        "objectName": "CacheReadonlyItem",
+        "values": {
+          "Name": "Unauthorised item"
+        },
+        "context": {
+          "userId": "guest-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "sync.defaults.undeclared-object.001",
+      "title": "An object with no declared sync policy resolves to local-first, all, manual",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "resolveModel",
+      "model": {
+        "app": {
+          "name": "SyncDefaults"
+        },
+        "objects": [
+          {
+            "name": "Plain",
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      "input": {
+        "select": [
+          "objects.0.sync.mode",
+          "objects.0.sync.scope",
+          "objects.0.sync.conflict"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.sync.mode": "localFirst",
+          "objects.0.sync.scope": "all",
+          "objects.0.sync.conflict": "manual"
+        }
+      }
+    },
+    {
+      "id": "sync.defaults.recent-window.001",
+      "title": "Recent sync scope derives a 30 day window over the update timestamp",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "resolveModel",
+      "model": {
+        "app": {
+          "name": "SyncRecentDefaults"
+        },
+        "objects": [
+          {
+            "name": "Plain",
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true
+              }
+            ],
+            "sync": {
+              "scope": "recent"
+            }
+          }
+        ]
+      },
+      "input": {
+        "select": [
+          "objects.0.sync.mode",
+          "objects.0.sync.scope",
+          "objects.0.sync.window.field",
+          "objects.0.sync.window.days"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.sync.mode": "localFirst",
+          "objects.0.sync.scope": "recent",
+          "objects.0.sync.window.field": "_updatedAt",
+          "objects.0.sync.window.days": 30
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.online-required-excluded.001",
+      "title": "Offline datasets exclude online-required records and include local-first ones",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "local",
+          "objectName": "LocalFirstItem",
+          "values": {
+            "Name": "Cached locally"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "remote",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Server only"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "LocalFirstItem",
+              "recordId": "$local",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "all"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.online-required-only-is-empty.001",
+      "title": "A store holding only online-required records produces an empty offline dataset",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "remote",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Server only"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": []
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.local-private-included.001",
+      "title": "Local-private records belong to the offline dataset even though they never sync",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "syncModes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "private",
+          "objectName": "LocalPrivateItem",
+          "values": {
+            "Name": "Kept on device"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "LocalPrivateItem",
+              "recordId": "$private",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localPrivate",
+                  "scope": "all"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.scope-all-ignores-age.001",
+      "title": "Sync scope all keeps a record in the offline dataset regardless of its age",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "syncScopes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ancient",
+          "objectName": "AllScopeItem",
+          "values": {
+            "Name": "Very old"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2020-01-01T00:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "AllScopeItem",
+              "recordId": "$ancient",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "all"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.scope-recent-days.001",
+      "title": "Sync scope recent keeps only records inside the declared day window",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "syncScopes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "fresh",
+          "objectName": "RecentDaysItem",
+          "values": {
+            "Name": "Inside window"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-15T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "stale",
+          "objectName": "RecentDaysItem",
+          "values": {
+            "Name": "Outside window"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-06-01T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "RecentDaysItem",
+              "recordId": "$fresh",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "recent"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.scope-recent-limit.001",
+      "title": "A recent sync window limit keeps only the newest records inside the window",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "syncScopes",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "oldest",
+          "objectName": "RecentLimitItem",
+          "values": {
+            "Name": "Oldest"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-01T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "middle",
+          "objectName": "RecentLimitItem",
+          "values": {
+            "Name": "Middle"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-05T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "newest",
+          "objectName": "RecentLimitItem",
+          "values": {
+            "Name": "Newest"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-10T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "RecentLimitItem",
+              "recordId": "$newest",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "recent"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.context-scope-current-and-available.001",
+      "title": "Current-context scope follows the selected context while all-available-contexts scope follows membership",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "contextSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaCurrent",
+          "objectName": "GigCurrent",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaCurrent",
+          "objectName": "GigCurrent",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaAll",
+          "objectName": "GigAll",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Arena"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandAdmin"
+            },
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "beta.meta.guid"
+              },
+              "role": "BandAdmin"
+            }
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "GigAll",
+              "recordId": "$betaAll",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "allAvailableContexts"
+                }
+              ]
+            },
+            {
+              "objectName": "GigCurrent",
+              "recordId": "$alphaCurrent",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "currentContext"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.dataset.context-scope-excludes-non-membership.001",
+      "title": "All-available-contexts scope excludes contexts the user holds no role in",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "contextSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaCurrent",
+          "objectName": "GigCurrent",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaCurrent",
+          "objectName": "GigCurrent",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betaAll",
+          "objectName": "GigAll",
+          "values": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Venue": "Beta Arena"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "now": "2026-07-17T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          },
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandAdmin"
+            }
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "GigCurrent",
+              "recordId": "$alphaCurrent",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "currentContext"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.create.accepted-under-client-id.001",
+      "title": "An accepted create returns the record under exactly the id the client supplied",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-1",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-client-0001",
+          "values": {
+            "Title": "Named by the client"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-create-1",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-client-0001",
+              "schemaVersion": 1,
+              "values": {
+                "Title": "Named by the client"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-max-length-accepted.001",
+      "title": "A record id of exactly the maximum length is accepted",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-320",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "values": {
+            "Title": "Long but legal"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-create-320",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-too-long-refused.001",
+      "title": "A record id one character over the maximum length is refused before storage",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-321",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "values": {
+            "Title": "Too long"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-321",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-empty-refused.001",
+      "title": "An empty record id is refused before storage",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-empty",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "",
+          "values": {
+            "Title": "No id"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-empty",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-leading-whitespace-refused.001",
+      "title": "A record id with leading whitespace is refused rather than trimmed",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-lead",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": " note-padded",
+          "values": {
+            "Title": "Padded"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-lead",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-trailing-whitespace-refused.001",
+      "title": "A record id with trailing whitespace is refused rather than trimmed",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-trail",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-padded\t",
+          "values": {
+            "Title": "Padded"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-trail",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-control-character-refused.001",
+      "title": "A record id containing a control character is refused before storage",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-control",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-\u0000-nul",
+          "values": {
+            "Title": "Nul"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-control",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-delete-character-refused.001",
+      "title": "A record id containing the delete control character is refused before storage",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-del",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-\u007f-del",
+          "values": {
+            "Title": "Del"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-del",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-non-string-refused.001",
+      "title": "A non-string record id is refused before storage",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-number",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": 42,
+          "values": {
+            "Title": "Number id"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-number",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.record-id-null-refused.001",
+      "title": "A null record id is refused before storage",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-create-null",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": null,
+          "values": {
+            "Title": "Null id"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-null",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.create.id-collision-refused.001",
+      "title": "A create under an id that already names a record is rejected, not merged",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-first",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-taken",
+              "values": {
+                "Title": "Original"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-second",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-taken",
+          "values": {
+            "Title": "Intruder"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-second",
+          "code": "ADL_RUNTIME_RECORD_ID_TAKEN"
+        }
+      }
+    },
+    {
+      "id": "authority.create.collision-leaves-original-untouched.001",
+      "title": "A refused colliding create leaves the original record's values in place",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-first",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-taken",
+              "values": {
+                "Title": "Original",
+                "Body": "First body"
+              }
+            }
+          },
+          {
+            "intent": {
+              "operationId": "op-second",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-taken",
+              "values": {
+                "Title": "Intruder",
+                "Body": "Second body"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-probe",
+          "kind": "update",
+          "objectName": "Note",
+          "recordId": "note-taken",
+          "patch": {
+            "Body": "Probe"
+          },
+          "baseRevision": "rev-1"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-probe",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-taken",
+              "values": {
+                "Title": "Original",
+                "Body": "Probe"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.create.collision-survives-a-tombstone.001",
+      "title": "A deleted record still owns its id, so a create can never resurrect it",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-first",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-gone",
+              "values": {
+                "Title": "Original"
+              }
+            }
+          },
+          {
+            "intent": {
+              "operationId": "op-delete",
+              "kind": "delete",
+              "objectName": "Note",
+              "recordId": "note-gone",
+              "baseRevision": "rev-1"
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-recreate",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-gone",
+          "values": {
+            "Title": "Resurrected"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-recreate",
+          "code": "ADL_RUNTIME_RECORD_ID_TAKEN"
+        }
+      }
+    },
+    {
+      "id": "authority.update.accepted.001",
+      "title": "An accepted update returns the patched record under the same id",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-update",
+              "values": {
+                "Title": "Before"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-update",
+          "kind": "update",
+          "objectName": "Note",
+          "recordId": "note-update",
+          "patch": {
+            "Title": "After"
+          },
+          "baseRevision": "rev-1"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-update",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-update",
+              "values": {
+                "Title": "After"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.delete.accepted-tombstone.001",
+      "title": "An accepted delete returns a tombstone carrying no values",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-delete",
+              "values": {
+                "Title": "Doomed"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-delete",
+          "kind": "delete",
+          "objectName": "Note",
+          "recordId": "note-delete",
+          "baseRevision": "rev-1"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-delete",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-delete",
+              "values": {},
+              "deleted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.update.stale-base-revision-conflict.001",
+      "title": "A stale base revision is a conflict carrying the object's declared recovery",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-stale",
+              "values": {
+                "Title": "Server value"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-stale",
+          "kind": "update",
+          "objectName": "Note",
+          "recordId": "note-stale",
+          "patch": {
+            "Title": "Client value"
+          },
+          "baseRevision": "stale-revision"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "conflict",
+          "operationId": "op-stale",
+          "code": "ADL_SYNC_CONFLICT",
+          "recovery": "serverWins"
+        }
+      }
+    },
+    {
+      "id": "authority.update.stale-base-revision-client-wins.001",
+      "title": "A client-wins object reports clientWins recovery on a stale base revision",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "ClientNote",
+              "recordId": "client-note-1",
+              "values": {
+                "Title": "Server value"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-stale",
+          "kind": "update",
+          "objectName": "ClientNote",
+          "recordId": "client-note-1",
+          "patch": {
+            "Title": "Client value"
+          },
+          "baseRevision": "stale-revision"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "conflict",
+          "operationId": "op-stale",
+          "code": "ADL_SYNC_CONFLICT",
+          "recovery": "clientWins"
+        }
+      }
+    },
+    {
+      "id": "authority.update.stale-base-revision-manual.001",
+      "title": "A manual-conflict object escalates a stale base revision to manual resolution",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "ManualNote",
+              "recordId": "manual-note-1",
+              "values": {
+                "Title": "Server value"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-stale",
+          "kind": "update",
+          "objectName": "ManualNote",
+          "recordId": "manual-note-1",
+          "patch": {
+            "Title": "Client value"
+          },
+          "baseRevision": "stale-revision"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "manualResolution",
+          "operationId": "op-stale",
+          "code": "ADL_SYNC_MANUAL_RESOLUTION",
+          "recovery": "manual"
+        }
+      }
+    },
+    {
+      "id": "authority.update.missing-record-conflict.001",
+      "title": "An update naming a record the authority does not hold is a conflict, not a rejection",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-missing",
+          "kind": "update",
+          "objectName": "Note",
+          "recordId": "note-never-existed",
+          "patch": {
+            "Title": "Client value"
+          },
+          "baseRevision": "rev-1"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "conflict",
+          "operationId": "op-missing",
+          "code": "ADL_SYNC_CONFLICT",
+          "recovery": "serverWins"
+        }
+      }
+    },
+    {
+      "id": "authority.delete.already-deleted-conflict.001",
+      "title": "Deleting an already deleted record is a conflict rather than a second tombstone",
+      "specRef": "resolved-model#sync-and-compatibility",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-twice",
+              "values": {
+                "Title": "Doomed"
+              }
+            }
+          },
+          {
+            "intent": {
+              "operationId": "op-delete-1",
+              "kind": "delete",
+              "objectName": "Note",
+              "recordId": "note-twice",
+              "baseRevision": "rev-1"
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-delete-2",
+          "kind": "delete",
+          "objectName": "Note",
+          "recordId": "note-twice",
+          "baseRevision": "rev-2"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "conflict",
+          "operationId": "op-delete-2",
+          "code": "ADL_SYNC_CONFLICT",
+          "recovery": "serverWins"
+        }
+      }
+    },
+    {
+      "id": "authority.session.unauthenticated-refused.001",
+      "title": "A replay without a valid session token is refused before any model work",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "session": "absent",
+        "intent": {
+          "operationId": "op-anon",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-anon",
+          "values": {
+            "Title": "No session"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-anon",
+          "code": "ADL_AUTH_UNAUTHENTICATED"
+        }
+      }
+    },
+    {
+      "id": "authority.idempotency.same-operation-id-returns-stored-outcome.001",
+      "title": "Replaying the same operation id returns the stored outcome instead of applying it again",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-once",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-once",
+              "values": {
+                "Title": "First"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-once",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-once",
+          "values": {
+            "Title": "Second"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-once",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-once",
+              "values": {
+                "Title": "First"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.idempotency.is-bound-to-the-acting-actor.001",
+      "title": "A stored outcome belongs to the actor that submitted it and is not replayed for another",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "first": {
+            "userId": "user-1"
+          },
+          "second": {
+            "userId": "user-2"
+          }
+        },
+        "setup": [
+          {
+            "session": "first",
+            "intent": {
+              "operationId": "op-shared",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-shared",
+              "values": {
+                "Title": "First actor"
+              }
+            }
+          }
+        ],
+        "session": "second",
+        "intent": {
+          "operationId": "op-shared",
+          "kind": "create",
+          "objectName": "Note",
+          "recordId": "note-shared",
+          "values": {
+            "Title": "Second actor"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-shared",
+          "code": "ADL_RUNTIME_RECORD_ID_TAKEN"
+        }
+      }
+    },
+    {
+      "id": "authority.command.accepted.001",
+      "title": "A command intent replays through the authority and returns the records its steps produced",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-command",
+          "kind": "command",
+          "commandName": "CreateNote",
+          "input": {
+            "Title": "From a command"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-command",
+          "records": [
+            {
+              "object": "Note",
+              "values": {
+                "Title": "From a command"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.policy.object-not-permitted-refused.001",
+      "title": "An intent for an object the acting session may not write is rejected by policy",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "owner": {
+            "userId": "owner-user"
+          },
+          "other": {
+            "userId": "other-user"
+          }
+        },
+        "session": "other",
+        "intent": {
+          "operationId": "op-denied",
+          "kind": "create",
+          "objectName": "Restricted",
+          "recordId": "restricted-1",
+          "values": {
+            "Title": "Not yours"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-denied",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "authority.policy.collision-is-not-an-existence-oracle.001",
+      "title": "An unauthorised caller is denied rather than told the record id is already taken",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "owner": {
+            "userId": "owner-user"
+          },
+          "other": {
+            "userId": "other-user"
+          }
+        },
+        "setup": [
+          {
+            "session": "owner",
+            "intent": {
+              "operationId": "op-seed",
+              "kind": "create",
+              "objectName": "Restricted",
+              "recordId": "restricted-secret",
+              "values": {
+                "Title": "Owned"
+              }
+            }
+          }
+        ],
+        "session": "other",
+        "intent": {
+          "operationId": "op-probe",
+          "kind": "create",
+          "objectName": "Restricted",
+          "recordId": "restricted-secret",
+          "values": {
+            "Title": "Probe"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-probe",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "authority.policy.record-id-shape-is-checked-before-policy.001",
+      "title": "A malformed record id is refused as input validation before any policy decision",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "owner": {
+            "userId": "owner-user"
+          },
+          "other": {
+            "userId": "other-user"
+          }
+        },
+        "session": "other",
+        "intent": {
+          "operationId": "op-malformed",
+          "kind": "create",
+          "objectName": "Restricted",
+          "recordId": "",
+          "values": {
+            "Title": "Probe"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-malformed",
+          "code": "ADL_RUNTIME_RECORD_ID_INVALID"
+        }
+      }
+    },
+    {
+      "id": "authority.sync-mode.cache-readonly-refused.001",
+      "title": "The authority applies the same sync-mode write gate: a cache-readonly object refuses a replay",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-cached",
+          "kind": "create",
+          "objectName": "CachedNote",
+          "recordId": "cached-note-1",
+          "values": {
+            "Title": "Cached"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-cached",
+          "code": "ADL_SYNC_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "authority.sync-mode.online-required-accepted.001",
+      "title": "An online-required object accepts a replay because the authority context is online",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-online",
+          "kind": "create",
+          "objectName": "OnlineNote",
+          "recordId": "online-note-1",
+          "values": {
+            "Title": "Online"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-online",
+          "records": [
+            {
+              "object": "OnlineNote",
+              "recordId": "online-note-1",
+              "values": {
+                "Title": "Online"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.update.missing-record-honours-manual-conflict.001",
+      "title": "An update against a record that no longer exists escalates to manual resolution when the object declares it",
+      "specRef": "runtime-semantics#authority-replay-and-outcomes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-missing-manual",
+          "kind": "update",
+          "objectName": "ManualNote",
+          "recordId": "manual-note-absent",
+          "patch": {
+            "Title": "After"
+          },
+          "baseRevision": "stale-revision"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "manualResolution",
+          "operationId": "op-missing-manual",
+          "code": "ADL_SYNC_MANUAL_RESOLUTION",
+          "recovery": "manual"
+        }
+      }
+    },
+    {
+      "id": "authority.update.missing-record-honours-server-wins.001",
+      "title": "The same race on a serverWins object stays an automatically resolved conflict",
+      "specRef": "runtime-semantics#authority-replay-and-outcomes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-missing-server",
+          "kind": "update",
+          "objectName": "Note",
+          "recordId": "note-absent",
+          "patch": {
+            "Title": "After"
+          },
+          "baseRevision": "stale-revision"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "conflict",
+          "operationId": "op-missing-server",
+          "code": "ADL_SYNC_CONFLICT",
+          "recovery": "serverWins"
+        }
+      }
+    }
+  ]
+}
