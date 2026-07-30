@@ -280,7 +280,12 @@ describe("AuthoritySyncClient reconcile", () => {
 
     expect(outcomes.map((outcome) => outcome.status)).toEqual(["accepted", "rejected"]);
     expect(transport.replayCalls.map((intent) => intent.kind)).toEqual(["create", "update"]);
-    expect(runtime.syncQueue.getEntries()).toEqual([]);
+    // The accepted entry leaves the queue; the rejected one stays on it carrying
+    // its verdict, so the refused edit is recoverable instead of vanishing.
+    expect(runtime.syncQueue.getReplayable()).toEqual([]);
+    expect(runtime.syncQueue.getAwaitingRecovery().map((entry) => entry.recovery?.status)).toEqual([
+      "rejected",
+    ]);
     const statuses = new Map(
       runtime.operationLog.getOperations().map((operation) => [operation.opId, operation.status]),
     );

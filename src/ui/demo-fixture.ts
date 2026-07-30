@@ -20,8 +20,17 @@ export const BROWSER_DEMO_DATABASE_NAME = "adl-browser-runtime-demo";
 export const BAND_REFERENCE_DATABASE_NAME = "adl-band-reference-demo";
 export const GIGGLE_BAND_EXAMPLE_DATABASE_NAME = "adl-giggle-band-example";
 
+/**
+ * The identity a purely local demo runs as. It is not a user account and never
+ * stands in for one: with an authority configured, the server-derived session
+ * identity replaces it before any record is read or written. Naming it this way
+ * retires the old `admin-ui` constant, which read like a signed-in
+ * administrator while being nothing of the sort.
+ */
+export const LOCAL_DEMO_IDENTITY = "local-demo-device";
+
 export const browserDemoContext: RuntimeContext = {
-  userId: "admin-ui",
+  userId: LOCAL_DEMO_IDENTITY,
   roles: ["Admin"],
   channel: "ui",
   now: new Date("2026-07-07T08:00:00.000Z"),

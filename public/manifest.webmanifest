@@ -1,0 +1,18 @@
+{
+  "name": "ADL Runtime Demo",
+  "short_name": "ADL Demo",
+  "description": "Offline-capable application shell for the ADL runtime demo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#155eef",
+  "icons": [
+    {
+      "src": "/adl-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

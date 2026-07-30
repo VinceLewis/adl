@@ -16,6 +16,7 @@ import {
   watchAuthorityReconnect,
 } from "./authority-sync.js";
 import type { BrowserAuthorityConfiguration } from "./authority-sync.js";
+import { registerAdlServiceWorker } from "./register-service-worker.js";
 import {
   ApplicationRuntime,
   IndexedDbObjectStorageBackend,
@@ -32,7 +33,7 @@ async function mountDemo(): Promise<void> {
   const search = globalThis.location?.search ?? "";
   const demo = new URLSearchParams(search).get("demo");
   // Opt-in: with no configured authority the browser stays a purely local demo.
-  const authority = readBrowserAuthorityConfiguration(import.meta.env ?? {}, search);
+  const authority = readBrowserAuthorityConfiguration(import.meta.env ?? {});
 
   if (demo === "giggle-band") {
     const model = createGiggleBandExampleModel();
@@ -45,7 +46,8 @@ async function mountDemo(): Promise<void> {
     app.model = model;
     app.runtime = runtime;
     app.context = seeded.musicianContext;
-    await connectAuthority(app, runtime, seeded.musicianContext, authority);
+    await connectAuthority(app, runtime, authority);
+    void registerAdlServiceWorker(model.modelVersion);
   } else if (demo === "band") {
     const model = createBandReferenceModel();
     const runtime = createDemoRuntime(model, BAND_REFERENCE_DATABASE_NAME, authority, () =>
@@ -57,7 +59,8 @@ async function mountDemo(): Promise<void> {
     app.model = model;
     app.runtime = runtime;
     app.context = seeded.musicianContext;
-    await connectAuthority(app, runtime, seeded.musicianContext, authority);
+    await connectAuthority(app, runtime, authority);
+    void registerAdlServiceWorker(model.modelVersion);
   }
 
   document.body.append(app);
@@ -85,14 +88,15 @@ function createDemoRuntime(
 }
 
 /**
- * Replaces the seeded demo identity with the server-derived one and closes the
- * sync loop. Every failure is a single warning and a fall back to local
- * behaviour: an unreachable authority must never leave a blank page.
+ * Attaches the authority bridge to the shell. The bridge exists even with no
+ * session, so the user is shown a sign-in surface rather than a blank page, and
+ * the seeded demo identity is replaced by the server-derived one as soon as
+ * there is a session. Every failure is a single warning and a fall back to
+ * local behaviour: an unreachable authority must never leave a blank page.
  */
 async function connectAuthority(
   app: AdlAppElement,
   runtime: ApplicationRuntime,
-  context: RuntimeContext,
   authority: BrowserAuthorityConfiguration | null,
 ): Promise<void> {
   if (authority === null) {
@@ -100,12 +104,18 @@ async function connectAuthority(
   }
 
   try {
-    const connection = await connectBrowserAuthority(runtime, authority);
-    const syncContext: RuntimeContext = { ...context, userId: connection.userId };
-    app.context = syncContext;
+    const connection = await connectBrowserAuthority(runtime, authority, {
+      getContext: () => app.context,
+      onChange: () => {
+        applySessionIdentity(app, connection.session.userId);
+        app.refreshAuthorityState();
+      },
+    });
+    app.authority = connection;
+    applySessionIdentity(app, connection.session.userId);
+
     try {
-      await connection.reconcile(syncContext);
-      await connection.bootstrap(syncContext);
+      await connection.synchronize(app.context);
     } finally {
       // Registered even when the first sync fails: reconnect is how a browser
       // that started offline recovers its queued work.
@@ -119,5 +129,15 @@ async function connectAuthority(
     console.warn(
       `ADL authority sync is unavailable; continuing with local data: ${describeAuthorityFailure(error)}`,
     );
+  }
+}
+
+/**
+ * Replaces the local demo identity with the server-derived one. The browser
+ * never chooses a user id: it only adopts the one the session reported.
+ */
+function applySessionIdentity(app: AdlAppElement, userId: string | undefined): void {
+  if (userId !== undefined && userId !== app.context.userId) {
+    app.context = { ...app.context, userId };
   }
 }

@@ -61,13 +61,16 @@ phase or still explicitly outstanding:
 - Audit scope and retention — Phase 45, below.
 - A runnable process, a client transport and an identity boundary — Phase 46,
   below.
+- Conflict/rejection recovery, sign-in and invite-claim UI, and the offline
+  shell — Phase 47, below.
 
-Still outstanding after Phase 46: a real upstream identity provider (the switch
-exists, the bypass is the default and is disclosed), conflict and
-manual-resolution recovery UI, sign-in and invite-claim UI, the PWA offline
-shell, membership-projection scoping, retention scheduling and its
-administration UI, TLS termination, secret management, CI/CD, and a hosting
-provider decision.
+Still outstanding after Phase 47: a real upstream identity provider (the switch
+exists, the bypass is the default and is disclosed everywhere including the
+browser sign-in surface), membership-projection scoping, retention scheduling
+and its administration UI, TLS termination, secret management, CI/CD, and a
+hosting provider decision. One known client defect is also outstanding and
+recorded below: an offline-created record duplicates, because the authority
+assigns the record id.
 
 ## Remote bootstrap and browser reconciliation
 
@@ -89,8 +92,9 @@ object sync policy (`serverWins`, `clientWins`, `stateTransitionWins`, or
 The client applies accepted and bootstrap records through the runtime's trusted
 sync-projection path. That path creates no new operation-log, audit, or queue
 side effect and marks the local projection `synced`; user-facing reads still go
-through normal `ApplicationRuntime` policy checks. A complete recovery UI
-remains follow-up work.
+through normal `ApplicationRuntime` policy checks. The recovery surface that
+Phase 40 deferred is delivered by Phase 47, below; a non-accepted outcome no
+longer discards the queue entry.
 
 ## Identity, invites, and revocation
 
@@ -261,3 +265,83 @@ server-derived `userId` for that session and nothing else, so the browser can se
 `RuntimeContext.userId` without ever being trusted to supply it. Authority sync
 is opt-in through `VITE_ADL_AUTHORITY_URL`; when it is unset the browser demo
 stays entirely local, which keeps the visual verification suite meaningful.
+
+## Usable sync slice
+
+Phase 47 makes the deployment slice usable by a person: settled operations get a
+recovery surface, identity is established by signing in, and the application
+shell loads offline.
+
+**Recovery.** A non-accepted outcome no longer discards the queue entry. The
+verdict is stored on the entry as `SyncQueueEntryRecovery` (status, code,
+message, and the conflict strategy the server reported), so it survives a reload
+through the existing persisted sync state. `AuthoritySyncClient.reconcile` sends
+only entries with no verdict, so a settled operation is never resent behind the
+user's back.
+
+Resolution collapses to two primitives, and neither invents a winner:
+`keepServer` abandons the local operation so the authority's state stands, and
+`resubmitMine` sends the same operation again under a fresh operation id
+(`<opId>-r<n>`), rebased on the authority's current revision, for the authority
+to judge exactly as it judges any other replay. The model's declared conflict
+policy chooses between them — `serverWins` keeps the server version, `clientWins`
+resubmits, `stateTransitionWins` resubmits only a queued lifecycle transition and
+keeps the server version otherwise, and `manual` presents the user those two
+bounded choices. A rejection is terminal: it carries no strategy, `keepServer` is
+its only permitted resolution, and it is never resubmitted. A transport failure
+is still not a verdict — it propagates and leaves the entry replayable.
+
+Order matters in `synchronize`: reconcile, then bootstrap, then apply automatic
+recovery. `keepServer` relies on the bootstrap having already replaced the local
+record, and `resubmitMine` rebases on the revision the bootstrap wrote. A user's
+`keepServer` resolution is followed by a bootstrap for the same reason, so
+"keep the server version" is true locally rather than merely a dropped queue
+entry. The recovery surface itself carries only queue and verdict metadata: no
+record value ever reaches it, so a conflict cannot disclose a server record the
+caller could not read through a normal runtime read.
+
+**Sign-in and invites.** Phase 46's `VITE_ADL_ACCOUNT_PROOF` and `?account=`
+development configuration are removed; a person signs in through the UI, and
+`VITE_ADL_AUTHORITY_URL` alone enables the authority path. The browser reads
+`/readyz` to learn whether the authority runs a bypassed verifier, and when it
+does the sign-in surface carries a development-mode warning in both the
+signed-out and the signed-in state. An unreachable authority reports
+`unavailable` and is still treated as development: a missing or unreadable flag
+is never read as a verified deployment. The `admin-ui` fixture constant is
+retired in favour of `LOCAL_DEMO_IDENTITY` (`local-demo-device`), which is
+explicitly a local demo device identity and is replaced by the server-derived
+identity whenever an authority is configured. With no authority configured there
+is no bridge and no session, invite or recovery chrome at all.
+
+Claiming an invitation is online-only and server-authoritative. An offline claim
+is refused in the bridge before any request is made — proven over a real socket
+by asserting that nothing reached the wire and that no access-audit row was
+written — and the granted context's records appear only on the bootstrap that
+follows the server's confirmation.
+
+**Offline shell.** `public/manifest.webmanifest` and a service worker built to
+`dist/sw.js` give the application shell an offline load path;
+`registerAdlServiceWorker(model.modelVersion)` registers `/sw.js?v=<version>`
+and the worker caches under `adl-shell-<modelVersion>`. A model-version change is
+therefore both a different worker URL and a different cache name, and `activate`
+purges every other `adl-shell-*` cache before claiming clients — reusing the
+existing startup compatibility guard's notion of version rather than adding a
+second versioning scheme. Registration is production-only; a non-production build
+proactively unregisters a stale worker.
+
+The cache boundary is a security boundary. It refuses non-GET requests,
+cross-origin requests, any `/v1/` path, non-ok/opaque/error responses, responses
+carrying `set-cookie`, responses marked `no-store` or `private`, and JSON bodies.
+The single narrow exception is the web app manifest, identified structurally
+(destination `manifest` or a `.webmanifest` path); it cannot match an authority
+body because `/v1/` is refused first. Records stay in IndexedDB under the
+existing runtime persistence boundary.
+
+**Known defect (not fixed here).** A create intent carries values but no record
+id, because the authority assigns it. An offline-created record therefore returns
+from the authority under a new id: the accepted server record is reconciled
+locally under the server's id while the original local row remains, so an offline
+create duplicates. This predates Phase 47 and was masked by a hermetic fake that
+echoed the client's id; real PostgreSQL exposed it. Relatedly, acknowledging a
+rejected create leaves the local row in place — a later bootstrap cannot remove a
+record the server never had.

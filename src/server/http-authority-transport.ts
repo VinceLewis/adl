@@ -13,6 +13,23 @@ export interface AuthoritySessionIdentity {
 }
 
 /**
+ * The authority's own description of how it verifies identity, read from
+ * `/readyz`. The browser uses it only to label a bypassed deployment as a
+ * development mode; it never widens what the client may do.
+ */
+export interface AuthorityIdentityReadiness {
+  ready: boolean;
+  mode: string;
+  verifier: string;
+  bypassed: boolean;
+}
+
+/** Outcome of claiming an invitation. The membership itself is server-written. */
+export type AuthorityInviteClaimOutcome =
+  | { status: "accepted"; inviteId: string; membershipRecordId: string }
+  | { status: "rejected"; code: string };
+
+/**
  * How the transport obtains request credentials. In a browser the session
  * cookie is `__Host-` Secure HttpOnly SameSite=Strict and is attached by the
  * user agent, so only the readable double-submit CSRF cookie is visible here.
@@ -123,6 +140,61 @@ export class HttpAuthorityTransport implements AuthorityTransport {
 
   async signOut(): Promise<void> {
     await this.post("/v1/session/sign-out", {});
+  }
+
+  /**
+   * Claims an invitation. This is online-only and server-authoritative: the
+   * membership record is written by the authority inside its own transaction,
+   * and nothing here pre-grants access or caches the token for later replay.
+   */
+  async claimInvite(inviteToken: string): Promise<AuthorityInviteClaimOutcome> {
+    const body = await this.post("/v1/invites/claim", { inviteToken });
+    if (body.status === "accepted")
+      return {
+        status: "accepted",
+        inviteId: typeof body.inviteId === "string" ? body.inviteId : "",
+        membershipRecordId:
+          typeof body.membershipRecordId === "string" ? body.membershipRecordId : "",
+      };
+    return {
+      status: "rejected",
+      code: typeof body.code === "string" ? body.code : "ADL_INVITE_INVALID",
+    };
+  }
+
+  /**
+   * Reads `/readyz`. It is a GET outside the CSRF and session surface, so a
+   * signed-out browser can still learn that this deployment runs a bypassed
+   * verifier and must be presented as a development mode.
+   */
+  async readiness(): Promise<AuthorityIdentityReadiness> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/readyz`, {
+        method: "GET",
+        credentials: "include",
+      });
+    } catch (error) {
+      throw new AuthorityTransportError(
+        "The authority server could not be reached (/readyz).",
+        0,
+        error instanceof Error ? error.name : "network_error",
+      );
+    }
+    const payload = await readJson(response);
+    const identity = payload?.identityVerification;
+    const verification =
+      identity !== null && typeof identity === "object" && !Array.isArray(identity)
+        ? (identity as Record<string, unknown>)
+        : {};
+    return {
+      ready: payload?.status === "ready",
+      mode: typeof verification.mode === "string" ? verification.mode : "unknown",
+      verifier: typeof verification.verifier === "string" ? verification.verifier : "unknown",
+      // Unknown means "assume this needs the development warning": a missing
+      // flag must not be read as a verified deployment.
+      bypassed: verification.bypassed !== false,
+    };
   }
 
   async bootstrap(

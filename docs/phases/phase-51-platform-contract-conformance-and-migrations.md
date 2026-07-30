@@ -1,4 +1,9 @@
-# Phase 50 - Platform Contract: Conformance Depth and Model Migrations
+# Phase 51 - Platform Contract: Conformance Depth and Model Migrations
+
+> Renumbered from Phase 50 by the Phase 47 handoff. Evidence and scope are
+> unchanged; only its position in the sequence moved. Note that Phase 48 now
+> changes the create-intent wire contract, so this phase codifies that shape
+> rather than the pre-Phase-48 one.
 
 ## Objective
 
@@ -63,7 +68,7 @@ both the server and the client, and on the existing startup compatibility guard.
   commits atomically and cannot leave the projection half-migrated. Browser
   migration must not fabricate operation-log, audit or queue side effects, per
   the existing trusted sync-projection boundary.
-- Preserve Phase 45 retention/scope, Phase 48 membership scoping, and the
+- Preserve Phase 45 retention/scope, Phase 49 membership scoping, and the
   disclosure boundaries throughout: migration diagnostics stay metadata-only.
 
 ## Deliverables
@@ -104,7 +109,7 @@ both the server and the client, and on the existing startup compatibility guard.
 - Automatic migration inference for arbitrary model changes, or schema
   migration for the authority projection tables themselves, which remain ordered
   SQL files applied out of band.
-- Band-app modelling gaps and documentation hygiene (Phase 51).
+- Band-app modelling gaps and documentation hygiene (Phase 52).
 - New ADL syntax for storage, SQL, or migration mechanics beyond declaring a
   model migration.
 
@@ -112,7 +117,7 @@ both the server and the client, and on the existing startup compatibility guard.
 
 - Phase 23 conformance suite and three-layer spec.
 - Phase 11 model versioning guard and startup compatibility checks.
-- Phase 44 atomicity, Phase 45 scope/retention, Phase 48 membership scoping.
+- Phase 44 atomicity, Phase 45 scope/retention, Phase 49 membership scoping.
 - Phase 46/47 real persisted state on both server and client.
 
 ## Parallel Execution Plan
@@ -173,8 +178,8 @@ disjoint files and do not need it.
    verification.
 7. Update the three-layer specification, the runbook migration procedure, and
    learnings.
-8. **Required next-phase planning handoff:** before Phase 50 closes, review
-   `docs/phases/phase-51-reference-app-gaps-and-documentation-hygiene.md` and
+8. **Required next-phase planning handoff:** before Phase 51 closes, review
+   `docs/phases/phase-52-reference-app-gaps-and-documentation-hygiene.md` and
    revise it if this phase's results change its scope, constraints, deliverables,
-   or tasks. The handoff must justify Phase 51 as the highest-value remaining gap
-   repository-wide. Then verify, commit, and push Phase 50.
+   or tasks. The handoff must justify Phase 52 as the highest-value remaining gap
+   repository-wide. Then verify, commit, and push Phase 51.

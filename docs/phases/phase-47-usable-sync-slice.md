@@ -210,8 +210,23 @@ Use worktree isolation for the three UI streams, since they all write under
 6. Update the runbook, `docs/server-authority.md` (resolving the recovery
    follow-up note), the threat model, and learnings.
 7. **Required next-phase planning handoff:** before Phase 47 closes, review
-   `docs/phases/phase-48-authority-membership-projection-and-scoped-access.md`
-   and revise it if this phase's results change its scope, constraints,
-   deliverables, or tasks. The handoff must justify Phase 48 as the
-   highest-value remaining gap repository-wide, not merely the next gap in the
-   subsystem this phase touched. Then verify, commit, and push Phase 47.
+   the next phase document and revise it if this phase's results change its
+   scope, constraints, deliverables, or tasks. The handoff must justify it as
+   the highest-value remaining gap repository-wide, not merely the next gap in
+   the subsystem this phase touched. Then verify, commit, and push Phase 47.
+
+## Handoff Outcome
+
+The handoff re-sequenced the plan. Executing this phase's real-PostgreSQL
+coverage exposed a higher-value repository-wide gap than the membership
+projection that previously held slot 48: a queued create carries no record id,
+so the authority mints its own and `reconcileRemoteRecord` writes the accepted
+record as a *second* local row, stranding the original forever. A hermetic fake
+transport had masked it since Phase 46 by echoing the client's guid back.
+
+`docs/phases/phase-48-offline-operation-identity.md` now holds that work, and the
+membership projection, retention scheduling, contract conformance and
+reference-app phases each moved down one number to 49, 50, 51 and 52. Phase 47
+independently confirmed the membership phase's core evidence:
+`adl_authority_context_memberships` was still empty after a real invite claim
+wrote its membership into `adl_authority_records`.

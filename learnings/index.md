@@ -54,6 +54,14 @@ Before tasks that change the authority entrypoint or its deployment configuratio
 - `implementation/identity-invites-and-access-lifecycle.md`
 - `implementation/remote-bootstrap-and-sync-state.md`
 
+Before tasks that change client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell, also read:
+
+- `implementation/usable-sync-slice.md`
+- `implementation/first-deployment-slice.md`
+- `implementation/sync-policy.md`
+- `implementation/remote-bootstrap-and-sync-state.md`
+- `implementation/model-versioning-guard.md`
+
 Before tasks that change authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, access-lifecycle audit atomicity, authority restore/integrity verification, runtime-audit context scoping, or audit/outcome retention, also read:
 
 - `implementation/authority-transaction-integrity.md`
@@ -185,3 +193,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/calendar-presentation-runtime.md`: read before changing calendar month planning views, calendar cell actions, or event-entry behavior.
 - `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors.
 - `implementation/first-deployment-slice.md`: read before changing the authority entrypoint or deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging.
+- `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.

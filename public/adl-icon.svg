@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ADL">
+  <rect width="512" height="512" fill="#155eef" />
+  <path
+    d="M256 128 L352 384 L304 384 L280 320 L232 320 L208 384 L160 384 Z M256 208 L236 276 L276 276 Z"
+    fill="#ffffff"
+  />
+</svg>

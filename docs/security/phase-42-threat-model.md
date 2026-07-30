@@ -28,6 +28,13 @@ roles are resolved from accepted membership records on every authority call.
 | Unverified account proof while identity verification is bypassed | **Accepted temporary risk (Phase 46).** The switch defaults to `bypass` and is disclosed in the startup security event and `/readyz`; production requires an explicit acknowledgement variable; the proof is shape-checked; and the bypass widens nothing else — sessions stay opaque and ADL context roles are still resolved from accepted membership records | Phase 46 identity-switch tests |
 | Session, CSRF or credential leak through the browser transport | Session cookie stays `__Host-` Secure HttpOnly SameSite=Strict and is never readable by client code; only the double-submit CSRF cookie is read; transport failures raise an error instead of a fabricated outcome | Phase 46 transport and integration tests |
 
+| Session token or protected record body written into the service worker cache | A service worker cache is readable by any script in the origin and survives sign-out, so the single cache write point refuses non-GET, cross-origin, any `/v1/` path, non-ok/opaque/error responses, `set-cookie` responses, `no-store`/`private` responses, and JSON bodies; records stay in IndexedDB under the runtime persistence boundary | Phase 47 service-worker policy tests, plus an integration case that runs a real authority response through the predicate |
+| Manifest exception used to smuggle an authority body into the cache | The web app manifest is allowed only structurally (destination `manifest` or a `.webmanifest` path) and `/v1/` is refused before the exception is consulted, so no authority response can reach it | Phase 47 service-worker policy tests |
+| Stale worker serving assets incompatible with persisted local state | The worker URL and its cache name both carry the resolved model version, so a model change installs a new worker; `activate` purges every other `adl-shell-*` cache and claims clients; registration is production-only and a non-production build unregisters a stale worker | Phase 47 service-worker and registration tests |
+| Conflict recovery surface disclosing a protected server record | `SyncRecoveryItem` carries queue and verdict metadata only — no record or field value reaches the recovery component — and the server stays authoritative for the outcome; a rejection permits acknowledgement alone and is never resubmitted | Phase 47 recovery tests |
+| Silent loss of a refused or conflicted write | A verdict is stored on the persisted queue entry instead of discarding it; only a declared strategy or a user resolution removes it, and a transport failure leaves the entry replayable | Phase 47 recovery tests, real-PostgreSQL integration tests |
+| Offline invite claim pre-granting or caching access | The claim is refused in the browser bridge before any request is made, so nothing is queued, cached or optimistically granted; the granted context's records appear only on the bootstrap after the server's confirmation | Phase 47 integration test asserting nothing reached the wire and no access-audit row was written |
+
 Residual risks: upstream identity-provider compromise, a trusted reverse-proxy
 misconfiguration, and an attacker with database-owner access are outside the
 authority process boundary. Those risks require provider controls, protected
@@ -44,3 +51,31 @@ Better Auth, or custom), then set the switch to `upstream` and remove the
 production acknowledgement variable from the deployment. Until then, any
 environment holding real data must treat a `bypassed: true` readiness response
 as an open finding.
+
+Phase 47 surfaces the bypass to the person signing in — the sign-in panel is
+labelled a development mode in both the signed-out and signed-in states, and an
+authority whose readiness cannot be read, including one that cannot be reached at
+all, is held as development rather than verified — but it does not close the
+risk. A real `UpstreamIdentityVerifier` is still not
+chosen, and the hard sequencing rule stands: **one must be in place before any
+deployment holds real user data**, regardless of which phase delivers it.
+
+**Residual risk — signing out leaves local data behind.** Sign-out ends the
+server session and clears the invite state; it does not clear locally cached
+records or unsynced queued work. Clearing them would destroy a user's offline
+work, so it is deliberately not done. On a shared browser the consequence is
+real: the next signed-in user can see the previous user's cached, non-authoritative
+records until a policy-shaped bootstrap reconciles them. Those cached records are
+not an access grant — every authority call is still policy-shaped server-side —
+but they are a local disclosure. Do not treat a shared or kiosk browser as an
+acceptable deployment target until this is addressed.
+
+**Known defect — an offline create duplicates.** A create intent carries values
+but no record id, because the authority assigns the id. The accepted server
+record is reconciled locally under the server's id while the original local row
+remains, so a record created offline appears twice after sync. This predates
+Phase 47 and was masked by a hermetic fake that echoed the client's id back; real
+PostgreSQL exposed it. It is recorded here as a known defect and is **not fixed
+in this phase**. Relatedly, acknowledging a rejected create leaves the local row
+in place: local truth converges only on a later bootstrap, and a bootstrap cannot
+remove a record the server never had.

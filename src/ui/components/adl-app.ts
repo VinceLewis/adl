@@ -45,6 +45,20 @@ import type {
   PresentationStateChangeDetail,
 } from "./adl-composed-view.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
+import type { AdlSessionPanelElement } from "./adl-session-panel.js";
+import type { AdlSyncRecoveryElement } from "./adl-sync-recovery.js";
+import {
+  ADL_CLAIM_INVITE_EVENT,
+  ADL_RESOLVE_RECOVERY_EVENT,
+  ADL_SIGN_IN_EVENT,
+  ADL_SIGN_OUT_EVENT,
+} from "../authority-bridge.js";
+import type {
+  AdlAuthorityBridge,
+  ClaimInviteDetail,
+  ResolveRecoveryDetail,
+  SignInDetail,
+} from "../authority-bridge.js";
 import { AdlDashboardViewElement } from "./adl-dashboard-view.js";
 import { AdlFormViewElement } from "./adl-form-view.js";
 import { AdlListViewElement } from "./adl-list-view.js";
@@ -55,6 +69,14 @@ import type {
   RuntimeEditSurface,
   RuntimeStagedChildOperation,
 } from "../../runtime/edit-surface-runtime.js";
+
+/**
+ * `beforeinstallprompt` is Chromium-only and absent from the DOM lib, so it is
+ * declared here as the narrowest shape this shell actually uses.
+ */
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<unknown>;
+}
 
 interface ActiveViewContextState {
   context?: RuntimeContext;
@@ -90,6 +112,57 @@ export class AdlAppElement extends HTMLElement {
   private editObjectName: string | undefined;
   private editViewName: string | undefined;
   private navDrawerOpen = false;
+  private _authority: AdlAuthorityBridge | undefined;
+  private authorityBusy = false;
+  private installPrompt: InstallPromptEvent | undefined;
+
+  private readonly handleSignIn = (event: Event): void => {
+    const detail = (event as CustomEvent<SignInDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.signIn(detail.accountProof));
+  };
+
+  private readonly handleSignOut = (): void => {
+    const bridge = this._authority;
+    if (bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.signOut());
+  };
+
+  private readonly handleClaimInvite = (event: Event): void => {
+    const detail = (event as CustomEvent<ClaimInviteDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.claimInvite(detail.inviteToken));
+  };
+
+  private readonly handleResolveRecovery = (event: Event): void => {
+    const detail = (event as CustomEvent<ResolveRecoveryDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.resolveRecovery(detail.queueId, detail.choice));
+  };
+
+  /** Chromium fires this before offering installation; other engines never do. */
+  private readonly handleInstallPrompt = (event: Event): void => {
+    event.preventDefault();
+    this.installPrompt = event as InstallPromptEvent;
+    if (this.initialized) {
+      this.render();
+    }
+  };
 
   private readonly handleSearch = (event: Event): void => {
     const detail = (event as CustomEvent<{ text: string }>).detail;
@@ -362,6 +435,20 @@ export class AdlAppElement extends HTMLElement {
 
     if (target.closest("[data-shell-overlay='true']") !== null) {
       this.navDrawerOpen = false;
+      this.render();
+      return;
+    }
+
+    const shellAction =
+      target.closest<HTMLButtonElement>("[data-shell-action]")?.dataset.shellAction;
+    if (shellAction === "sign-out") {
+      this.handleSignOut();
+      return;
+    }
+
+    if (shellAction === "install") {
+      void this.installPrompt?.prompt();
+      this.installPrompt = undefined;
       this.render();
       return;
     }
@@ -662,6 +749,45 @@ export class AdlAppElement extends HTMLElement {
     return this._context;
   }
 
+  /**
+   * The authority connection, when one is configured. With no bridge the shell
+   * renders no session, invite or recovery chrome at all: a purely local demo
+   * has no identity to present and no server verdict to recover from.
+   */
+  set authority(authority: AdlAuthorityBridge | undefined) {
+    this._authority = authority;
+    if (this.initialized) {
+      this.render();
+    }
+  }
+
+  get authority(): AdlAuthorityBridge | undefined {
+    return this._authority;
+  }
+
+  /** Re-renders session, invite and recovery chrome after the bridge's state changed. */
+  refreshAuthorityState(): void {
+    if (this.initialized) {
+      this.render();
+    }
+  }
+
+  private async runAuthorityAction(action: () => Promise<void>): Promise<void> {
+    this.authorityBusy = true;
+    this.render();
+    try {
+      await action();
+    } catch (error) {
+      this.messages = [messageFromRuntimeError(error)];
+    } finally {
+      this.authorityBusy = false;
+    }
+    // Records may have moved underneath the UI: a claim grants a context, and a
+    // resolution rewrites the record the authority holds.
+    await this.refreshFromRuntime();
+    this.render();
+  }
+
   connectedCallback(): void {
     if (this.initialized) {
       return;
@@ -685,7 +811,12 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.addEventListener("change", this.handleChange);
     this.addEventListener("click", this.handleClick);
+    this.addEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);
+    this.addEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
+    this.addEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
+    this.addEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
     document.addEventListener("keydown", this.handleKeyDown);
+    globalThis.addEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
     addBrowserOnlineListeners(this.handleOnlineStateChange);
     this.readyPromise = this.initialize();
   }
@@ -711,7 +842,12 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
     this.removeEventListener("change", this.handleChange);
     this.removeEventListener("click", this.handleClick);
+    this.removeEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);
+    this.removeEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
+    this.removeEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
+    this.removeEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
     document.removeEventListener("keydown", this.handleKeyDown);
+    globalThis.removeEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
     removeBrowserOnlineListeners(this.handleOnlineStateChange);
     this.initialized = false;
   }
@@ -1001,6 +1137,7 @@ export class AdlAppElement extends HTMLElement {
         ${this.renderNavigationDrawer(view)}
         <div class="adl-scroll-region">
           <adl-message-area></adl-message-area>
+          ${this.renderAuthorityChrome()}
           ${
             showWorkspace
               ? isComposedView
@@ -1032,6 +1169,22 @@ export class AdlAppElement extends HTMLElement {
     const messageArea = this.querySelector<AdlMessageAreaElement>("adl-message-area");
     if (messageArea !== null) {
       messageArea.messages = this.messages;
+    }
+
+    const bridge = this._authority;
+    const sessionPanel = this.querySelector<AdlSessionPanelElement>("adl-session-panel");
+    if (sessionPanel !== null && bridge !== undefined) {
+      sessionPanel.session = this.authorityBusy
+        ? { ...bridge.session, busy: true }
+        : bridge.session;
+      sessionPanel.invite = bridge.invite;
+      sessionPanel.online = this._context.online ?? true;
+    }
+
+    const syncRecovery = this.querySelector<AdlSyncRecoveryElement>("adl-sync-recovery");
+    if (syncRecovery !== null && bridge !== undefined) {
+      syncRecovery.items = bridge.recovery;
+      syncRecovery.busy = this.authorityBusy;
     }
 
     const list = this.querySelector<AdlListViewElement>("adl-list-view");
@@ -1088,6 +1241,24 @@ export class AdlAppElement extends HTMLElement {
     applyResolvedTheme(this, findApplicationTheme(this._model));
   }
 
+  /**
+   * Session, invite and recovery chrome exists only when an authority is
+   * configured. A purely local demo has no identity to present and no server
+   * verdict to recover from, so it renders none of this.
+   */
+  private renderAuthorityChrome(): string {
+    if (this._authority === undefined) {
+      return "";
+    }
+
+    return `
+      <section class="adl-authority-chrome" data-authority-chrome="true">
+        <adl-session-panel></adl-session-panel>
+        <adl-sync-recovery></adl-sync-recovery>
+      </section>
+    `;
+  }
+
   private renderContextSelectors(): string {
     if (this._model.shell.topBar.contextSelector === "hidden") {
       return "";
@@ -1131,14 +1302,26 @@ export class AdlAppElement extends HTMLElement {
     }
 
     const label = control.label ?? titleCaseIdentifier(control.name);
+    // `logout` needs a session to end, and `pwaInstall` needs the user agent to
+    // have offered installation. Anything else still has no runtime behind it.
+    const action =
+      control.kind === "logout"
+        ? "sign-out"
+        : control.kind === "pwaInstall" && this.installPrompt !== undefined
+          ? "install"
+          : undefined;
+    const available =
+      action === undefined
+        ? false
+        : action === "install" || this._authority?.session.status === "signedIn";
     return `
       <button
-        class="adl-shell-control adl-shell-control-unavailable"
+        class="adl-shell-control${available ? "" : " adl-shell-control-unavailable"}"
         type="button"
         data-shell-control="${escapeHtml(control.name)}"
         data-shell-control-kind="${escapeHtml(control.kind)}"
-        disabled
-        title="${escapeHtml(`${label} is not available in this runtime.`)}"
+        ${available ? `data-shell-action="${escapeHtml(action ?? "")}"` : "disabled"}
+        title="${escapeHtml(available ? label : `${label} is not available in this runtime.`)}"
       >
         ${
           control.icon === undefined

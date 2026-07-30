@@ -1,9 +1,13 @@
-# Phase 48 - Authority Membership Projection and Scoped Access Paths
+# Phase 49 - Authority Membership Projection and Scoped Access Paths
 
-> Renumbered from Phase 46. This work is an optimisation and integrity refactor
-> of a subsystem with no production users, so it now runs after the Phase 46
-> deployment slice and the Phase 47 usable slice. Its evidence and scope are
-> unchanged; only its position in the sequence and its planning handoff moved.
+> Renumbered from Phase 46, then from Phase 48 by the Phase 47 handoff, which
+> found a higher-value repository-wide gap in offline operation identity. This
+> work is an optimisation and integrity refactor of a subsystem with no
+> production users. Its evidence and scope are unchanged; only its position in
+> the sequence moved. Phase 47 independently confirmed the core evidence: the
+> membership record written by a real invite claim lands in
+> `adl_authority_records`, and `adl_authority_context_memberships` stayed
+> empty.
 
 ## Objective
 
@@ -162,10 +166,10 @@ an ephemeral port, so parallel runs are safe but pay a container each).
    PostgreSQL.
 6. Update the production runbook, server authority documentation, threat model,
    specifications if required, and learnings.
-7. **Required next-phase planning handoff:** before Phase 48 closes, review
-   `docs/phases/phase-49-retention-scheduling-and-administration-ui.md` and
+7. **Required next-phase planning handoff:** before Phase 49 closes, review
+   `docs/phases/phase-50-retention-scheduling-and-administration-ui.md` and
    revise it if this phase's results change its scope, constraints,
-   deliverables, or tasks. The handoff must justify Phase 49 as the
+   deliverables, or tasks. The handoff must justify Phase 50 as the
    highest-value remaining gap **repository-wide**, not merely the next gap in
    the subsystem this phase touched; if a higher-value gap exists elsewhere, say
-   so and re-sequence. Then verify, commit, and push Phase 48.
+   so and re-sequence. Then verify, commit, and push Phase 49.

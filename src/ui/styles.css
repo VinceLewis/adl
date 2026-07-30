@@ -1603,6 +1603,185 @@ textarea.adl-field-control {
   border-color: var(--adl-color-info);
 }
 
+/* Authority chrome: session, invite claiming and sync recovery. Rendered only
+   when an authority is configured, so a purely local demo shows none of it. */
+.adl-authority-chrome {
+  display: grid;
+  gap: var(--adl-space-md);
+  padding: var(--adl-space-md) var(--adl-space-lg) 0;
+}
+
+.adl-session-panel,
+.adl-sync-recovery {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  display: grid;
+  gap: var(--adl-space-sm);
+  padding: var(--adl-space-md);
+}
+
+.adl-session-heading,
+.adl-sync-recovery-heading {
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.adl-session-hint[hidden],
+.adl-session-offline-note[hidden] {
+  display: none;
+}
+
+/* The bypass must never look like a verified sign-in, so this warning is loud
+   by design rather than decorative. */
+.adl-session-development-warning {
+  background: #fef0c7;
+  border: 1px solid var(--adl-color-status-busy-elsewhere);
+  border-radius: var(--adl-radius);
+  color: #93370d;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  padding: var(--adl-space-sm) var(--adl-space-md);
+}
+
+.adl-session-offline-note {
+  background: var(--adl-color-surface-alt);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  margin: 0;
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+.adl-session-error {
+  color: var(--adl-color-danger);
+  font-size: 13px;
+  margin: 0;
+}
+
+.adl-session-unavailable,
+.adl-session-identity,
+.adl-session-hint {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.adl-session-identity-value {
+  color: var(--adl-color-text);
+  font-weight: 650;
+}
+
+.adl-session-form {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+}
+
+.adl-session-label {
+  display: grid;
+  flex: 1 1 220px;
+  font-size: 12px;
+  gap: var(--adl-space-xs);
+  min-width: 0;
+}
+
+.adl-session-input {
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  height: var(--adl-control-height);
+  min-width: 0;
+  padding: 0 var(--adl-space-sm);
+  width: 100%;
+}
+
+.adl-session-submit,
+.adl-session-sign-out,
+.adl-sync-recovery-choice {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text);
+  cursor: pointer;
+  height: var(--adl-control-height);
+  padding: 0 var(--adl-space-md);
+}
+
+.adl-session-submit,
+.adl-sync-recovery-choice[data-recovery-choice="resubmitMine"] {
+  background: var(--adl-color-primary);
+  border-color: var(--adl-color-primary);
+  color: var(--adl-color-text-inverted);
+}
+
+.adl-session-submit:disabled,
+.adl-session-sign-out:disabled,
+.adl-sync-recovery-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.adl-session-invite-status {
+  font-size: 13px;
+  margin: 0;
+}
+
+.adl-session-invite-status-accepted {
+  color: var(--adl-color-success);
+}
+
+.adl-session-invite-status-rejected,
+.adl-session-invite-status-offline {
+  color: var(--adl-color-danger);
+}
+
+.adl-sync-recovery {
+  border-color: var(--adl-color-status-conflict);
+}
+
+.adl-sync-recovery-item {
+  border-top: 1px solid var(--adl-color-border);
+  display: grid;
+  gap: var(--adl-space-xs);
+  padding-top: var(--adl-space-sm);
+}
+
+.adl-sync-recovery-item:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.adl-sync-recovery-title {
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.adl-sync-recovery-verdict,
+.adl-sync-recovery-message,
+.adl-sync-recovery-code,
+.adl-sync-recovery-strategy {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adl-sync-recovery-item[data-recovery-status="rejected"] .adl-sync-recovery-verdict {
+  color: var(--adl-color-danger);
+}
+
+.adl-sync-recovery-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+  padding-top: var(--adl-space-xs);
+}
+
 .adl-state-pill {
   background: var(--adl-color-surface-alt);
   border: 1px solid var(--adl-color-border);

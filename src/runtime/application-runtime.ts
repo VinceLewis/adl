@@ -639,7 +639,14 @@ export class ApplicationRuntime {
 
   private installSyncStatePersistence(storage: SyncStateStorage): void {
     const persist = () => void this.persistSyncState(storage);
-    for (const method of ["enqueue", "remove", "clear", "restore"] as const) {
+    for (const method of [
+      "enqueue",
+      "remove",
+      "clear",
+      "restore",
+      "setRecovery",
+      "beginRetry",
+    ] as const) {
       const original = this.syncQueue[method].bind(this.syncQueue);
       (this.syncQueue as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
         const result = (original as (...inner: unknown[]) => unknown)(...args);

@@ -59,6 +59,115 @@ to `upstream` without a provider implementation selects a verifier that rejects
 every proof (`authentication_failed`) — it never falls back to the bypass, so a
 mis-set switch fails closed rather than open.
 
+## Browser client, sessions, and invitations
+
+The browser reaches the authority only when it is built with
+`VITE_ADL_AUTHORITY_URL` set to the authority origin. That is a build-time
+value: changing it requires a rebuild and redeploy, not a restart. With it unset
+the application is a purely local demo, makes no network call, and renders no
+session, invite or recovery chrome at all. Phase 46's `VITE_ADL_ACCOUNT_PROOF`
+and `?account=` development configuration no longer exist; a person establishes
+identity by signing in.
+
+**The development-mode banner.** The sign-in panel reads `/readyz` and shows a
+"Development mode" warning whenever the authority reports
+`identityVerification.bypassed: true`. It appears in both the signed-out and the
+signed-in state, and it means exactly what the readiness body means: this
+authority accepts the supplied account proof as the identity subject without
+contacting any provider, so the signed-in name is asserted, not verified. Treat
+the banner in any environment serving real users the same way you treat
+`bypassed: true` in readiness — as an open finding. It disappears only when
+`/readyz` reports `bypassed: false`, which requires a real upstream verifier
+behind `ADL_IDENTITY_VERIFICATION=upstream`.
+
+The browser fails safe. An unknown or missing `bypassed` flag counts as
+bypassed, so a readiness body the browser cannot fully parse produces the banner
+rather than a clean-looking sign-in. If the banner appears on a deployment you
+believe is verified, check what `/readyz` actually returns to a browser (it is a
+GET outside the CSRF and session surface, so a signed-out page can read it, but
+it still needs the origin allow-list) before concluding the identity switch is
+wrong.
+
+An authority the browser cannot reach at all is a third state: the panel reads
+"The authority could not be reached. The app is running on local data." rather
+than showing the sign-in form, and the session is held internally as development
+so an unreachable authority is never mistaken for a verified one. That message
+means the readiness or session call failed — reachability, TLS, origin
+allow-list — not that an identity was refused.
+
+**Sessions need HTTPS and same-site hosting.** The session cookie is
+`__Host-` Secure HttpOnly SameSite=Strict. A browser will not accept it over
+plain HTTP, and will not send it to an authority that is not same-site with the
+page. If sign-in appears to succeed and every subsequent call is unauthenticated,
+suspect the hosting arrangement before the identity configuration: front the
+authority with TLS and serve it same-site with the application, or put it behind
+a same-origin path on the same host.
+
+**Claiming an invitation needs connectivity.** It is online-only and
+server-authoritative. An offline claim is refused in the browser before any
+request is made — nothing is queued, cached, or optimistically granted — and the
+user is told to reconnect and claim again. The operational consequence when
+triaging a "my invitation did not work" report: if there is no access-audit event
+for that invite, the claim never reached the server, and reissuing the invite is
+not the fix. The newly permitted context's records appear only on the bootstrap
+that follows the server's confirmation, so a user who claims successfully but
+sees nothing has a bootstrap problem, not a membership problem — check the
+membership record and their selected context.
+
+**Conflicts and rejections are now visible to the user.** A refused or
+conflicted operation stays on the client's persisted queue carrying the
+authority's verdict until the model's declared conflict policy or the user
+resolves it, and it survives a reload. A rejection can only be acknowledged; it
+is never resubmitted. A replay or conflict spike therefore now has a user-facing
+symptom — items accumulating in the client's recovery panel — as well as the
+server metrics. Continue to triage it from aggregate metrics and redacted
+operation ids, and never repair state by accepting raw browser records.
+
+## Offline application shell
+
+The application ships a web app manifest (`/manifest.webmanifest`) and a service
+worker emitted unhashed at the build root as `dist/sw.js`. The page registers
+`/sw.js?v=<modelVersion>`, where `modelVersion` is the resolved model's version —
+the same notion of version the runtime startup compatibility guard applies to
+persisted local data. There is deliberately no second versioning scheme.
+
+**When the model version changes there is nothing to do manually.** The version
+change changes the worker's script URL, so the browser installs the new worker;
+the new worker activates immediately, deletes every `adl-shell-*` cache that is
+not `adl-shell-<current version>`, and claims open clients. A stale worker
+therefore cannot keep serving assets incompatible with the persisted local state.
+Do not add a cache-busting step, and do not hand-delete caches as a release task.
+
+Registration is production-only. A non-production build unregisters any ADL
+worker a previous production visit left behind, so a developer is never served a
+stale production shell. A failed registration is not fatal: that session simply
+runs online-only.
+
+**Confirming a deployment serves the expected worker.** After a release:
+
+1. `curl -sI https://app.example/sw.js` returns 200 with a JavaScript content
+   type. The file must be at the site root — a worker only controls the scope it
+   is served from — and must not be renamed or hashed by the CDN.
+2. `curl -sI https://app.example/manifest.webmanifest` returns 200.
+3. In a browser, Application → Service Workers shows one activated ADL worker
+   whose script URL is `/sw.js?v=<version>` with the deployed model version.
+4. Application → Cache Storage contains exactly one `adl-shell-*` cache and its
+   suffix is that same model version. More than one means an activation did not
+   complete; reload and re-check before investigating further.
+5. No entry in that cache is an authority response. Nothing under `/v1/` may ever
+   be cached, and the only JSON permitted in it is the web app manifest. A `/v1/`
+   URL in cache storage is a defect, not a configuration issue — escalate it
+   rather than clearing the cache and moving on.
+6. With the network disabled, a full reload still loads the shell and operates on
+   local data.
+
+Records live in IndexedDB under the runtime persistence boundary, never in the
+service worker cache. Note that signing out ends the server session but does not
+clear locally cached records or unsynced queued work — clearing them would
+destroy a user's offline work. Do not deploy this application to a shared or
+kiosk browser: see the residual risk in the
+[threat model](../security/phase-42-threat-model.md).
+
 ## Database roles and migrations
 
 Use a database owner only to create roles. Run

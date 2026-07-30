@@ -1,4 +1,7 @@
-# Phase 49 - Retention Scheduling and Administration UI
+# Phase 50 - Retention Scheduling and Administration UI
+
+> Renumbered from Phase 49 by the Phase 47 handoff. Evidence and scope are
+> unchanged; only its position in the sequence moved.
 
 ## Objective
 
@@ -10,7 +13,7 @@ HTTP.
 ## Evidence and Dependency
 
 - **Retention never runs.** Phase 45 built `AuthorityRetentionService` with a
-  safeguarded `prune` path (`src/server/authority-retention.ts`), and Phase 48
+  safeguarded `prune` path (`src/server/authority-retention.ts`), and Phase 49
   explicitly listed a scheduler or HTTP surface for it as a non-goal. Nothing
   invokes it: there is no scheduler, no administrative endpoint, and no operator
   procedure, so the runtime-audit and operation-outcome projections still grow
@@ -25,7 +28,7 @@ HTTP.
   hand-built request. After Phase 46 there is a real deployment whose operator
   has no way to use them.
 
-This phase depends on Phase 45 retention safeguards, Phase 48 scoped membership
+This phase depends on Phase 45 retention safeguards, Phase 49 scoped membership
 reads, and the Phase 46/47 client transport and session UI.
 
 ## Scope
@@ -56,7 +59,7 @@ reads, and the Phase 46/47 client transport and session UI.
 - Session revocation from the UI must be reversible only through normal identity
   flows and must not let an operator escalate their own access.
 - Preserve Phase 42 controls, Phase 44 atomicity, Phase 45 scope/retention, and
-  Phase 48 scoped membership reads.
+  Phase 49 scoped membership reads.
 
 ## Deliverables
 
@@ -94,8 +97,8 @@ reads, and the Phase 46/47 client transport and session UI.
   query builder.
 - New identity flows, provider selection, or changes to the Phase 46 identity
   switch.
-- Conformance depth or model migrations (Phase 50), band-app modelling gaps
-  (Phase 51).
+- Conformance depth or model migrations (Phase 51), band-app modelling gaps
+  (Phase 52).
 - External job runners, message queues, or distributed scheduling
   infrastructure: a single schedulable process entry is sufficient.
 
@@ -104,7 +107,7 @@ reads, and the Phase 46/47 client transport and session UI.
 - Phase 45 retention safeguards and application-scoped outcomes.
 - Phase 43 reporting and administration services and endpoints.
 - Phase 46 deployment slice and Phase 47 session/identity UI.
-- Phase 48 scoped membership reads.
+- Phase 49 scoped membership reads.
 
 ## Parallel Execution Plan
 
@@ -154,8 +157,8 @@ Use worktree isolation for the administration UI streams.
    surface including an unauthorised and a wrongly scoped caller.
 6. Update the runbook with the retention operating procedure,
    `docs/server-authority.md`, the threat model, and learnings.
-7. **Required next-phase planning handoff:** before Phase 49 closes, review
-   `docs/phases/phase-50-platform-contract-conformance-and-migrations.md` and
+7. **Required next-phase planning handoff:** before Phase 50 closes, review
+   `docs/phases/phase-51-platform-contract-conformance-and-migrations.md` and
    revise it if this phase's results change its scope, constraints, deliverables,
-   or tasks. The handoff must justify Phase 50 as the highest-value remaining gap
-   repository-wide. Then verify, commit, and push Phase 49.
+   or tasks. The handoff must justify Phase 51 as the highest-value remaining gap
+   repository-wide. Then verify, commit, and push Phase 50.
