@@ -64,13 +64,13 @@ phase or still explicitly outstanding:
 - Conflict/rejection recovery, sign-in and invite-claim UI, and the offline
   shell — Phase 47, below.
 
-Still outstanding after Phase 47: a real upstream identity provider (the switch
+- Offline operation identity and accepted-state convergence — Phase 48, below.
+
+Still outstanding after Phase 48: a real upstream identity provider (the switch
 exists, the bypass is the default and is disclosed everywhere including the
 browser sign-in surface), membership-projection scoping, retention scheduling
 and its administration UI, TLS termination, secret management, CI/CD, and a
-hosting provider decision. One known client defect is also outstanding and
-recorded below: an offline-created record duplicates, because the authority
-assigns the record id.
+hosting provider decision.
 
 ## Remote bootstrap and browser reconciliation
 
@@ -337,11 +337,84 @@ The single narrow exception is the web app manifest, identified structurally
 body because `/v1/` is refused first. Records stay in IndexedDB under the
 existing runtime persistence boundary.
 
-**Known defect (not fixed here).** A create intent carries values but no record
-id, because the authority assigns it. An offline-created record therefore returns
-from the authority under a new id: the accepted server record is reconciled
-locally under the server's id while the original local row remains, so an offline
-create duplicates. This predates Phase 47 and was masked by a hermetic fake that
-echoed the client's id; real PostgreSQL exposed it. Relatedly, acknowledging a
-rejected create leaves the local row in place — a later bootstrap cannot remove a
-record the server never had.
+The offline-create duplication defect Phase 47 recorded here is fixed by Phase
+48, below.
+
+## Offline operation identity
+
+Phase 48 makes an offline-created record converge to a single accepted record.
+Before it, a create intent carried values and no record id, so the authority
+minted its own: the accepted record came back under an id the browser had never
+seen, `reconcileRemoteRecord` created a *second* local row, and the originating
+row kept its local guid and `syncStatus: "local"` forever — its queue entry
+already discarded as accepted, so nothing would ever resend or reconcile it. A
+hermetic fake had masked this for two phases by echoing the client's guid back;
+only a real authority over real PostgreSQL exposed it.
+
+**The create intent now carries `recordId`, and it is required.** The client names
+the record it already holds, and the authority accepts the record under that id,
+so an update, delete or transition issued immediately afterwards addresses the
+same id with no translation step. This is a breaking wire-contract change: a
+create request without a `recordId` is answered `malformed_request` (400).
+
+**A client-supplied id is an identifier, never an authorisation.** Naming a record
+grants nothing. The caller may not assert revision, actor, timestamps, accepted
+state or scope; every one of those stays server-derived, as it was before.
+
+**The id is untrusted input and is shape-checked at both layers.** It must be a
+non-empty string of at most 320 characters with no surrounding whitespace and no
+control characters — the same rules `BypassIdentityVerifier` applies to an
+identity subject, because a NUL in a text key is a real PostgreSQL failure (the
+Phase 44 `audit_id` defect). `isValidRecordId` is enforced by the HTTP edge
+(`malformed_request`, 400) and independently by the runtime
+(`ADL_RUNTIME_RECORD_ID_INVALID`); neither layer assumes the other ran. Unlike an
+identity subject, the id is never trimmed first: the accepted record has to come
+back under the exact id the caller holds, so a padded id is refused rather than
+silently rewritten into a different one.
+
+**A collision is a rejection, and it is terminal.** A create whose id already
+names a record — a tombstone included, so a create cannot resurrect a deleted
+record — is refused with `ADL_RUNTIME_RECORD_ID_TAKEN`. It is never an overwrite,
+a merge, or a silent adoption of the existing record. The refusal surfaces through
+the Phase 47 recovery path as an ordinary rejection: no strategy, so automatic
+recovery leaves it alone, and `keepServer` ("Dismiss") is its only permitted
+resolution. Asking to resubmit one falls back to abandoning it, so a refused write
+can never be resurrected as accepted. A collision is deliberately *not* modelled
+as a conflict: `resubmitMine` would resend the same id forever, and there is no
+client-side primitive that re-mints an id, by design.
+
+**The refusal is checked in the runtime, before storage.** `PostgresObjectStorage`
+writes a create with a plain `insert`, so an undetected collision would raise a
+unique violation — not a `RuntimeError`, therefore classified as a retryable
+infrastructure failure that the client would replay forever. The guard also runs
+*after* the create is otherwise authorised, so an unauthorised caller is denied
+rather than told whether an id exists.
+
+**Idempotency stays keyed on the operation id, not the record id.** A retried
+create returns the stored outcome and applies once. A *different* operation
+reusing an accepted record's id is a new operation and is refused as a collision —
+the record id never becomes a second idempotency key.
+
+**Command-produced records need no separate treatment.** The sync client never
+emits a `command` intent: a locally executed command enqueues an ordinary create
+or update operation per step, each carrying its own local record id, so each
+replays through the create path above. The `command` intent variant remains
+reachable only by a caller invoking the service directly, where the authority
+mints ids for steps no client holds. If a future phase makes commands replayable
+*as commands*, each step would need a client-supplied id.
+
+**No stranded local rows exist to converge, and this is evidence, not
+assumption.** The duplication only occurs on a replay, and a replay only happens
+when the browser bundle was built with `VITE_ADL_AUTHORITY_URL` set — with it
+unset there is no bridge, no sync client, and no create ever leaves the browser.
+No deployment exists that could have set it: the repository has no deployment
+artifact, container image, CI pipeline or hosting configuration; the only
+committed environment file is `.env.authority.sample`, a sample with `CHANGE_ME`
+placeholders; `start-local.sh` and the Playwright visual suite both run with the
+variable unset; and the authority entrypoint itself first landed in Phase 46, two
+phases ago. The one observed instance of the defect was produced by a Phase 47
+integration test against a throwaway PostgreSQL container that is destroyed with
+the run. A convergence sweep would therefore be code that deletes user rows on
+inference with no population to fix, so none was added. A developer whose own
+browser profile holds an orphan from a manual Phase 47 session can clear site data
+for the origin.

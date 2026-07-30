@@ -186,6 +186,7 @@ describe("authority replay against real PostgreSQL", () => {
       operationId: "op-1",
       kind: "create",
       objectName: "Note",
+      recordId: "note-real-note",
       values: { Title: "Real note" },
     });
     expect(outcome.status).toBe("accepted");
@@ -209,6 +210,7 @@ describe("authority replay against real PostgreSQL", () => {
       operationId: "op-dup",
       kind: "create" as const,
       objectName: "Note",
+      recordId: "note-once",
       values: { Title: "Once" },
     };
     const first = await authority.replay(memberToken, intent);
@@ -225,6 +227,99 @@ describe("authority replay against real PostgreSQL", () => {
         [noteApp],
       ),
     ).toBe(1);
+  });
+
+  /**
+   * Phase 48. The client names the record, so the accepted record comes back
+   * under the id the browser already holds. Idempotency stays keyed on the
+   * operation id: a *different* operation reusing an accepted record's id is a
+   * new operation and must be refused, not served the earlier outcome and not
+   * allowed to overwrite, merge with, or silently adopt the existing record.
+   */
+  it("accepts a create under the client's own id and refuses a second create under it", async () => {
+    const authority = service();
+    const accepted = await authority.replay(memberToken, {
+      operationId: "op-named",
+      kind: "create",
+      objectName: "Note",
+      recordId: "note-client-named",
+      values: { Title: "Named by the client" },
+    });
+    expect(accepted).toMatchObject({ status: "accepted" });
+    expect(
+      accepted.status === "accepted" ? accepted.records.map((row) => row.meta.guid) : [],
+    ).toEqual(["note-client-named"]);
+    // The row PostgreSQL holds is keyed by the client's id, so a follow-up
+    // update against that id needs no translation step.
+    expect(
+      await count(
+        "select count(*)::int n from adl_authority_records where application_id=$1 and record_id=$2",
+        [noteApp, "note-client-named"],
+      ),
+    ).toBe(1);
+
+    const collided = await authority.replay(memberToken, {
+      operationId: "op-collides",
+      kind: "create",
+      objectName: "Note",
+      recordId: "note-client-named",
+      values: { Title: "Impostor" },
+    });
+
+    expect(collided).toMatchObject({
+      status: "rejected",
+      operationId: "op-collides",
+      code: "ADL_RUNTIME_RECORD_ID_TAKEN",
+    });
+    // Still one row, still the original values, and the refusal is a durable
+    // outcome of its own rather than the accepted one replayed back.
+    expect(
+      await count("select count(*)::int n from adl_authority_records where application_id=$1", [
+        noteApp,
+      ]),
+    ).toBe(1);
+    const rows = await pool.query<{ record: StoredObjectRecord }>(
+      "select record from adl_authority_records where application_id=$1 and record_id=$2",
+      [noteApp, "note-client-named"],
+    );
+    expect(rows.rows[0]?.record.values).toEqual({ Title: "Named by the client" });
+    expect(await count("select count(*)::int n from adl_authority_operation_outcomes")).toBe(2);
+    // The refusal is idempotent in its own right.
+    expect(
+      await authority.replay(memberToken, {
+        operationId: "op-collides",
+        kind: "create",
+        objectName: "Note",
+        recordId: "note-client-named",
+        values: { Title: "Impostor" },
+      }),
+    ).toEqual(collided);
+  });
+
+  /**
+   * A malformed id is refused by the runtime before storage sees it. Without this
+   * the insert would raise a real PostgreSQL error, which is not a `RuntimeError`
+   * and so would surface as a retryable infrastructure failure the client would
+   * replay forever.
+   */
+  it("refuses a control-character record id before it reaches PostgreSQL", async () => {
+    const outcome = await service().replay(memberToken, {
+      operationId: "op-bad-id",
+      kind: "create",
+      objectName: "Note",
+      recordId: `note-${String.fromCodePoint(0)}1`,
+      values: { Title: "Never stored" },
+    });
+
+    expect(outcome).toMatchObject({
+      status: "rejected",
+      code: "ADL_RUNTIME_RECORD_ID_INVALID",
+    });
+    expect(
+      await count("select count(*)::int n from adl_authority_records where application_id=$1", [
+        noteApp,
+      ]),
+    ).toBe(0);
   });
 
   it("commits a multi-record command atomically", async () => {
@@ -251,6 +346,7 @@ describe("authority replay against real PostgreSQL", () => {
         operationId: "op-fault",
         kind: "create",
         objectName: "Note",
+        recordId: "note-should-roll-back",
         values: { Title: "Should roll back" },
       }),
     ).rejects.toThrow("injected infrastructure failure");
@@ -268,6 +364,7 @@ describe("authority replay against real PostgreSQL", () => {
       operationId: "op-race",
       kind: "create" as const,
       objectName: "Note",
+      recordId: "note-concurrent",
       values: { Title: "Concurrent" },
     };
     const [a, b] = await Promise.all([
@@ -290,6 +387,7 @@ describe("authority replay against real PostgreSQL", () => {
       operationId: "op-int",
       kind: "create",
       objectName: "Note",
+      recordId: "note-kept",
       values: { Title: "Kept" },
     });
     const integrity = new AuthorityProjectionIntegrity(authorityPool(pool), noteApp);
@@ -315,6 +413,7 @@ describe("authority replay against real PostgreSQL", () => {
       operationId: "op-reject",
       kind: "create" as const,
       objectName: "Note",
+      recordId: "note-missing-title",
       values: {},
     };
     const first = await authority.replay(memberToken, intent);
@@ -338,6 +437,7 @@ describe("authority replay against real PostgreSQL", () => {
       operationId: "op-version",
       kind: "create",
       objectName: "Note",
+      recordId: "note-blocked",
       values: { Title: "blocked" },
     });
     expect(outcome.status).toBe("rejected");

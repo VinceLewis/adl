@@ -555,6 +555,207 @@ describe("Phase 47 usable sync slice over a real socket and real PostgreSQL", ()
     ).toBe("Local note");
   });
 
+  /**
+   * Phase 48, and the defect this phase exists for. A create intent used to carry
+   * no record id, so the authority minted its own: the accepted record arrived
+   * under a *different* id, reconciled in as a second local row, and the
+   * originating row kept its local guid and `syncStatus: "local"` forever with its
+   * queue entry already discarded as accepted. A hermetic fake had masked it for
+   * two phases by echoing the client's guid back; only a real authority over real
+   * PostgreSQL showed it.
+   */
+  it("keeps one identity for an offline-created record end to end", async () => {
+    const browser = await browserBridge({ userId: "unknown", roles: [], channel: "ui" });
+    await browser.connection.signIn(adminProof);
+    const adminUserId = browser.connection.session.userId ?? "";
+    const bandId = await seedBand(adminUserId);
+    const context: RuntimeContext = {
+      userId: adminUserId,
+      roles: ["BandAdmin"],
+      channel: "ui",
+      selectedContexts: { Band: bandId },
+    };
+    browser.setContext(context);
+
+    // Created offline, in the browser, under an id only the browser knows.
+    const localNote = await browser.runtime.create(
+      "Note",
+      { Band: bandId, Body: "Written offline" },
+      { ...context, online: false },
+    );
+    const localId = localNote.meta.guid;
+
+    await browser.connection.synchronize(context);
+
+    expect(browser.connection.recovery).toEqual([]);
+    // Exactly one local row, under the id the browser has held all along.
+    const localNotes = await browser.runtime.search("Note", {}, context);
+    expect(localNotes.map((row) => row.meta.guid)).toEqual([localId]);
+    await expect(browser.runtime.read("Note", localId, context)).resolves.toMatchObject({
+      meta: { guid: localId, syncStatus: "synced" },
+      values: { Body: "Written offline" },
+    });
+    // Exactly one authority row, under the same id. Two rows here, or a row under
+    // a server-minted id, is the defect.
+    const accepted = await pool.query<{ record_id: string; record: { values: { Body: string } } }>(
+      "select record_id, record from adl_authority_records where application_id = $1 and object_name = 'Note'",
+      [applicationId],
+    );
+    expect(accepted.rows.map((row) => row.record_id)).toEqual([localId]);
+    expect(accepted.rows[0]?.record.values.Body).toBe("Written offline");
+
+    // An update issued immediately afterwards addresses the same id, with no
+    // translation step: the authority has heard of this record.
+    await browser.runtime.update("Note", localId, { Body: "Edited after sync" }, context);
+    await browser.connection.synchronize(context);
+    expect(browser.connection.recovery).toEqual([]);
+    const afterUpdate = await pool.query<{ record: { values: { Body: string } } }>(
+      "select record from adl_authority_records where application_id = $1 and record_id = $2",
+      [applicationId, localId],
+    );
+    expect(afterUpdate.rows[0]?.record.values.Body).toBe("Edited after sync");
+
+    // And so does a delete: the authority tombstones the record the browser named.
+    await browser.runtime.delete("Note", localId, context);
+    await browser.connection.synchronize(context);
+    expect(browser.connection.recovery).toEqual([]);
+    const afterDelete = await pool.query<{ deleted_at: Date | null }>(
+      "select deleted_at from adl_authority_records where application_id = $1 and record_id = $2",
+      [applicationId, localId],
+    );
+    expect(afterDelete.rows[0]?.deleted_at).not.toBeNull();
+  });
+
+  /**
+   * Naming a record is not authority over it. A create whose id already names an
+   * accepted record is refused, the refusal reaches the person through the Phase
+   * 47 recovery surface, and it can never be resurrected as accepted.
+   */
+  it("refuses a create that collides with an accepted record and surfaces it for recovery", async () => {
+    const browser = await browserBridge({ userId: "unknown", roles: [], channel: "ui" });
+    await browser.connection.signIn(adminProof);
+    const adminUserId = browser.connection.session.userId ?? "";
+    const bandId = await seedBand(adminUserId);
+    const context: RuntimeContext = {
+      userId: adminUserId,
+      roles: ["BandAdmin"],
+      channel: "ui",
+      selectedContexts: { Band: bandId },
+    };
+    browser.setContext(context);
+
+    // The authority already holds this id, and this browser has not pulled it.
+    const serverRuntime = new ApplicationRuntime(model, {
+      storage: new PostgresObjectStorageBackend(authorityPool(pool), applicationId, model),
+    });
+    const collidingId = "note-collision-target";
+    await serverRuntime.create(
+      "Note",
+      { Band: bandId, Body: "Somebody else's note" },
+      { ...systemContext, selectedContexts: { Band: bandId } },
+      { recordId: collidingId },
+    );
+    await browser.runtime.create("Note", { Band: bandId, Body: "Mine" }, context, {
+      recordId: collidingId,
+    });
+
+    await browser.connection.synchronize(context);
+
+    // Visible, and terminal: a rejection carries no strategy, so automatic
+    // recovery left it alone, and acknowledging it is the only move.
+    expect(browser.connection.recovery).toHaveLength(1);
+    expect(browser.connection.recovery[0]).toMatchObject({
+      objectName: "Note",
+      recordId: collidingId,
+      operation: "create",
+      status: "rejected",
+      code: "ADL_RUNTIME_RECORD_ID_TAKEN",
+      requiresUserChoice: false,
+      choices: ["keepServer"],
+    });
+    expect(browser.connection.recovery[0]?.strategy).toBeUndefined();
+    // The recovery surface still discloses no record values, its own or anyone's.
+    expect(JSON.stringify(browser.connection.recovery)).not.toContain("Somebody else's note");
+    // The authority's record stands untouched: not overwritten, not merged.
+    const rows = await pool.query<{ record: { values: { Body: string } } }>(
+      "select record from adl_authority_records where application_id = $1 and record_id = $2",
+      [applicationId, collidingId],
+    );
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0]?.record.values.Body).toBe("Somebody else's note");
+
+    // Asking to resubmit a refused write falls back to abandoning it: the
+    // authority said no, and no client choice may turn that into an accept.
+    await browser.connection.resolveRecovery(
+      browser.connection.recovery[0]?.queueId ?? "",
+      "resubmitMine",
+    );
+
+    expect(browser.connection.recovery).toEqual([]);
+    expect(browser.runtime.syncQueue.getEntries()).toEqual([]);
+    const afterResolution = await pool.query<{ record: { values: { Body: string } } }>(
+      "select record from adl_authority_records where application_id = $1 and record_id = $2",
+      [applicationId, collidingId],
+    );
+    expect(afterResolution.rows[0]?.record.values.Body).toBe("Somebody else's note");
+  });
+
+  it("refuses a malformed or absent record id at the HTTP edge", async () => {
+    const browser = await browserBridge({ userId: "unknown", roles: [], channel: "ui" });
+    await browser.connection.signIn(adminProof);
+    const adminUserId = browser.connection.session.userId ?? "";
+    const bandId = await seedBand(adminUserId);
+
+    async function replay(body: Record<string, unknown>): Promise<Response> {
+      return fetch(`${baseUrl}/v1/sync/replay`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://app.test",
+          "x-forwarded-proto": "https",
+          "x-adl-csrf-token": csrf,
+          cookie: adminCookie(browser),
+        },
+        body: JSON.stringify(body),
+      });
+    }
+    const intent = {
+      kind: "create",
+      objectName: "Note",
+      values: { Band: bandId, Body: "Crafted" },
+      selectedContexts: { Band: bandId },
+    };
+
+    // A NUL in a text key is a real PostgreSQL failure, so it is refused at the
+    // edge as well as in the runtime; neither layer assumes the other ran.
+    const control = await replay({
+      ...intent,
+      operationId: "op-edge-control",
+      recordId: `note-${String.fromCodePoint(0)}1`,
+    });
+    expect(control.status).toBe(400);
+    const overLong = await replay({
+      ...intent,
+      operationId: "op-edge-long",
+      recordId: "n".repeat(321),
+    });
+    expect(overLong.status).toBe(400);
+    const absent = await replay({ ...intent, operationId: "op-edge-absent" });
+    expect(absent.status).toBe(400);
+
+    // Nothing was written, and no outcome was recorded for a request that never
+    // became an intent.
+    const notes = await pool.query<{ count: number }>(
+      "select count(*)::int as count from adl_authority_records where application_id = $1 and object_name = 'Note'",
+      [applicationId],
+    );
+    expect(notes.rows[0]?.count).toBe(0);
+    const outcomes = await pool.query<{ count: number }>(
+      "select count(*)::int as count from adl_authority_operation_outcomes where operation_id like 'op-edge-%'",
+    );
+    expect(outcomes.rows[0]?.count).toBe(0);
+  });
+
   it("refuses to let the service worker cache a real authority response", async () => {
     const browser = await browserBridge({ userId: "unknown", roles: [], channel: "ui" });
     await browser.connection.signIn(adminProof);

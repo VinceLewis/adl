@@ -309,6 +309,9 @@ function toIntent(
       operationId,
       kind: "create",
       objectName: operation.object,
+      // The record keeps the id it was created under locally, so the accepted
+      // record reconciles onto that same row instead of arriving as a second one.
+      recordId: operation.recordId,
       values: record?.values ?? {},
       ...selected,
     };

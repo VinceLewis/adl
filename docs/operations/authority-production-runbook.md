@@ -123,6 +123,28 @@ symptom — items accumulating in the client's recovery panel — as well as the
 server metrics. Continue to triage it from aggregate metrics and redacted
 operation ids, and never repair state by accepting raw browser records.
 
+**A replayed create names its own record.** Since Phase 48 the create intent
+carries the client's own record id and the authority accepts the record under it,
+so an accepted record has one identity end to end. Two consequences for triage:
+
+- A create request without a `recordId`, or with one that is empty, longer than
+  320 characters, whitespace-padded or bearing a control character, is answered
+  `malformed_request` (400) at the edge. A spike of these means a client built
+  against the pre-Phase-48 contract, or a tampered client — not an outage. Check
+  the deployed browser bundle's version before anything else.
+- `ADL_RUNTIME_RECORD_ID_TAKEN` rejections mean a create arrived under an id that
+  already names an accepted record, tombstones included. The existing record is
+  never overwritten, merged with, or adopted. Genuine random collision is not a
+  plausible explanation at any volume, so treat a cluster of these as a client
+  defect or a replay of another user's captured intent, and inspect the redacted
+  operation ids and the actor rather than the record contents. Do not "fix" one by
+  deleting the incumbent record.
+
+The record id is an identifier and never an authorisation: naming a record grants
+no access to it, and revision, actor, timestamps, accepted state and scope all
+remain server-derived. Never accept a client-supplied revision or actor as a
+remedy for one of these rejections.
+
 ## Offline application shell
 
 The application ships a web app manifest (`/manifest.webmanifest`) and a service

@@ -164,9 +164,50 @@ browser surface.
 6. Update `docs/server-authority.md`, the runbook, the threat model and
    learnings.
 7. **Required next-phase planning handoff:** before Phase 48 closes, review
-   `docs/phases/phase-49-authority-membership-projection-and-scoped-access.md`
-   and revise it if this phase's results change its scope, constraints,
-   deliverables, or tasks. The handoff must justify Phase 49 as the
-   highest-value remaining gap **repository-wide**, not merely the next gap in
-   the subsystem this phase touched; if a higher-value gap exists elsewhere, say
-   so and re-sequence. Then verify, commit, and push Phase 48.
+   the next phase document and revise it if this phase's results change its
+   scope, constraints, deliverables, or tasks. The handoff must justify the next
+   phase as the highest-value remaining gap **repository-wide**, not merely the
+   next gap in the subsystem this phase touched; if a higher-value gap exists
+   elsewhere, say so and re-sequence. Then verify, commit, and push Phase 48.
+   **Executed — see the handoff below.**
+
+## Planning Handoff (completed)
+
+**The true highest-value gap repository-wide is not a queued phase.** A real
+`UpstreamIdentityVerifier` remains absent: the switch exists, `bypass` is the
+default, and the standing rule from Phases 46, 47 and 48 is unchanged — **one must
+be in place before any deployment holds real user data.** It is not sequenced as a
+phase because choosing a provider is a product decision, not an implementation
+gap, and every phase since 46 has deliberately deferred it on that basis. It
+should be raised for decision rather than silently deferred again.
+
+**Among the executable phases, the platform contract phase was re-sequenced to be
+next.** Phase 48's own rationale for putting it after this phase was that "this
+phase changes the contract, that phase codifies it" — which argues for codifying it
+next, while the change is fresh, rather than after two phases that optimise and
+operate a subsystem with no users. Weighed repository-wide:
+
+- **Conformance depth and model migrations** (was Phase 51, now **Phase 49**). The
+  conformance suite is ADR 0004's cross-runtime contract and holds 28 cases, while
+  phases 24-48 added presentation, matrix, calendar, status, authority replay,
+  scoping and now record-identity semantics. That gap is repository-wide and
+  independent of any deployment. Its migration half is a fail-closed prerequisite
+  for a deployment ever holding data, and Phase 48's finding that no deployment
+  exists makes now the cheapest possible moment to build it — there is no live
+  migration to perform.
+- **Membership projection** (was Phase 49, now **Phase 50**). Its own document
+  calls it "an optimisation and integrity refactor of a subsystem with no
+  production users", and Phase 48 confirmed there are no users at all. The
+  `listRecords()` scans are slow in principle, not slow in production.
+- **Retention scheduling and administration UI** (was Phase 50, now **Phase 51**).
+  Operational value that needs a deployment to exist. It stays behind the
+  membership projection because its administration surface consumes those scoped
+  membership reads.
+- **Reference app gaps and documentation hygiene** (**Phase 52**, unchanged).
+  Cleanup, and it depends on the conformance suite the new Phase 49 delivers.
+
+Phase numbers equal execution order, so the three affected documents were renamed
+and their cross-references, dependencies and handoff pointers updated. One factual
+correction was pushed into the new Phase 49: its evidence claimed "after Phase 46
+and 47 there is a real deployment with real PostgreSQL accepted records and real
+browser IndexedDB state", which this phase disproved.

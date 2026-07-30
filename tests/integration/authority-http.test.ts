@@ -130,6 +130,7 @@ describe("authority HTTP edge over a real local network and PostgreSQL", () => {
         operationId: "http-op-1",
         kind: "create",
         objectName: "Document",
+        recordId: "document-via-http",
         values: { Title: "via http" },
       }),
     });

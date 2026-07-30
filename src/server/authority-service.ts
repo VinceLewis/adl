@@ -263,7 +263,14 @@ export class AuthorityService {
     context: RuntimeContext,
   ): Promise<StoredObjectRecord[]> {
     if (intent.kind === "create")
-      return [await runtime.create(intent.objectName, intent.values, context)];
+      // The client names the record. The runtime shape-checks the id and refuses
+      // one that is already taken, so a collision becomes a visible rejection
+      // rather than a PostgreSQL unique violation the caller would retry forever.
+      return [
+        await runtime.create(intent.objectName, intent.values, context, {
+          recordId: intent.recordId,
+        }),
+      ];
     if (intent.kind === "command")
       return (await runtime.executeCommand(intent.commandName, intent.input, context)).steps.map(
         (step) => step.record,

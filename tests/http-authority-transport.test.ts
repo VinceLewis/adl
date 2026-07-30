@@ -61,6 +61,7 @@ const createIntent: AuthorityOperationIntent = {
   operationId: "op-1",
   kind: "create",
   objectName: "Gig",
+  recordId: "gig-friday-rehearsal",
   values: { Band: "band-1", Title: "Friday rehearsal" },
   selectedContexts: { Band: "band-1" },
 };

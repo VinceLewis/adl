@@ -54,9 +54,16 @@ Before tasks that change the authority entrypoint or its deployment configuratio
 - `implementation/identity-invites-and-access-lifecycle.md`
 - `implementation/remote-bootstrap-and-sync-state.md`
 
+Before tasks that change the create intent contract, the authority's create path, record id minting or validation, or anything that decides which side of the sync loop names a record, also read:
+
+- `implementation/offline-operation-identity.md`
+- `implementation/usable-sync-slice.md`
+- `implementation/authority-server.md`
+
 Before tasks that change client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell, also read:
 
 - `implementation/usable-sync-slice.md`
+- `implementation/offline-operation-identity.md`
 - `implementation/first-deployment-slice.md`
 - `implementation/sync-policy.md`
 - `implementation/remote-bootstrap-and-sync-state.md`
@@ -194,3 +201,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors.
 - `implementation/first-deployment-slice.md`: read before changing the authority entrypoint or deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging.
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
+- `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record.

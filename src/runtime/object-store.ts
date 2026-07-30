@@ -19,8 +19,11 @@ import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import type { OperationLog, OperationLogDetails } from "./operation-log.js";
 import type { PolicyEngine } from "./policy-engine.js";
+import { MAX_RECORD_ID_LENGTH, createRecordGuid, isValidRecordId } from "./record-identity.js";
 import {
   StorageError,
+  RecordIdInvalidError,
+  RecordIdUnavailableError,
   RuntimeValidationError,
   cloneJson,
   getContextNowIso,
@@ -40,6 +43,19 @@ import type { SyncQueue } from "./sync-queue.js";
 import type { ValidationEngine } from "./validation-engine.js";
 
 export type ObjectStoreWriteAuthority = CommandStepAuthority;
+
+export interface ObjectStoreCreateOptions {
+  /**
+   * Create the record under this id instead of a freshly minted one. Used when a
+   * record already has an identity elsewhere that must survive the write — an
+   * offline create replayed to the authority names the record the client already
+   * holds, so the accepted record converges with it rather than duplicating it.
+   *
+   * The id is untrusted input: it is shape-checked, and an id that already names
+   * a record is refused. It confers no authority over that record.
+   */
+  recordId?: string;
+}
 
 export type PlannedObjectWrite = PlannedCreateObjectWrite | PlannedUpdateObjectWrite;
 
@@ -88,9 +104,16 @@ export class ObjectStore {
     objectName: string,
     values: Record<string, JsonValue>,
     context: RuntimeContext,
+    options: ObjectStoreCreateOptions = {},
   ): Promise<StoredObjectRecord> {
     this.logger.debug("ENTER ObjectStore.create", { objectName, context: safeContextLog(context) });
-    const write = await this.planCreateForTransaction(objectName, values, context);
+    const write = await this.planCreateForTransaction(
+      objectName,
+      values,
+      context,
+      "caller",
+      options,
+    );
     const [created] = await this.commitPlannedTransaction([write], context);
     if (created === undefined) {
       throw new StorageError(`Create for object '${objectName}' did not produce a record.`, {
@@ -109,9 +132,18 @@ export class ObjectStore {
     values: Record<string, JsonValue>,
     context: RuntimeContext,
     authority: ObjectStoreWriteAuthority = "caller",
+    options: ObjectStoreCreateOptions = {},
   ): Promise<PlannedCreateObjectWrite> {
     await this.startupGuard();
     const object = this.index.getObject(objectName);
+    // Shape first: a malformed id is pure input validation and discloses nothing,
+    // so it is refused before any work and long before storage sees it.
+    if (options.recordId !== undefined && !isValidRecordId(options.recordId)) {
+      throw new RecordIdInvalidError(
+        `A supplied record id for object '${objectName}' must be 1 to ${MAX_RECORD_ID_LENGTH} characters with no surrounding whitespace or control characters.`,
+        { objectName },
+      );
+    }
     const preparedValues = this.validationEngine.prepareCreateValues(objectName, values, context);
     const currentState = getInitialLifecycleState(object);
 
@@ -137,7 +169,24 @@ export class ObjectStore {
     }
     this.syncPolicy.requireLocalWriteAllowed(objectName, "create", context);
 
-    const record = this.buildNewRecord(object, preparedValues, context, currentState);
+    // Collision is checked only after the create is otherwise authorised, so an
+    // unauthorised caller is denied rather than told whether an id exists. The
+    // lookup reads through tombstones: a deleted id is still taken, and a create
+    // must never resurrect one.
+    if (options.recordId !== undefined && (await this.storage.read(objectName, options.recordId))) {
+      throw new RecordIdUnavailableError(
+        `A record already exists for object '${objectName}' under the supplied id.`,
+        { objectName },
+      );
+    }
+
+    const record = this.buildNewRecord(
+      object,
+      preparedValues,
+      context,
+      currentState,
+      options.recordId,
+    );
 
     return {
       operation: "create",
@@ -532,9 +581,11 @@ export class ObjectStore {
     values: Record<string, JsonValue>,
     context: RuntimeContext,
     currentState: string | undefined,
+    suppliedRecordId: string | undefined,
   ): StoredObjectRecord {
     const now = getContextNowIso(context);
-    const guid = createRecordGuid(object);
+    // A caller may name the record; every other meta field stays derived here.
+    const guid = suppliedRecordId ?? createRecordGuid(object.name);
 
     return {
       meta: {
@@ -828,19 +879,6 @@ export class ObjectStore {
 
     await this.storage.update(write.objectName, write.record);
   }
-}
-
-function createRecordGuid(object: ResolvedObject): string {
-  return `${object.name.toLowerCase()}-${randomId()}`;
-}
-
-function randomId(): string {
-  const randomUuid = globalThis.crypto?.randomUUID?.();
-  if (randomUuid !== undefined) {
-    return randomUuid;
-  }
-
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function stateProperty(currentState: string | undefined): { currentState: string } | {} {

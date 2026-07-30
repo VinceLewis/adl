@@ -586,6 +586,7 @@ describe("Phase 46 deployment slice over a real socket and real PostgreSQL", () 
       operationId: "repeated-operation",
       kind: "create" as const,
       objectName: "Gig",
+      recordId: "gig-repeated-operation",
       values: { Band: seeded.bandA, Title: "Submitted twice" },
       selectedContexts: { Band: seeded.bandA },
     };
@@ -631,6 +632,7 @@ describe("Phase 46 deployment slice over a real socket and real PostgreSQL", () 
         operationId: "crafted-1",
         kind: "create",
         objectName: "Gig",
+        recordId: "gig-crafted-1",
         values: { Band: seeded.bandB, Title: "Crafted" },
         selectedContexts: { Band: seeded.bandB },
         userId: "someone-else",
@@ -693,6 +695,7 @@ describe("Phase 46 deployment slice over a real socket and real PostgreSQL", () 
         operationId,
         kind: "create",
         objectName: "Gig",
+        recordId: `gig-${operationId}`,
         values: { Band: seeded.bandA, Title: operationId },
         selectedContexts: { Band: seeded.bandA },
       });

@@ -1,4 +1,5 @@
 import type { JsonValue } from "../model/resolved-model.js";
+import { isValidRecordId } from "../runtime/record-identity.js";
 import type { AuthorityAccessLifecycleService } from "./access-lifecycle.js";
 import type {
   AuthorityAdministrationService,
@@ -379,6 +380,7 @@ function operationIntent(body: Record<string, JsonValue>): AuthorityOperationInt
       ...base,
       kind,
       objectName: requiredString(body, "objectName"),
+      recordId: requiredRecordId(body, "recordId"),
       values: requiredRecord(body, "values"),
     };
   if (kind === "command")
@@ -514,6 +516,17 @@ function optionalString(body: Record<string, JsonValue>, key: string): string | 
   const value = body[key];
   if (value === undefined) return undefined;
   return requiredString(body, key);
+}
+/**
+ * A client-supplied record id is bounded far more tightly than a generic string
+ * field, and it is refused at the edge as well as in the runtime: the shape check
+ * belongs wherever untrusted input arrives, and neither layer may assume the
+ * other ran.
+ */
+function requiredRecordId(body: Record<string, JsonValue>, key: string): string {
+  const value = body[key];
+  if (!isValidRecordId(value)) throw new RequestShapeError("malformed_request");
+  return value;
 }
 function requiredRecord(body: Record<string, JsonValue>, key: string): Record<string, JsonValue> {
   const value = body[key];

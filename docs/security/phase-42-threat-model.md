@@ -33,6 +33,8 @@ roles are resolved from accepted membership records on every authority call.
 | Stale worker serving assets incompatible with persisted local state | The worker URL and its cache name both carry the resolved model version, so a model change installs a new worker; `activate` purges every other `adl-shell-*` cache and claims clients; registration is production-only and a non-production build unregisters a stale worker | Phase 47 service-worker and registration tests |
 | Conflict recovery surface disclosing a protected server record | `SyncRecoveryItem` carries queue and verdict metadata only — no record or field value reaches the recovery component — and the server stays authoritative for the outcome; a rejection permits acknowledgement alone and is never resubmitted | Phase 47 recovery tests |
 | Silent loss of a refused or conflicted write | A verdict is stored on the persisted queue entry instead of discarding it; only a declared strategy or a user resolution removes it, and a transport failure leaves the entry replayable | Phase 47 recovery tests, real-PostgreSQL integration tests |
+| Client-supplied record id used to overwrite, adopt or probe another caller's record | A create's `recordId` names a record and authorises nothing: an id that already names an accepted record — tombstones included — is refused with `ADL_RUNTIME_RECORD_ID_TAKEN` rather than overwritten, merged with or adopted, and the check runs only after the create is otherwise authorised, so an unauthorised caller is denied instead of learning whether an id exists. Revision, actor, timestamps, accepted state and scope stay server-derived | Phase 48 record-identity tests, real-PostgreSQL collision test |
+| Malformed record id reaching PostgreSQL as a text key | `isValidRecordId` (non-empty, ≤320 characters, no surrounding whitespace, no control characters) is enforced independently at the HTTP edge (`malformed_request`, 400) and in the runtime (`ADL_RUNTIME_RECORD_ID_INVALID`), before any insert — a NUL in a text key is a real PostgreSQL failure, and an undetected collision would surface as a retryable infrastructure error the client would replay forever | Phase 48 record-identity tests, real-PostgreSQL edge and runtime cases |
 | Offline invite claim pre-granting or caching access | The claim is refused in the browser bridge before any request is made, so nothing is queued, cached or optimistically granted; the granted context's records appear only on the bootstrap after the server's confirmation | Phase 47 integration test asserting nothing reached the wire and no access-audit row was written |
 
 Residual risks: upstream identity-provider compromise, a trusted reverse-proxy
@@ -70,12 +72,20 @@ not an access grant — every authority call is still policy-shaped server-side 
 but they are a local disclosure. Do not treat a shared or kiosk browser as an
 acceptable deployment target until this is addressed.
 
-**Known defect — an offline create duplicates.** A create intent carries values
-but no record id, because the authority assigns the id. The accepted server
-record is reconciled locally under the server's id while the original local row
-remains, so a record created offline appears twice after sync. This predates
-Phase 47 and was masked by a hermetic fake that echoed the client's id back; real
-PostgreSQL exposed it. It is recorded here as a known defect and is **not fixed
-in this phase**. Relatedly, acknowledging a rejected create leaves the local row
-in place: local truth converges only on a later bootstrap, and a bootstrap cannot
-remove a record the server never had.
+**Fixed in Phase 48 — the offline-create duplication.** The create intent now
+carries the client's own record id and the authority accepts the record under it,
+so an offline-created record has one identity end to end. The new input is
+analysed in the table above. Two properties are worth restating because they are
+the whole reason the change is safe: a client-supplied id is an identifier and
+never an authorisation, and a collision is a refusal rather than an overwrite.
+
+**Residual risk — a rejected create leaves its local row behind.** Acknowledging a
+rejected create discards the queue entry but not the local record it was created
+from, and a bootstrap cannot remove a record the server never accepted. With
+Phase 48's collision rejection this now has a second instance: when a create is
+refused because its id is taken, the following bootstrap replaces that local row
+with the *authority's* record under the same id, so the user's local values for it
+are gone from the row while only the verdict metadata remains in the recovery
+panel. That is consistent with every other `keepServer` resolution, and no
+client-side merge is invented to paper over it, but it is a real loss of local work
+and it is not yet surfaced as such to the user.

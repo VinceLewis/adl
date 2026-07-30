@@ -1,9 +1,26 @@
-# Phase 51 - Platform Contract: Conformance Depth and Model Migrations
+# Phase 49 - Platform Contract: Conformance Depth and Model Migrations
 
-> Renumbered from Phase 50 by the Phase 47 handoff. Evidence and scope are
-> unchanged; only its position in the sequence moved. Note that Phase 48 now
-> changes the create-intent wire contract, so this phase codifies that shape
-> rather than the pre-Phase-48 one.
+> Moved up from Phase 51 by the Phase 48 handoff, ahead of the membership
+> projection (now Phase 50) and retention scheduling (now Phase 51). Phase 48's
+> own rationale for placing this phase after it was that "this phase changes the
+> contract, that phase codifies it" — which argues for codifying it *next*, while
+> the change is fresh, rather than after two phases that optimise and operate a
+> subsystem with no users. The two phases it overtook are, by their own evidence,
+> an optimisation of an unpopulated projection and an operational surface that
+> needs a deployment to matter; this phase's conformance half is a repository-wide
+> gap independent of any deployment, and its migration half is a prerequisite for
+> a deployment ever holding data. Scope is unchanged except where the Phase 48
+> findings below correct it.
+>
+> **Correction from Phase 48.** The previous evidence asserted that "after Phase 46
+> and 47 there is a real deployment with real PostgreSQL accepted records and real
+> browser IndexedDB state". Phase 48 established, with evidence, that no deployment
+> exists: no deployment artifact, container image, CI pipeline or hosting
+> configuration in the repository; the only committed environment file is a sample
+> with `CHANGE_ME` placeholders; and the browser only syncs when built with
+> `VITE_ADL_AUTHORITY_URL`, which nothing sets. The migration gap is therefore a
+> **pre-deployment blocker**, not an active data-loss risk — which is a better
+> position to fix it from, not a reason to defer it.
 
 ## Objective
 
@@ -19,21 +36,28 @@ persisted data.
   cases in total: `conformance/runtime/core.json` (18),
   `conformance/presentation/ui.json` (6), and
   `conformance/expressions/basic.json` (4). Phase 23 delivered the suite and the
-  three-layer spec; phases 24-49 added presentation, matrix, calendar, semantic
-  status, authority replay and scoping semantics without a matching growth in
-  contract cases. A second runtime implemented against this suite today would not
-  be constrained to ADL's actual semantics.
+  three-layer spec; phases 24-48 added presentation, matrix, calendar, semantic
+  status, authority replay, scoping and record-identity semantics without a
+  matching growth in contract cases. A second runtime implemented against this
+  suite today would not be constrained to ADL's actual semantics.
+- **The newest contract change is uncovered.** Phase 48 made the create intent
+  carry the client's record id, made a colliding id a rejection rather than an
+  overwrite, and made a malformed id a refusal enforced independently at the HTTP
+  edge and in the runtime. None of that is expressible in the suite today, and it
+  is exactly the kind of semantics a second runtime would get wrong.
 - **There is no migration path for persisted data.** Phase 11 deliberately
   shipped a version guard only: its task list says "Avoid implementing full
   migrations; add only the smallest placeholder or interface if needed to keep
   diagnostics clean". `src/runtime/startup-compatibility.ts` contains no
   migration logic. Before Phase 46 this was harmless because all data was
-  disposable demo data. After Phase 46 and 47 there is a real deployment with
-  real PostgreSQL accepted records and real browser IndexedDB state, and a model
-  change means a wipe on both sides.
+  disposable demo data. Phases 46 and 47 built the paths that will hold real
+  PostgreSQL accepted records and real browser IndexedDB state, and a model change
+  means a wipe on both sides of them. No deployment holds data yet (see the
+  correction above), so this is the last moment at which the migration path can be
+  built without also having a live migration to perform.
 
-This phase depends on the Phase 46/47 deployment having real persisted state on
-both the server and the client, and on the existing startup compatibility guard.
+This phase depends on the Phase 46/47 persistence paths existing on both the
+server and the client, and on the existing startup compatibility guard.
 
 ## Scope
 
@@ -42,7 +66,9 @@ both the server and the client, and on the existing startup compatibility guard.
   and command preconditions, computed fields and read-model projections, context
   scope and policy decisions, sync-mode behaviour, presentation resolution
   including status, matrix and calendar semantics, and authority outcome
-  classification.
+  classification — the last of which now includes Phase 48 record identity: a
+  create carrying its own id, a collision refused rather than merged, and a
+  malformed id refused before storage.
 - Define and implement model migration for persisted state on both sides: server
   accepted-record projection and browser IndexedDB records, driven by the
   resolved model's version metadata and executed through the existing
@@ -68,8 +94,10 @@ both the server and the client, and on the existing startup compatibility guard.
   commits atomically and cannot leave the projection half-migrated. Browser
   migration must not fabricate operation-log, audit or queue side effects, per
   the existing trusted sync-projection boundary.
-- Preserve Phase 45 retention/scope, Phase 49 membership scoping, and the
-  disclosure boundaries throughout: migration diagnostics stay metadata-only.
+- Preserve Phase 44 atomicity, Phase 45 retention/scope, Phase 48 record-identity
+  rules, and the disclosure boundaries throughout: migration diagnostics stay
+  metadata-only. Membership-projection scoping is now Phase 50 and follows this
+  phase, so there is nothing of it to preserve yet.
 
 ## Deliverables
 
@@ -110,6 +138,7 @@ both the server and the client, and on the existing startup compatibility guard.
   migration for the authority projection tables themselves, which remain ordered
   SQL files applied out of band.
 - Band-app modelling gaps and documentation hygiene (Phase 52).
+- The membership projection (Phase 50) and retention scheduling (Phase 51).
 - New ADL syntax for storage, SQL, or migration mechanics beyond declaring a
   model migration.
 
@@ -117,8 +146,9 @@ both the server and the client, and on the existing startup compatibility guard.
 
 - Phase 23 conformance suite and three-layer spec.
 - Phase 11 model versioning guard and startup compatibility checks.
-- Phase 44 atomicity, Phase 45 scope/retention, Phase 49 membership scoping.
-- Phase 46/47 real persisted state on both server and client.
+- Phase 44 atomicity, Phase 45 scope/retention.
+- Phase 46/47 server and client persistence paths, and the Phase 48 create-intent
+  contract this phase codifies.
 
 ## Parallel Execution Plan
 
@@ -138,7 +168,8 @@ conformance file:
 - Validation, decision tables, lifecycle guards, command preconditions.
 - Computed fields and read-model projections.
 - Context scope and policy decisions.
-- Sync-mode behaviour and authority outcome classification.
+- Sync-mode behaviour and authority outcome classification, including Phase 48
+  record identity and collision refusal.
 - Presentation resolution, semantic status, matrix, calendar.
 
 In parallel with those, two migration agents:
@@ -178,8 +209,10 @@ disjoint files and do not need it.
    verification.
 7. Update the three-layer specification, the runbook migration procedure, and
    learnings.
-8. **Required next-phase planning handoff:** before Phase 51 closes, review
-   `docs/phases/phase-52-reference-app-gaps-and-documentation-hygiene.md` and
+8. **Required next-phase planning handoff:** before Phase 49 closes, review
+   `docs/phases/phase-50-authority-membership-projection-and-scoped-access.md` and
    revise it if this phase's results change its scope, constraints, deliverables,
-   or tasks. The handoff must justify Phase 52 as the highest-value remaining gap
-   repository-wide. Then verify, commit, and push Phase 51.
+   or tasks. The handoff must justify Phase 50 as the highest-value remaining gap
+   **repository-wide**, not merely the next gap in the subsystem this phase
+   touched; if a higher-value gap exists elsewhere, say so and re-sequence. Then
+   verify, commit, and push Phase 49.

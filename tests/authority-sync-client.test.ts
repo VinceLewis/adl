@@ -303,6 +303,44 @@ describe("AuthoritySyncClient reconcile", () => {
     expect(transport.replayCalls).toHaveLength(2);
   });
 
+  /**
+   * Regression (fixed in Phase 48): a create intent carried no record id, so the
+   * authority minted its own. The accepted record then reconciled in as a SECOND
+   * local row while the original kept its local guid and `syncStatus: "local"`
+   * forever — its queue entry already discarded as accepted, so nothing would
+   * ever resend or reconcile it. The hermetic fake masked this for two phases by
+   * echoing the client's guid back; the id is now part of the contract, so a
+   * transport that answers under the supplied id is honest rather than lucky.
+   */
+  it("replays a create under the local record id, so the accepted record converges onto one row", async () => {
+    const runtime = newRuntime();
+    const created = await runtime.create("Gig", { Title: "Friday rehearsal" }, adminContext);
+    const localId = created.meta.guid;
+    const transport = new FakeAuthorityTransport([], (intent) => ({
+      status: "accepted",
+      operationId: intent.operationId,
+      records: [
+        remoteGig(intent.kind === "create" ? intent.recordId : "not-a-create", "Friday rehearsal"),
+      ],
+    }));
+
+    const outcomes = await new AuthoritySyncClient(runtime, transport).reconcile(
+      "session-token",
+      adminContext,
+    );
+
+    expect(transport.replayCalls[0]).toMatchObject({ kind: "create", recordId: localId });
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(["accepted"]);
+    // One row, under the id the browser already held, now marked synced. Two rows
+    // here is the defect this test exists for.
+    const rows = await runtime.objectStore.search("Gig", {}, adminContext);
+    expect(rows.map((row) => row.meta.guid)).toEqual([localId]);
+    await expect(runtime.objectStore.getRecordForRuntime("Gig", localId)).resolves.toMatchObject({
+      meta: { guid: localId, syncStatus: "synced" },
+    });
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
   it("never puts a local-private record or its operation on the wire", async () => {
     const { runtime } = await queuedRuntime();
     const transport = new FakeAuthorityTransport();
@@ -329,10 +367,14 @@ describe("AuthoritySyncClient reconcile", () => {
     await new AuthoritySyncClient(runtime, transport).reconcile(undefined, adminContext);
 
     const [createIntent, updateIntent] = transport.replayCalls;
+    // `recordId` names the record the client already holds. It is not an identity,
+    // role, actor or timestamp assertion, and the authority still derives all of
+    // those itself.
     expect(Object.keys(createIntent ?? {}).sort()).toEqual([
       "kind",
       "objectName",
       "operationId",
+      "recordId",
       "values",
     ]);
     expect(Object.keys(updateIntent ?? {}).sort()).toEqual([

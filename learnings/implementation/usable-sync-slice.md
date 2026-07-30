@@ -127,19 +127,21 @@ not off the absence of a required user choice.** The guard is now
 `if (item.strategy === undefined || item.requiresUserChoice) continue;`, and
 `tests/authority-sync-recovery.test.ts` holds a named regression case for it.
 
-## Known defect: an offline create duplicates
+## Known defect: an offline create duplicates — fixed in Phase 48
 
-A create intent carries values but no record id, because the authority assigns
-the id. An offline-created record therefore comes back from the authority under a
-*new* id: the accepted server record is reconciled locally under the server's id
-while the original local row remains, so the user sees two.
+A create intent carried values but no record id, because the authority assigned
+the id. An offline-created record therefore came back from the authority under a
+*new* id: the accepted server record was reconciled locally under the server's id
+while the original local row remained, so the user saw two.
 
-This predates Phase 47 and was masked by a hermetic fake that echoed the client's
-id back; real PostgreSQL exposed it. It is **not fixed in this phase** — fixing it
-means either the client proposing an id the authority may accept, or the accepted
-outcome carrying the client's id so the local row can be superseded, and both are
-contract changes. Related: acknowledging a *rejected* create leaves the local row
-in place, and a later bootstrap cannot remove a record the server never had.
+This predated Phase 47 and was masked by a hermetic fake that echoed the client's
+id back; real PostgreSQL exposed it. Phase 48 fixed it by the first of the two
+routes considered here — the client proposes the id and the authority accepts it
+under validation. See [[offline-operation-identity]] for the contract, the
+collision rules, and why a collision is a rejection rather than a conflict.
+
+Still true: acknowledging a *rejected* create leaves the local row in place, and a
+later bootstrap cannot remove a record the server never had.
 
 ## Practical guidance
 

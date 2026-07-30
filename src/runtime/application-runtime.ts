@@ -27,6 +27,7 @@ import { OfflineDatasetService } from "./offline-dataset-service.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import { ObjectStore } from "./object-store.js";
+import type { ObjectStoreCreateOptions } from "./object-store.js";
 import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
 import { PresentationRuntime } from "./presentation-runtime.js";
@@ -252,13 +253,14 @@ export class ApplicationRuntime {
     objectName: string,
     values: Record<string, JsonValue>,
     context: RuntimeContext,
+    options: ObjectStoreCreateOptions = {},
   ): Promise<StoredObjectRecord> {
     await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.create", {
       objectName,
       context: safeContextLog(context),
     });
-    const result = await this.objectStore.create(objectName, values, context);
+    const result = await this.objectStore.create(objectName, values, context, options);
     this.logger.debug("EXIT ApplicationRuntime.create", {
       objectName,
       recordId: result.meta.guid,

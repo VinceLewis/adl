@@ -184,6 +184,7 @@ describe("context-scoped runtime audit against real PostgreSQL", () => {
       operationId: "op-a",
       kind: "create",
       objectName: "Task",
+      recordId: "task-a",
       values: { Title: "A task", Project: "project-a" },
       selectedContexts: { Project: "project-a" },
     });
@@ -191,6 +192,7 @@ describe("context-scoped runtime audit against real PostgreSQL", () => {
       operationId: "op-b",
       kind: "create",
       objectName: "Task",
+      recordId: "task-b",
       values: { Title: "B task", Project: "project-b" },
       selectedContexts: { Project: "project-b" },
     });
@@ -223,6 +225,7 @@ describe("context-scoped runtime audit against real PostgreSQL", () => {
       operationId: "op-a",
       kind: "create",
       objectName: "Task",
+      recordId: "task-a",
       values: { Title: "A task", Project: "project-a" },
       selectedContexts: { Project: "project-a" },
     });
@@ -230,6 +233,7 @@ describe("context-scoped runtime audit against real PostgreSQL", () => {
       operationId: "op-b",
       kind: "create",
       objectName: "Task",
+      recordId: "task-b",
       values: { Title: "B task", Project: "project-b" },
       selectedContexts: { Project: "project-b" },
     });
@@ -265,6 +269,7 @@ describe("context-scoped runtime audit against real PostgreSQL", () => {
       operationId: "op-a",
       kind: "create",
       objectName: "Task",
+      recordId: "task-a",
       values: { Title: "A task", Project: "project-a" },
       selectedContexts: { Project: "project-a" },
     });
@@ -398,6 +403,7 @@ describe("authority retention against real PostgreSQL", () => {
       operationId: "op-keep",
       kind: "create" as const,
       objectName: "Task",
+      recordId: "task-keep",
       values: { Title: "Durable", Project: "project-a" },
       selectedContexts: { Project: "project-a" },
     };

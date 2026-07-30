@@ -175,6 +175,7 @@ describe("AuthorityService", () => {
       operationId: "op-create-1",
       kind: "create" as const,
       objectName: "Gig",
+      recordId: "gig-friday-rehearsal",
       values: { Band: "band-1", Title: "Friday rehearsal" },
       selectedContexts: { Band: "band-1" },
     };
@@ -192,6 +193,7 @@ describe("AuthorityService", () => {
       operationId: "op-member-create",
       kind: "create",
       objectName: "Gig",
+      recordId: "gig-member-crafted-write",
       values: { Band: "band-1", Title: "crafted write" },
       selectedContexts: { Band: "band-1" },
     });
@@ -209,6 +211,7 @@ describe("AuthorityService", () => {
       operationId: "op-outside-context",
       kind: "create",
       objectName: "Gig",
+      recordId: "gig-outside-context",
       values: { Band: "other-band", Title: "crafted write" },
       selectedContexts: { Band: "other-band" },
     });
@@ -221,6 +224,7 @@ describe("AuthorityService", () => {
       operationId: "op-bootstrap-create",
       kind: "create",
       objectName: "Gig",
+      recordId: "gig-visible-rehearsal",
       values: { Band: "band-1", Title: "Visible rehearsal" },
       selectedContexts: { Band: "band-1" },
     });

@@ -257,6 +257,7 @@ describe("authority identity and access lifecycle", () => {
         operationId: "revoked-session-replay",
         kind: "create",
         objectName: "Band",
+        recordId: "band-crafted-after-revocation",
         values: { Name: "crafted after revocation" },
       }),
     ).toMatchObject({ status: "rejected", code: "ADL_AUTH_UNAUTHENTICATED" });

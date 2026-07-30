@@ -1,13 +1,15 @@
-# Phase 49 - Authority Membership Projection and Scoped Access Paths
+# Phase 50 - Authority Membership Projection and Scoped Access Paths
 
-> Renumbered from Phase 46, then from Phase 48 by the Phase 47 handoff, which
-> found a higher-value repository-wide gap in offline operation identity. This
-> work is an optimisation and integrity refactor of a subsystem with no
-> production users. Its evidence and scope are unchanged; only its position in
-> the sequence moved. Phase 47 independently confirmed the core evidence: the
+> Renumbered from Phase 46, then 48, then 49, and now Phase 50 by the Phase 48
+> handoff, which moved the platform contract phase ahead of it. Each move had the
+> same cause: this work is an optimisation and integrity refactor of a subsystem
+> with no production users, so anything with a user-visible or repository-wide
+> effect outranks it. Its evidence and scope are unchanged; only its position in
+> the sequence moved. Phase 47 independently confirmed the core evidence — the
 > membership record written by a real invite claim lands in
-> `adl_authority_records`, and `adl_authority_context_memberships` stayed
-> empty.
+> `adl_authority_records`, and `adl_authority_context_memberships` stayed empty —
+> and Phase 48 confirmed that no deployment exists, so the scans below are slow in
+> principle rather than slow in production today.
 
 ## Objective
 
@@ -109,8 +111,10 @@ precedent.
 
 - New reporting UI, BI connectors, generic SQL, identity flows, a new sync
   protocol, database engine, or ADL language syntax.
+- Conformance depth and model migrations, which are now Phase 49 and precede this
+  phase.
 - A scheduler/HTTP surface for `AuthorityRetentionService.prune` (retention
-  wiring is separate operational work, not this phase's scoping objective).
+  wiring is Phase 51, not this phase's scoping objective).
 - Cross-store distributed transactions with external identity providers or email
   delivery, and arbitrary operator database access.
 
@@ -166,10 +170,10 @@ an ephemeral port, so parallel runs are safe but pay a container each).
    PostgreSQL.
 6. Update the production runbook, server authority documentation, threat model,
    specifications if required, and learnings.
-7. **Required next-phase planning handoff:** before Phase 49 closes, review
-   `docs/phases/phase-50-retention-scheduling-and-administration-ui.md` and
+7. **Required next-phase planning handoff:** before Phase 50 closes, review
+   `docs/phases/phase-51-retention-scheduling-and-administration-ui.md` and
    revise it if this phase's results change its scope, constraints,
-   deliverables, or tasks. The handoff must justify Phase 50 as the
+   deliverables, or tasks. The handoff must justify Phase 51 as the
    highest-value remaining gap **repository-wide**, not merely the next gap in
    the subsystem this phase touched; if a higher-value gap exists elsewhere, say
-   so and re-sequence. Then verify, commit, and push Phase 49.
+   so and re-sequence. Then verify, commit, and push Phase 50.

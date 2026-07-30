@@ -236,6 +236,28 @@ export class StorageError extends RuntimeError {
   }
 }
 
+/**
+ * A caller-supplied record id that could not be a usable storage key. It is
+ * refused before it reaches storage, so a malformed id never becomes a real
+ * PostgreSQL failure.
+ */
+export class RecordIdInvalidError extends RuntimeError {
+  constructor(message: string, details?: unknown) {
+    super("ADL_RUNTIME_RECORD_ID_INVALID", message, details);
+  }
+}
+
+/**
+ * A create under an id that already names a record — a tombstone included. Naming
+ * a record is not authority over it, so this is a refusal rather than an
+ * overwrite, a merge, or a silent adoption of the existing record.
+ */
+export class RecordIdUnavailableError extends RuntimeError {
+  constructor(message: string, details?: unknown) {
+    super("ADL_RUNTIME_RECORD_ID_TAKEN", message, details);
+  }
+}
+
 export class HookError extends RuntimeError {
   constructor(message: string, details?: unknown) {
     super("ADL_HOOK_ERROR", message, details);

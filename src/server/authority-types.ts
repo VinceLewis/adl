@@ -5,6 +5,14 @@ export type AuthorityOperationIntent =
       operationId: string;
       kind: "create";
       objectName: string;
+      /**
+       * The id the originating client already holds for this record. It is
+       * required: an authority-minted id would come back naming a record the
+       * client does not have, stranding the local row it was replayed from. The
+       * id is untrusted input — shape-checked, refused when already taken, and
+       * never an assertion about revision, actor, timestamps, state or scope.
+       */
+      recordId: string;
       values: Record<string, JsonValue>;
       selectedContexts?: Record<string, string>;
     }
