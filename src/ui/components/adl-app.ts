@@ -720,6 +720,27 @@ export class AdlAppElement extends HTMLElement {
     return this.readyPromise;
   }
 
+  /**
+   * Re-reads the active view from the runtime after data changed underneath the
+   * UI, such as records reconciled by an authority sync. It is a no-op before
+   * the element is initialised.
+   */
+  async refreshFromRuntime(): Promise<void> {
+    if (!this.initialized) {
+      return;
+    }
+
+    await this.runCommand(async () => {
+      if (this.activeView.presentation === undefined) {
+        await this.refreshRecords();
+      } else {
+        await this.refreshPresentationView();
+      }
+      await this.refreshEditSurface();
+      this.render();
+    });
+  }
+
   private async initialize(): Promise<void> {
     this.viewName = this.findStartView().name;
     this.applyBrowserOnlineState(false);

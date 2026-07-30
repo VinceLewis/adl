@@ -195,16 +195,32 @@ explains why the TypeScript/PWA + TypeScript server direction no longer fits.
 
 ## Sequencing
 
+Phases 20-23 delivered the expression language, declarative validation, computed
+fields, and the conformance suite and spec. Phases 24-38 delivered the UI
+presentation model, its runtime and renderer, and the Giggle Band reference
+screens. Phases 39-45 delivered the authority service, remote bootstrap, opaque
+sessions and access lifecycle, the production HTTP edge, reporting and
+administration, transactional projection integrity, and audit scope and
+retention.
+
+Phase 46 is the first phase whose result is demonstrable outside `vitest`: a
+runnable authority process, a switchable identity boundary (bypass by default,
+disclosed at startup and on `/readyz`), an HTTP client transport, and browser
+session/bootstrap/reconnect wiring.
+
 The next implementation sequence is:
 
-1. Phase 20: pure expression language foundation with initial conformance seeds.
-2. Phase 21: object validations, decision tables, lifecycle guards, and command
-   preconditions.
-3. Phase 22: computed fields and read-model expression fields.
-4. Phase 23: full conformance suite, three-layer spec, and inspect tooling.
+1. Phase 47: the usable sync slice — sign-in and invite-claim UI, conflict and
+   manual-resolution recovery, and the PWA offline shell.
+2. Phase 48: authority membership projection and scoped access.
+3. Phase 49: retention scheduling and its administration UI.
+4. Phase 50: platform contract conformance and migrations.
+5. Phase 51: reference-app gaps and documentation hygiene.
 
-Server implementation should wait until the expression/logic model is stable
-enough for server replay semantics to be meaningful.
+Choosing and implementing a real identity provider remains open and is not
+sequenced here; the Phase 46 seam exists so that decision does not block the
+deployment path. See the accepted temporary risk in
+[the threat model](../security/phase-42-threat-model.md).
 
 ## Gating Criteria
 

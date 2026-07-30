@@ -45,5 +45,7 @@ export * from "./server/postgres-authority-store.js";
 export * from "./server/postgres-object-storage.js";
 export * from "./server/authority-config.js";
 export * from "./server/authority-http.js";
+export * from "./server/identity-verification.js";
+export * from "./server/http-authority-transport.js";
 export * from "./server/security-operations.js";
 export * from "./server/authoritative-reporting.js";

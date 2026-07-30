@@ -24,6 +24,41 @@ database/model projection is unavailable. Scrape `/metrics`; alert on readiness
 failure, elevated 401/403/429 counts, replay rejection spikes, failed migration,
 and membership-revocation failures.
 
+## Starting the process
+
+`npm run start:authority` compiles the server sources and runs the composed
+entrypoint: deployment configuration, a `pg` pool, PostgreSQL identity/session,
+record, outcome, access and administration stores, the transactional
+unit-of-work, and the Node HTTP adapter. It applies no migrations — run those
+separately as `adl_migrator` (see below) before starting traffic. It registers
+the application's model metadata row, which accepted records reference by
+foreign key.
+
+Additional process variables: `ADL_HOST`, `ADL_PORT`, `ADL_APPLICATION_ID`
+(required; pins the projection this process owns) and `ADL_MODEL_PATH` (the ADL
+project directory whose `app.yaml` and sources are compiled at startup). See
+[`.env.authority.sample`](../../.env.authority.sample) for the full list.
+
+## Identity verification mode
+
+`ADL_IDENTITY_VERIFICATION` selects the upstream verifier and defaults to
+`bypass`. **The bypass accepts the supplied account proof as the identity
+subject without contacting any provider.** It is a temporary development state
+pending a real identity-provider decision, and it is deliberately impossible to
+run unnoticed:
+
+- The startup security event `identity_verification_configured` states `mode`,
+  `verifier` and `bypassed`. No proof value is ever logged.
+- `/readyz` returns `identityVerification: { mode, verifier, bypassed }`.
+- Production refuses to start with the bypass unless
+  `ADL_IDENTITY_BYPASS_ACKNOWLEDGED=true` is set deliberately.
+
+Alert on `bypassed: true` in any environment that serves real users, and treat
+it as an open finding until a provider verifier is supplied. Setting the switch
+to `upstream` without a provider implementation selects a verifier that rejects
+every proof (`authentication_failed`) — it never falls back to the bypass, so a
+mis-set switch fails closed rather than open.
+
 ## Database roles and migrations
 
 Use a database owner only to create roles. Run

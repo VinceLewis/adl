@@ -3,6 +3,20 @@ import { StaticSessionAdapter } from "./session-adapter.js";
 
 export type AuthorityEnvironment = "development" | "test" | "production";
 
+/**
+ * `bypass` accepts the supplied account proof as the identity subject without
+ * contacting any provider. It is a documented, temporary development state
+ * pending a real provider decision, and it is never silent: the active mode is
+ * written to the startup security log and reported by `/readyz`. `upstream`
+ * requires a real verifier; without one, every proof is unverifiable and no
+ * session is issued.
+ */
+export type AuthorityIdentityVerificationMode = "bypass" | "upstream";
+
+export interface AuthorityIdentityVerificationConfiguration {
+  mode: AuthorityIdentityVerificationMode;
+}
+
 export interface AuthorityRateLimits {
   accountProof: number;
   session: number;
@@ -22,6 +36,7 @@ export interface AuthorityConfiguration {
   sessionTtlMinutes: number;
   maxRequestBytes: number;
   upstreamIdentity: { issuer: string; audience: string };
+  identityVerification: AuthorityIdentityVerificationConfiguration;
   rateLimits: AuthorityRateLimits;
 }
 
@@ -59,6 +74,7 @@ export function loadAuthorityConfiguration(
       issuer: required(environment, "ADL_UPSTREAM_IDENTITY_ISSUER"),
       audience: required(environment, "ADL_UPSTREAM_IDENTITY_AUDIENCE"),
     },
+    identityVerification: { mode: identityVerificationMode(environment.ADL_IDENTITY_VERIFICATION) },
     rateLimits: {
       accountProof: positiveInteger(environment.ADL_RATE_ACCOUNT_PROOF, 10),
       session: positiveInteger(environment.ADL_RATE_SESSION, 30),
@@ -71,6 +87,16 @@ export function loadAuthorityConfiguration(
   };
   if (config.environment === "production" && environment.ADL_COOKIE_SECURE !== "true")
     throw new AuthorityConfigurationError("Production requires ADL_COOKIE_SECURE=true.");
+  // The bypass may not be reached in production by omission. An operator has to
+  // state it deliberately, and it is still disclosed at startup and on /readyz.
+  if (
+    config.environment === "production" &&
+    config.identityVerification.mode === "bypass" &&
+    environment.ADL_IDENTITY_BYPASS_ACKNOWLEDGED !== "true"
+  )
+    throw new AuthorityConfigurationError(
+      "Production identity bypass requires ADL_IDENTITY_BYPASS_ACKNOWLEDGED=true.",
+    );
   return config;
 }
 
@@ -100,6 +126,14 @@ function positiveInteger(value: string | undefined, fallback: number): number {
       "Authority numeric configuration must be a positive integer.",
     );
   return parsed;
+}
+function identityVerificationMode(value: string | undefined): AuthorityIdentityVerificationMode {
+  const declared = value?.trim();
+  const mode = declared === undefined || declared.length === 0 ? "bypass" : declared;
+  if (mode === "bypass" || mode === "upstream") return mode;
+  throw new AuthorityConfigurationError(
+    "ADL_IDENTITY_VERIFICATION must be 'bypass' or 'upstream'.",
+  );
 }
 function isEnvironment(value: string): value is AuthorityEnvironment {
   return value === "development" || value === "test" || value === "production";

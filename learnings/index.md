@@ -45,6 +45,14 @@ Before tasks that change runtime stack choices, server authority, sync transport
 - `architecture/target-architecture.md`
 - `implementation/authority-server.md`
 - `implementation/authority-transaction-integrity.md`
+- `implementation/first-deployment-slice.md`
+
+Before tasks that change the authority entrypoint or its deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging, also read:
+
+- `implementation/first-deployment-slice.md`
+- `implementation/production-authority-operations.md`
+- `implementation/identity-invites-and-access-lifecycle.md`
+- `implementation/remote-bootstrap-and-sync-state.md`
 
 Before tasks that change authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, access-lifecycle audit atomicity, authority restore/integrity verification, runtime-audit context scoping, or audit/outcome retention, also read:
 
@@ -176,3 +184,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/presentation-matrix-runtime.md`: read before changing resource/date matrices, availability presentation, matrix cell cycling, range editing, or future calendar work that reuses matrix status semantics.
 - `implementation/calendar-presentation-runtime.md`: read before changing calendar month planning views, calendar cell actions, or event-entry behavior.
 - `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors.
+- `implementation/first-deployment-slice.md`: read before changing the authority entrypoint or deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging.

@@ -50,6 +50,7 @@ const configuration: AuthorityConfiguration = {
   sessionTtlMinutes: 480,
   maxRequestBytes: 4096,
   upstreamIdentity: { issuer: "https://identity.test", audience: "adl-test" },
+  identityVerification: { mode: "bypass" },
   rateLimits: {
     accountProof: 50,
     session: 50,
@@ -76,6 +77,7 @@ beforeAll(async () => {
       unitOfWork: new PostgresAuthorityUnitOfWork(authorityPool(pool), httpApp, model),
     }),
     identityVerifier: {
+      name: "test-upstream",
       verify: async (proof: string) =>
         proof === "valid-account-proof" ? { subject: "member@example.test" } : null,
     },
@@ -106,7 +108,10 @@ describe("authority HTTP edge over a real local network and PostgreSQL", () => {
     expect((await fetch(`${baseUrl}/healthz`)).status).toBe(200);
     const ready = await fetch(`${baseUrl}/readyz`);
     expect(ready.status).toBe(200);
-    expect((await ready.text()).trim()).toBe("ready");
+    expect(await ready.json()).toMatchObject({
+      status: "ready",
+      identityVerification: { mode: "bypass", verifier: "test-upstream", bypassed: true },
+    });
   });
 
   it("accepts an authenticated replay and persists it through the real stack", async () => {

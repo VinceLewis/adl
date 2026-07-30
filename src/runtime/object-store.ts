@@ -455,6 +455,18 @@ export class ObjectStore {
     return record === undefined ? null : cloneJson(record);
   }
 
+  /**
+   * Trusted sync-projection lookup that includes tombstones. A queued delete has
+   * no active record by definition, so replaying it must not depend on one; this
+   * is deliberately not a user-facing read and applies no read policy.
+   */
+  async getRecordForSync(objectName: string, id: string): Promise<StoredObjectRecord | null> {
+    await this.startupGuard();
+    this.index.getObject(objectName);
+    const record = await this.storage.read(objectName, id);
+    return record === null ? null : cloneJson(record);
+  }
+
   async commitTransition(
     objectName: string,
     id: string,

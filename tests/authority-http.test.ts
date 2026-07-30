@@ -22,6 +22,7 @@ const configuration: AuthorityConfiguration = {
   sessionTtlMinutes: 480,
   maxRequestBytes: 120,
   upstreamIdentity: { issuer: "https://identity.test", audience: "adl-test" },
+  identityVerification: { mode: "bypass" },
   rateLimits: {
     accountProof: 1,
     session: 10,
@@ -75,6 +76,7 @@ function fixture() {
       sessions,
       authority: new AuthorityService(model, new InMemoryObjectStorageBackend(), sessions),
       identityVerifier: {
+        name: "test-upstream",
         verify: async (proof) =>
           proof === "valid-account-proof" ? { subject: "alex@example.test" } : null,
       },
@@ -98,7 +100,7 @@ describe("production authority HTTP boundary", () => {
         configuration: production,
         sessions: staticSessions as unknown as OpaqueSessionAdapter,
         authority: new AuthorityService(model, new InMemoryObjectStorageBackend(), staticSessions),
-        identityVerifier: { verify: async () => null },
+        identityVerifier: { name: "test-reject", verify: async () => null },
       }),
     ).toThrow("StaticSessionAdapter");
   });
@@ -121,7 +123,10 @@ describe("production authority HTTP boundary", () => {
       request("/v1/session/issue", {}, { "x-adl-account-proof": "valid-account-proof" }),
     );
     expect(issued.status).toBe(201);
-    expect(await issued.json()).toEqual({ expiresAt: expect.any(String) });
+    expect(await issued.json()).toEqual({
+      userId: expect.any(String),
+      expiresAt: expect.any(String),
+    });
     expect(issued.headers.get("set-cookie")).toContain("__Host-adl_session=");
     expect(issued.headers.get("set-cookie")).toContain("Secure; HttpOnly; SameSite=Strict");
     expect(JSON.stringify(entries)).not.toContain("valid-account-proof");

@@ -20,7 +20,8 @@ transport, auth provider direction, packaging, or phase sequencing.
   semantics and returns accepted/rejected/conflict/manual-resolution outcomes.
 - Auth remains infrastructure, not an ADL language primitive. The target is a
   small TypeScript auth boundary, with custom auth or Better Auth as provider
-  candidates when implementation starts.
+  candidates when implementation starts. Phase 46 built the switchable seam and
+  left the provider decision open; see `implementation/first-deployment-slice.md`.
 - The July proposal/auth/sync notes remain useful background but are superseded
   for architecture decisions by `docs/architecture/target-architecture.md` and
   ADRs 0003-0007.

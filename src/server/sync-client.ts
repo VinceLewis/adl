@@ -1,6 +1,7 @@
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import type { ApplicationRuntime } from "../runtime/application-runtime.js";
 import type {
+  AuthorityBootstrapRecord,
   AuthorityBootstrapRequest,
   AuthorityBootstrapResponse,
   AuthorityOperationIntent,
@@ -31,11 +32,15 @@ export class AuthoritySyncClient {
     const outcomes: AuthorityOutcome[] = [];
     for (const entry of this.runtime.syncQueue.getEntries()) {
       const operation = entry.operation;
-      const record = await this.runtime.objectStore.getRecordForRuntime(
+      // Tombstones included: a queued delete has no active record, and skipping
+      // it would strand the entry in the queue and never tell the authority.
+      const record = await this.runtime.objectStore.getRecordForSync(
         operation.object,
         operation.recordId,
       );
-      if (record === null) continue;
+      // Only a create needs values that exist nowhere else; the other kinds are
+      // reconstructible from the queued operation alone.
+      if (record === null && operation.operation === "create") continue;
       const intent = toIntent(operation, record, context);
       const outcome = await this.transport.replay(sessionToken, intent);
       outcomes.push(outcome);
@@ -57,34 +62,57 @@ export class AuthoritySyncClient {
     return outcomes;
   }
 
+  /**
+   * Applies every page the authority is willing to disclose. A bootstrap that
+   * stopped at page one would silently drop permitted records, so the cursor is
+   * followed to exhaustion. The returned response carries no `nextCursor`
+   * because the dataset is complete.
+   */
   async bootstrap(
     sessionToken: string | undefined,
     context: RuntimeContext,
   ): Promise<AuthorityBootstrapResponse> {
-    const response = await this.transport.bootstrap(
-      sessionToken,
-      context.selectedContexts === undefined ? {} : { selectedContexts: context.selectedContexts },
-    );
-    for (const entry of response.records) {
-      await this.runtime.reconcileRemoteRecord(entry.objectName, entry.record);
+    const selected =
+      context.selectedContexts === undefined ? {} : { selectedContexts: context.selectedContexts };
+    const records: AuthorityBootstrapRecord[] = [];
+    const usedCursors = new Set<string>();
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await this.transport.bootstrap(sessionToken, {
+        ...selected,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      for (const entry of page.records) {
+        await this.runtime.reconcileRemoteRecord(entry.objectName, entry.record);
+        records.push(entry);
+      }
+      const next = page.nextCursor;
+      // An empty page or a repeated cursor cannot make further progress; stop
+      // rather than trusting the server to terminate the walk.
+      if (next === undefined || page.records.length === 0 || usedCursors.has(next)) break;
+      usedCursors.add(next);
+      cursor = next;
     }
-    return response;
+    return { records };
   }
 }
 
 function toIntent(
   operation: import("../model/resolved-model.js").LocalOperation,
-  record: import("../model/resolved-model.js").StoredObjectRecord,
+  record: import("../model/resolved-model.js").StoredObjectRecord | null,
   context: RuntimeContext,
 ): AuthorityOperationIntent {
   const selected =
     context.selectedContexts === undefined ? {} : { selectedContexts: context.selectedContexts };
+  // An absent base revision cannot be invented: the authority answers with a
+  // conflict, which is visible, rather than the entry vanishing silently.
+  const baseRevision = operation.baseRevision ?? record?.meta.revision ?? "";
   if (operation.operation === "create")
     return {
       operationId: operation.opId,
       kind: "create",
       objectName: operation.object,
-      values: record.values,
+      values: record?.values ?? {},
       ...selected,
     };
   if (operation.operation === "transition")
@@ -94,7 +122,7 @@ function toIntent(
       objectName: operation.object,
       recordId: operation.recordId,
       actionName: operation.lifecycleAction ?? "",
-      baseRevision: operation.baseRevision ?? record.meta.revision,
+      baseRevision,
       ...selected,
     };
   if (operation.operation === "delete")
@@ -103,7 +131,7 @@ function toIntent(
       kind: "delete",
       objectName: operation.object,
       recordId: operation.recordId,
-      baseRevision: operation.baseRevision ?? record.meta.revision,
+      baseRevision,
       ...selected,
     };
   return {
@@ -112,7 +140,7 @@ function toIntent(
     objectName: operation.object,
     recordId: operation.recordId,
     patch: operation.patch ?? {},
-    baseRevision: operation.baseRevision ?? record.meta.revision,
+    baseRevision,
     ...selected,
   };
 }

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist-server",
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node"]
+  },
+  "//": "`files` alone: TypeScript emits the transitive closure of the entrypoint, so browser-only modules (Vite `?raw` imports, `src/ui/**`) and tests cannot enter the server build by accident.",
+  "include": [],
+  "files": ["src/server/authority-main.ts"]
+}

@@ -11,6 +11,10 @@ import {
 } from "./authority-config.js";
 import { AuthorityService } from "./authority-service.js";
 import type { AuthorityBootstrapRequest, AuthorityOperationIntent } from "./authority-types.js";
+import {
+  describeIdentityVerification,
+  type UpstreamIdentityVerifier,
+} from "./identity-verification.js";
 import { OpaqueSessionAdapter } from "./opaque-session-adapter.js";
 import {
   AuthorityMetrics,
@@ -19,14 +23,6 @@ import {
   type SecurityLogger,
   StructuredSecurityLogger,
 } from "./security-operations.js";
-
-export interface UpstreamIdentityVerifier {
-  /** Validate a provider proof against the configured issuer/audience; never log the proof. */
-  verify(
-    proof: string,
-    expected: AuthorityConfiguration["upstreamIdentity"],
-  ): Promise<{ subject: string } | null>;
-}
 
 export interface AuthorityHttpDependencies {
   configuration: AuthorityConfiguration;
@@ -58,13 +54,31 @@ export function createAuthorityHttpHandler(
   const rateLimiter = dependencies.rateLimiter ?? new FixedWindowRateLimiter();
   const clientKey = dependencies.clientKey ?? (() => "unknown-client");
   const newCsrfToken = dependencies.newCsrfToken ?? secureToken;
+  const identityVerification = describeIdentityVerification(configuration, identityVerifier);
+  // The identity boundary is never silent: the active mode is stated once at
+  // startup and on every readiness probe. No proof value is ever included.
+  logger.write({
+    event: "identity_verification_configured",
+    outcome: "allowed",
+    mode: identityVerification.mode,
+    verifier: identityVerification.verifier,
+    bypassed: identityVerification.bypassed,
+    occurredAt: new Date().toISOString(),
+  });
 
   return async (request) => {
     const pathname = new URL(request.url).pathname;
     if (pathname === "/healthz") return textResponse("ok\n");
     if (pathname === "/readyz") {
       const readiness = (await dependencies.readiness?.()) ?? { ready: true };
-      return textResponse(readiness.ready ? "ready\n" : "not ready\n", readiness.ready ? 200 : 503);
+      return jsonResponse(
+        {
+          status: readiness.ready ? "ready" : "not ready",
+          ...(readiness.reason === undefined ? {} : { reason: readiness.reason }),
+          identityVerification,
+        },
+        readiness.ready ? 200 : 503,
+      );
     }
     if (pathname === "/metrics")
       return textResponse(metrics.prometheus(), 200, "text/plain; version=0.0.4");
@@ -106,16 +120,27 @@ export function createAuthorityHttpHandler(
           occurredAt: new Date().toISOString(),
         });
         return jsonResponse(
-          { expiresAt: issued.expiresAt.toISOString() },
+          { userId: identity.userId, expiresAt: issued.expiresAt.toISOString() },
           201,
           cookieHeaders(configuration, issued.sessionToken, newCsrfToken()),
         );
       }
       const cookie = readCookie(request.headers.get("cookie"), configuration.cookieName);
-      if (cookie === undefined || (await sessions.verify(cookie)) === null)
-        return reject("unauthenticated", 401, pathname);
+      const session = cookie === undefined ? null : await sessions.verify(cookie);
+      if (cookie === undefined || session === null) return reject("unauthenticated", 401, pathname);
       if (pathname !== "/v1/sync/bootstrap" && !hasValidCsrf(request, configuration))
         return reject("csrf_denied", 403, pathname);
+      if (pathname === "/v1/session/current") {
+        if (!enforceRate()) return rateLimited();
+        // The identity is server-derived and disclosed only to its own session,
+        // so the client never has to supply (or be trusted for) a user id.
+        return jsonResponse({
+          userId: session.userId,
+          ...(session.expiresAt === undefined
+            ? {}
+            : { expiresAt: session.expiresAt.toISOString() }),
+        });
+      }
       if (pathname === "/v1/session/rotate") {
         if (!enforceRate()) return rateLimited();
         const rotated = await sessions.rotate(cookie);

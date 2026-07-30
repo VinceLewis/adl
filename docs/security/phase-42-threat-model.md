@@ -25,7 +25,22 @@ roles are resolved from accepted membership records on every authority call.
 | Cross-context runtime-audit disclosure via a sparse/empty page | Audit rows stamped with the record's declared context scope; review filtered to one authorised context in SQL, with the per-row runtime read retained as the disclosure boundary | Phase 45 scope tests |
 | Retention job destroys accepted state, in-retention audit/outcomes, or bypasses legal hold | Application-scoped prune that clamps the cutoff to no later than `now - minimumRetentionMs`, refuses under legal hold, rejects a non-positive window, and never touches accepted records, sessions, invites, or identities | Phase 45 retention-boundary tests |
 
+| Unverified account proof while identity verification is bypassed | **Accepted temporary risk (Phase 46).** The switch defaults to `bypass` and is disclosed in the startup security event and `/readyz`; production requires an explicit acknowledgement variable; the proof is shape-checked; and the bypass widens nothing else — sessions stay opaque and ADL context roles are still resolved from accepted membership records | Phase 46 identity-switch tests |
+| Session, CSRF or credential leak through the browser transport | Session cookie stays `__Host-` Secure HttpOnly SameSite=Strict and is never readable by client code; only the double-submit CSRF cookie is read; transport failures raise an error instead of a fabricated outcome | Phase 46 transport and integration tests |
+
 Residual risks: upstream identity-provider compromise, a trusted reverse-proxy
 misconfiguration, and an attacker with database-owner access are outside the
 authority process boundary. Those risks require provider controls, protected
 infrastructure configuration, and database access review.
+
+**Accepted temporary risk — identity verification bypass.** Phase 46 builds the
+identity seam but deliberately does not choose a provider. While
+`ADL_IDENTITY_VERIFICATION=bypass` (the default), anyone who can reach
+`/v1/session/issue` with an allowed origin can obtain a session for any subject
+they name, bounded only by the account-proof rate limit. That is acceptable for
+development and for the first deployment slice, and unacceptable for real user
+data. Follow-up: select and implement a real `UpstreamIdentityVerifier` (OIDC,
+Better Auth, or custom), then set the switch to `upstream` and remove the
+production acknowledgement variable from the deployment. Until then, any
+environment holding real data must treat a `bypassed: true` readiness response
+as an open finding.

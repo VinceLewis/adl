@@ -25,6 +25,7 @@ const configuration: AuthorityConfiguration = {
   sessionTtlMinutes: 480,
   maxRequestBytes: 4096,
   upstreamIdentity: { issuer: "https://identity.test", audience: "adl-test" },
+  identityVerification: { mode: "bypass" },
   rateLimits: {
     accountProof: 10,
     session: 10,
@@ -347,7 +348,7 @@ describe("authoritative reporting and administration", () => {
       authority: new AuthorityService(model, storage, sessions),
       reporting,
       administration,
-      identityVerifier: { verify: async () => null },
+      identityVerifier: { name: "test-reject", verify: async () => null },
       metrics,
       logger: { write: () => undefined },
       clientKey: () => "report-client",

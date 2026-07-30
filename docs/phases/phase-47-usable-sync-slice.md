@@ -9,29 +9,57 @@ run offline.
 
 ## Evidence and Dependency
 
-Phase 46 closes the sync loop but leaves the human-facing half of it missing.
-Three gaps are demonstrated by the code and the documentation:
+Phase 46 closed the sync loop and made the authority runnable, but left the
+human-facing half of it missing. Three gaps are demonstrated by the post-Phase-46
+code and documentation:
 
-- **No recovery surface.** `AuthoritySyncClient.reconcile` (`sync-client.ts:27`)
+- **No recovery surface.** `AuthoritySyncClient.reconcile` (`sync-client.ts:28`)
   maps every non-accepted outcome to `rejected` or `conflict`, sets the
   operation-log status, and removes the queue entry. The resolved object conflict
   policy (`serverWins`, `clientWins`, `stateTransitionWins`, `manual`) is never
-  applied client-side and the user is never asked. `docs/server-authority.md:74`
+  applied client-side and the user is never asked. `docs/server-authority.md:92`
   has recorded "A complete recovery UI remains follow-up work" since Phase 40,
   and Phase 40 listed a complete conflict-resolution UI as an explicit non-goal.
-  After Phase 46 this is user-visible: a conflicted edit disappears silently.
-- **No identity or invite UI.** `/v1/invites/claim`, `/v1/invites/create` and
-  `/v1/memberships/revoke` (`authority-http.ts:219,207,233`) exist server-side
+  After Phase 46 this is user-visible: a conflicted edit disappears silently,
+  and `watchAuthorityReconnect` (`src/ui/authority-sync.ts:101`) drains the queue
+  on every reconnect, so it happens without anyone pressing anything.
+- **No identity or invite UI.** `/v1/invites/create`, `/v1/invites/claim` and
+  `/v1/memberships/revoke` (`authority-http.ts:232,244,258`) exist server-side
   with no client. `src/ui/components/` contains no session, sign-in, or invite
-  component, so the only way to claim an invitation is an HTTP client.
+  component. Phase 46 derives `RuntimeContext.userId` from the server session,
+  but only from a build-time `VITE_ADL_ACCOUNT_PROOF` or a `?account=` query
+  parameter, and `browserDemoContext` still hardcodes `userId: "admin-ui"`
+  (`src/ui/demo-fixture.ts:24`) as the `adl-app` default. There is still no way
+  for a person to sign in or claim an invitation from the browser.
 - **No offline shell.** `docs/architecture/target-architecture.md` names the
   product packaging as "the browser/PWA runtime plus model assets", but there is
   no service worker and no web app manifest anywhere in the repository. The
   runtime is offline-capable; the application that hosts it is not, so a reload
-  without network loses the app even though the data is in IndexedDB.
+  without network loses the app even though the data is in IndexedDB. Phase 46
+  made this worse in one specific way: with an authority configured the queue is
+  now persisted through `IndexedDbSyncStateStorage`, so a user can accumulate
+  real offline work that a failed reload would strand.
 
-This phase depends on the Phase 46 transport, session wiring and reconnect path,
-and on Phase 40's model conflict policy and persisted sync state.
+This phase depends on the Phase 46 transport (`HttpAuthorityTransport`,
+`AuthorityTransportError`), the session wiring and reconnect path in
+`src/ui/authority-sync.ts`, `AdlAppElement.refreshFromRuntime`
+(`src/ui/components/adl-app.ts:728`), and on Phase 40's model conflict policy and
+persisted sync state.
+
+**Why this is the highest-value remaining gap repository-wide.** Phase 46 made
+the system reachable by a browser and startable by an operator, so the binding
+constraint moved from "nothing connects" to "a person cannot safely use what
+connects". Every other queued phase is narrower: Phase 48 scopes the membership
+projection and Phase 49 schedules retention — both server-side hardening with no
+user-visible effect; Phase 50 is conformance and migration work on a contract no
+one is yet consuming end to end; Phase 51 is reference-app and documentation
+hygiene. Choosing a real identity provider is the other serious open risk, but
+the Phase 46 bypass is a recorded, disclosed, acknowledged temporary state and
+costs nothing until real user data exists — whereas silent loss of a conflicted
+edit costs data on the very first multi-device use. Phase 47 therefore stays
+next, with one hard sequencing rule carried forward: **a real
+`UpstreamIdentityVerifier` must be in place before any deployment holds real
+user data**, regardless of which phase delivers it.
 
 ## Scope
 
@@ -39,9 +67,12 @@ and on Phase 40's model conflict policy and persisted sync state.
   the resolved conflict policy selects the deterministic strategy, `manual`
   presents the user a bounded choice, and the queue entry is only discarded once
   resolved.
-- Sign-in and sign-out UI over the Phase 46 session endpoints, and an
+- Sign-in and sign-out UI over the Phase 46 session endpoints
+  (`/v1/session/issue`, `/v1/session/current`, `/v1/session/sign-out`), and an
   invite-claim surface over `/v1/invites/claim`, including the online-only
-  behaviour of invitation claiming.
+  behaviour of invitation claiming. This replaces the Phase 46 development
+  account-proof configuration (`VITE_ADL_ACCOUNT_PROOF` and `?account=`) as the
+  way a person establishes identity.
 - A service worker and web app manifest that make the application shell and
   model assets available offline, with an explicit update/activation path and a
   model-version guard consistent with the existing startup compatibility checks.
@@ -52,6 +83,9 @@ and on Phase 40's model conflict policy and persisted sync state.
   applies the strategy the resolved model and the server outcome dictate; it must
   not invent heuristics, re-run policy to decide a winner, or resurrect a
   rejected write as accepted.
+- A transport failure is not a verdict. `AuthorityTransportError` (network fault
+  or non-2xx) must keep the queue entry retryable; only a real server outcome may
+  resolve or discard it. Do not turn an unreachable authority into a rejection.
 - A conflict payload must never carry a protected server record. Recovery UI
   shows only what the caller may already read through a normal runtime read.
 - Invite claiming is online-only and server-authoritative. The UI must not
@@ -157,6 +191,10 @@ Use worktree isolation for the three UI streams, since they all write under
 1. Inventory the current outcome handling in `sync-client.ts`, the persisted
    operation-log and queue state, and every place the UI still assumes a fixed
    identity, confirming the evidence above against the post-Phase-46 code.
+   Note that Phase 46 already provides the reconnect hook
+   (`watchAuthorityReconnect`) and a re-render entry point
+   (`AdlAppElement.refreshFromRuntime`); extend those rather than adding a
+   parallel sync path.
 2. Implement policy-driven recovery for rejected, conflicted and manual outcomes,
    keeping the queue entry until resolution and the server authoritative for the
    outcome.

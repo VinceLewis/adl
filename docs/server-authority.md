@@ -50,6 +50,25 @@ the authenticated context; do not return raw audit, conflict, or protected data.
 
 ## Deferred work
 
+Everything the Phase 39 slice left open is now either implemented in a later
+phase or still explicitly outstanding:
+
+- Remote bootstrap and browser reconciliation — Phase 40, below.
+- Identity, invites and access lifecycle — Phase 41, below.
+- HTTP edge, deployment configuration and operations — Phase 42, below.
+- Reporting and administration — Phase 43, below.
+- Transactional projection integrity — Phase 44, below.
+- Audit scope and retention — Phase 45, below.
+- A runnable process, a client transport and an identity boundary — Phase 46,
+  below.
+
+Still outstanding after Phase 46: a real upstream identity provider (the switch
+exists, the bypass is the default and is disclosed), conflict and
+manual-resolution recovery UI, sign-in and invite-claim UI, the PWA offline
+shell, membership-projection scoping, retention scheduling and its
+administration UI, TLS termination, secret management, CI/CD, and a hosting
+provider decision.
+
 ## Remote bootstrap and browser reconciliation
 
 Phase 40 adds `AuthorityService.bootstrap(...)`. It accepts only a verified
@@ -186,3 +205,59 @@ never removed; it refuses under `legalHold`, throws on a non-positive minimum
 window, and never touches accepted records, sessions, invites, or identities.
 Its result is metadata-only (counts and the effective cutoff). Operational
 detail is in `docs/operations/authority-production-runbook.md`.
+
+## First deployment slice
+
+Phase 46 makes the authority a process that runs, gives it a switchable identity
+boundary, and closes the browser-to-server loop.
+
+**Identity switch.** `ADL_IDENTITY_VERIFICATION` selects the upstream verifier
+and defaults to `bypass`. While it is `bypass`, no provider is contacted and the
+supplied account proof is accepted as the identity subject; the proof is still
+shape-checked, so a control character or an over-long value can never reach
+identity storage. This is a deliberate, temporary development state pending a
+real provider decision, and it is never silent: `selectUpstreamIdentityVerifier`
+is disclosed in the `identity_verification_configured` startup security event and
+in the `/readyz` body as `{ mode, verifier, bypassed }`. Setting the switch to
+`upstream` without supplying a provider selects
+`UnconfiguredUpstreamIdentityVerifier`, which rejects every proof with
+`authentication_failed` — turning verification on never falls back to the
+bypass. In production the bypass must additionally be acknowledged with
+`ADL_IDENTITY_BYPASS_ACKNOWLEDGED=true`, so it cannot be reached by omission.
+
+Bypassed verification widens nothing else. Sessions are still opaque tokens
+stored as SHA-256 verifiers, the request still cannot set a user id, role, audit
+actor, accepted revision or timestamp, and context roles are still resolved from
+accepted membership records through the runtime on every call.
+
+**Runnable process.** `createAuthorityProcess` composes deployment
+configuration, a real `pg` pool, PostgreSQL identity/session, record, outcome,
+access and administration stores, the Phase 44 unit-of-work and the Node HTTP
+adapter, and registers the application's model metadata row. Migrations stay out
+of band with the migration role. `npm run start:authority` builds the server
+sources and runs it. The resolved model is compiled from `ADL_MODEL_PATH`, so
+the process serves the same ADL project the browser runs.
+
+**Client transport.** `HttpAuthorityTransport` is the browser implementation of
+`AuthorityTransport`. It carries only the Phase 42 credentials: the `__Host-`
+Secure HttpOnly SameSite=Strict session cookie the user agent attaches, and the
+readable double-submit CSRF cookie mirrored into `x-adl-csrf-token`. The raw
+session token is unreadable to client code by design, so the `sessionToken`
+parameter is ignored on that path. A network failure or non-2xx response raises
+`AuthorityTransportError` rather than a fabricated outcome, which keeps the
+queued operation retryable instead of recording a false verdict.
+
+`AuthoritySyncClient.bootstrap` now follows `nextCursor` to exhaustion. Applying
+only page one silently dropped permitted records; the walk stops on an empty
+page or a repeated cursor rather than trusting the server to terminate it.
+
+`reconcile` now resolves queue entries through `ObjectStore.getRecordForSync`, a
+trusted tombstone-inclusive lookup. It previously used the active-record read,
+so a queued delete — which by definition has no active local row — was skipped,
+left in the queue, and never reached the authority.
+
+**Browser identity.** `/v1/session/issue` and `/v1/session/current` return the
+server-derived `userId` for that session and nothing else, so the browser can set
+`RuntimeContext.userId` without ever being trusted to supply it. Authority sync
+is opt-in through `VITE_ADL_AUTHORITY_URL`; when it is unset the browser demo
+stays entirely local, which keeps the visual verification suite meaningful.
