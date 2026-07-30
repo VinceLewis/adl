@@ -25,6 +25,7 @@ const configuration: AuthorityConfiguration = {
   identityVerification: { mode: "bypass" },
   rateLimits: {
     accountProof: 1,
+    webauthn: 1,
     session: 10,
     invite: 10,
     bootstrap: 10,
@@ -140,7 +141,7 @@ describe("production authority HTTP boundary", () => {
       request("/v1/session/issue", {}, { "x-adl-account-proof": "valid-account-proof" }),
     );
     expect(identity.status).toBe(201);
-    const user = await sessions.provisionIdentity("member@example.test");
+    const user = await sessions.provisionIdentity("bypass", "member@example.test");
     const session = await sessions.issueSession(user.userId);
     const csrf = "csrf-token-value".padEnd(48, "c");
     const withSession = {

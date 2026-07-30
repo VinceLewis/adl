@@ -313,4 +313,109 @@ describe("HttpAuthorityTransport failure handling", () => {
       status: 502,
     });
   });
+
+  describe("passkey ceremonies", () => {
+    it("sends the invite token only when there is one, and never sends a challenge", async () => {
+      const { calls, fetchImpl } = recordingFetch(() =>
+        jsonResponse({ challengeId: "challenge-1", options: { challenge: "AQID" } }),
+      );
+      const transport = new HttpAuthorityTransport({
+        baseUrl: "https://authority.test",
+        credentials: new InMemoryAuthorityCredentialStore(),
+        fetch: fetchImpl,
+      });
+
+      await transport.beginPasskeyRegistration();
+      await transport.beginPasskeyRegistration("invite-token-value");
+      await transport.beginPasskeyAuthentication();
+
+      expect(calls.map((call) => call.url)).toEqual([
+        "https://authority.test/v1/webauthn/register/begin",
+        "https://authority.test/v1/webauthn/register/begin",
+        "https://authority.test/v1/webauthn/authenticate/begin",
+      ]);
+      expect(calls[0]?.body).toEqual({});
+      expect(calls[1]?.body).toEqual({ inviteToken: "invite-token-value" });
+      // The challenge is the server's to choose; the client never proposes one.
+      for (const call of calls) expect(call.bodyText).not.toContain("challenge");
+    });
+
+    it("refuses a ceremony start that carries no usable options", async () => {
+      for (const body of [{}, { challengeId: "challenge-1" }, { challengeId: 1, options: {} }]) {
+        const { fetchImpl } = recordingFetch(() => jsonResponse(body));
+        const transport = new HttpAuthorityTransport({
+          baseUrl: "https://authority.test",
+          credentials: new InMemoryAuthorityCredentialStore(),
+          fetch: fetchImpl,
+        });
+        await expect(transport.beginPasskeyAuthentication()).rejects.toBeInstanceOf(
+          AuthorityTransportError,
+        );
+      }
+    });
+
+    it("re-supplies the invite token at finish, because only its hash was stored", async () => {
+      const { calls, fetchImpl } = recordingFetch(() =>
+        jsonResponse({ userId: "user-1", invite: "membershipGranted" }, 201, [
+          sessionCookie,
+          csrfCookie,
+        ]),
+      );
+      const credentials = new InMemoryAuthorityCredentialStore();
+      const transport = new HttpAuthorityTransport({
+        baseUrl: "https://authority.test",
+        credentials,
+        fetch: fetchImpl,
+      });
+
+      const outcome = await transport.finishPasskeyRegistration({
+        challengeId: "challenge-1",
+        response: { id: "credential-1" },
+        inviteToken: "invite-token-value",
+      });
+
+      expect(outcome).toEqual({ userId: "user-1", invite: "membershipGranted" });
+      expect(calls[0]?.body).toEqual({
+        challengeId: "challenge-1",
+        response: { id: "credential-1" },
+        inviteToken: "invite-token-value",
+      });
+      // A completed ceremony issues an ordinary opaque session, exactly as a
+      // proof would, so the jar picks the cookies up unchanged.
+      expect(credentials.csrfToken()).toBe("csrf-token-value");
+    });
+
+    it("ignores an invite outcome it does not recognise rather than inventing one", async () => {
+      const { fetchImpl } = recordingFetch(() =>
+        jsonResponse({ userId: "user-1", invite: "somethingElse" }, 201),
+      );
+      const transport = new HttpAuthorityTransport({
+        baseUrl: "https://authority.test",
+        credentials: new InMemoryAuthorityCredentialStore(),
+        fetch: fetchImpl,
+      });
+
+      expect(
+        await transport.finishPasskeyRegistration({
+          challengeId: "challenge-1",
+          response: {},
+        }),
+      ).toEqual({ userId: "user-1" });
+    });
+
+    it("surfaces a refused assertion as an error, never as a session", async () => {
+      const { fetchImpl } = recordingFetch(() =>
+        jsonResponse({ error: "ADL_PASSKEY_ASSERTION_INVALID" }, 401),
+      );
+      const transport = new HttpAuthorityTransport({
+        baseUrl: "https://authority.test",
+        credentials: new InMemoryAuthorityCredentialStore(),
+        fetch: fetchImpl,
+      });
+
+      await expect(
+        transport.finishPasskeyAuthentication({ challengeId: "challenge-1", response: {} }),
+      ).rejects.toMatchObject({ status: 401, code: "ADL_PASSKEY_ASSERTION_INVALID" });
+    });
+  });
 });

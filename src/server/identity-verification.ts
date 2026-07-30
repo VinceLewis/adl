@@ -54,6 +54,19 @@ export class UnconfiguredUpstreamIdentityVerifier implements UpstreamIdentityVer
   }
 }
 
+/**
+ * Selected in `passkey` mode. The authority verifies a WebAuthn assertion it
+ * challenged itself, so there is no bearer proof to exchange: this seam refuses
+ * every proof, and `/v1/session/issue` is unavailable. Sessions in this mode are
+ * issued only by a completed ceremony.
+ */
+export class PasskeyIdentityVerifier implements UpstreamIdentityVerifier {
+  readonly name = "passkey";
+  async verify(): Promise<{ subject: string } | null> {
+    return null;
+  }
+}
+
 export interface UpstreamIdentityVerifierSelection {
   /** A real provider verifier, used only when the switch is on. */
   upstream?: UpstreamIdentityVerifier;
@@ -68,6 +81,7 @@ export function selectUpstreamIdentityVerifier(
   selection: UpstreamIdentityVerifierSelection = {},
 ): UpstreamIdentityVerifier {
   if (configuration.identityVerification.mode === "bypass") return new BypassIdentityVerifier();
+  if (configuration.identityVerification.mode === "passkey") return new PasskeyIdentityVerifier();
   return selection.upstream ?? new UnconfiguredUpstreamIdentityVerifier();
 }
 

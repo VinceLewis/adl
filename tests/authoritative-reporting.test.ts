@@ -28,6 +28,7 @@ const configuration: AuthorityConfiguration = {
   identityVerification: { mode: "bypass" },
   rateLimits: {
     accountProof: 10,
+    webauthn: 10,
     session: 10,
     invite: 10,
     bootstrap: 10,
@@ -183,8 +184,8 @@ async function fixture() {
       return () => `token-${++number}`.padEnd(48, "x");
     })(),
   });
-  const manager = await sessions.provisionIdentity("manager@example.test");
-  const outsider = await sessions.provisionIdentity("outsider@example.test");
+  const manager = await sessions.provisionIdentity("bypass", "manager@example.test");
+  const outsider = await sessions.provisionIdentity("bypass", "outsider@example.test");
   const managerSession = await sessions.issueSession(manager.userId);
   const outsiderSession = await sessions.issueSession(outsider.userId);
   await storage.create("Band", record("Band", "band-1", { Name: "One" }));

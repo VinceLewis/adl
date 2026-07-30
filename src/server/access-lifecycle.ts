@@ -30,7 +30,9 @@ export interface AuthorityAccessAuditEvent {
     | "inviteClaimed"
     | "inviteRevoked"
     | "membershipRevoked"
-    | "sessionsRevoked";
+    | "sessionsRevoked"
+    /** A recipient-bound invite re-admitted an existing identity; no membership changed. */
+    | "identityRecovered";
   actorId: string;
   contextName: string;
   contextId: string;
@@ -64,9 +66,31 @@ export interface AuthorityRevokeMembershipStoreInput {
   audit: AuthorityAccessAuditEvent;
 }
 
+/** Non-secret summary of an invite, for a caller deciding whether to start a ceremony. */
+export interface AuthorityInviteSummary {
+  inviteId: string;
+  contextName: string;
+  contextId: string;
+  role: string;
+  recipientUserId?: string;
+}
+
 export interface AuthorityAccessStore {
   /** Invite row and its creation audit event are written in one transaction. */
   createInvite(invite: AuthorityInvite, audit: AuthorityAccessAuditEvent): Promise<void>;
+  /** Read a claimable invite without consuming it. Returns null unless it is currently valid. */
+  findClaimableInvite(tokenHash: string, now: Date): Promise<AuthorityInviteSummary | null>;
+  /**
+   * Consume a recipient-bound invite as identity re-admission. The invite is
+   * marked claimed and audited, and **no membership is granted**: the member
+   * never lost their memberships, only their authenticators.
+   */
+  claimInviteForIdentityRecovery(input: {
+    tokenHash: string;
+    userId: string;
+    now: Date;
+    audit: (invite: AuthorityInviteSummary) => AuthorityAccessAuditEvent;
+  }): Promise<boolean>;
   /** Revocation and its audit event commit together; audit is skipped if nothing was revoked. */
   revokeInvite(input: AuthorityRevokeInviteInput): Promise<boolean>;
   /** Membership tombstone and its revocation audit event are written in one transaction. */
@@ -196,6 +220,48 @@ export class AuthorityAccessLifecycleService {
       userId: session.userId,
       now,
       prepareGrant: (invite) => this.prepareInviteGrant(invite, session.userId, now),
+    });
+  }
+
+  /**
+   * Validates an invite without consuming it, so a passkey registration can be
+   * started for a caller who has no session yet. It discloses only the context,
+   * role and recipient binding — never the token, and never a membership.
+   */
+  async peekInvite(
+    inviteToken: string | undefined,
+    now: Date = this.now(),
+  ): Promise<AuthorityInviteSummary | null> {
+    if (inviteToken === undefined || inviteToken.length < 32) return null;
+    return this.store.findClaimableInvite(await hashSecret(inviteToken), now);
+  }
+
+  /**
+   * Re-admits an existing identity: the recipient-bound invite is consumed and
+   * audited, and no membership is granted. The caller must already have proved
+   * the ceremony that this authorises; it is server-internal and is never
+   * reachable from the HTTP edge on its own.
+   */
+  async redeemInviteForIdentityRecovery(
+    userId: string,
+    inviteToken: string,
+    now: Date = this.now(),
+  ): Promise<boolean> {
+    if (inviteToken.length < 32) return false;
+    return this.store.claimInviteForIdentityRecovery({
+      tokenHash: await hashSecret(inviteToken),
+      userId,
+      now,
+      audit: (invite) => ({
+        accessAuditId: `access-audit-${this.newId()}`,
+        kind: "identityRecovered",
+        actorId: userId,
+        contextName: invite.contextName,
+        contextId: invite.contextId,
+        role: invite.role,
+        inviteId: invite.inviteId,
+        occurredAt: now,
+      }),
     });
   }
 
@@ -413,6 +479,37 @@ export class InMemoryAuthorityAccessStore implements AuthorityAccessStore {
     this.audits.push(cloneAudit(audit));
   }
 
+  async findClaimableInvite(tokenHash: string, now: Date): Promise<AuthorityInviteSummary | null> {
+    const invite = this.invitesByHash.get(tokenHash);
+    return invite === undefined ||
+      invite.revokedAt !== undefined ||
+      invite.claimedBy !== undefined ||
+      invite.expiresAt <= now
+      ? null
+      : summariseInvite(invite);
+  }
+
+  async claimInviteForIdentityRecovery(input: {
+    tokenHash: string;
+    userId: string;
+    now: Date;
+    audit: (invite: AuthorityInviteSummary) => AuthorityAccessAuditEvent;
+  }): Promise<boolean> {
+    const invite = this.invitesByHash.get(input.tokenHash);
+    if (
+      invite === undefined ||
+      invite.revokedAt !== undefined ||
+      invite.claimedBy !== undefined ||
+      invite.expiresAt <= input.now ||
+      invite.recipientUserId !== input.userId
+    )
+      return false;
+    invite.claimedBy = input.userId;
+    invite.claimedAt = new Date(input.now);
+    this.audits.push(cloneAudit(input.audit(summariseInvite(invite))));
+    return true;
+  }
+
   async revokeInvite(input: AuthorityRevokeInviteInput): Promise<boolean> {
     for (const invite of this.invitesByHash.values()) {
       if (
@@ -513,6 +610,74 @@ export class PostgresAuthorityAccessStore implements AuthorityAccessStore {
       throw error;
     }
   }
+  async findClaimableInvite(tokenHash: string, now: Date): Promise<AuthorityInviteSummary | null> {
+    const result = await this.database.query<InviteRow>(
+      "select invite_id, context_name, context_id, role, recipient_user_id, expires_at, claimed_by, membership_record_id, revoked_at from adl_authority_invites where application_id = $1 and token_hash = $2 and revoked_at is null and claimed_by is null and expires_at > $3",
+      [this.applicationId, tokenHash, now],
+    );
+    const invite = result.rows[0];
+    return invite === undefined
+      ? null
+      : {
+          inviteId: invite.invite_id,
+          contextName: invite.context_name,
+          contextId: invite.context_id,
+          role: invite.role,
+          ...(invite.recipient_user_id === null
+            ? {}
+            : { recipientUserId: invite.recipient_user_id }),
+        };
+  }
+
+  /**
+   * The invite row is locked, checked and marked claimed with its audit event in
+   * one transaction. No membership row is written: re-admission restores the
+   * ability to sign in, not a grant.
+   */
+  async claimInviteForIdentityRecovery(input: {
+    tokenHash: string;
+    userId: string;
+    now: Date;
+    audit: (invite: AuthorityInviteSummary) => AuthorityAccessAuditEvent;
+  }): Promise<boolean> {
+    await this.database.query("begin");
+    try {
+      const result = await this.database.query<InviteRow>(
+        "select invite_id, context_name, context_id, role, recipient_user_id, expires_at, claimed_by, membership_record_id, revoked_at from adl_authority_invites where application_id = $1 and token_hash = $2 for update",
+        [this.applicationId, input.tokenHash],
+      );
+      const invite = result.rows[0];
+      if (
+        invite === undefined ||
+        invite.revoked_at !== null ||
+        invite.claimed_by !== null ||
+        new Date(invite.expires_at) <= input.now ||
+        invite.recipient_user_id !== input.userId
+      ) {
+        await this.database.query("rollback");
+        return false;
+      }
+      await this.database.query(
+        "update adl_authority_invites set claimed_by = $3, claimed_at = $4 where invite_id = $1 and application_id = $2",
+        [invite.invite_id, this.applicationId, input.userId, input.now],
+      );
+      await this.writeAudit(
+        input.audit({
+          inviteId: invite.invite_id,
+          contextName: invite.context_name,
+          contextId: invite.context_id,
+          role: invite.role,
+          recipientUserId: input.userId,
+        }),
+      );
+      await this.database.query("commit");
+      return true;
+    } catch (error) {
+      await this.database.query("rollback");
+      throw error;
+    }
+  }
+
   async revokeInvite(input: AuthorityRevokeInviteInput): Promise<boolean> {
     await this.database.query("begin");
     try {
@@ -651,6 +816,15 @@ function inviteValid(
     new Date(invite.expires_at) > now &&
     (invite.recipient_user_id === null || invite.recipient_user_id === userId)
   );
+}
+function summariseInvite(invite: AuthorityInvite): AuthorityInviteSummary {
+  return {
+    inviteId: invite.inviteId,
+    contextName: invite.contextName,
+    contextId: invite.contextId,
+    role: invite.role,
+    ...(invite.recipientUserId === undefined ? {} : { recipientUserId: invite.recipientUserId }),
+  };
 }
 function isRevocableSessionAdapter(
   sessions: AuthoritySessionAdapter,

@@ -11,11 +11,19 @@ import { defineConfig, devices } from "@playwright/test";
  *   `offline-shell` project. The worker only registers in a built app, so the
  *   offline reload proof cannot be run against the dev server.
  *
+ * - A third dev server on 5273 hosts the `passkey` project. It is the only one
+ *   built with `VITE_ADL_AUTHORITY_URL` set, so it is the only one where
+ *   session chrome renders at all — which is precisely why the other projects
+ *   cannot cover the sign-in surface, and why this one exists. It uses
+ *   `localhost` rather than `127.0.0.1` because an IP address is not a valid
+ *   WebAuthn relying party id.
+ *
  * Each project pins its own `testMatch` so a spec written for one server can
- * never be picked up by a project pointed at the other.
+ * never be picked up by a project pointed at another.
  */
 const GIGGLE_VISUAL_SPEC = /giggle-band\.visual\.spec\.ts$/;
 const OFFLINE_SHELL_SPEC = /offline-shell\.spec\.ts$/;
+const PASSKEY_SPEC = /passkey-sign-in\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "./tests/visual",
@@ -57,6 +65,16 @@ export default defineConfig({
         viewport: { width: 1440, height: 1000 },
       },
     },
+    {
+      name: "passkey",
+      testMatch: PASSKEY_SPEC,
+      timeout: 120_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://localhost:5273",
+        viewport: { width: 1440, height: 1000 },
+      },
+    },
   ],
   webServer: [
     {
@@ -70,6 +88,15 @@ export default defineConfig({
       url: "http://127.0.0.1:4173/?demo=giggle-band",
       reuseExistingServer: true,
       timeout: 240_000,
+    },
+    {
+      command: "npm run dev -- --host localhost --port 5273",
+      url: "http://localhost:5273/?demo=giggle-band",
+      // The only server built with an authority configured, so the session
+      // chrome the passkey spec drives actually renders.
+      env: { VITE_ADL_AUTHORITY_URL: "http://localhost:8788" },
+      reuseExistingServer: true,
+      timeout: 60_000,
     },
   ],
 });

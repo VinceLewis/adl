@@ -24,6 +24,25 @@ export interface AuthorityIdentityReadiness {
   bypassed: boolean;
 }
 
+/**
+ * A ceremony the authority has started. `options` is the WebAuthn options JSON
+ * to hand to the authenticator; `challengeId` names the server-side challenge
+ * the answering assertion will be checked against. The challenge is never
+ * chosen here: the client cannot influence what it is asked to sign.
+ */
+export interface AuthorityPasskeyCeremony {
+  challengeId: string;
+  options: Record<string, unknown>;
+}
+
+/** Outcome of a completed registration. The membership, if any, is server-written. */
+export interface PasskeyRegistrationOutcome {
+  userId: string;
+  /** `membershipGranted` for a first-time invite, `identityRecovered` for a re-link. */
+  invite?: "membershipGranted" | "identityRecovered";
+  expiresAt?: Date;
+}
+
 /** Outcome of claiming an invitation. The membership itself is server-written. */
 export type AuthorityInviteClaimOutcome =
   | { status: "accepted"; inviteId: string; membershipRecordId: string }
@@ -126,6 +145,67 @@ export class HttpAuthorityTransport implements AuthorityTransport {
   async signIn(accountProof: string): Promise<AuthoritySessionIdentity> {
     const body = await this.post("/v1/session/issue", {}, { "x-adl-account-proof": accountProof });
     return sessionIdentity(body);
+  }
+
+  /**
+   * Starts a passkey registration. With no invite token the caller must already
+   * hold a session, and is adding a further authenticator to their own
+   * identity; with one, the authority decides from the invite whether this is a
+   * first-time member or the re-admission of an existing identity. The browser
+   * never states which: it only presents what it was given.
+   */
+  async beginPasskeyRegistration(inviteToken?: string): Promise<AuthorityPasskeyCeremony> {
+    return ceremonyStart(
+      await this.post(
+        "/v1/webauthn/register/begin",
+        inviteToken === undefined ? {} : { inviteToken },
+      ),
+    );
+  }
+
+  /**
+   * Completes a registration. The invite token is re-supplied rather than held
+   * server-side between the two requests: only its hash is stored on the
+   * challenge, so a raw invite token never reaches challenge storage.
+   */
+  async finishPasskeyRegistration(input: {
+    challengeId: string;
+    response: Record<string, unknown>;
+    inviteToken?: string;
+  }): Promise<PasskeyRegistrationOutcome> {
+    const body = await this.post("/v1/webauthn/register/finish", {
+      challengeId: input.challengeId,
+      response: input.response,
+      ...(input.inviteToken === undefined ? {} : { inviteToken: input.inviteToken }),
+    });
+    const userId = body.userId;
+    if (typeof userId !== "string" || userId.length === 0)
+      throw new AuthorityTransportError("The authority server returned no session identity.", 502);
+    const expiresAt = typeof body.expiresAt === "string" ? new Date(body.expiresAt) : undefined;
+    return {
+      userId,
+      ...(body.invite === "membershipGranted" || body.invite === "identityRecovered"
+        ? { invite: body.invite }
+        : {}),
+      ...(expiresAt === undefined || Number.isNaN(expiresAt.getTime()) ? {} : { expiresAt }),
+    };
+  }
+
+  async beginPasskeyAuthentication(): Promise<AuthorityPasskeyCeremony> {
+    return ceremonyStart(await this.post("/v1/webauthn/authenticate/begin", {}));
+  }
+
+  /** A verified assertion yields an ordinary opaque session, exactly as a proof would. */
+  async finishPasskeyAuthentication(input: {
+    challengeId: string;
+    response: Record<string, unknown>;
+  }): Promise<AuthoritySessionIdentity> {
+    return sessionIdentity(
+      await this.post("/v1/webauthn/authenticate/finish", {
+        challengeId: input.challengeId,
+        response: input.response,
+      }),
+    );
   }
 
   /** Resolves the identity of an existing session cookie, or null when there is none. */
@@ -262,6 +342,20 @@ export class HttpAuthorityTransport implements AuthorityTransport {
       throw new AuthorityTransportError(`The authority server returned no JSON for ${path}.`, 502);
     return payload;
   }
+}
+
+function ceremonyStart(body: Record<string, unknown>): AuthorityPasskeyCeremony {
+  const challengeId = body.challengeId;
+  const options = body.options;
+  if (
+    typeof challengeId !== "string" ||
+    challengeId.length === 0 ||
+    options === null ||
+    typeof options !== "object" ||
+    Array.isArray(options)
+  )
+    throw new AuthorityTransportError("The authority server returned no ceremony options.", 502);
+  return { challengeId, options: options as Record<string, unknown> };
 }
 
 function sessionIdentity(body: Record<string, unknown>): AuthoritySessionIdentity {

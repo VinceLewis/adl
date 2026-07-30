@@ -19,6 +19,7 @@
     "format:check": "prettier --check \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"playwright.config.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\""
   },
   "dependencies": {
+    "@simplewebauthn/server": "^13.3.2",
     "pg": "^8.22.0"
   },
   "devDependencies": {

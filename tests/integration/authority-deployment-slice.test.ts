@@ -211,6 +211,7 @@ function configuration(
     identityVerification: { mode },
     rateLimits: {
       accountProof: 500,
+      webauthn: 500,
       session: 500,
       invite: 500,
       bootstrap: 500,
@@ -381,11 +382,17 @@ describe("Phase 46 deployment slice over a real socket and real PostgreSQL", () 
     const session = await browser.transport.signIn(accountProof);
     expect(session.userId).toMatch(/^user-/u);
 
-    const identities = await pool.query<{ user_id: string; subject: string }>(
-      "select user_id, subject from adl_authority_identities where application_id = $1",
+    // The subject no longer lives on the identity: it is one link among the
+    // several an identity may hold, and the verifier that produced it is part
+    // of the key. That is what makes a later provider change a link rather
+    // than a re-keying of everything scoped by this user id.
+    const identities = await pool.query<{ user_id: string; provider: string; subject: string }>(
+      "select identity.user_id, link.provider, link.subject from adl_authority_identities identity join adl_authority_identity_links link on link.application_id = identity.application_id and link.user_id = identity.user_id where identity.application_id = $1",
       [applicationId],
     );
-    expect(identities.rows).toEqual([{ user_id: session.userId, subject: accountProof }]);
+    expect(identities.rows).toEqual([
+      { user_id: session.userId, provider: "bypass", subject: accountProof },
+    ]);
     expect(
       await pool.query("select 1 from adl_authority_sessions where application_id = $1", [
         applicationId,

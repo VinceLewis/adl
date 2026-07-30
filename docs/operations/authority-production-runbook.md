@@ -9,8 +9,11 @@ directly behind an untrusted proxy.
 
 Set `ADL_ENV=production`, `ADL_DATABASE_URL`, `ADL_ALLOWED_ORIGINS` (comma
 separated HTTPS origins), `ADL_COOKIE_SECURE=true`,
-`ADL_UPSTREAM_IDENTITY_ISSUER`, and `ADL_UPSTREAM_IDENTITY_AUDIENCE`. Create
-configuration with `loadAuthorityConfiguration` and use only
+`ADL_UPSTREAM_IDENTITY_ISSUER`, and `ADL_UPSTREAM_IDENTITY_AUDIENCE` (the last
+two are required in every mode). Production must also select a real identity
+verifier — `ADL_IDENTITY_VERIFICATION=passkey` or `upstream`; the bypass is
+refused outright there. Create configuration with
+`loadAuthorityConfiguration` and use only
 `OpaqueSessionAdapter` with PostgreSQL identity/session storage. The process
 refuses `StaticSessionAdapter` in production. The upstream verifier must
 validate signature, issuer, audience, expiry, and intended proof type before
@@ -41,23 +44,223 @@ project directory whose `app.yaml` and sources are compiled at startup). See
 
 ## Identity verification mode
 
-`ADL_IDENTITY_VERIFICATION` selects the upstream verifier and defaults to
-`bypass`. **The bypass accepts the supplied account proof as the identity
-subject without contacting any provider.** It is a temporary development state
-pending a real identity-provider decision, and it is deliberately impossible to
-run unnoticed:
+`ADL_IDENTITY_VERIFICATION` selects how the authority establishes who a caller
+is. It accepts three values and still defaults to `bypass`.
+
+- **`passkey`** is the real credential and the mode a deployment runs. The
+  authority issues a challenge, the authenticator signs it, and the assertion is
+  verified against a stored public key. It requires the `ADL_WEBAUTHN_*` values
+  (see below) and it makes `/v1/session/issue` unavailable
+  (`endpoint_unavailable`, 503), so a passkey deployment keeps no weaker second
+  way in alongside the ceremony.
+- **`upstream`** requires a real bearer-proof verifier to be supplied to the
+  process. With the switch on and no provider implementation, every proof is
+  rejected (`authentication_failed`) — it never falls back to the bypass, so a
+  mis-set switch fails closed rather than open.
+- **`bypass`** accepts the supplied account proof as the identity subject
+  without contacting any provider, so anyone who can reach the authority becomes
+  any user by naming them. **It is development-only.** A production process
+  refuses to start with it: `loadAuthorityConfiguration` raises a configuration
+  error instead of serving traffic. The Phase 46 escape hatch
+  `ADL_IDENTITY_BYPASS_ACKNOWLEDGED` has been **removed** — an operator can no
+  longer opt a production deployment back into accepting an unverified identity.
+  If you find that variable in a deployment's configuration, delete it; it does
+  nothing.
+
+No mode runs unnoticed:
 
 - The startup security event `identity_verification_configured` states `mode`,
   `verifier` and `bypassed`. No proof value is ever logged.
-- `/readyz` returns `identityVerification: { mode, verifier, bypassed }`.
-- Production refuses to start with the bypass unless
-  `ADL_IDENTITY_BYPASS_ACKNOWLEDGED=true` is set deliberately.
+- `/readyz` returns `identityVerification: { mode, verifier, bypassed }`. A
+  passkey deployment reports
+  `{ mode: "passkey", verifier: "passkey", bypassed: false }`.
 
 Alert on `bypassed: true` in any environment that serves real users, and treat
-it as an open finding until a provider verifier is supplied. Setting the switch
-to `upstream` without a provider implementation selects a verifier that rejects
-every proof (`authentication_failed`) — it never falls back to the bypass, so a
-mis-set switch fails closed rather than open.
+it as an open finding.
+
+## Switching a deployment to passkey identity
+
+**Required configuration.** Set `ADL_IDENTITY_VERIFICATION=passkey` and:
+
+| Variable | Meaning |
+| --- | --- |
+| `ADL_WEBAUTHN_RP_ID` | Registrable domain every allowed origin sits under. Host name only. |
+| `ADL_WEBAUTHN_RP_NAME` | Name shown in the platform prompt. Defaults to the relying party id. |
+| `ADL_WEBAUTHN_ORIGINS` | Comma-separated origins an assertion may come from. Defaults to `ADL_ALLOWED_ORIGINS`. |
+| `ADL_WEBAUTHN_CHALLENGE_TTL_SECONDS` | Challenge lifetime, positive integer, default 300. |
+| `ADL_RATE_WEBAUTHN` | Requests per window for `/v1/webauthn/*`, default 20. |
+
+Startup refuses an origin that is not the relying party id or a subdomain of it,
+so a mismatch is a failed start rather than credentials that silently fail to
+verify later. Apply `0006_passkey_identity.sql` as `adl_migrator` before starting
+the process.
+
+**Origin binding is not a runtime detail; it is the credential's identity.** A
+credential registered against one relying party id will not work against
+another. Development and production registrations are therefore separate by
+design, and changing `ADL_WEBAUTHN_RP_ID` on a live deployment invalidates every
+credential already registered — every user would have to re-register through the
+recovery path below. Treat that value as fixed for the life of the deployment.
+
+**What the browser needs.** WebAuthn requires a secure context, and the session
+cookie is `__Host-` Secure HttpOnly SameSite=Strict, so the same TLS and
+same-site hosting requirements as every other session call apply. A user agent
+with no WebAuthn support cannot sign in to a passkey deployment at all; the
+sign-in surface says so rather than failing obscurely.
+
+### First admin: there is no bootstrap flow (documented gap)
+
+**This repository has no first-admin bootstrap flow, and that is a real gap, not
+an oversight in this runbook.** Passkey registration is either session-gated or
+invite-gated and is never anonymous; issuing an invite requires an authenticated
+caller who already passes membership-management policy in the target context. A
+brand-new database therefore has no way to admit its first identity through the
+product surface. The first identity and its membership must be established **out
+of band by an operator**, once, before anyone can sign in.
+
+Do it as three writes plus one ordinary registration, using the model's own
+membership declaration (for `giggle-band`, `CONTEXT Band … MEMBERSHIP BandMember
+USER User CONTEXT_FIELD Band ROLE_FIELD Role`). Run the inserts as
+`adl_migrator` or another DML-capable role, inside one transaction, and record
+that you did so.
+
+```sql
+begin;
+
+-- 1. The identity the first admin will sign in as. It deliberately has no
+--    identity link yet: registration adds the (passkey, user handle) link.
+insert into adl_authority_identities (application_id, user_id, created_at)
+values ('giggle-band', 'user-bootstrap-admin', now());
+
+-- 2. The business context record the membership points at, if it does not
+--    already exist. Accepted records are whole StoredObjectRecord documents.
+insert into adl_authority_records
+  (application_id, object_name, record_id, revision, deleted_at, record)
+values (
+  'giggle-band', 'Band', 'band-bootstrap', 'rev-1', null,
+  jsonb_build_object(
+    'meta', jsonb_build_object(
+      'guid', 'band-bootstrap', 'object', 'Band', 'schemaVersion', 1,
+      'revision', 'rev-1', 'createdAt', now(), 'createdBy', 'operator-bootstrap',
+      'updatedAt', now(), 'updatedBy', 'operator-bootstrap', 'syncStatus', 'synced'),
+    'values', jsonb_build_object('Name', 'Giggle Band')));
+
+-- 3. The membership record that grants the admin role. Context roles are
+--    resolved from records like this one on every call, so this row - not the
+--    identity row and not the passkey - is what confers access.
+insert into adl_authority_records
+  (application_id, object_name, record_id, revision, deleted_at, record)
+values (
+  'giggle-band', 'BandMember', 'membership-bootstrap-admin', 'rev-1', null,
+  jsonb_build_object(
+    'meta', jsonb_build_object(
+      'guid', 'membership-bootstrap-admin', 'object', 'BandMember',
+      'schemaVersion', 1, 'revision', 'rev-1', 'createdAt', now(),
+      'createdBy', 'operator-bootstrap', 'updatedAt', now(),
+      'updatedBy', 'operator-bootstrap', 'syncStatus', 'synced'),
+    'values', jsonb_build_object(
+      'User', 'user-bootstrap-admin', 'Band', 'band-bootstrap',
+      'Role', 'BandAdmin')));
+
+commit;
+```
+
+Populate every field the object declares `REQUIRED` — for `BandMember` that is
+`User`, `Band` and `Role` — or the record will fail validation the first time it
+is updated through the runtime. Then issue the recipient-bound invite described
+below for `user-bootstrap-admin` and have that person register an authenticator.
+From that point every further member is admitted through the ordinary invite
+flow, and this procedure is never needed again for that database.
+
+### Recovery for a member who has lost every authenticator
+
+No email sender exists, and none is introduced. Recovery is the existing invite
+system:
+
+1. An admin issues a **recipient-bound** invite for the member's existing
+   `userId` (`/v1/invites/create` with `recipientUserId`). The binding is what
+   makes this recovery rather than a new account.
+2. The claimant registers a fresh authenticator against that invite
+   (`/v1/webauthn/register/begin` then `/finish`, both carrying the invite
+   token). The raw token is presented again at finish and must hash to the one
+   the ceremony started with.
+3. The authority re-links: the new credential attaches to the **same `userId`**,
+   so every existing membership, record and audit reference survives untouched.
+   The invite is consumed and audited as `identityRecovered`, and **no membership
+   is granted** — the member never lost their memberships, only their
+   authenticators.
+
+The registration response carries `invite: "identityRecovered"`, and the
+access-audit row is the durable evidence. If you see `inviteClaimed` instead, the
+invite was not recipient-bound and a *new* identity was created with a fresh
+membership grant; that is the wrong outcome for a recovery, and the fix is to
+revoke the accidental membership and re-run with a bound invite.
+
+For the bootstrap case above, the operator can insert the invite directly rather
+than issuing it through the API, because no admin session exists yet. Generate a
+token of at least 32 characters, store only its SHA-256 hex digest, and hand the
+raw token to the first admin over a channel you trust:
+
+```sh
+TOKEN="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
+printf %s "$TOKEN" | sha256sum   # the hex digest goes in token_hash
+```
+
+```sql
+insert into adl_authority_invites
+  (invite_id, application_id, token_hash, context_name, context_id, role,
+   recipient_user_id, created_by, created_at, expires_at)
+values (
+  'invite-bootstrap', 'giggle-band', '<sha256-hex-of-TOKEN>', 'Band',
+  'band-bootstrap', 'BandAdmin', 'user-bootstrap-admin', 'operator-bootstrap',
+  now(), now() + interval '1 hour');
+```
+
+The raw token is a credential: it never goes in a ticket, a chat log, or this
+repository, and only its hash is stored.
+
+### Pruning expired ceremony challenges
+
+`adl_authority_webauthn_challenges` grows by one row per started ceremony,
+including abandoned ones. Nothing prunes it automatically — there is no
+scheduler in this repository (Phase 53). Run
+`PasskeyIdentityService.pruneChallenges(now)`, or the equivalent statement, on a
+schedule such as hourly:
+
+```sql
+delete from adl_authority_webauthn_challenges
+ where application_id = 'giggle-band'
+   and expires_at <= now();
+```
+
+It removes only rows whose lifetime has already elapsed, consumed or not, so it
+can never invalidate a ceremony in flight. The rows are transient
+authentication-flow state, hold no accepted data, and are not recovery-relevant;
+excluding them from a restore is acceptable, and an in-flight ceremony simply
+has to be restarted.
+
+### When a signature counter regresses
+
+`ADL_PASSKEY_COUNTER_REGRESSED` means an assertion verified correctly but its
+signature counter did not advance while the stored counter is non-zero. **That is
+the cloned-authenticator signal.** The authority has already refused it and
+issued no session; the write is guarded in the `where` clause, so nothing was
+updated either.
+
+1. Do not "fix" it by resetting `signature_counter`. That destroys the only
+   evidence and re-enables the clone.
+2. Identify the credential and its `user_id` in
+   `adl_authority_webauthn_credentials` — metadata only; never print or export
+   the public key or the credential id into a ticket.
+3. Correlate with the access audit and the security events for that user. A
+   single event from a user whose authenticator has always reported zero is not
+   this signal: a counter-less authenticator that reports zero every time is
+   permitted, and only a previously non-zero counter that stalls or returns to
+   zero refuses.
+4. If access is suspect, treat it as a session compromise: revoke that user's
+   sessions, and revoke membership if the access itself is in doubt. Then delete
+   the affected credential row so the authenticator must be re-registered
+   through the recovery path above.
 
 ## Browser client, sessions, and invitations
 
@@ -77,8 +280,10 @@ authority accepts the supplied account proof as the identity subject without
 contacting any provider, so the signed-in name is asserted, not verified. Treat
 the banner in any environment serving real users the same way you treat
 `bypassed: true` in readiness — as an open finding. It disappears only when
-`/readyz` reports `bypassed: false`, which requires a real upstream verifier
-behind `ADL_IDENTITY_VERIFICATION=upstream`.
+`/readyz` reports `bypassed: false`, which means the deployment runs
+`ADL_IDENTITY_VERIFICATION=passkey` or a real verifier behind `upstream`. In
+`passkey` mode the panel offers passkey registration and sign-in instead of an
+account-proof field, because `/v1/session/issue` does not exist there.
 
 The browser fails safe. An unknown or missing `bypassed` flag counts as
 bypassed, so a readiness body the browser cannot fully parse produces the banner
@@ -196,10 +401,19 @@ Use a database owner only to create roles. Run
 [`roles.sql`](../../src/server/migrations/roles.sql) once, then apply ordered
 `0001_authority_projection.sql`, `0002_security_operations.sql`,
 `0003_reporting_administration.sql`,
-`0004_authority_transaction_integrity.sql`, and
-`0005_authority_audit_scope_and_retention.sql` as `adl_migrator`. Run the process as
+`0004_authority_transaction_integrity.sql`,
+`0005_authority_audit_scope_and_retention.sql`, and
+`0006_passkey_identity.sql` as `adl_migrator`. Run the process as
 `adl_authority`; it has DML only and cannot create schema objects or run
 migrations. Use a pinned PostgreSQL client for any multi-statement transaction.
+
+`0006_passkey_identity.sql` is the only migration so far that changes an
+existing identity column: it moves `adl_authority_identities.subject` into
+`adl_authority_identity_links` as `(provider, subject) → user_id`, backfilling
+any existing row under the `legacy` provider before dropping the column, and it
+adds the WebAuthn credential and challenge tables. Take the usual backup first —
+the column drop is not reversible without one — and note that it is guarded on
+the column still existing, so re-applying it is a no-op rather than an error.
 
 Wire the authority with a `PostgresAuthorityUnitOfWork` (constructed from a
 connection pool that hands out pinned clients). Accepted replay then commits the
@@ -216,7 +430,15 @@ Never run DDL through the traffic connection string.
 
 Take encrypted daily logical backups and point-in-time WAL backups. Include all
 `adl_authority_*` tables: accepted records, model metadata, memberships,
-session/invite verifiers, outcomes, runtime audit, and access audit. Retain 35
+session/invite verifiers, outcomes, runtime audit, and access audit — and, since
+Phase 49, `adl_authority_identity_links` and
+`adl_authority_webauthn_credentials`. Those two are as recovery-critical as the
+identity rows themselves: losing the links orphans every identity from its
+credential, and losing the credentials locks every member out until each one is
+re-admitted through a recipient-bound invite. They contain no secrets (a
+credential id, a COSE public key and a counter), so they need no handling beyond
+the existing encrypted backup. `adl_authority_webauthn_challenges` is transient
+ceremony state and need not be restored. Retain 35
 daily, 12 monthly, and the current legal/audit retention period; get legal
 approval before deleting audit data. A daily job may remove expired/revoked
 session and invite verifier rows only after 35 days. That job must never delete
@@ -274,6 +496,10 @@ Quarterly restore drill:
 **Suspected session compromise:** revoke the affected user's sessions, revoke
 membership if access itself is suspect, rotate the session cookie on next login,
 preserve redacted security/access events, and force a policy-shaped bootstrap.
+
+**Cloned authenticator suspected (`ADL_PASSKEY_COUNTER_REGRESSED`):** follow
+[When a signature counter regresses](#when-a-signature-counter-regresses). Never
+reset a stored signature counter as a remedy.
 
 **Invite misuse:** revoke the invite in its original context, inspect only its
 access-audit id and metadata, revoke the claimed membership if needed, then

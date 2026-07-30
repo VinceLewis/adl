@@ -46,10 +46,12 @@ Before tasks that change runtime stack choices, server authority, sync transport
 - `implementation/authority-server.md`
 - `implementation/authority-transaction-integrity.md`
 - `implementation/first-deployment-slice.md`
+- `implementation/passkey-identity.md`
 
-Before tasks that change the authority entrypoint or its deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging, also read:
+Before tasks that change the authority entrypoint or its deployment configuration, the identity verification switch, identity keying or identity links, WebAuthn ceremonies, invites, membership grants/revocation or access audit, the browser authority transport, session-derived browser identity, or bootstrap paging, also read:
 
 - `implementation/first-deployment-slice.md`
+- `implementation/passkey-identity.md`
 - `implementation/production-authority-operations.md`
 - `implementation/identity-invites-and-access-lifecycle.md`
 - `implementation/remote-bootstrap-and-sync-state.md`
@@ -60,9 +62,10 @@ Before tasks that change the create intent contract, the authority's create path
 - `implementation/usable-sync-slice.md`
 - `implementation/authority-server.md`
 
-Before tasks that change client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell, also read:
+Before tasks that change client conflict/rejection recovery, the browser authority bridge, sign-in, passkey registration or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell, also read:
 
 - `implementation/usable-sync-slice.md`
+- `implementation/passkey-identity.md`
 - `implementation/offline-operation-identity.md`
 - `implementation/first-deployment-slice.md`
 - `implementation/sync-policy.md`
@@ -202,3 +205,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/first-deployment-slice.md`: read before changing the authority entrypoint or deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging.
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
 - `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record.
+- `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.

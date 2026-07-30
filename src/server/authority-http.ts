@@ -24,12 +24,15 @@ import {
   type SecurityLogger,
   StructuredSecurityLogger,
 } from "./security-operations.js";
+import { PasskeyCeremonyError, type PasskeyIdentityService } from "./webauthn-identity.js";
 
 export interface AuthorityHttpDependencies {
   configuration: AuthorityConfiguration;
   authority: AuthorityService;
   sessions: OpaqueSessionAdapter;
   identityVerifier: UpstreamIdentityVerifier;
+  /** Required in `passkey` mode; the ceremony routes are unavailable without it. */
+  passkeys?: PasskeyIdentityService;
   accessLifecycle?: AuthorityAccessLifecycleService;
   reporting?: AuthorityReportingService;
   administration?: AuthorityAdministrationService;
@@ -67,7 +70,36 @@ export function createAuthorityHttpHandler(
     occurredAt: new Date().toISOString(),
   });
 
-  return async (request) => {
+  /*
+   * The preflight alone is not enough. A browser also refuses to let the page
+   * read the *actual* cross-origin response unless it repeats the allow-origin
+   * and allow-credentials headers, so without this every authority call from a
+   * browser hosted on a different origin fails at the fetch — including the
+   * `/readyz` probe the sign-in surface reads its identity mode from. A
+   * Node-side integration test cannot catch this, because Node's fetch does not
+   * enforce CORS; only a real browser does.
+   *
+   * The headers are echoed only for an Origin already on the allow list, so
+   * this widens nothing: an unlisted origin is still refused, and still cannot
+   * read what it was refused with.
+   */
+  const withCors = (request: Request, response: Response): Response => {
+    if (!hasAllowedOrigin(request, configuration)) return response;
+    const headers = new Headers(response.headers);
+    corsHeaders(request, configuration).forEach((value, key) => headers.set(key, value));
+    const setCookies = (
+      response.headers as Headers & { getSetCookie?: () => string[] }
+    ).getSetCookie?.();
+    if (setCookies !== undefined && setCookies.length > 0) {
+      headers.delete("set-cookie");
+      for (const cookie of setCookies) headers.append("set-cookie", cookie);
+    }
+    return new Response(response.body, { status: response.status, headers });
+  };
+
+  return async (request) => withCors(request, await route(request));
+
+  async function route(request: Request): Promise<Response> {
     const pathname = new URL(request.url).pathname;
     if (pathname === "/healthz") return textResponse("ok\n");
     if (pathname === "/readyz") {
@@ -103,7 +135,101 @@ export function createAuthorityHttpHandler(
       );
     }
     try {
+      /*
+       * The passkey ceremony routes are the only mutating endpoints that may be
+       * reached without a session, because a first registration and every
+       * authentication happen before one exists. The CSRF boundary is therefore
+       * stated by presence rather than by path: a request carrying a session
+       * cookie must still carry a matching double-submit token, so the
+       * session-gated "add another authenticator" path is protected exactly as
+       * every other authenticated mutation is. A request with no session cookie
+       * has no ambient credential to abuse, and is bound instead by the allowed
+       * Origin, the rate bucket, and the server-issued single-use challenge.
+       */
+      if (pathname.startsWith("/v1/webauthn/")) {
+        const passkeys = dependencies.passkeys;
+        if (passkeys === undefined || configuration.identityVerification.mode !== "passkey")
+          return reject("endpoint_unavailable", 503, pathname);
+        if (!enforceRate()) return rateLimited();
+        const ceremonyCookie = readCookie(request.headers.get("cookie"), configuration.cookieName);
+        const ceremonySession =
+          ceremonyCookie === undefined ? null : await sessions.verify(ceremonyCookie);
+        if (ceremonySession !== null && !hasValidCsrf(request, configuration))
+          return reject("csrf_denied", 403, pathname);
+        try {
+          if (pathname === "/v1/webauthn/register/begin") {
+            const start = await passkeys.beginRegistration({
+              ...(ceremonySession === null || ceremonyCookie === undefined
+                ? {}
+                : { sessionToken: ceremonyCookie }),
+              ...(optionalString(body, "inviteToken") === undefined
+                ? {}
+                : { inviteToken: requiredString(body, "inviteToken") }),
+            });
+            return jsonResponse(start);
+          }
+          if (pathname === "/v1/webauthn/register/finish") {
+            const result = await passkeys.finishRegistration({
+              challengeId: requiredString(body, "challengeId"),
+              response: requiredRecord(body, "response"),
+              ...(optionalString(body, "inviteToken") === undefined
+                ? {}
+                : { inviteToken: requiredString(body, "inviteToken") }),
+            });
+            logger.write({
+              event: "passkey_registered",
+              outcome: "allowed",
+              endpoint: pathname,
+              status: 201,
+              occurredAt: new Date().toISOString(),
+            });
+            return jsonResponse(
+              {
+                userId: result.userId,
+                ...(result.invite === undefined ? {} : { invite: result.invite }),
+                ...(result.session === undefined
+                  ? {}
+                  : { expiresAt: result.session.expiresAt.toISOString() }),
+              },
+              201,
+              result.session === undefined
+                ? undefined
+                : cookieHeaders(configuration, result.session.sessionToken, newCsrfToken()),
+            );
+          }
+          if (pathname === "/v1/webauthn/authenticate/begin")
+            return jsonResponse(await passkeys.beginAuthentication());
+          if (pathname === "/v1/webauthn/authenticate/finish") {
+            const result = await passkeys.finishAuthentication({
+              challengeId: requiredString(body, "challengeId"),
+              response: requiredRecord(body, "response"),
+            });
+            logger.write({
+              event: "session_issued",
+              outcome: "allowed",
+              endpoint: pathname,
+              status: 201,
+              occurredAt: new Date().toISOString(),
+            });
+            return jsonResponse(
+              { userId: result.userId, expiresAt: result.session.expiresAt.toISOString() },
+              201,
+              cookieHeaders(configuration, result.session.sessionToken, newCsrfToken()),
+            );
+          }
+          return failure("not_found", 404);
+        } catch (error) {
+          // A refusal states only its stable code. No challenge, assertion,
+          // invite token or public key material is ever in a response or a log.
+          if (!(error instanceof PasskeyCeremonyError)) throw error;
+          return reject(error.code, 401, pathname);
+        }
+      }
       if (pathname === "/v1/session/issue") {
+        // A passkey deployment has no bearer proof to exchange, and must not
+        // keep a second, weaker way in alongside the ceremony.
+        if (configuration.identityVerification.mode === "passkey")
+          return reject("endpoint_unavailable", 503, pathname);
         if (!enforceRate()) return rateLimited();
         const proof = request.headers.get("x-adl-account-proof");
         if (proof === null || proof.length < 16)
@@ -111,7 +237,10 @@ export function createAuthorityHttpHandler(
         const identityProof = await identityVerifier.verify(proof, configuration.upstreamIdentity);
         if (identityProof === null || identityProof.subject.trim().length === 0)
           return reject("authentication_failed", 401, pathname);
-        const identity = await sessions.provisionIdentity(identityProof.subject);
+        const identity = await sessions.provisionIdentity(
+          identityVerification.verifier,
+          identityProof.subject,
+        );
         const issued = await sessions.issueSession(identity.userId);
         logger.write({
           event: "session_issued",
@@ -314,11 +443,14 @@ export function createAuthorityHttpHandler(
     function rateLimited(): Response {
       return jsonResponse({ error: "rate_limited" }, 429, { "retry-after": "60" });
     }
-  };
+  }
 }
 
 function bucketFor(pathname: string): keyof AuthorityRateLimits | undefined {
   if (pathname === "/v1/session/issue") return "accountProof";
+  // Its own bucket: most of these are pre-session, so they must not share the
+  // allowance of an authenticated caller's session endpoints.
+  if (pathname.startsWith("/v1/webauthn/")) return "webauthn";
   if (pathname.startsWith("/v1/session/")) return "session";
   if (pathname.startsWith("/v1/invites/") || pathname === "/v1/memberships/revoke") return "invite";
   if (pathname === "/v1/sync/bootstrap") return "bootstrap";

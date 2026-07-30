@@ -1662,6 +1662,47 @@ textarea.adl-field-control {
   margin: 0;
 }
 
+.adl-session-notice {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* The passkey surface has no credential field, so the explainer carries the
+   whole "what is about to happen" burden and must stay readable rather than
+   compressed into a caption. */
+.adl-session-passkey-explainer {
+  line-height: 1.45;
+  max-width: 52ch;
+}
+
+/* Separated from the sign-in action above it: registering a device and signing
+   in are different intents and must not read as one form.
+
+   Stacked rather than reusing `.adl-session-form`: that class is a single
+   wrapping row, which suits a field beside its button but puts an explanation
+   beside the thing it is explaining. */
+.adl-session-passkey-form,
+.adl-session-add-passkey {
+  border-top: 1px solid var(--adl-color-border);
+  display: grid;
+  gap: var(--adl-space-sm);
+  justify-items: start;
+  margin-top: var(--adl-space-sm);
+  padding-top: var(--adl-space-md);
+}
+
+.adl-session-passkey-form > .adl-session-label {
+  max-width: 420px;
+  width: 100%;
+}
+
+/* The ceremony buttons are actions, not full-width banners: in the panel's grid
+   a direct child would otherwise stretch across the whole surface. */
+.adl-session-panel > [data-session-passkey-sign-in="true"] {
+  justify-self: start;
+}
+
 .adl-session-unavailable,
 .adl-session-identity,
 .adl-session-hint {

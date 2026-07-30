@@ -111,7 +111,7 @@ describe("authority identity and access lifecycle", () => {
       newToken: () => tokens.shift() ?? "z".repeat(48),
       sessionTtlMs: 60_000,
     });
-    const alice = await sessions.provisionIdentity("alice@example.test");
+    const alice = await sessions.provisionIdentity("bypass", "alice@example.test");
     const issued = await sessions.issueSession(alice.userId);
     expect(await sessions.verify(issued.sessionToken)).toMatchObject({ userId: alice.userId });
     const rotated = await sessions.rotate(issued.sessionToken);
@@ -135,9 +135,9 @@ describe("authority identity and access lifecycle", () => {
       newId: () => sessionIds.shift() ?? "overflow",
       newToken: () => sessionTokens.shift() ?? "z".repeat(48),
     });
-    const admin = await sessions.provisionIdentity("admin@example.test");
-    const recipient = await sessions.provisionIdentity("recipient@example.test");
-    const outsider = await sessions.provisionIdentity("outsider@example.test");
+    const admin = await sessions.provisionIdentity("bypass", "admin@example.test");
+    const recipient = await sessions.provisionIdentity("bypass", "recipient@example.test");
+    const outsider = await sessions.provisionIdentity("bypass", "outsider@example.test");
     const adminSession = await sessions.issueSession(admin.userId);
     const recipientSession = await sessions.issueSession(recipient.userId);
     const outsiderSession = await sessions.issueSession(outsider.userId);

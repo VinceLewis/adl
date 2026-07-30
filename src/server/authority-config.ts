@@ -4,21 +4,42 @@ import { StaticSessionAdapter } from "./session-adapter.js";
 export type AuthorityEnvironment = "development" | "test" | "production";
 
 /**
- * `bypass` accepts the supplied account proof as the identity subject without
- * contacting any provider. It is a documented, temporary development state
- * pending a real provider decision, and it is never silent: the active mode is
- * written to the startup security log and reported by `/readyz`. `upstream`
- * requires a real verifier; without one, every proof is unverifiable and no
- * session is issued.
+ * How the authority establishes that a caller is who they say they are.
+ *
+ * - `passkey` verifies a WebAuthn assertion the authority itself challenged.
+ *   There is no shared secret and no upstream provider to trust.
+ * - `upstream` requires a real bearer-proof verifier (for example an OIDC
+ *   `id_token`); without one, every proof is unverifiable and no session is
+ *   issued. It never falls back to the bypass.
+ * - `bypass` accepts the supplied account proof as the identity subject without
+ *   contacting anything. It is a development-only state, is refused outright in
+ *   production, and is never silent: the active mode is written to the startup
+ *   security log and reported by `/readyz`.
  */
-export type AuthorityIdentityVerificationMode = "bypass" | "upstream";
+export type AuthorityIdentityVerificationMode = "bypass" | "upstream" | "passkey";
 
 export interface AuthorityIdentityVerificationConfiguration {
   mode: AuthorityIdentityVerificationMode;
 }
 
+/**
+ * WebAuthn relying-party binding. It is deliberately explicit rather than
+ * inferred from the request: a credential registered against one relying party
+ * id will not work against another, so a development registration and a
+ * production registration are separate by design.
+ */
+export interface AuthorityWebAuthnConfiguration {
+  relyingPartyId: string;
+  relyingPartyName: string;
+  /** Every origin an assertion may legitimately come from. */
+  origins: readonly string[];
+  challengeTtlSeconds: number;
+}
+
 export interface AuthorityRateLimits {
   accountProof: number;
+  /** Registration and authentication ceremonies, most of which are pre-session. */
+  webauthn: number;
   session: number;
   invite: number;
   bootstrap: number;
@@ -37,6 +58,8 @@ export interface AuthorityConfiguration {
   maxRequestBytes: number;
   upstreamIdentity: { issuer: string; audience: string };
   identityVerification: AuthorityIdentityVerificationConfiguration;
+  /** Present only in `passkey` mode, where it is required. */
+  webauthn?: AuthorityWebAuthnConfiguration;
   rateLimits: AuthorityRateLimits;
 }
 
@@ -77,6 +100,7 @@ export function loadAuthorityConfiguration(
     identityVerification: { mode: identityVerificationMode(environment.ADL_IDENTITY_VERIFICATION) },
     rateLimits: {
       accountProof: positiveInteger(environment.ADL_RATE_ACCOUNT_PROOF, 10),
+      webauthn: positiveInteger(environment.ADL_RATE_WEBAUTHN, 20),
       session: positiveInteger(environment.ADL_RATE_SESSION, 30),
       invite: positiveInteger(environment.ADL_RATE_INVITE, 20),
       bootstrap: positiveInteger(environment.ADL_RATE_BOOTSTRAP, 120),
@@ -87,16 +111,16 @@ export function loadAuthorityConfiguration(
   };
   if (config.environment === "production" && environment.ADL_COOKIE_SECURE !== "true")
     throw new AuthorityConfigurationError("Production requires ADL_COOKIE_SECURE=true.");
-  // The bypass may not be reached in production by omission. An operator has to
-  // state it deliberately, and it is still disclosed at startup and on /readyz.
-  if (
-    config.environment === "production" &&
-    config.identityVerification.mode === "bypass" &&
-    environment.ADL_IDENTITY_BYPASS_ACKNOWLEDGED !== "true"
-  )
+  // A real verifier now exists, so the bypass is no longer reachable in
+  // production at all. There is deliberately no acknowledgement flag: an
+  // operator cannot opt a production deployment back into accepting an
+  // unverified identity.
+  if (config.environment === "production" && config.identityVerification.mode === "bypass")
     throw new AuthorityConfigurationError(
-      "Production identity bypass requires ADL_IDENTITY_BYPASS_ACKNOWLEDGED=true.",
+      "Production requires ADL_IDENTITY_VERIFICATION=passkey or upstream; the identity bypass is unavailable in production.",
     );
+  if (config.identityVerification.mode === "passkey")
+    return { ...config, webauthn: webauthnConfiguration(environment, config.allowedOrigins) };
   return config;
 }
 
@@ -130,10 +154,54 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 function identityVerificationMode(value: string | undefined): AuthorityIdentityVerificationMode {
   const declared = value?.trim();
   const mode = declared === undefined || declared.length === 0 ? "bypass" : declared;
-  if (mode === "bypass" || mode === "upstream") return mode;
+  if (mode === "bypass" || mode === "upstream" || mode === "passkey") return mode;
   throw new AuthorityConfigurationError(
-    "ADL_IDENTITY_VERIFICATION must be 'bypass' or 'upstream'.",
+    "ADL_IDENTITY_VERIFICATION must be 'bypass', 'upstream' or 'passkey'.",
   );
+}
+
+/**
+ * Origin binding is explicit. `ADL_WEBAUTHN_ORIGINS` defaults to the already
+ * validated allowed origins rather than to anything derived from a request, and
+ * the relying party id must be a registrable domain that every one of those
+ * origins is under — a mismatch is refused at startup rather than producing
+ * credentials that silently fail to verify later.
+ */
+function webauthnConfiguration(
+  environment: Record<string, string | undefined>,
+  allowedOrigins: readonly string[],
+): AuthorityWebAuthnConfiguration {
+  const relyingPartyId = required(environment, "ADL_WEBAUTHN_RP_ID");
+  if (!/^[a-z0-9.-]{1,253}$/iu.test(relyingPartyId))
+    throw new AuthorityConfigurationError("ADL_WEBAUTHN_RP_ID must be a host name.");
+  const declaredOrigins = environment.ADL_WEBAUTHN_ORIGINS?.trim();
+  const origins =
+    declaredOrigins === undefined || declaredOrigins.length === 0
+      ? [...allowedOrigins]
+      : declaredOrigins
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean);
+  if (origins.length === 0)
+    throw new AuthorityConfigurationError("ADL_WEBAUTHN_ORIGINS must contain at least one origin.");
+  for (const origin of origins) {
+    let host: string;
+    try {
+      host = new URL(origin).hostname;
+    } catch {
+      throw new AuthorityConfigurationError("ADL_WEBAUTHN_ORIGINS must contain only origins.");
+    }
+    if (host !== relyingPartyId && !host.endsWith(`.${relyingPartyId}`))
+      throw new AuthorityConfigurationError(
+        "Every ADL_WEBAUTHN_ORIGINS entry must be under ADL_WEBAUTHN_RP_ID.",
+      );
+  }
+  return {
+    relyingPartyId,
+    relyingPartyName: environment.ADL_WEBAUTHN_RP_NAME?.trim() || relyingPartyId,
+    origins,
+    challengeTtlSeconds: positiveInteger(environment.ADL_WEBAUTHN_CHALLENGE_TTL_SECONDS, 300),
+  };
 }
 function isEnvironment(value: string): value is AuthorityEnvironment {
   return value === "development" || value === "test" || value === "production";

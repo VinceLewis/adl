@@ -53,6 +53,7 @@ const configuration: AuthorityConfiguration = {
   identityVerification: { mode: "bypass" },
   rateLimits: {
     accountProof: 50,
+    webauthn: 50,
     session: 50,
     invite: 50,
     bootstrap: 50,
@@ -115,7 +116,7 @@ describe("authority HTTP edge over a real local network and PostgreSQL", () => {
   });
 
   it("accepts an authenticated replay and persists it through the real stack", async () => {
-    const user = await sessions.provisionIdentity("member@example.test");
+    const user = await sessions.provisionIdentity("bypass", "member@example.test");
     const session = await sessions.issueSession(user.userId);
     const response = await fetch(`${baseUrl}/v1/sync/replay`, {
       method: "POST",
@@ -150,7 +151,7 @@ describe("authority HTTP edge over a real local network and PostgreSQL", () => {
   });
 
   it("rejects a mutation without a CSRF token header", async () => {
-    const user = await sessions.provisionIdentity("member2@example.test");
+    const user = await sessions.provisionIdentity("bypass", "member2@example.test");
     const session = await sessions.issueSession(user.userId);
     const response = await fetch(`${baseUrl}/v1/sync/replay`, {
       method: "POST",

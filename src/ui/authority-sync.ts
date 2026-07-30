@@ -9,6 +9,8 @@ import type { HttpAuthorityTransportOptions } from "../server/http-authority-tra
 import type { ApplicationRuntime } from "../runtime/application-runtime.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import type { AdlAuthorityBridge, AdlInviteState, AdlSessionState } from "./authority-bridge.js";
+import { BrowserWebAuthnClient, WebAuthnCancelledError } from "./webauthn-client.js";
+import type { WebAuthnBrowserClient } from "./webauthn-client.js";
 
 /**
  * Browser-side authority wiring. Sync is opt-in: without a configured base URL
@@ -27,6 +29,12 @@ export interface BrowserAuthorityConfiguration {
    * `__Host-` cookie behaviour. This is test wiring, not a second transport.
    */
   transport?: Omit<HttpAuthorityTransportOptions, "baseUrl">;
+  /**
+   * The authenticator seam. A browser leaves this unset and gets the platform
+   * WebAuthn API; tests inject a software authenticator, because there is no
+   * user agent to prompt. Test wiring, not a second client.
+   */
+  webauthn?: WebAuthnBrowserClient;
 }
 
 /**
@@ -81,10 +89,17 @@ export async function connectBrowserAuthority(
     ...configuration.transport,
   });
   const client = new AuthoritySyncClient(runtime, transport);
+  const webauthn = configuration.webauthn ?? new BrowserWebAuthnClient();
 
   // An unreachable authority must not be read as a verified one: the session is
   // reported unavailable and the deployment is still treated as development.
-  let session: AdlSessionState = { status: "unavailable", developmentMode: true, busy: false };
+  let session: AdlSessionState = {
+    status: "unavailable",
+    developmentMode: true,
+    identityMode: "unknown",
+    passkeySupported: webauthn.available(),
+    busy: false,
+  };
   let invite: AdlInviteState = { status: "idle" };
   let recovery: SyncRecoveryItem[] = client.listRecovery();
 
@@ -95,13 +110,15 @@ export async function connectBrowserAuthority(
       status: identity === null ? "signedOut" : "signedIn",
       ...(identity === null ? {} : { userId: identity.userId }),
       developmentMode: readiness.bypassed,
+      identityMode: readiness.mode,
+      passkeySupported: webauthn.available(),
       busy: false,
     };
   } catch (error) {
     session = {
+      ...session,
       status: "unavailable",
       developmentMode: true,
-      busy: false,
       error: describeAuthorityFailure(error),
     };
   }
@@ -145,12 +162,54 @@ export async function connectBrowserAuthority(
     async signIn(accountProof: string): Promise<void> {
       await withBusy(async () => {
         const identity = await transport.signIn(accountProof);
+        session = { ...session, status: "signedIn", userId: identity.userId, busy: false };
+        await connection.synchronize(options.getContext());
+      });
+    },
+
+    /**
+     * Runs a registration ceremony. The authority issues the challenge and
+     * decides everything that follows: whether this admits a new member, adds
+     * an authenticator to an existing identity, or re-links an identity that
+     * lost every authenticator. The browser only carries the options to the
+     * platform authenticator and the response back, and holds neither the
+     * challenge nor the invite token beyond the call.
+     */
+    async registerPasskey(inviteToken?: string): Promise<void> {
+      await withBusy(async () => {
+        const start = await transport.beginPasskeyRegistration(inviteToken);
+        const response = await webauthn.create(start.options);
+        const outcome = await transport.finishPasskeyRegistration({
+          challengeId: start.challengeId,
+          response,
+          ...(inviteToken === undefined ? {} : { inviteToken }),
+        });
         session = {
+          ...session,
           status: "signedIn",
-          userId: identity.userId,
-          developmentMode: session.developmentMode,
+          userId: outcome.userId,
           busy: false,
+          notice:
+            outcome.invite === "identityRecovered"
+              ? "This device is registered and your existing access was restored."
+              : outcome.invite === "membershipGranted"
+                ? "This device is registered and the invitation was accepted."
+                : "This device is registered.",
         };
+        await connection.synchronize(options.getContext());
+      });
+    },
+
+    /** Signs in with a registered authenticator; the authority verifies the assertion. */
+    async signInWithPasskey(): Promise<void> {
+      await withBusy(async () => {
+        const start = await transport.beginPasskeyAuthentication();
+        const response = await webauthn.get(start.options);
+        const identity = await transport.finishPasskeyAuthentication({
+          challengeId: start.challengeId,
+          response,
+        });
+        session = { ...session, status: "signedIn", userId: identity.userId, busy: false };
         await connection.synchronize(options.getContext());
       });
     },
@@ -158,11 +217,9 @@ export async function connectBrowserAuthority(
     async signOut(): Promise<void> {
       await withBusy(async () => {
         await transport.signOut();
-        session = {
-          status: "signedOut",
-          developmentMode: session.developmentMode,
-          busy: false,
-        };
+        session = { ...session, status: "signedOut", busy: false };
+        delete session.userId;
+        delete session.notice;
         invite = { status: "idle" };
       });
     },
@@ -224,11 +281,17 @@ export async function connectBrowserAuthority(
   async function withBusy(action: () => Promise<void>): Promise<void> {
     session = { ...session, busy: true };
     delete session.error;
+    delete session.notice;
     await options.onChange();
     try {
       await action();
     } catch (error) {
-      session = { ...session, busy: false, error: describeAuthorityFailure(error) };
+      // Dismissing the platform prompt is a choice, not a failure, so it leaves
+      // the surface exactly as it was rather than reporting an error.
+      session =
+        error instanceof WebAuthnCancelledError
+          ? { ...session, busy: false }
+          : { ...session, busy: false, error: describeAuthorityFailure(error) };
     }
     session = { ...session, busy: false };
     recovery = client.listRecovery();

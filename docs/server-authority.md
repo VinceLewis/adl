@@ -65,15 +65,16 @@ phase or still explicitly outstanding:
   shell — Phase 47, below.
 
 - Offline operation identity and accepted-state convergence — Phase 48, below.
+- Passkey identity and provider-independent identity keying — Phase 49, below.
 
-Still outstanding after Phase 48, in sequence order: passkey identity and
-provider-independent identity keying (Phase 49) and offline session lifetime and
-sync grace (Phase 50) — **together the deployment gate**, since until both land the
-bypass is the only way in; then conformance depth and model migrations (Phase 51),
-membership-projection scoping (Phase 52), retention scheduling and its
-administration UI (Phase 53), and reference-app gaps (Phase 54). Outside the phase
-plan: TLS termination, secret management, CI/CD, and a hosting provider decision.
-The identity method itself is no longer open — see
+Still outstanding after Phase 49, in sequence order: offline session lifetime and
+sync grace (Phase 50) — the **second half of the deployment gate**, since Phase 49
+makes signing in real and Phase 50 makes staying signed in survive being offline;
+then conformance depth and model migrations (Phase 51), membership-projection
+scoping (Phase 52), retention scheduling and its administration UI (Phase 53), and
+reference-app gaps (Phase 54). Outside the phase plan: TLS termination, secret
+management, CI/CD, and a hosting provider decision. The identity method itself is
+no longer open — see
 [ADR 0008](adr/0008-passkey-identity-and-offline-session-grace.md).
 
 ## Remote bootstrap and browser reconciliation
@@ -230,8 +231,10 @@ in the `/readyz` body as `{ mode, verifier, bypassed }`. Setting the switch to
 `upstream` without supplying a provider selects
 `UnconfiguredUpstreamIdentityVerifier`, which rejects every proof with
 `authentication_failed` — turning verification on never falls back to the
-bypass. In production the bypass must additionally be acknowledged with
-`ADL_IDENTITY_BYPASS_ACKNOWLEDGED=true`, so it cannot be reached by omission.
+bypass. Phase 46 additionally allowed the bypass in production behind an
+explicit `ADL_IDENTITY_BYPASS_ACKNOWLEDGED=true`; **Phase 49 removes that escape
+hatch entirely** — a production process now refuses to start in `bypass` at all
+(see below).
 
 Bypassed verification widens nothing else. Sessions are still opaque tokens
 stored as SHA-256 verifiers, the request still cannot set a user id, role, audit
@@ -422,3 +425,189 @@ the run. A convergence sweep would therefore be code that deletes user rows on
 inference with no population to fix, so none was added. A developer whose own
 browser profile holds an orphan from a manual Phase 47 session can clear site data
 for the origin.
+
+## Passkey identity and provider-independent keying
+
+Phase 49 replaces the identity bypass with a credential the authority verifies
+itself, and re-keys identity so the provider, the method, or the decision to use
+one at all can change later without re-keying user data. The decision is
+[ADR 0008](adr/0008-passkey-identity-and-offline-session-grace.md).
+
+**Identity is keyed on an internal `userId`, with linkable external
+identifiers.** `AuthorityIdentity` is now `{ userId, createdAt, disabledAt? }`
+and carries no external identifier at all. Every one of those lives in
+`adl_authority_identity_links` as `(application_id, provider, subject) → user_id`
+(`0006_passkey_identity.sql`, which backfills any pre-existing `subject` under
+the `legacy` provider before dropping the column). `provisionIdentity(provider,
+subject)` resolves the identity holding that pair and mints one only on a miss,
+and `linkIdentity(userId, provider, subject)` adds a further identifier to an
+existing identity — refusing an identifier already held by a different identity
+rather than silently re-pointing it. Changing provider, adding a second method,
+or running two in parallel is therefore linking an identifier, never re-keying
+the `userId` that memberships, sessions and audit rows all reference. One
+identity holding both a `passkey` and an `upstream` subject resolves to the same
+`userId` through either.
+
+**The third identity-verification mode.** `ADL_IDENTITY_VERIFICATION` accepts
+`passkey | upstream | bypass`. In `passkey` mode the authority verifies a
+WebAuthn assertion it challenged itself, so there is no bearer proof to exchange:
+`PasskeyIdentityVerifier` refuses every proof and `/v1/session/issue` answers
+`endpoint_unavailable` (503), so a passkey deployment keeps no second, weaker way
+in. The active mode is still disclosed exactly as before, in the
+`identity_verification_configured` startup security event and in `/readyz` as
+`{ mode, verifier, bypassed }` (`{ mode: "passkey", verifier: "passkey",
+bypassed: false }`). **The bypass is now development-only**: a `production`
+configuration in `bypass` is refused by `loadAuthorityConfiguration`, and the
+Phase 46 `ADL_IDENTITY_BYPASS_ACKNOWLEDGED` acknowledgement no longer exists —
+there is deliberately no way for an operator to opt production back into
+accepting an unverified identity.
+
+**Relying-party binding is explicit configuration, never inferred from a
+request.** `ADL_WEBAUTHN_RP_ID`, `ADL_WEBAUTHN_RP_NAME`, `ADL_WEBAUTHN_ORIGINS`
+(defaulting to `ADL_ALLOWED_ORIGINS`) and `ADL_WEBAUTHN_CHALLENGE_TTL_SECONDS`
+(default 300) are required in `passkey` mode, and startup refuses an origin that
+is not the relying party id or a subdomain of it. A credential registered against
+one relying party id will not work against another, so development and production
+registrations are separate by design.
+
+### Ceremony endpoints
+
+Four POST endpoints, under the ordinary Phase 42 edge controls (HTTPS, exact
+origin allow-list, `application/json`, size limit). They exist only in `passkey`
+mode with a `PasskeyIdentityService` wired; otherwise they answer
+`endpoint_unavailable` (503).
+
+| Endpoint | Request body | Success |
+| --- | --- | --- |
+| `/v1/webauthn/register/begin` | `{ inviteToken? }` | 200 `{ challengeId, options }` |
+| `/v1/webauthn/register/finish` | `{ challengeId, response, inviteToken? }` | 201 `{ userId, invite?, expiresAt? }`, with session and CSRF cookies only when the ceremony began without a session |
+| `/v1/webauthn/authenticate/begin` | `{}` | 200 `{ challengeId, options }` |
+| `/v1/webauthn/authenticate/finish` | `{ challengeId, response }` | 201 `{ userId, expiresAt }` plus session and CSRF cookies |
+
+`options` is the relying party's own WebAuthn options object, passed straight to
+the platform authenticator; `response` is the authenticator's JSON-encoded
+attestation or assertion. `invite` reports how an invite was applied and is
+either `membershipGranted` or `identityRecovered`.
+
+**Registration is never anonymous.** A caller either already holds a valid
+session — adding a further authenticator to their own identity, reusing the user
+handle that identity already registered under so the credential joins it rather
+than forking a new one — or presents a valid invite. Nothing else can mint an
+identity. A begin call with neither is refused `ADL_PASSKEY_UNAUTHORIZED`.
+
+**A session is issued only when the ceremony began without one.** An
+invite-backed registration — a new member, or an identity being recovered —
+receives an ordinary opaque session and its cookies. The session-gated "add
+another authenticator" path receives none, and the edge writes no cookies:
+replacing the cookie there would silently swap the caller's session and leave the
+previous one live, so a person adding a second device would hold two.
+
+**Cross-origin responses carry CORS headers, not just the preflight.** A browser
+refuses to let a page read a cross-origin response unless the response itself
+repeats `access-control-allow-origin` and `access-control-allow-credentials`, so
+the edge echoes them on every response — including `GET /readyz` — whenever the
+request's `Origin` is already on the allow list. An unlisted origin is still
+refused and still cannot read what it was refused with. Without this a browser
+hosted on a different origin from the authority cannot complete any call at all,
+and the sign-in surface never learns the identity mode.
+
+**Authentication needs no user name.** Credentials are registered discoverable
+(`residentKey: "required"`) and `authenticate/begin` issues no allow-list, so the
+authenticator names the credential and the authority is never told who is signing
+in before it has verified an assertion.
+
+A refusal states only its stable code, with a 401 status: no challenge,
+assertion, invite token or key material appears in a response or a log line. The
+codes are `ADL_PASSKEY_UNAUTHORIZED`, `ADL_PASSKEY_CHALLENGE_INVALID`,
+`ADL_PASSKEY_ASSERTION_INVALID`, `ADL_PASSKEY_CREDENTIAL_IN_USE`,
+`ADL_PASSKEY_CREDENTIAL_UNKNOWN`, `ADL_PASSKEY_COUNTER_REGRESSED` and
+`ADL_PASSKEY_INVITE_INVALID`.
+
+### The pre-session versus post-session CSRF boundary
+
+The ceremony routes are the only mutating endpoints that may be reached without a
+session, because a first registration and every authentication happen before one
+exists. The boundary is therefore stated by **presence, not by path**:
+
+- **No session cookie.** There is no ambient credential for a hostile page to
+  abuse, so no double-submit token is required. The request is bound instead by
+  the allowed `Origin`, the `webauthn` rate bucket, and the server-issued
+  single-use challenge — an attacker's page cannot obtain a challenge bound to
+  the victim's ceremony, and the assertion is verified against the configured
+  origin and relying party id regardless.
+- **A valid session cookie is present.** The request must still carry a matching
+  `x-adl-csrf-token` double-submit token or it is refused `csrf_denied` (403).
+  The session-gated "add another authenticator" path is therefore protected
+  exactly as every other authenticated mutation is.
+
+`bucketFor` puts every `/v1/webauthn/*` path in its own `webauthn` bucket
+(`ADL_RATE_WEBAUTHN`, default 20). Most of these calls are pre-session, so they
+must not share — or be limited by — an authenticated caller's session allowance.
+The limit is enforced before the session and CSRF checks, and both halves of a
+ceremony count against it.
+
+### Challenge and credential rules
+
+A challenge is **server-issued, single-use, short-lived, ceremony-bound, and
+origin- and relying-party-bound**:
+
+- It is generated by the relying party, stored in
+  `adl_authority_webauthn_challenges`, and returned only as an opaque
+  `challengeId` alongside the options.
+- `consumeChallenge` marks it used and returns it in one statement — the `update
+  … where consumed_at is null and expires_at > $now and ceremony = $ceremony`
+  is itself the single-use gate, so two simultaneous finishes cannot both win,
+  and an unknown, replayed, expired or wrong-ceremony challenge simply returns
+  nothing and refuses.
+- Verification checks the assertion against the configured origins and relying
+  party id, so a client-chosen challenge, a wrong-origin assertion or a forged
+  signature is refused with no session issued.
+- The signature counter is checked on every assertion. `recordCredentialUse`
+  carries the rule in its `where` clause rather than racing a read-then-write: a
+  counter that did not advance while the stored one is non-zero updates nothing
+  and refuses with `ADL_PASSKEY_COUNTER_REGRESSED`, which is the
+  cloned-authenticator signal. An authenticator that implements no counter and
+  always reports zero is permitted, but a previously non-zero counter may never
+  return to zero or stall. In practice a stale counter is usually caught one
+  layer earlier — `@simplewebauthn/server` refuses it during verification, which
+  surfaces as `ADL_PASSKEY_ASSERTION_INVALID` — so `recordCredentialUse` is the
+  backstop for a counter that advances concurrently between check and write.
+  Either way the assertion is refused and no session is issued.
+
+`adl_authority_webauthn_credentials` stores the credential id, the base64url
+COSE public key, the signature counter, transports and the backed-up flag. None
+of those are secrets. No private key, raw assertion or attestation object is ever
+stored — registration requests `attestationType: "none"`, so no attestation
+statement is even collected. A credential id that is already registered is
+refused `ADL_PASSKEY_CREDENTIAL_IN_USE` rather than re-pointed.
+
+`@simplewebauthn/server` is confined to `SimpleWebAuthnLibrary` in
+`src/server/simplewebauthn-adapter.ts`, behind the structural `WebAuthnLibrary`
+interface — the discipline `pg` already follows — and is composed only by the
+authority entrypoint in `passkey` mode. It is deliberately not re-exported from
+`src/index.ts`, which the browser bundle imports.
+
+### Recovery, and what a passkey does not grant
+
+**A passkey grants identity only, never ADL roles.** A verified assertion issues
+an ordinary opaque session and nothing else; context roles keep resolving from
+accepted membership records through `RuntimeContextService` on every call, and
+the request still cannot set a user id, role, audit actor, accepted revision or
+timestamp.
+
+**Recovery re-links an existing identity.** A member who has lost every
+authenticator is re-admitted by an admin issuing a **recipient-bound** invite.
+`peekInvite` validates it without consuming it, so the ceremony can start for a
+caller with no session; the invite's `recipientUserId` fixes the identity the new
+credential will attach to, so the same `userId` and every existing membership
+survive. At finish, `redeemInviteForIdentityRecovery` consumes and audits the
+invite as `identityRecovered` **before anything is written**, and grants no
+membership — the member never lost their memberships, only their authenticators.
+A first-time member's invite, by contrast, is claimed through the ordinary
+`claimInvite` path once the session exists, so the grant is written by the same
+server-side transaction as every other claim.
+
+The raw invite token is re-supplied at finish rather than stored: only its hash
+lives on the challenge, and the token presented at finish must hash to the one
+the ceremony was started with. No email sender is introduced anywhere in this
+flow.

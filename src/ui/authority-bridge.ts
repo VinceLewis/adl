@@ -12,6 +12,15 @@ export interface AdlAuthorityBridge {
   /** Settled operations still awaiting a strategy or a person. */
   readonly recovery: SyncRecoveryItem[];
   signIn(accountProof: string): Promise<void>;
+  /**
+   * Registers an authenticator. With no invite token the caller must already
+   * hold a session and is adding another authenticator to their own identity;
+   * with one, the authority decides from the invite whether this admits a new
+   * member or re-links an existing identity that lost every authenticator.
+   */
+  registerPasskey(inviteToken?: string): Promise<void>;
+  /** Signs in with a registered authenticator. The authority verifies the assertion. */
+  signInWithPasskey(): Promise<void>;
   signOut(): Promise<void>;
   claimInvite(inviteToken: string): Promise<void>;
   resolveRecovery(queueId: string, choice: SyncRecoveryChoice): Promise<void>;
@@ -29,10 +38,20 @@ export interface AdlSessionState {
    * development mode and must never look like a verified sign-in.
    */
   developmentMode: boolean;
+  /**
+   * The authority's own identity-verification mode, read from `/readyz`. The
+   * surface uses it only to offer the right way in — a passkey deployment has
+   * no account proof to type — and it never widens what the client may do.
+   */
+  identityMode: string;
+  /** False when the platform has no WebAuthn support, so the surface can say so. */
+  passkeySupported: boolean;
   /** In flight, so the surface can disable its controls. */
   busy: boolean;
   /** Credential-free failure text for the last attempt. */
   error?: string;
+  /** Credential-free confirmation text for the last successful ceremony. */
+  notice?: string;
 }
 
 export interface AdlInviteState {
@@ -54,9 +73,19 @@ export const ADL_SIGN_IN_EVENT = "adl-sign-in";
 export const ADL_SIGN_OUT_EVENT = "adl-sign-out";
 export const ADL_CLAIM_INVITE_EVENT = "adl-claim-invite";
 export const ADL_RESOLVE_RECOVERY_EVENT = "adl-resolve-recovery";
+export const ADL_REGISTER_PASSKEY_EVENT = "adl-register-passkey";
+export const ADL_PASSKEY_SIGN_IN_EVENT = "adl-passkey-sign-in";
+
+/** The identity-verification mode in which the passkey surface is the way in. */
+export const PASSKEY_IDENTITY_MODE = "passkey";
 
 export interface SignInDetail {
   accountProof: string;
+}
+
+export interface RegisterPasskeyDetail {
+  /** Absent when an already signed-in person is adding another authenticator. */
+  inviteToken?: string;
 }
 
 export interface ClaimInviteDetail {

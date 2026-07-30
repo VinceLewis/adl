@@ -75,20 +75,38 @@ function recoveryItem(overrides: Partial<SyncRecoveryItem> = {}): SyncRecoveryIt
   };
 }
 
+function signedOutState(): AdlSessionState {
+  return {
+    status: "signedOut",
+    developmentMode: true,
+    identityMode: "bypass",
+    passkeySupported: true,
+    busy: false,
+  };
+}
+
 /** Records every call so the shell's dispatch can be asserted without a network. */
 class FakeAuthorityBridge implements AdlAuthorityBridge {
-  session: AdlSessionState = { status: "signedOut", developmentMode: true, busy: false };
+  session: AdlSessionState = signedOutState();
   invite: AdlInviteState = { status: "idle" };
   recovery: SyncRecoveryItem[] = [];
   readonly calls: string[] = [];
 
   async signIn(accountProof: string): Promise<void> {
     this.calls.push(`signIn:${accountProof}`);
-    this.session = { status: "signedIn", userId: "user-42", developmentMode: true, busy: false };
+    this.session = { ...this.session, status: "signedIn", userId: "user-42" };
+  }
+  async registerPasskey(inviteToken?: string): Promise<void> {
+    this.calls.push(`registerPasskey:${inviteToken ?? ""}`);
+    this.session = { ...this.session, status: "signedIn", userId: "user-42" };
+  }
+  async signInWithPasskey(): Promise<void> {
+    this.calls.push("signInWithPasskey");
+    this.session = { ...this.session, status: "signedIn", userId: "user-42" };
   }
   async signOut(): Promise<void> {
     this.calls.push("signOut");
-    this.session = { status: "signedOut", developmentMode: true, busy: false };
+    this.session = { ...signedOutState(), identityMode: this.session.identityMode };
   }
   async claimInvite(inviteToken: string): Promise<void> {
     this.calls.push(`claimInvite:${inviteToken}`);
@@ -151,7 +169,14 @@ describe("browser authority chrome", () => {
 
   it("refuses an invite claim while offline instead of queuing it", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = { status: "signedIn", userId: "user-42", developmentMode: false, busy: false };
+    bridge.session = {
+      status: "signedIn",
+      userId: "user-42",
+      developmentMode: false,
+      identityMode: "bypass",
+      passkeySupported: true,
+      busy: false,
+    };
     const app = await mountApp(bridge, { ...adminContext, online: false });
 
     const claim = requireElement<HTMLButtonElement>(app, "[data-session-claim-invite]");
@@ -164,7 +189,14 @@ describe("browser authority chrome", () => {
 
   it("claims an invitation through the bridge when online", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = { status: "signedIn", userId: "user-42", developmentMode: false, busy: false };
+    bridge.session = {
+      status: "signedIn",
+      userId: "user-42",
+      developmentMode: false,
+      identityMode: "bypass",
+      passkeySupported: true,
+      busy: false,
+    };
     const app = await mountApp(bridge, { ...adminContext, online: true });
 
     requireElement<HTMLInputElement>(app, "[data-session-invite-token]").value =
@@ -179,7 +211,14 @@ describe("browser authority chrome", () => {
 
   it("shows a manual conflict and resolves it through the bridge", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = { status: "signedIn", userId: "user-42", developmentMode: false, busy: false };
+    bridge.session = {
+      status: "signedIn",
+      userId: "user-42",
+      developmentMode: false,
+      identityMode: "bypass",
+      passkeySupported: true,
+      busy: false,
+    };
     bridge.recovery = [recoveryItem({ strategy: "manual" })];
     const app = await mountApp(bridge);
 
@@ -198,7 +237,14 @@ describe("browser authority chrome", () => {
 
   it("offers a rejected write a dismissal only, never a resubmission", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = { status: "signedIn", userId: "user-42", developmentMode: false, busy: false };
+    bridge.session = {
+      status: "signedIn",
+      userId: "user-42",
+      developmentMode: false,
+      identityMode: "bypass",
+      passkeySupported: true,
+      busy: false,
+    };
     bridge.recovery = [
       recoveryItem({
         status: "rejected",

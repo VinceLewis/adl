@@ -4,10 +4,14 @@
 
 The authority database contains accepted records, model metadata, memberships,
 opaque session and invite verifiers, idempotent outcomes, runtime audit, and
-access-audit projections. Browsers, queue contents, selected contexts, request
-bodies, cookies in transit, and upstream identity proofs are untrusted inputs.
-The upstream proof verifier establishes only a stable identity subject; ADL
-roles are resolved from accepted membership records on every authority call.
+access-audit projections. Since Phase 49 it also contains identity links
+(`(provider, subject) → user_id`), registered WebAuthn credentials (credential
+id, COSE public key, signature counter) and short-lived ceremony challenges.
+Browsers, queue contents, selected contexts, request bodies, cookies in transit,
+upstream identity proofs, and WebAuthn attestations and assertions are untrusted
+inputs. An identity verifier — an upstream proof verifier or a passkey ceremony
+the authority itself challenged — establishes only a stable identity; ADL roles
+are resolved from accepted membership records on every authority call.
 
 | Threat | Control | Verification |
 | --- | --- | --- |
@@ -25,7 +29,7 @@ roles are resolved from accepted membership records on every authority call.
 | Cross-context runtime-audit disclosure via a sparse/empty page | Audit rows stamped with the record's declared context scope; review filtered to one authorised context in SQL, with the per-row runtime read retained as the disclosure boundary | Phase 45 scope tests |
 | Retention job destroys accepted state, in-retention audit/outcomes, or bypasses legal hold | Application-scoped prune that clamps the cutoff to no later than `now - minimumRetentionMs`, refuses under legal hold, rejects a non-positive window, and never touches accepted records, sessions, invites, or identities | Phase 45 retention-boundary tests |
 
-| Unverified account proof while identity verification is bypassed | **Accepted temporary risk (Phase 46).** The switch defaults to `bypass` and is disclosed in the startup security event and `/readyz`; production requires an explicit acknowledgement variable; the proof is shape-checked; and the bypass widens nothing else — sessions stay opaque and ADL context roles are still resolved from accepted membership records | Phase 46 identity-switch tests |
+| Unverified account proof while identity verification is bypassed | **Closed for production by Phase 49**: a production configuration in `bypass` is refused at startup and the Phase 46 acknowledgement variable is removed. In development the switch still defaults to `bypass` and is disclosed in the startup security event and `/readyz`; the proof is shape-checked; and the bypass widens nothing else — sessions stay opaque and ADL context roles are still resolved from accepted membership records | Phase 46 identity-switch tests, Phase 49 configuration tests |
 | Session, CSRF or credential leak through the browser transport | Session cookie stays `__Host-` Secure HttpOnly SameSite=Strict and is never readable by client code; only the double-submit CSRF cookie is read; transport failures raise an error instead of a fabricated outcome | Phase 46 transport and integration tests |
 
 | Session token or protected record body written into the service worker cache | A service worker cache is readable by any script in the origin and survives sign-out, so the single cache write point refuses non-GET, cross-origin, any `/v1/` path, non-ok/opaque/error responses, `set-cookie` responses, `no-store`/`private` responses, and JSON bodies; records stay in IndexedDB under the runtime persistence boundary | Phase 47 service-worker policy tests, plus an integration case that runs a real authority response through the predicate |
@@ -37,30 +41,111 @@ roles are resolved from accepted membership records on every authority call.
 | Malformed record id reaching PostgreSQL as a text key | `isValidRecordId` (non-empty, ≤320 characters, no surrounding whitespace, no control characters) is enforced independently at the HTTP edge (`malformed_request`, 400) and in the runtime (`ADL_RUNTIME_RECORD_ID_INVALID`), before any insert — a NUL in a text key is a real PostgreSQL failure, and an undetected collision would surface as a retryable infrastructure error the client would replay forever | Phase 48 record-identity tests, real-PostgreSQL edge and runtime cases |
 | Offline invite claim pre-granting or caching access | The claim is refused in the browser bridge before any request is made, so nothing is queued, cached or optimistically granted; the granted context's records appear only on the bootstrap after the server's confirmation | Phase 47 integration test asserting nothing reached the wire and no access-audit row was written |
 
+## The passkey surface (Phase 49)
+
+A passkey has no shared secret, so a whole class of threats has no surface to
+attack rather than a control mitigating it: **there is no password store to
+steal, no reset email to intercept or spoof, no credential to stuff from another
+site's breach, and nothing in this database whose disclosure would let anyone
+authenticate.** What the authority holds is the *public* half of an asymmetric
+key pair.
+
+| Threat | Control | Verification |
+| --- | --- | --- |
+| Replayed, client-chosen or expired challenge | The challenge is server-issued, stored, single-use, short-lived (`ADL_WEBAUTHN_CHALLENGE_TTL_SECONDS`, default 300) and bound to the ceremony it was issued for; `consumeChallenge` marks it used in the same `update … where consumed_at is null and expires_at > now and ceremony = $ceremony`, so a replay, an expiry, or a challenge issued for the other ceremony returns nothing and refuses with `ADL_PASSKEY_CHALLENGE_INVALID` | Phase 49 ceremony unit tests, real-PostgreSQL integration tests |
+| Forged assertion, or one presented against a different relying party or origin | Verification checks the signature against the stored COSE public key and the assertion against `ADL_WEBAUTHN_RP_ID` and `ADL_WEBAUTHN_ORIGINS`, both explicit configuration and never inferred from the request; a library exception is converted to a refusal rather than propagated, because its message can quote response material. No session is issued (`ADL_PASSKEY_ASSERTION_INVALID`) | Phase 49 forgery/wrong-origin regression tests |
+| Cloned authenticator | The signature counter is checked on every assertion and advanced in the `where` clause rather than by read-then-write, so a counter that fails to advance while the stored one is non-zero updates nothing and refuses with `ADL_PASSKEY_COUNTER_REGRESSED`. A counter-less authenticator that always reports zero is permitted; a previously non-zero counter may never stall or return to zero | Phase 49 counter-rule tests |
+| Anonymous identity minting through the registration ceremony | Registration is never anonymous: the caller either holds a valid session (adding an authenticator to their own identity, reusing that identity's existing user handle) or presents a valid invite, and nothing else can mint an identity (`ADL_PASSKEY_UNAUTHORIZED`). A credential id that is already registered is refused (`ADL_PASSKEY_CREDENTIAL_IN_USE`), never re-pointed at a new identity | Phase 49 registration tests |
+| CSRF against an endpoint that must work before a session exists | The boundary is stated by presence, not by path: a request carrying a valid session cookie must still carry a matching double-submit token or is refused `csrf_denied`, so the session-gated path is protected exactly as every other authenticated mutation is; a request with no session cookie has no ambient credential to abuse and is bound instead by the allowed `Origin`, the dedicated `webauthn` rate bucket, and the server-issued single-use challenge | Phase 49 HTTP edge tests |
+| Ceremony endpoints used to brute-force or to exhaust an authenticated caller's allowance | `/v1/webauthn/*` has its own `webauthn` bucket (`ADL_RATE_WEBAUTHN`, default 20), enforced before the session and CSRF checks, so pre-session ceremonies neither spend nor are limited by session-endpoint allowances | Phase 49 HTTP edge tests |
+| Raw invite token reaching challenge storage | Only the token's SHA-256 hash is stored on the challenge; the raw token is re-supplied at finish and must hash to the one the ceremony was started with, so challenge storage never holds a usable invite credential | Phase 49 recovery tests |
+| Recovery invite used to escalate privilege or create a second identity | A recipient-bound invite re-links the new credential to the identity it names, and `redeemInviteForIdentityRecovery` consumes and audits it as `identityRecovered` **before anything is written**, granting no membership at all. A simultaneously claimed or revoked invite refuses with nothing granted | Phase 49 recovery tests, real-PostgreSQL integration test |
+| Signing in with a passkey conferring ADL roles | A verified assertion issues an ordinary opaque session and nothing more. Context roles keep resolving from accepted membership records through `RuntimeContextService` on every call, and a disabled identity is refused after verification (`ADL_PASSKEY_UNAUTHORIZED`) | Phase 49 ceremony and authority-service tests |
+| Ceremony refusal leaking credential, challenge or invite material | A refusal states only its stable `ADL_PASSKEY_*` code with a 401; no challenge, assertion, invite token or key material enters a response, a log line, an audit row, an outcome, or sync state. Phase 42 redaction rules are unchanged | Phase 49 HTTP redaction tests |
+
+**What is stored.** `adl_authority_webauthn_credentials` holds the credential id,
+the base64url COSE **public** key, the signature counter, transports and the
+backed-up flag. `adl_authority_identity_links` holds `(provider, subject) →
+user_id`, where a passkey subject is the WebAuthn user handle — an opaque random
+value, not an email address or any other personal identifier. None of these are
+secrets: an attacker holding all of them still cannot produce a valid assertion,
+because the private key never leaves the authenticator.
+
+**What is never stored.** No private key. No raw assertion or attestation object
+— registration requests `attestationType: "none"`, so no attestation statement is
+even collected, and none of the privacy-sensitive device data it would carry ever
+has to be protected. No raw invite token, only its hash. No challenge outside its
+own short-lived table.
+
+**Why the challenge is stored at all.** A challenge must be verified against the
+assertion that answers it, and the authority is the only party that may decide
+whether the challenge was one it issued — so it has to persist across the two
+requests of a ceremony. `adl_authority_webauthn_challenges` is therefore
+authentication-flow state, not a credential store: rows are single-use,
+short-lived and prunable by expiry, they hold no accepted data, and a challenge
+value discloses nothing that helps an attacker who cannot also produce a
+signature over it with a registered private key. Excluding the table from a
+restore is acceptable; an in-flight ceremony is simply restarted.
+
 Residual risks: upstream identity-provider compromise, a trusted reverse-proxy
 misconfiguration, and an attacker with database-owner access are outside the
 authority process boundary. Those risks require provider controls, protected
 infrastructure configuration, and database access review.
 
-**Accepted temporary risk — identity verification bypass.** Phase 46 builds the
-identity seam but deliberately does not choose a provider. While
-`ADL_IDENTITY_VERIFICATION=bypass` (the default), anyone who can reach
-`/v1/session/issue` with an allowed origin can obtain a session for any subject
-they name, bounded only by the account-proof rate limit. That is acceptable for
-development and for the first deployment slice, and unacceptable for real user
-data. Follow-up: select and implement a real `UpstreamIdentityVerifier` (OIDC,
-Better Auth, or custom), then set the switch to `upstream` and remove the
-production acknowledgement variable from the deployment. Until then, any
-environment holding real data must treat a `bypassed: true` readiness response
-as an open finding.
+**Closed in Phase 49 — the identity verification bypass.** Phase 46 built the
+identity seam but deliberately did not choose a provider, so while
+`ADL_IDENTITY_VERIFICATION=bypass` (still the default) anyone who can reach
+`/v1/session/issue` with an allowed origin obtains a session for any subject they
+name, bounded only by the account-proof rate limit. Phase 47 surfaced that to the
+person signing in — the panel is labelled a development mode in both the
+signed-out and signed-in states, and an authority whose readiness cannot be read,
+including one that cannot be reached at all, is held as development rather than
+verified — but it did not close the risk.
 
-Phase 47 surfaces the bypass to the person signing in — the sign-in panel is
-labelled a development mode in both the signed-out and signed-in states, and an
-authority whose readiness cannot be read, including one that cannot be reached at
-all, is held as development rather than verified — but it does not close the
-risk. A real `UpstreamIdentityVerifier` is still not
-chosen, and the hard sequencing rule stands: **one must be in place before any
-deployment holds real user data**, regardless of which phase delivers it.
+Phase 49 closes it for any deployment: the bypass is **development-only** and a
+production configuration in `bypass` is refused by
+`loadAuthorityConfiguration`, so the process does not start rather than serving
+unverified identities. The Phase 46 `ADL_IDENTITY_BYPASS_ACKNOWLEDGED` escape
+hatch is **removed**, deliberately: with a real verifier available, no operator
+should be able to opt production back into accepting an unverified identity. A
+development or test environment may still run the bypass, and the readiness flag
+still discloses it, so `bypassed: true` in any environment that serves real users
+remains an open finding.
+
+Note what this does and does not settle. The standing pre-deployment rule from
+ADR 0008 is satisfied by Phases 49 and 50 **together**, not by either alone:
+Phase 49 makes signing in real, and Phase 50 makes staying signed in survive
+being offline.
+
+**Residual risks accepted in ADR 0008.** These are decisions, not oversights, and
+they are unchanged by Phase 49:
+
+- **A lost device retains sync capability until membership is revoked.** A device
+  inside its grace window can sync without a fresh logon. `revokeMembership`
+  revokes the user's sessions first, deliberately, which is the compensating
+  control; a per-session device list is the cheap addition that would make it
+  self-service, and it is not built. Revoking the *credential* alone does not
+  end an existing session — revoke the sessions, or the membership if access
+  itself is in doubt.
+- **Revocation never reclaims data already cached on a device.** That was already
+  true and already recorded; the decision makes it explicit and intentional.
+- **There is no remote wipe**, and there cannot be a reliable one for a device
+  that never reconnects.
+- **No local biometric gate is built.** A web app's local biometric check is a
+  boolean produced by client code, so it can never be an enforcement point; the
+  device's own lock screen covers the locked-device case with secure-enclave
+  backing. If shared devices come into scope, the pattern is a WebAuthn ceremony
+  whose assertion is queued and verified by the authority on reconnect — which
+  makes a local bypass *detectable*, not prevented, and must be recorded as an
+  audit property rather than a control.
+- **There is no first-admin bootstrap flow.** Registration is session- or
+  invite-gated and never anonymous, so a brand-new database admits its first
+  identity only through an out-of-band operator procedure with direct database
+  access — see the
+  [production runbook](../operations/authority-production-runbook.md). Anyone who
+  can perform it already has database-owner-level access, which is outside the
+  authority process boundary, but it is a privileged manual step and should be
+  performed once and audited.
 
 **Residual risk — signing out leaves local data behind.** Sign-out ends the
 server session and clears the invite state; it does not clear locally cached

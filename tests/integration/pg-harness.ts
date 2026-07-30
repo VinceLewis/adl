@@ -10,6 +10,7 @@ export const MIGRATION_FILES = [
   "0003_reporting_administration.sql",
   "0004_authority_transaction_integrity.sql",
   "0005_authority_audit_scope_and_retention.sql",
+  "0006_passkey_identity.sql",
 ];
 
 /** Every projection table the integration tests read, write, or reset. */
@@ -18,6 +19,9 @@ export const AUTHORITY_TABLES = [
   "adl_authority_access_audit_events",
   "adl_authority_invites",
   "adl_authority_sessions",
+  "adl_authority_webauthn_challenges",
+  "adl_authority_webauthn_credentials",
+  "adl_authority_identity_links",
   "adl_authority_identities",
   "adl_authority_audit_events",
   "adl_authority_operation_outcomes",
@@ -29,7 +33,7 @@ export const AUTHORITY_TABLES = [
 /** Apply the real migrations once. Idempotent: skips if already migrated. */
 export async function applyMigrations(client: Client): Promise<void> {
   const already = await client.query(
-    "select 1 from pg_indexes where indexname = 'adl_authority_audit_context_idx'",
+    "select 1 from pg_indexes where indexname = 'adl_authority_identity_links_user_idx'",
   );
   if ((already.rowCount ?? 0) > 0) return;
   for (const file of MIGRATION_FILES) {

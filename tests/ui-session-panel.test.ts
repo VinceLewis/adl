@@ -23,6 +23,8 @@ const INVITE_TOKEN = "invite-token-0123456789abcdef0123456789abcdef";
 const signedOut: AdlSessionState = {
   status: "signedOut",
   developmentMode: false,
+  identityMode: "bypass",
+  passkeySupported: true,
   busy: false,
 };
 
@@ -30,6 +32,8 @@ const signedIn: AdlSessionState = {
   status: "signedIn",
   userId: "user-9f3c",
   developmentMode: false,
+  identityMode: "bypass",
+  passkeySupported: true,
   busy: false,
 };
 
@@ -66,7 +70,13 @@ describe("adl-session-panel", () => {
 
   it("renders a local-data note and no sign-in form when the authority is unavailable", () => {
     const panel = mountPanel({
-      session: { status: "unavailable", developmentMode: false, busy: false },
+      session: {
+        status: "unavailable",
+        developmentMode: false,
+        identityMode: "bypass",
+        passkeySupported: true,
+        busy: false,
+      },
     });
 
     const note = requireElement<HTMLElement>(panel, "[data-session-unavailable='true']");
@@ -318,6 +328,8 @@ describe("adl-session-panel", () => {
         status: "signedIn",
         userId: "<img src=x onerror=alert(1)>",
         developmentMode: false,
+        identityMode: "bypass",
+        passkeySupported: true,
         busy: false,
         error: "<script>alert(2)</script>",
       },

@@ -1,12 +1,16 @@
 import {
   ADL_CLAIM_INVITE_EVENT,
+  ADL_PASSKEY_SIGN_IN_EVENT,
+  ADL_REGISTER_PASSKEY_EVENT,
   ADL_SIGN_IN_EVENT,
   ADL_SIGN_OUT_EVENT,
   AUTHORITY_MINIMUM_ACCOUNT_PROOF_LENGTH,
   AUTHORITY_MINIMUM_INVITE_TOKEN_LENGTH,
+  PASSKEY_IDENTITY_MODE,
   type AdlInviteState,
   type AdlSessionState,
   type ClaimInviteDetail,
+  type RegisterPasskeyDetail,
   type SignInDetail,
 } from "../authority-bridge.js";
 import { escapeHtml } from "./html.js";
@@ -29,6 +33,11 @@ import { escapeHtml } from "./html.js";
  *    their input. They are never written to a data attribute, a URL, storage,
  *    a rendered string, or a field of this element, and both inputs are cleared
  *    as soon as their event is dispatched.
+ * 4. In `passkey` mode there is no credential to type at all. The surface
+ *    offers a sign-in that runs an authority-challenged ceremony and a
+ *    registration that needs an invitation, and it never shows an account-proof
+ *    field — a passkey deployment must not keep a second, weaker way in beside
+ *    the ceremony.
  */
 
 const DEVELOPMENT_WARNING_TEXT =
@@ -51,9 +60,27 @@ const EMPTY_ACCOUNT_PROOF_HINT = "Enter the account proof issued by your identit
 
 const EMPTY_INVITE_TOKEN_HINT = "Enter the invitation token you were sent.";
 
+const PASSKEY_SIGN_IN_TEXT =
+  "Sign in with the passkey on this device. Your device proves who you are to the " +
+  "server; nothing you type is used as a credential.";
+
+const PASSKEY_REGISTER_TEXT =
+  "New here, or replacing a lost device? Enter your invitation token and register " +
+  "a passkey on this device.";
+
+const PASSKEY_ADD_DEVICE_TEXT =
+  "Register another passkey so you can sign in from a second device. This adds to " +
+  "your existing access; it does not replace it.";
+
+const PASSKEY_UNSUPPORTED_TEXT =
+  "This browser cannot use passkeys, so it cannot sign in to this deployment. " +
+  "Use a browser with WebAuthn support.";
+
 const DEFAULT_SESSION: AdlSessionState = {
   status: "unavailable",
   developmentMode: false,
+  identityMode: "unknown",
+  passkeySupported: false,
   busy: false,
 };
 
@@ -84,6 +111,11 @@ export class AdlSessionPanelElement extends HTMLElement {
 
     if (form.dataset.sessionInviteForm === "true") {
       this.submitClaimInvite(form);
+      return;
+    }
+
+    if (form.dataset.sessionPasskeyForm === "true") {
+      this.submitRegisterPasskey(form);
     }
   };
 
@@ -93,7 +125,31 @@ export class AdlSessionPanelElement extends HTMLElement {
       return;
     }
 
-    if (target.closest("[data-session-sign-out='true']") === null || this._session.busy) {
+    if (this._session.busy) {
+      return;
+    }
+
+    if (target.closest("[data-session-passkey-sign-in='true']") !== null) {
+      this.dispatchEvent(
+        new CustomEvent(ADL_PASSKEY_SIGN_IN_EVENT, { bubbles: true, composed: true }),
+      );
+      return;
+    }
+
+    if (target.closest("[data-session-add-passkey='true']") !== null) {
+      // Adding a device to an identity that already holds a session needs no
+      // invitation: the session itself is the authorisation.
+      this.dispatchEvent(
+        new CustomEvent<RegisterPasskeyDetail>(ADL_REGISTER_PASSKEY_EVENT, {
+          bubbles: true,
+          composed: true,
+          detail: {},
+        }),
+      );
+      return;
+    }
+
+    if (target.closest("[data-session-sign-out='true']") === null) {
       return;
     }
 
@@ -118,9 +174,14 @@ export class AdlSessionPanelElement extends HTMLElement {
       return;
     }
 
-    if (target.dataset.sessionInviteToken === "true") {
+    if (
+      target.dataset.sessionInviteToken === "true" ||
+      target.dataset.sessionPasskeyInvite === "true"
+    ) {
       this.setHint(
-        "[data-session-invite-hint='true']",
+        target.dataset.sessionPasskeyInvite === "true"
+          ? "[data-session-passkey-hint='true']"
+          : "[data-session-invite-hint='true']",
         target.value.length > 0 && target.value.length < AUTHORITY_MINIMUM_INVITE_TOKEN_LENGTH
           ? SHORT_INVITE_TOKEN_HINT
           : "",
@@ -209,6 +270,34 @@ export class AdlSessionPanelElement extends HTMLElement {
     );
   }
 
+  /**
+   * Starts an invite-backed registration. The token is read from the live input
+   * and cleared before dispatch, exactly as the account proof and the claim
+   * token are: it is a credential and must not outlive the attempt.
+   */
+  private submitRegisterPasskey(form: HTMLFormElement): void {
+    const input = form.querySelector<HTMLInputElement>("[data-session-passkey-invite='true']");
+    if (input === null) {
+      return;
+    }
+
+    const inviteToken = input.value;
+    if (inviteToken.length === 0) {
+      this.setHint("[data-session-passkey-hint='true']", EMPTY_INVITE_TOKEN_HINT);
+      return;
+    }
+
+    input.value = "";
+    this.setHint("[data-session-passkey-hint='true']", "");
+    this.dispatchEvent(
+      new CustomEvent<RegisterPasskeyDetail>(ADL_REGISTER_PASSKEY_EVENT, {
+        bubbles: true,
+        composed: true,
+        detail: { inviteToken },
+      }),
+    );
+  }
+
   private submitClaimInvite(form: HTMLFormElement): void {
     // Online-only, enforced here as well as by the disabled control: a claim is
     // never queued, cached, or optimistically granted.
@@ -284,7 +373,75 @@ export class AdlSessionPanelElement extends HTMLElement {
     `;
   }
 
+  private get passkeyMode(): boolean {
+    return this._session.identityMode === PASSKEY_IDENTITY_MODE;
+  }
+
   private renderSignedOut(): string {
+    return this.passkeyMode ? this.renderPasskeySignedOut() : this.renderProofSignedOut();
+  }
+
+  /**
+   * The passkey way in. There is deliberately no credential field: the device
+   * proves the identity to the authority, and the only thing a person may type
+   * is an invitation token, which authorises registering a device rather than
+   * signing in.
+   */
+  private renderPasskeySignedOut(): string {
+    const disabled = this._session.busy || !this._session.passkeySupported ? "disabled" : "";
+
+    return `
+      <h2 class="adl-session-heading">Sign in</h2>
+      ${this.renderDevelopmentWarning()}
+      ${this.renderError()}
+      ${
+        this._session.passkeySupported
+          ? ""
+          : `<p class="adl-session-error" data-session-passkey-unsupported="true" role="alert">${escapeHtml(
+              PASSKEY_UNSUPPORTED_TEXT,
+            )}</p>`
+      }
+      <p class="adl-session-hint adl-session-passkey-explainer">${escapeHtml(PASSKEY_SIGN_IN_TEXT)}</p>
+      <button
+        class="adl-session-submit"
+        type="button"
+        data-session-passkey-sign-in="true"
+        ${disabled}
+      >
+        Sign in with a passkey
+      </button>
+      <form class="adl-session-passkey-form" data-session-passkey-form="true">
+        <h2 class="adl-session-heading">Register this device</h2>
+        <p class="adl-session-hint adl-session-passkey-explainer">${escapeHtml(
+          PASSKEY_REGISTER_TEXT,
+        )}</p>
+        <label class="adl-session-label">
+          <span>Invitation token</span>
+          <input
+            class="adl-session-input"
+            type="text"
+            data-session-passkey-invite="true"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            ${disabled}
+          />
+        </label>
+        <p class="adl-session-hint" data-session-passkey-hint="true" hidden></p>
+        <button
+          class="adl-session-submit"
+          type="submit"
+          data-session-register-passkey="true"
+          ${disabled}
+        >
+          Register a passkey
+        </button>
+      </form>
+    `;
+  }
+
+  private renderProofSignedOut(): string {
     const disabled = this._session.busy ? "disabled" : "";
 
     return `
@@ -323,10 +480,30 @@ export class AdlSessionPanelElement extends HTMLElement {
         <strong class="adl-session-identity-value">${escapeHtml(this._session.userId ?? "")}</strong>
       </p>
       ${this.renderDevelopmentWarning()}
+      ${this.renderNotice()}
       ${this.renderError()}
       <button class="adl-session-sign-out" type="button" data-session-sign-out="true" ${disabled}>
         Sign out
       </button>
+      ${
+        this.passkeyMode && this._session.passkeySupported
+          ? `
+      <section class="adl-session-add-passkey">
+        <h2 class="adl-session-heading">Add another device</h2>
+        <p class="adl-session-hint adl-session-passkey-explainer">${escapeHtml(
+          PASSKEY_ADD_DEVICE_TEXT,
+        )}</p>
+        <button
+          class="adl-session-submit"
+          type="button"
+          data-session-add-passkey="true"
+          ${disabled}
+        >
+          Register another passkey
+        </button>
+      </section>`
+          : ""
+      }
       <form class="adl-session-form adl-session-invite-form" data-session-invite-form="true">
         <h2 class="adl-session-heading">Claim an invitation</h2>
         <label class="adl-session-label">
@@ -381,6 +558,17 @@ export class AdlSessionPanelElement extends HTMLElement {
     `;
   }
 
+  private renderNotice(): string {
+    const notice = this._session.notice;
+    if (notice === undefined || notice.length === 0) {
+      return "";
+    }
+
+    return `
+      <p class="adl-session-notice" data-session-notice="true" role="status">${escapeHtml(notice)}</p>
+    `;
+  }
+
   private renderError(): string {
     const error = this._session.error;
     if (error === undefined || error.length === 0) {
@@ -429,8 +617,11 @@ function sessionEquals(left: AdlSessionState, right: AdlSessionState): boolean {
     left.status === right.status &&
     left.userId === right.userId &&
     left.developmentMode === right.developmentMode &&
+    left.identityMode === right.identityMode &&
+    left.passkeySupported === right.passkeySupported &&
     left.busy === right.busy &&
-    left.error === right.error
+    left.error === right.error &&
+    left.notice === right.notice
   );
 }
 

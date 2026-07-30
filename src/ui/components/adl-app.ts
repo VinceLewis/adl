@@ -49,6 +49,8 @@ import type { AdlSessionPanelElement } from "./adl-session-panel.js";
 import type { AdlSyncRecoveryElement } from "./adl-sync-recovery.js";
 import {
   ADL_CLAIM_INVITE_EVENT,
+  ADL_PASSKEY_SIGN_IN_EVENT,
+  ADL_REGISTER_PASSKEY_EVENT,
   ADL_RESOLVE_RECOVERY_EVENT,
   ADL_SIGN_IN_EVENT,
   ADL_SIGN_OUT_EVENT,
@@ -56,6 +58,7 @@ import {
 import type {
   AdlAuthorityBridge,
   ClaimInviteDetail,
+  RegisterPasskeyDetail,
   ResolveRecoveryDetail,
   SignInDetail,
 } from "../authority-bridge.js";
@@ -124,6 +127,25 @@ export class AdlAppElement extends HTMLElement {
     }
 
     void this.runAuthorityAction(() => bridge.signIn(detail.accountProof));
+  };
+
+  private readonly handleRegisterPasskey = (event: Event): void => {
+    const detail = (event as CustomEvent<RegisterPasskeyDetail>).detail;
+    const bridge = this._authority;
+    if (bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.registerPasskey(detail?.inviteToken));
+  };
+
+  private readonly handlePasskeySignIn = (): void => {
+    const bridge = this._authority;
+    if (bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.signInWithPasskey());
   };
 
   private readonly handleSignOut = (): void => {
@@ -812,6 +834,8 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener("change", this.handleChange);
     this.addEventListener("click", this.handleClick);
     this.addEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);
+    this.addEventListener(ADL_REGISTER_PASSKEY_EVENT, this.handleRegisterPasskey);
+    this.addEventListener(ADL_PASSKEY_SIGN_IN_EVENT, this.handlePasskeySignIn);
     this.addEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
     this.addEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.addEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
@@ -843,6 +867,8 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener("change", this.handleChange);
     this.removeEventListener("click", this.handleClick);
     this.removeEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);
+    this.removeEventListener(ADL_REGISTER_PASSKEY_EVENT, this.handleRegisterPasskey);
+    this.removeEventListener(ADL_PASSKEY_SIGN_IN_EVENT, this.handlePasskeySignIn);
     this.removeEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
     this.removeEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.removeEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);

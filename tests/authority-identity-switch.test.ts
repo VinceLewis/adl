@@ -59,6 +59,7 @@ const configuration: AuthorityConfiguration = {
   identityVerification: { mode: "bypass" },
   rateLimits: {
     accountProof: 10,
+    webauthn: 10,
     session: 10,
     invite: 10,
     bootstrap: 10,
@@ -151,29 +152,34 @@ describe("authority identity verification configuration", () => {
     }
   });
 
-  it("refuses to reach the bypass in production unless an operator acknowledges it", () => {
+  it("makes the bypass unreachable in production, with no acknowledgement escape hatch", () => {
     expect(() => loadAuthorityConfiguration(productionEnvironment)).toThrow(
       AuthorityConfigurationError,
     );
-    expect(() =>
-      loadAuthorityConfiguration({
-        ...productionEnvironment,
-        ADL_IDENTITY_BYPASS_ACKNOWLEDGED: "false",
-      }),
-    ).toThrow(AuthorityConfigurationError);
-    expect(
-      loadAuthorityConfiguration({
-        ...productionEnvironment,
-        ADL_IDENTITY_BYPASS_ACKNOWLEDGED: "true",
-      }).identityVerification.mode,
-    ).toBe("bypass");
-    // The acknowledgement is only about the bypass: a real upstream mode needs none.
+    // Phase 46 let an operator acknowledge the bypass in production because no
+    // real verifier existed yet. One does now, so the acknowledgement is gone
+    // and a production bypass is refused however it is stated.
+    for (const acknowledgement of ["true", "false", "TRUE", "1"]) {
+      expect(() =>
+        loadAuthorityConfiguration({
+          ...productionEnvironment,
+          ADL_IDENTITY_BYPASS_ACKNOWLEDGED: acknowledgement,
+        }),
+      ).toThrow(AuthorityConfigurationError);
+    }
     expect(
       loadAuthorityConfiguration({
         ...productionEnvironment,
         ADL_IDENTITY_VERIFICATION: "upstream",
       }).identityVerification.mode,
     ).toBe("upstream");
+    expect(
+      loadAuthorityConfiguration({
+        ...productionEnvironment,
+        ADL_IDENTITY_VERIFICATION: "passkey",
+        ADL_WEBAUTHN_RP_ID: "app.test",
+      }).identityVerification.mode,
+    ).toBe("passkey");
   });
 });
 

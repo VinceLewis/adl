@@ -37,6 +37,8 @@ import {
 import type { PostgresQueryable } from "./postgres-authority-store.js";
 import { PostgresObjectStorageBackend } from "./postgres-object-storage.js";
 import { StructuredSecurityLogger } from "./security-operations.js";
+import { SimpleWebAuthnLibrary } from "./simplewebauthn-adapter.js";
+import { PasskeyIdentityService, PostgresWebAuthnCredentialStore } from "./webauthn-identity.js";
 
 /** Process placement, not deployment policy: `AuthorityConfiguration` still owns the latter. */
 export interface AuthorityProcessConfiguration {
@@ -161,6 +163,19 @@ export async function createAuthorityProcess(
       : { upstream: options.upstreamIdentityVerifier },
   );
   const identityVerification = describeIdentityVerification(configuration, identityVerifier);
+  // Composed only in `passkey` mode, and only here: this is the single place
+  // that binds the WebAuthn implementation to the process, so nothing else in
+  // the repository depends on `@simplewebauthn/server`.
+  const passkeys =
+    configuration.webauthn === undefined
+      ? undefined
+      : new PasskeyIdentityService(
+          configuration.webauthn,
+          sessions,
+          new PostgresWebAuthnCredentialStore(database, applicationId),
+          new SimpleWebAuthnLibrary(),
+          { accessLifecycle },
+        );
 
   try {
     await storage.writeApplicationMetadata({ modelVersion: model.modelVersion });
@@ -178,6 +193,7 @@ export async function createAuthorityProcess(
     authority,
     sessions,
     identityVerifier,
+    ...(passkeys === undefined ? {} : { passkeys }),
     accessLifecycle,
     reporting,
     administration,

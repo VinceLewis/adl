@@ -47,6 +47,10 @@ export * from "./server/postgres-object-storage.js";
 export * from "./server/authority-config.js";
 export * from "./server/authority-http.js";
 export * from "./server/identity-verification.js";
+// `simplewebauthn-adapter.ts` is deliberately NOT exported here: this barrel is
+// imported by the browser bundle, and `@simplewebauthn/server` is a Node
+// dependency confined to the authority composition root and its tests.
+export * from "./server/webauthn-identity.js";
 export * from "./server/http-authority-transport.js";
 export * from "./server/security-operations.js";
 export * from "./server/authoritative-reporting.js";
