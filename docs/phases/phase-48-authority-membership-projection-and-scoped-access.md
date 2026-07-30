@@ -1,4 +1,9 @@
-# Phase 46 - Authority Membership Projection and Scoped Access Paths
+# Phase 48 - Authority Membership Projection and Scoped Access Paths
+
+> Renumbered from Phase 46. This work is an optimisation and integrity refactor
+> of a subsystem with no production users, so it now runs after the Phase 46
+> deployment slice and the Phase 47 usable slice. Its evidence and scope are
+> unchanged; only its position in the sequence and its planning handoff moved.
 
 ## Objective
 
@@ -111,6 +116,32 @@ precedent.
 - Phase 45 runtime-audit context scoping, application-scoped outcomes, and
   retention safeguards.
 - Phase 41 identity/access lifecycle and Phase 43 administration review surfaces.
+- Phase 46 deployment slice: `AuthorityService.bootstrap` is now driven by a real
+  client over HTTP, so membership resolution is on the hot path for every
+  reconnect rather than only in tests.
+
+## Parallel Execution Plan
+
+Fan out (independent, read-only or non-overlapping files):
+
+- Task 1 inventory: one agent per scan site (`authority-service.ts:82`,
+  `authoritative-reporting.ts:385`, `access-lifecycle.ts:236`, `:293`), each
+  returning the exact scope and disclosure boundary that site must preserve.
+- The documentation bundle in task 6 (runbook, `docs/server-authority.md`,
+  threat model, learnings) once the code shape is settled.
+
+Keep serial (shared or ordered state):
+
+- The migration/index change, if evidence requires one: migration files are
+  ordered and must not be authored concurrently.
+- The projection writer inside the unit-of-work commit boundary, then the four
+  scoped reads that depend on its shape. Writer first, readers after.
+- `AuthorityProjectionIntegrity` changes, which the restore path also consumes.
+
+Barrier before verification: run `npm run test:integration` once after the
+readers land. Each concurrent run provisions its own throwaway Postgres
+(`tests/integration/global-setup.ts:31,48` gives a PID-unique container name and
+an ephemeral port, so parallel runs are safe but pay a container each).
 
 ## Tasks
 
@@ -131,9 +162,10 @@ precedent.
    PostgreSQL.
 6. Update the production runbook, server authority documentation, threat model,
    specifications if required, and learnings.
-7. **Required next-phase planning handoff:** before Phase 46 closes, replace the
-   Phase 47 placeholder with a complete evidence-based executable phase document
-   covering the next demonstrated authority/runtime gap. Define its objective,
-   scope, constraints, deliverables, acceptance criteria, verification,
-   non-goals, dependencies, and its required planning handoff; then verify,
-   commit, and push Phase 46.
+7. **Required next-phase planning handoff:** before Phase 48 closes, review
+   `docs/phases/phase-49-retention-scheduling-and-administration-ui.md` and
+   revise it if this phase's results change its scope, constraints,
+   deliverables, or tasks. The handoff must justify Phase 49 as the
+   highest-value remaining gap **repository-wide**, not merely the next gap in
+   the subsystem this phase touched; if a higher-value gap exists elsewhere, say
+   so and re-sequence. Then verify, commit, and push Phase 48.
