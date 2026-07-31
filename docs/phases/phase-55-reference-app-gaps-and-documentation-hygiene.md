@@ -1,9 +1,8 @@
-# Phase 54 - Reference App Gaps and Documentation Hygiene
+# Phase 55 - Reference App Gaps and Documentation Hygiene
 
-> Renumbered from Phase 51 by the Phase 47 handoff, then Phase 52, and now Phase
-> 54: the Phase 48 handoff and its follow-up re-sequenced phases 49-53 ahead of it.
-> It remains last, and its evidence and scope are unchanged. Evidence and scope are
-> unchanged; only its position in the sequence moved.
+> Renumbered from Phase 51 by the Phase 47 handoff, then 52, 53, 54, and now
+> Phase 55 by the Phase 51 handoff. It remains last, and its evidence and scope
+> are unchanged; only its position in the sequence moved.
 
 ## Objective
 
@@ -65,7 +64,7 @@ which determines which gaps still matter.
 - Documentation changes must not rewrite the record of completed phases. Correct
   forward-looking guidance; leave historical phase task lists as they are.
 - Preserve Phase 42 controls, Phase 44 atomicity, Phase 45 scope/retention, and
-  Phase 52 membership scoping.
+  Phase 53 membership scoping.
 
 ## Deliverables
 
@@ -178,10 +177,10 @@ Use worktree isolation for every capability agent.
 7. Reconcile `docs/architecture/target-architecture.md`,
    `docs/server-authority.md`, the superseded-document banners, and
    `learnings/process/phase-execution.md`.
-8. **Required next-phase planning handoff:** before Phase 54 closes, write
-   `docs/phases/phase-53-*.md` as a complete evidence-based executable phase
+8. **Required next-phase planning handoff:** before Phase 55 closes, write
+   `docs/phases/phase-54-*.md` as a complete evidence-based executable phase
    document for the highest-value remaining gap repository-wide, with objective,
    evidence, scope, constraints, deliverables, acceptance criteria, non-goals,
    dependencies, parallel execution plan, tasks, and its own handoff. If no gap
    justifies a further phase, record that conclusion explicitly instead. Then
-   verify, commit, and push Phase 54.
+   verify, commit, and push Phase 55.

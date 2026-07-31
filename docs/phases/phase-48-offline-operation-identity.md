@@ -187,6 +187,12 @@ phase changes the contract, that phase codifies it" — which argues for codifyi
 next, while the change is fresh, rather than after two phases that optimise and
 operate a subsystem with no users. Weighed repository-wide:
 
+> **Numbers below are as of writing and have since moved.** Later handoffs
+> re-sequenced this range more than once; the Phase 51 handoff inserted
+> conformance expressiveness as Phase 52 and pushed the rest to 53, 54 and 55.
+> Read the phase *names* here, not the numbers, and see
+> `docs/architecture/target-architecture.md` for the current sequence.
+
 - **Conformance depth and model migrations** (was Phase 51, now **Phase 49**). The
   conformance suite is ADR 0004's cross-runtime contract and holds 28 cases, while
   phases 24-48 added presentation, matrix, calendar, status, authority replay,

@@ -41,11 +41,11 @@
 > - **The conformance half gained a third uncovered contract change**, and the
 >   first one that is a model property rather than a runtime behaviour.
 >
-> The alternatives were weighed and are genuinely lower value: Phase 52
-> (membership projection) and Phase 53 (retention scheduling and administration
+> The alternatives were weighed and are genuinely lower value: Phase 53
+> (membership projection) and Phase 54 (retention scheduling and administration
 > UI) are optimisation and operation of a system that already functions, and
-> Phase 54 is reference-app and documentation hygiene. None of the three risks
-> data. Phase 50 did produce one input to Phase 53 — rotation writes a session row
+> Phase 55 is reference-app and documentation hygiene. None of the three risks
+> data. Phase 50 did produce one input to Phase 54 — rotation writes a session row
 > per restart of the grace and nothing prunes revoked or expired rows — which is
 > recorded there rather than used to re-sequence, because revoked and expired rows
 > are excluded from every user-facing surface and unbounded row growth is an
@@ -165,7 +165,7 @@ server and the client, and on the existing startup compatibility guard.
   the existing trusted sync-projection boundary.
 - Preserve Phase 44 atomicity, Phase 45 retention/scope, Phase 48 record-identity
   rules, and the disclosure boundaries throughout: migration diagnostics stay
-  metadata-only. Membership-projection scoping is now Phase 52 and follows this
+  metadata-only. Membership-projection scoping is now Phase 53 and follows this
   phase, so there is nothing of it to preserve yet.
 - **Preserve Phase 50's session and grace behaviour.** The authority derives its
   session lifetime from `app.offlineGraceDays` at startup, so anything that
@@ -218,8 +218,8 @@ server and the client, and on the existing startup compatibility guard.
 - Automatic migration inference for arbitrary model changes, or schema
   migration for the authority projection tables themselves, which remain ordered
   SQL files applied out of band.
-- Band-app modelling gaps and documentation hygiene (Phase 54).
-- The membership projection (Phase 52) and retention scheduling (Phase 53).
+- Band-app modelling gaps and documentation hygiene (Phase 55).
+- The membership projection (Phase 53) and retention scheduling (Phase 54).
 - New ADL syntax for storage, SQL, or migration mechanics beyond declaring a
   model migration.
 
@@ -299,9 +299,22 @@ disjoint files and do not need it.
 8. Update the three-layer specification, the runbook migration procedure, and
    learnings.
 9. **Required next-phase planning handoff:** before Phase 51 closes, review
-   `docs/phases/phase-52-authority-membership-projection-and-scoped-access.md` and
-   revise it if this phase's results change its scope, constraints, deliverables,
-   or tasks. The handoff must justify Phase 52 as the highest-value remaining gap
-   **repository-wide**, not merely the next gap in the subsystem this phase
-   touched; if a higher-value gap exists elsewhere, say so and re-sequence. Then
-   verify, commit, and push Phase 51.
+   the next phase document and revise it if this phase's results change its
+   scope, constraints, deliverables, or tasks. The handoff must justify that
+   phase as the highest-value remaining gap **repository-wide**, not merely the
+   next gap in the subsystem this phase touched; if a higher-value gap exists
+   elsewhere, say so and re-sequence. Then verify, commit, and push Phase 51.
+
+   **Done, and it re-sequenced.** The handoff found that the membership
+   projection was no longer the highest-value remaining gap: Phase 51 made the
+   conformance suite broad, and thereby established that its binding constraint
+   had become what it can *say* rather than its size — `localPrivate` is
+   indistinguishable from `localFirst` to the corpus, and `ADL_MIGRATION_FAILED`
+   and atomic rollback, both named in this phase's own acceptance criteria, have
+   no corpus coverage at all. The single most serious gap of that class was
+   closed inside this phase rather than deferred, because declaring the contract
+   adequate while it could not express a disclosure guarantee would have been
+   wrong: absence is now assertable with `"$absent"`. The remainder became
+   Phase 52
+   (`docs/phases/phase-52-conformance-expressiveness-and-contract-completion.md`),
+   and the former phases 52, 53 and 54 were renumbered to 53, 54 and 55.

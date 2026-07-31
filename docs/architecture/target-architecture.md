@@ -226,9 +226,10 @@ complete. The remaining sequence is:
 1. Phase 49: passkey identity and provider-independent identity keying.
 2. Phase 50: offline session lifetime and sync grace.
 3. Phase 51: platform contract conformance and model migrations.
-4. Phase 52: authority membership projection and scoped access.
-5. Phase 53: retention scheduling and its administration UI.
-6. Phase 54: reference-app gaps and documentation hygiene.
+4. Phase 52: conformance expressiveness and contract completion.
+5. Phase 53: authority membership projection and scoped access.
+6. Phase 54: retention scheduling and its administration UI.
+7. Phase 55: reference-app gaps and documentation hygiene.
 
 **Phases 49 and 50 together are the deployment gate.** Until both are complete the
 identity bypass is the only way in, and the rule stated by Phases 46, 47 and 48

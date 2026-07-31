@@ -71,8 +71,8 @@ Still outstanding after Phase 49, in sequence order: offline session lifetime an
 sync grace (Phase 50) — the **second half of the deployment gate**, since Phase 49
 makes signing in real and Phase 50 makes staying signed in survive being offline;
 then conformance depth and model migrations (Phase 51), membership-projection
-scoping (Phase 52), retention scheduling and its administration UI (Phase 53), and
-reference-app gaps (Phase 54). Outside the phase plan: TLS termination, secret
+scoping (Phase 53), retention scheduling and its administration UI (Phase 54), and
+reference-app gaps (Phase 55). Outside the phase plan: TLS termination, secret
 management, CI/CD, and a hosting provider decision. The identity method itself is
 no longer open — see
 [ADR 0008](adr/0008-passkey-identity-and-offline-session-grace.md).

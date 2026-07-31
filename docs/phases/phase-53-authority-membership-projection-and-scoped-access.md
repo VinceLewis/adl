@@ -1,17 +1,17 @@
-# Phase 52 - Authority Membership Projection and Scoped Access Paths
+# Phase 53 - Authority Membership Projection and Scoped Access Paths
 
-> Renumbered from Phase 46, then 48, then 49, then 50, and now Phase 52 by the Phase 48
-> handoff, which moved the platform contract phase ahead of it. Each move had the
-> same cause: this work is an optimisation and integrity refactor of a subsystem
-> with no production users, so anything with a user-visible or repository-wide
-> effect outranks it. Its evidence and scope are unchanged; only its position in
-> the sequence moved. Phase 47 independently confirmed the core evidence — the
-> membership record written by a real invite claim lands in
-> `adl_authority_records`, and `adl_authority_context_memberships` stayed empty —
-> and Phase 48 confirmed that no deployment exists, so the scans below are slow in
-> principle rather than slow in production today.
+> Renumbered from Phase 46, then 48, 49, 50 and 52, and now Phase 53 by the
+> Phase 51 handoff. Every move has had the same cause: this work is an
+> optimisation and integrity refactor of a subsystem with no production users, so
+> anything with a user-visible or repository-wide effect outranks it. Its evidence
+> and scope are unchanged; only its position in the sequence moved. Phase 47
+> independently confirmed the core evidence — the membership record written by a
+> real invite claim lands in `adl_authority_records`, and
+> `adl_authority_context_memberships` stayed empty — and Phase 48 confirmed that
+> no deployment exists, so the scans below are slow in principle rather than slow
+> in production today.
 
-> **Phase 51 handoff (re-sequencing recommended; see below).** Phase 51 landed
+> **Phase 51 handoff (re-sequenced; accepted).** Phase 51 landed
 > declared model versions, content fingerprints, declarative `MIGRATION` blocks,
 > fail-closed migration on both the authority projection and browser IndexedDB,
 > and grew the conformance corpus from 28 cases to roughly 470. It fixed eleven
@@ -21,7 +21,7 @@
 > still has no writer, and the three `listRecords()` scans are still O(all
 > accepted records). Nothing Phase 51 did touches them.
 >
-> **But this phase is probably no longer the highest-value remaining gap.** By
+> **But this phase was no longer the highest-value remaining gap.** By
 > the standard this repository has applied since Phase 46 — a user-visible or
 > repository-wide effect outranks an optimisation of a subsystem with no
 > production users — the corpus's remaining *expressive* gaps now outrank it, and
@@ -51,11 +51,12 @@
 > coherent phase's worth of work and are recorded in
 > `learnings/implementation/conformance-suite.md`.
 >
-> **Recommendation:** insert that work as the next phase and renumber this
-> document and those after it, per the repository-wide handoff rule in
-> `learnings/process/phase-execution.md`. It was not done inside Phase 51 because
-> it is genuinely separate work rather than a loose end, and because renumbering
-> three documents is a decision the phase plan's owner should make deliberately.
+> **Outcome: accepted and applied.** That work is now Phase 52
+> (`docs/phases/phase-52-conformance-expressiveness-and-contract-completion.md`),
+> and this document, Phase 54 and Phase 55 were renumbered accordingly, per the
+> repository-wide handoff rule in `learnings/process/phase-execution.md`. It was
+> not folded into Phase 51 because it is genuinely separate work rather than a
+> loose end.
 >
 > Two smaller findings belong to **this** phase's subsystem when it runs, and are
 > added to its scope below:
@@ -183,7 +184,7 @@ precedent.
 - Conformance depth and model migrations, which are now Phase 51 and precede this
   phase.
 - A scheduler/HTTP surface for `AuthorityRetentionService.prune` (retention
-  wiring is Phase 53, not this phase's scoping objective).
+  wiring is Phase 54, not this phase's scoping objective).
 - Cross-store distributed transactions with external identity providers or email
   delivery, and arbitrary operator database access.
 
@@ -239,10 +240,10 @@ an ephemeral port, so parallel runs are safe but pay a container each).
    PostgreSQL.
 6. Update the production runbook, server authority documentation, threat model,
    specifications if required, and learnings.
-7. **Required next-phase planning handoff:** before Phase 52 closes, review
-   `docs/phases/phase-53-retention-scheduling-and-administration-ui.md` and
+7. **Required next-phase planning handoff:** before Phase 53 closes, review
+   `docs/phases/phase-54-retention-scheduling-and-administration-ui.md` and
    revise it if this phase's results change its scope, constraints,
-   deliverables, or tasks. The handoff must justify Phase 53 as the
+   deliverables, or tasks. The handoff must justify Phase 54 as the
    highest-value remaining gap **repository-wide**, not merely the next gap in
    the subsystem this phase touched; if a higher-value gap exists elsewhere, say
-   so and re-sequence. Then verify, commit, and push Phase 52.
+   so and re-sequence. Then verify, commit, and push Phase 53.
