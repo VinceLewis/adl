@@ -1,4 +1,7 @@
-import type { AuthorityDeviceSession } from "../server/http-authority-transport.js";
+import type {
+  AuthorityDeviceSession,
+  AuthorityReportPage,
+} from "../server/http-authority-transport.js";
 import type {
   SyncDeliveryItem,
   SyncRecoveryChoice,
@@ -58,7 +61,83 @@ export interface AdlAuthorityBridge {
   deliverPending(): Promise<number>;
   /** Sends one undelivered operation again under its original operation id. */
   retryDelivery(queueId: string): Promise<void>;
+
+  /**
+   * Operational review for the business context currently selected. Every read
+   * behind this goes through an existing Phase 43 endpoint, and the server keeps
+   * deriving identity, role and scope: the browser adds no authority, holds no
+   * operational credential, and never decides what a caller may see.
+   */
+  readonly administration: AdlAdministrationState;
+  /** Loads every administration status surface for the selected context. */
+  loadAdministration(): Promise<void>;
+  /** Loads the next page of one review list, using the cursor the server returned. */
+  loadMoreAdministration(list: AdlAdministrationListName): Promise<void>;
+  /** Executes one named read model as a report. */
+  runReport(readModelName: string): Promise<void>;
+  /** Loads the next page of the report currently shown. */
+  loadMoreReport(): Promise<void>;
+  /** Exports the named report as CSV and offers it as a download. */
+  exportReport(readModelName: string): Promise<void>;
+  /** Ends every session of a member of the administered context. */
+  revokeMemberSessions(userId: string): Promise<void>;
 }
+
+export type AdlAdministrationListName = "accessAudit" | "runtimeAudit" | "memberships" | "invites";
+
+/**
+ * One bounded review list as the surface holds it. `nextCursor` is the server's
+ * own opaque cursor, passed back untouched — the browser neither composes nor
+ * interprets one.
+ */
+export interface AdlAdministrationList {
+  entries: Array<Record<string, unknown>>;
+  nextCursor?: string;
+  /** True while another page is being fetched, so the control can be disabled. */
+  loadingMore?: boolean;
+}
+
+export type AdlAdministrationStatus =
+  | "unavailable"
+  | "idle"
+  | "loading"
+  | "loaded"
+  | "offline"
+  | "error";
+
+/**
+ * Administration view state.
+ *
+ * `unavailable` means there is no business context selected to administer — not
+ * that the caller lacks permission. Permission is never reported: a caller the
+ * authority refuses sees the same empty lists as one whose context genuinely has
+ * nothing in it, because a denied row and an absent row must stay
+ * indistinguishable.
+ */
+export interface AdlAdministrationState {
+  status: AdlAdministrationStatus;
+  /** The context being administered, when one is selected. */
+  contextName?: string;
+  contextId?: string;
+  accessAudit: AdlAdministrationList;
+  runtimeAudit: AdlAdministrationList;
+  memberships: AdlAdministrationList;
+  invites: AdlAdministrationList;
+  /** Restore-verification status: flags, never counts of anything protected. */
+  recovery?: Record<string, unknown>;
+  /** Retention windows, schedule, and what the last run did. Read-only. */
+  retention?: Record<string, unknown> | null;
+  /** The report currently shown, if any. */
+  report?: AuthorityReportPage;
+  /** The read model that report came from, kept so paging and export agree on it. */
+  reportName?: string;
+  reportStatus?: "idle" | "running" | "exporting" | "ready" | "error";
+  /** Credential-free text for the last failure or confirmation. */
+  message?: string;
+}
+
+/** An administration list with nothing in it yet. */
+export const EMPTY_ADMINISTRATION_LIST: AdlAdministrationList = { entries: [] };
 
 export type AdlSessionStatus = "signedOut" | "signedIn" | "unavailable";
 
@@ -126,6 +205,12 @@ export const ADL_REGISTER_PASSKEY_EVENT = "adl-register-passkey";
 export const ADL_PASSKEY_SIGN_IN_EVENT = "adl-passkey-sign-in";
 export const ADL_REFRESH_DEVICES_EVENT = "adl-refresh-devices";
 export const ADL_REVOKE_DEVICE_EVENT = "adl-revoke-device";
+export const ADL_LOAD_ADMINISTRATION_EVENT = "adl-load-administration";
+export const ADL_LOAD_MORE_ADMINISTRATION_EVENT = "adl-load-more-administration";
+export const ADL_RUN_REPORT_EVENT = "adl-run-report";
+export const ADL_LOAD_MORE_REPORT_EVENT = "adl-load-more-report";
+export const ADL_EXPORT_REPORT_EVENT = "adl-export-report";
+export const ADL_REVOKE_MEMBER_SESSIONS_EVENT = "adl-revoke-member-sessions";
 
 /** The identity-verification mode in which the passkey surface is the way in. */
 export const PASSKEY_IDENTITY_MODE = "passkey";
@@ -145,6 +230,18 @@ export interface ClaimInviteDetail {
 
 export interface RevokeDeviceDetail {
   sessionId: string;
+}
+
+export interface LoadMoreAdministrationDetail {
+  list: AdlAdministrationListName;
+}
+
+export interface RunReportDetail {
+  readModelName: string;
+}
+
+export interface RevokeMemberSessionsDetail {
+  userId: string;
 }
 
 export interface ResolveRecoveryDetail {

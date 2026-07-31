@@ -81,6 +81,18 @@ Before tasks that change authority replay persistence, the accepted-record/runti
 - `implementation/authority-transaction-integrity.md`
 - `implementation/authority-server.md`
 - `implementation/membership-projection.md`
+- `implementation/retention-scheduling-and-administration-ui.md`
+
+Before tasks that change retention windows, the retention runner, scheduler or
+CLI entry point, that add an operator-triggerable administrative action, or that
+change the browser administration and reporting surfaces, also read:
+
+- `implementation/retention-scheduling-and-administration-ui.md`
+- `implementation/authoritative-reporting-and-administration.md`
+- `implementation/authority-transaction-integrity.md`
+- `implementation/membership-projection.md`
+- `implementation/production-authority-operations.md`
+- `process/visual-browser-verification.md`
 
 Before tasks that change how membership records are written, resolved, reviewed
 or revoked, that add a scope-indexed read model over accepted records, or that
@@ -221,6 +233,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/identity-invites-and-access-lifecycle.md`: read before changing opaque server sessions, identity provisioning, invites, membership grants/revocation, access audit, or browser behavior after authentication/access loss.
 - `implementation/production-authority-operations.md`: read before changing authority HTTP deployment, cookies, upstream identity proof, rate limits, credential logging, PostgreSQL operations, or incident procedures.
 - `implementation/authoritative-reporting-and-administration.md`: read before changing server reports, exports, audit review, membership/invite status, recovery status, or operational access/session response actions.
+- `implementation/retention-scheduling-and-administration-ui.md`: read before changing retention windows, the retention runner, scheduler or CLI entry point, before adding an operator-triggerable administrative action, or before changing the browser administration and reporting surfaces.
 - `implementation/membership-projection.md`: read before changing how membership records are written, resolved, reviewed or revoked, before adding a scope-indexed read model over accepted records, or before touching `adl_authority_context_memberships`, `ContextMembershipIndex`, or the authority's startup advisory lock.
 - `implementation/authority-transaction-integrity.md`: read before changing authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, the authority unit-of-work, access-lifecycle audit atomicity, authority restore/integrity verification, runtime-audit context scoping, or audit/outcome retention.
 - `implementation/ui-presentation-model.md`: read before changing composed UI presentation declarations, presentation defaults, UI syntax for composed views, presentation validation, or presentation renderer behavior.

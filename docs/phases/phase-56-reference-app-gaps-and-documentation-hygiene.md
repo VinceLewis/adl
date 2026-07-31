@@ -4,6 +4,54 @@
 > Phase 56 by the Phase 52 handoff. It remains last, and its evidence and scope
 > are unchanged; only its position in the sequence moved.
 
+> **Phase 55 handoff (kept in sequence; accepted).** Phase 55 gave retention an
+> execution path — a schedulable one-shot entry, an optional in-process interval,
+> a dry run, four per-projection guards and a metadata-only run log under a
+> per-application advisory lock — and put the Phase 43 reporting and
+> administration reads behind browser surfaces for the first time.
+>
+> **This phase is now the highest-value remaining gap repository-wide, and it is
+> the only phase document left.** That is not the whole justification, so here is
+> the rest: Phase 55's browser project found five defects in the signed-in path
+> that no other layer could see, two of which made the deployed application a dead
+> end for a real user. That is direct evidence that the *reference app*, and the
+> documentation describing it, is where the remaining risk lives — which is
+> exactly this phase's subject. Nothing Phase 55 touched on the server side is
+> left incomplete, and no user-visible defect remains open.
+>
+> Five adjustments this phase's results make to the work below:
+>
+> - **`EXPORT` policy is a gap of the same shape as `StreamingLink`'s sync mode,
+>   and it is now half-closed.** Phase 43 delivered CSV export; the reference app
+>   declared no `EXPORT` rule on any object, so a Phase 43 capability was
+>   unreachable in the only application this repository has. Phase 55 added
+>   `allowBandAdminExportEvents` and `allowAvailabilityOwnerExport` because its own
+>   acceptance criterion required a demonstrable export. **The triage in Task 1
+>   must now cover every runtime action against every object**: a declared
+>   capability with no modelled permission is a gap, and this one was invisible
+>   until somebody tried to use it. Check `import` and `search` the same way.
+> - **The gap report needs a new category.** It currently lists platform
+>   capabilities the app wants and cannot express. This phase should also record
+>   platform capabilities the app *can* express and does not — the export rules
+>   above, `StreamingLink`'s mode — because both leave a delivered feature
+>   undemonstrable, and only the first kind is currently tracked.
+> - **`docs/architecture/target-architecture.md:232` still numbers this work as
+>   "Phase 55".** It is Phase 56. Fold this into Task 7's reconciliation; the
+>   sequencing drift the evidence already describes is wider than that section.
+> - **Two learning documents were added or extended and are now required reading
+>   for this phase**: `learnings/implementation/retention-scheduling-and-administration-ui.md`
+>   (its "What the browser project found that nothing else could" section bears
+>   directly on how this phase should verify reference-app work) and the reference
+>   app entry in `learnings/index.md`.
+> - **Verification must include a browser pass over the reference app with an
+>   authority configured, not only the default visual projects.** Phase 55 added
+>   an `administration` Playwright project on port 5373 with its own throwaway
+>   authority. The default `desktop`/`mobile` projects run with no authority, so
+>   they cannot see the signed-in path at all — which is precisely how the five
+>   defects survived. Any reference-app change this phase makes to context
+>   selection, shell chrome or sync behaviour must be checked against the
+>   `administration` and `passkey` projects too.
+
 ## Objective
 
 Close the platform capability gaps the Giggle Band reference app has been
@@ -112,9 +160,15 @@ which determines which gaps still matter.
 - `docs/architecture/target-architecture.md` sequencing describes the real
   current state, `docs/server-authority.md` has no empty heading, and no
   forward-looking document contradicts the repository.
+- Every runtime action a delivered capability depends on is either granted by the
+  reference model or explicitly recorded as intentionally ungranted, so no
+  shipped capability is undemonstrable in the only application here.
 - Run `npm run typecheck`, `npm test`, `npm run test:integration`,
   `npm run format:check`, `npm run build`, and `npm run verify:push` with
-  screenshot inspection: shell declarations change rendering.
+  screenshot inspection: shell declarations change rendering. `verify:push`
+  includes the `administration` and `passkey` projects, which are the only ones
+  that exercise the signed-in path — inspect their screenshots too, not only the
+  `desktop` and `mobile` ones.
 
 ## Non-goals
 
@@ -177,7 +231,10 @@ Use worktree isolation for every capability agent.
 ## Tasks
 
 1. Triage each documented gap against the delivered platform and record
-   implement-or-close with reasons, including `StreamingLink`'s sync mode.
+   implement-or-close with reasons, including `StreamingLink`'s sync mode and a
+   pass over every runtime action (`export`, `import`, `search`, and the rest)
+   against every object, looking for delivered capabilities the model never
+   grants permission for — the pattern Phase 55 found with CSV export.
 2. Extend the resolved model, resolution and validation for every surviving gap
    in one serial pass.
 3. Implement each surviving capability generically, with runtime enforcement in

@@ -9,6 +9,8 @@ import {
 import { AdlAppElement } from "../src/ui/components/adl-app.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
 import type {
+  AdlAdministrationListName,
+  AdlAdministrationState,
   AdlAuthorityBridge,
   AdlDeviceState,
   AdlInviteState,
@@ -169,6 +171,43 @@ class FakeAuthorityBridge implements AdlAuthorityBridge {
   async retryDelivery(queueId: string): Promise<void> {
     this.calls.push(`retryDelivery:${queueId}`);
     this.undelivered = this.undelivered.filter((item) => item.queueId !== queueId);
+  }
+
+  /*
+   * Phase 55 administration. The fake records the call and nothing else: what
+   * this suite asserts is that the shell forwards intent to the bridge, never
+   * that it decides anything about scope or permission itself.
+   */
+  administration: AdlAdministrationState = {
+    status: "idle",
+    accessAudit: { entries: [] },
+    runtimeAudit: { entries: [] },
+    memberships: { entries: [] },
+    invites: { entries: [] },
+  };
+  async loadAdministration(): Promise<void> {
+    this.calls.push("loadAdministration");
+    this.administration = {
+      ...this.administration,
+      status: "loaded",
+      contextName: "Band",
+      contextId: "band-1",
+    };
+  }
+  async loadMoreAdministration(list: AdlAdministrationListName): Promise<void> {
+    this.calls.push(`loadMoreAdministration:${list}`);
+  }
+  async runReport(readModelName: string): Promise<void> {
+    this.calls.push(`runReport:${readModelName}`);
+  }
+  async loadMoreReport(): Promise<void> {
+    this.calls.push("loadMoreReport");
+  }
+  async exportReport(readModelName: string): Promise<void> {
+    this.calls.push(`exportReport:${readModelName}`);
+  }
+  async revokeMemberSessions(userId: string): Promise<void> {
+    this.calls.push(`revokeMemberSessions:${userId}`);
   }
 }
 

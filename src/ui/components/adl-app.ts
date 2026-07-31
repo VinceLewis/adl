@@ -45,28 +45,40 @@ import type {
   PresentationRecordSelectDetail,
   PresentationStateChangeDetail,
 } from "./adl-composed-view.js";
+import type { AdlAccessReviewElement } from "./adl-access-review.js";
+import type { AdlAuditReviewElement } from "./adl-audit-review.js";
 import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-context-selector.js";
+import type { AdlReportRunnerElement } from "./adl-report-runner.js";
 import type { AdlSessionDevicesElement } from "./adl-session-devices.js";
 import type { AdlSessionPanelElement } from "./adl-session-panel.js";
 import type { AdlSyncRecoveryElement } from "./adl-sync-recovery.js";
 import {
   ADL_CLAIM_INVITE_EVENT,
+  ADL_EXPORT_REPORT_EVENT,
+  ADL_LOAD_ADMINISTRATION_EVENT,
+  ADL_LOAD_MORE_ADMINISTRATION_EVENT,
+  ADL_LOAD_MORE_REPORT_EVENT,
   ADL_PASSKEY_SIGN_IN_EVENT,
   ADL_REFRESH_DEVICES_EVENT,
   ADL_REGISTER_PASSKEY_EVENT,
   ADL_RESOLVE_RECOVERY_EVENT,
   ADL_RETRY_DELIVERY_EVENT,
   ADL_REVOKE_DEVICE_EVENT,
+  ADL_REVOKE_MEMBER_SESSIONS_EVENT,
+  ADL_RUN_REPORT_EVENT,
   ADL_SIGN_IN_EVENT,
   ADL_SIGN_OUT_EVENT,
 } from "../authority-bridge.js";
 import type {
   AdlAuthorityBridge,
   ClaimInviteDetail,
+  LoadMoreAdministrationDetail,
   RegisterPasskeyDetail,
   ResolveRecoveryDetail,
   RetryDeliveryDetail,
   RevokeDeviceDetail,
+  RevokeMemberSessionsDetail,
+  RunReportDetail,
   SignInDetail,
 } from "../authority-bridge.js";
 import { AdlDashboardViewElement } from "./adl-dashboard-view.js";
@@ -212,6 +224,73 @@ export class AdlAppElement extends HTMLElement {
     }
 
     void this.runAuthorityAction(() => bridge.retryDelivery(detail.queueId));
+  };
+
+  /*
+   * Administration intent, forwarded to the bridge and nowhere else.
+   *
+   * The shell decides nothing here. It does not check a role, it does not hide a
+   * surface because it believes the caller is unauthorised, and it never treats
+   * an empty answer as a refusal — the authority derives identity, role and
+   * scope for every one of these reads, and a denied row and an absent row come
+   * back looking the same on purpose.
+   */
+  private readonly handleLoadAdministration = (): void => {
+    const bridge = this._authority;
+    if (bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.loadAdministration());
+  };
+
+  private readonly handleLoadMoreAdministration = (event: Event): void => {
+    const detail = (event as CustomEvent<LoadMoreAdministrationDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.loadMoreAdministration(detail.list));
+  };
+
+  private readonly handleRunReport = (event: Event): void => {
+    const detail = (event as CustomEvent<RunReportDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.runReport(detail.readModelName));
+  };
+
+  private readonly handleLoadMoreReport = (): void => {
+    const bridge = this._authority;
+    if (bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.loadMoreReport());
+  };
+
+  private readonly handleExportReport = (event: Event): void => {
+    const detail = (event as CustomEvent<RunReportDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.exportReport(detail.readModelName));
+  };
+
+  private readonly handleRevokeMemberSessions = (event: Event): void => {
+    const detail = (event as CustomEvent<RevokeMemberSessionsDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.revokeMemberSessions(detail.userId));
   };
 
   /** Chromium fires this before offering installation; other engines never do. */
@@ -804,8 +883,20 @@ export class AdlAppElement extends HTMLElement {
     this.selectedContextIds = { ...(context.selectedContexts ?? {}) };
   }
 
+  /**
+   * The context the app is currently operating in, including whichever business
+   * contexts are selected.
+   *
+   * The selection lives in `selectedContextIds` rather than on `_context`, so
+   * returning the raw base handed every outside consumer — the authority bridge
+   * above all — a context that claimed nothing was selected. Sync sent no
+   * selection with its bootstrap, and the administration surface could not tell
+   * which context it was meant to administer, even with one plainly chosen in
+   * the top bar. This is the same shape `baseRuntimeContext` gives the runtime,
+   * so the shell and everything reading from it now agree.
+   */
   get context(): RuntimeContext {
-    return this._context;
+    return this.baseRuntimeContext();
   }
 
   /**
@@ -879,6 +970,12 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.addEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
     this.addEventListener(ADL_RETRY_DELIVERY_EVENT, this.handleRetryDelivery);
+    this.addEventListener(ADL_LOAD_ADMINISTRATION_EVENT, this.handleLoadAdministration);
+    this.addEventListener(ADL_LOAD_MORE_ADMINISTRATION_EVENT, this.handleLoadMoreAdministration);
+    this.addEventListener(ADL_RUN_REPORT_EVENT, this.handleRunReport);
+    this.addEventListener(ADL_LOAD_MORE_REPORT_EVENT, this.handleLoadMoreReport);
+    this.addEventListener(ADL_EXPORT_REPORT_EVENT, this.handleExportReport);
+    this.addEventListener(ADL_REVOKE_MEMBER_SESSIONS_EVENT, this.handleRevokeMemberSessions);
     document.addEventListener("keydown", this.handleKeyDown);
     globalThis.addEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
     addBrowserOnlineListeners(this.handleOnlineStateChange);
@@ -915,6 +1012,12 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.removeEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
     this.removeEventListener(ADL_RETRY_DELIVERY_EVENT, this.handleRetryDelivery);
+    this.removeEventListener(ADL_LOAD_ADMINISTRATION_EVENT, this.handleLoadAdministration);
+    this.removeEventListener(ADL_LOAD_MORE_ADMINISTRATION_EVENT, this.handleLoadMoreAdministration);
+    this.removeEventListener(ADL_RUN_REPORT_EVENT, this.handleRunReport);
+    this.removeEventListener(ADL_LOAD_MORE_REPORT_EVENT, this.handleLoadMoreReport);
+    this.removeEventListener(ADL_EXPORT_REPORT_EVENT, this.handleExportReport);
+    this.removeEventListener(ADL_REVOKE_MEMBER_SESSIONS_EVENT, this.handleRevokeMemberSessions);
     document.removeEventListener("keydown", this.handleKeyDown);
     globalThis.removeEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
     removeBrowserOnlineListeners(this.handleOnlineStateChange);
@@ -930,12 +1033,29 @@ export class AdlAppElement extends HTMLElement {
    * UI, such as records reconciled by an authority sync. It is a no-op before
    * the element is initialised.
    */
+  /**
+   * Re-reads everything the shell derives from the runtime.
+   *
+   * Available contexts are re-resolved here, not only at startup. They are a
+   * function of the accepted membership records this device holds *and* of who
+   * the app is currently running as, and both change after startup: signing in
+   * replaces the identity, and the bootstrap that follows brings down the
+   * memberships that identity actually has. Resolving them once at
+   * `initialize()` meant a person signed in and their contexts stayed empty
+   * until they reloaded the page — with nothing on screen to suggest a reload
+   * was what was needed. Claiming an invitation had the same shape.
+   *
+   * The re-resolve preserves an existing selection: `resolveRequestedContextId`
+   * keeps the currently selected id when it is still available, and clears it
+   * with a message only when it genuinely is not.
+   */
   async refreshFromRuntime(): Promise<void> {
     if (!this.initialized) {
       return;
     }
 
     await this.runCommand(async () => {
+      await this.refreshAvailableContexts();
       if (this.activeView.presentation === undefined) {
         await this.refreshRecords();
       } else {
@@ -1311,6 +1431,25 @@ export class AdlAppElement extends HTMLElement {
       syncRecovery.busy = this.authorityBusy;
     }
 
+    const auditReview = this.querySelector<AdlAuditReviewElement>("adl-audit-review");
+    if (auditReview !== null && bridge !== undefined) {
+      auditReview.state = bridge.administration;
+      auditReview.busy = this.authorityBusy;
+    }
+
+    const accessReview = this.querySelector<AdlAccessReviewElement>("adl-access-review");
+    if (accessReview !== null && bridge !== undefined) {
+      accessReview.state = bridge.administration;
+      accessReview.busy = this.authorityBusy;
+    }
+
+    const reportRunner = this.querySelector<AdlReportRunnerElement>("adl-report-runner");
+    if (reportRunner !== null && bridge !== undefined) {
+      reportRunner.reports = this.reportableReadModels;
+      reportRunner.state = bridge.administration;
+      reportRunner.busy = this.authorityBusy;
+    }
+
     const list = this.querySelector<AdlListViewElement>("adl-list-view");
     if (list !== null && this.activeRuntimeContext !== undefined) {
       list.runtime = this.runtime;
@@ -1387,8 +1526,44 @@ export class AdlAppElement extends HTMLElement {
             : ""
         }
         <adl-sync-recovery></adl-sync-recovery>
+        ${this.renderAdministrationChrome()}
       </section>
     `;
+  }
+
+  /**
+   * The operational surfaces, over the authority's existing administration and
+   * reporting endpoints.
+   *
+   * They render for any signed-in caller, not only for one the shell believes is
+   * an administrator, and that is deliberate: the browser holds no role and must
+   * not become a second place where scope is decided. Every read behind these
+   * components is authorised by the server, and a caller who may administer
+   * nothing simply sees empty lists — which is indistinguishable, on purpose,
+   * from a context that has nothing in it.
+   */
+  private renderAdministrationChrome(): string {
+    if (this._authority?.session.status !== "signedIn") {
+      return "";
+    }
+
+    return `
+      <section class="adl-administration-chrome" data-administration-chrome="true">
+        <adl-audit-review></adl-audit-review>
+        <adl-access-review></adl-access-review>
+        <adl-report-runner></adl-report-runner>
+      </section>
+    `;
+  }
+
+  /**
+   * The read models a report may be run against: every one the model declares.
+   * The name is all that is ever sent — the authority resolves it, applies read
+   * policy and shapes the rows — so offering the full list widens nothing, and
+   * one the caller may not run comes back empty rather than refused.
+   */
+  private get reportableReadModels(): string[] {
+    return (this._model.readModels ?? []).map((readModel) => readModel.name);
   }
 
   private renderContextSelectors(): string {

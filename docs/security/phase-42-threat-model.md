@@ -43,6 +43,11 @@ are resolved from accepted membership records on every authority call.
 | A membership index used as a grant, or leaking membership beyond the review DTOs | A projection row is a pointer, not a decision: it carries only the three fields the model already declares as that membership's user, context and role, and every caller re-reads the accepted record and applies the runtime read policy, which stays the disclosure boundary. An index that returned a stale or extra candidate costs an extra read and cannot grant anything; a role claimed by the index and absent from the record is not resolved | Phase 54 index-port unit tests (record beats index) and real-PostgreSQL scoped-read tests |
 | Membership projection drifting from accepted records, silently removing access | The projection is written inside the same transaction as the record change it derives from (unit-of-work for replay, store transaction for invite claim and revocation), so it cannot commit apart; startup rebuilds it from the accepted records under an advisory lock; and integrity reports missing, orphaned and stale rows as metadata-only counts | Phase 54 fault-injection rollback test, startup rebuild test, integrity tests |
 | Two authority processes racing on startup over one projection | Startup holds a session-level advisory lock keyed on the application id while it applies model migrations and rebuilds the membership projection, so concurrent starts serialise; the lock is released by the process, and by the backend ending if it dies | Phase 54 real-PostgreSQL test that a held lock blocks a second startup until released |
+| A scheduled retention run deleting accepted state, a derived membership row, or an in-retention audit/outcome row | Only four time-growing projections are prunable at all, and the list is a constant in the code rather than anything a request supplies: `adl_authority_context_memberships` is deliberately absent because it is bounded by the record set and deleting a row would remove a live membership from resolution without removing the membership, and accepted records, identities, identity links, credentials and invites are absent for the Phase 45 reason. Each remaining projection carries its own clamp to no later than `now - window`, applied per projection and independently of the requested cutoff, so an in-retention row cannot be reached by asking for a more recent one. Legal hold refuses every prune | Phase 55 real-PostgreSQL retention tests, including a case that prunes every prunable projection and asserts the membership projection is untouched |
+| A retention run signing a user out mid-grace by pruning a live session, or breaking a ceremony in flight | Sessions and challenges are eligible only once they have **already ended**: the predicate is `least(coalesce(revoked_at, expires_at), expires_at) < cutoff`, so for a row that is neither revoked nor consumed the expression is a future instant while the cutoff is always in the past. An active session — including one deep inside its offline grace — and an answerable challenge are structurally unreachable rather than merely filtered | Phase 55 real-PostgreSQL cases asserting an active session and one inside its grace survive any cutoff asked for, and that only endings older than the window are deleted |
+| A context manager obtaining an application-wide destructive action | There is **no HTTP trigger for retention at all**. Retention is application-wide while every `/v1/admin/*` authorisation is scoped to one business context, so a trigger under that gate would reach past the caller's own scope. `/v1/admin/retention/status` is a read with no run, dry-run or cutoff argument; running retention stays with whoever can start the scheduled process | Phase 55 HTTP tests: the status route is status-only and no trigger route exists |
+| A browser administration surface used to widen disclosure or to enumerate contexts, reports or memberships | Every read goes through the existing authorised Phase 43 endpoint and the server keeps deriving identity, role and scope; the UI holds no operational credential and makes no authorisation decision. A refused read and an empty one are indistinguishable — no wording distinguishes them, `unavailable` means no context is selected rather than not permitted, and an unknown or unauthorised report answers as an empty report. Pages use the server's own opaque, short-lived, actor-bound cursors, replayed untouched; nothing is cached across contexts and no count or aggregate is derived in the browser | Phase 55 administration UI tests and real-PostgreSQL cases for an unauthorised and a wrongly scoped caller |
+| An operator escalating their own access, or reaching another context, through session revocation | The authority refuses a target who is not a current member of the context being administered, so revocation cannot reach outside the caller's own administrative scope and confers nothing on the caller. The surface reloads from the authority afterwards rather than adjusting locally, so a revocation that did not happen is never displayed as one | Phase 43/54 access-lifecycle target-access tests, Phase 55 administration UI and integration tests |
 
 ## The passkey surface (Phase 49)
 
@@ -206,8 +211,44 @@ consequences follow and are intentional:
   cached on it at the time and scope the incident accordingly, rather than
   expecting a revocation to undo it.
 
-**Residual risk — rotation grows the sessions table.** Each restart of the grace
-inserts a session row and revokes the previous one. Revoked and expired rows are
-excluded from everything user-facing and from the device list, so this is not a
-disclosure, but nothing in this repository prunes them; it sits alongside expired
-ceremony challenges as an operator retention item.
+**Rotation grows the sessions table — closed as a growth risk by Phase 55.** Each
+restart of the grace inserts a session row and revokes the previous one. Revoked
+and expired rows are excluded from everything user-facing and from the device
+list, so this was never a disclosure. It was recorded here as an unprunable
+growth item; the scheduled retention path now prunes that debris, alongside
+expired ceremony challenges, under the ended-session guard analysed in the table
+above. It remains an operator decision to enable: an unconfigured deployment
+still deletes nothing.
+
+## The scheduled retention and administration surface (Phase 55)
+
+Two new capabilities, and the notable property of both is what they deliberately
+do **not** add.
+
+**Retention adds no request-reachable destructive action.** The prunable set is a
+constant in the code, the per-projection clamps are floors rather than
+preferences, and there is no HTTP route that starts a run. The only new route is
+a status read, and it carries no argument that could influence a future run.
+
+**The administration UI adds no authority.** It is a client of endpoints that
+already existed and already enforced their own boundary; it holds no operational
+credential, decides nothing, and is not a second scope implementation. Removing
+it would remove convenience, not a control.
+
+**Everything the new surfaces disclose is metadata.** The run log has no column
+that could hold an accepted record, an audit payload, a token, a verifier or an
+outcome body; a failure is reduced to a fault name such as `Error 42P01`, never a
+driver message, because those can name hosts, roles and statement text. The
+status view carries windows, a schedule, an outcome and counts. The review
+surfaces carry the server's own status summaries, escaped on render because an
+entry is data rather than markup.
+
+**Residual risk — a one-shot run is not scrapable while it happens.** The
+composed authority process shares one `AuthorityMetrics` between its retention
+runner and its HTTP edge, so a scheduled run's counters are on `/metrics`. The
+one-shot entry point deliberately has no endpoint: a cron job should not open a
+port. Its evidence is the structured log line and the row in
+`adl_authority_retention_runs`, and the
+[runbook](../operations/authority-production-runbook.md) directs alerting at
+absence of a completed run rather than at failure alone. This is an observability
+consideration, not a disclosure or an integrity risk.

@@ -12,7 +12,11 @@ import type { AuthorityOutcome } from "../server/authority-types.js";
 import type { HttpAuthorityTransportOptions } from "../server/http-authority-transport.js";
 import type { ApplicationRuntime } from "../runtime/application-runtime.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
+import { EMPTY_ADMINISTRATION_LIST } from "./authority-bridge.js";
 import type {
+  AdlAdministrationList,
+  AdlAdministrationListName,
+  AdlAdministrationState,
   AdlAuthorityBridge,
   AdlDeviceState,
   AdlInviteState,
@@ -150,6 +154,7 @@ export async function connectBrowserAuthority(
   };
   let invite: AdlInviteState = { status: "idle" };
   let devices: AdlDeviceState = { status: "idle", devices: [] };
+  let administration: AdlAdministrationState = emptyAdministration("idle");
   let recovery: SyncRecoveryItem[] = client.listRecovery();
   let undelivered: SyncDeliveryItem[] = client.listUndelivered();
   let readinessAnswered = false;
@@ -224,6 +229,9 @@ export async function connectBrowserAuthority(
     },
     get undelivered() {
       return undelivered;
+    },
+    get administration() {
+      return administration;
     },
 
     async bootstrap(context: RuntimeContext): Promise<number> {
@@ -496,9 +504,281 @@ export async function connectBrowserAuthority(
       refreshQueueState();
       await options.onChange();
     },
+
+    /**
+     * Loads every administration status surface for the context being
+     * administered, in one pass.
+     *
+     * Nothing is cached across contexts and nothing is merged: switching context
+     * starts from empty, because a stale page from another context shown under a
+     * new heading would be a disclosure the server never made. Each call is a
+     * separate authorised read; a refusal is not distinguished from an empty
+     * result, so this surface cannot become a probe for which contexts a caller
+     * may administer.
+     */
+    async loadAdministration(): Promise<void> {
+      const scope = administrationScope();
+      if (scope === undefined) {
+        administration = emptyAdministration("unavailable");
+        await options.onChange();
+        return;
+      }
+      if (!isOnline(options.getContext())) {
+        administration = {
+          ...emptyAdministration("offline"),
+          ...scope,
+          message: "Administration needs a connection to the authority server.",
+        };
+        await options.onChange();
+        return;
+      }
+
+      administration = { ...emptyAdministration("loading"), ...scope };
+      await options.onChange();
+      try {
+        const [accessAudit, runtimeAudit, memberships, invites, recovery, retention] =
+          await Promise.all([
+            transport.listAccessAudit(scope),
+            transport.listRuntimeAudit(scope),
+            transport.listMemberships(scope),
+            transport.listInvites(scope),
+            transport.recoveryStatus(scope),
+            transport.retentionStatus(scope),
+          ]);
+        administration = {
+          status: "loaded",
+          ...scope,
+          accessAudit,
+          runtimeAudit,
+          memberships,
+          invites,
+          recovery,
+          retention,
+        };
+      } catch (error) {
+        administration = {
+          ...emptyAdministration("error"),
+          ...scope,
+          message: describeAuthorityFailure(error),
+        };
+      }
+      await options.onChange();
+    },
+
+    /**
+     * One more page of a review list. The cursor is the server's own, replayed
+     * untouched; without one there is nothing more to ask for and this does
+     * nothing rather than starting the list again.
+     */
+    async loadMoreAdministration(list: AdlAdministrationListName): Promise<void> {
+      const scope = administrationScope();
+      const current = administration[list];
+      if (scope === undefined || current.nextCursor === undefined) return;
+
+      administration = { ...administration, [list]: { ...current, loadingMore: true } };
+      await options.onChange();
+      try {
+        const request = { ...scope, cursor: current.nextCursor };
+        const page = await administrationList(list, request);
+        administration = {
+          ...administration,
+          [list]: {
+            entries: [...current.entries, ...page.entries],
+            ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+          },
+        };
+      } catch (error) {
+        administration = {
+          ...administration,
+          [list]: { ...current, loadingMore: false },
+          message: describeAuthorityFailure(error),
+        };
+      }
+      await options.onChange();
+    },
+
+    /**
+     * Executes one named read model. The server refuses an unknown or
+     * unauthorised name by answering with an empty report rather than an error,
+     * so this reports "no rows" in both cases and never becomes an oracle for
+     * which reports exist.
+     */
+    async runReport(readModelName: string): Promise<void> {
+      administration = { ...administration, reportStatus: "running", reportName: readModelName };
+      delete administration.message;
+      await options.onChange();
+      try {
+        const report = await transport.executeReport({
+          readModelName,
+          ...selectedContextsBody(),
+        });
+        administration = { ...administration, report, reportStatus: "ready" };
+      } catch (error) {
+        administration = {
+          ...administration,
+          reportStatus: "error",
+          message: describeAuthorityFailure(error),
+        };
+      }
+      await options.onChange();
+    },
+
+    /** The next page of the report already shown, appended to it. */
+    async loadMoreReport(): Promise<void> {
+      const report = administration.report;
+      const readModelName = administration.reportName;
+      if (report?.nextCursor === undefined || readModelName === undefined) return;
+
+      administration = { ...administration, reportStatus: "running" };
+      await options.onChange();
+      try {
+        const page = await transport.executeReport({
+          readModelName,
+          cursor: report.nextCursor,
+          ...selectedContextsBody(),
+        });
+        administration = {
+          ...administration,
+          report: {
+            readModelName: report.readModelName,
+            fields: report.fields.length > 0 ? report.fields : page.fields,
+            rows: [...report.rows, ...page.rows],
+            ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+            truncated: report.truncated || page.truncated,
+          },
+          reportStatus: "ready",
+        };
+      } catch (error) {
+        administration = {
+          ...administration,
+          reportStatus: "error",
+          message: describeAuthorityFailure(error),
+        };
+      }
+      await options.onChange();
+    },
+
+    /**
+     * Exports the report as CSV. The authority applies the ordinary `export`
+     * policy to every source record before it composes the file, so this widens
+     * nothing: it hands the browser exactly what that caller could already read.
+     */
+    async exportReport(readModelName: string): Promise<void> {
+      administration = { ...administration, reportStatus: "exporting", reportName: readModelName };
+      delete administration.message;
+      await options.onChange();
+      try {
+        const exported = await transport.exportReport({
+          readModelName,
+          ...selectedContextsBody(),
+        });
+        offerDownload(exported.filename, exported.contentType, exported.body);
+        administration = {
+          ...administration,
+          reportStatus: "ready",
+          message: exported.truncated
+            ? "The export was truncated to the server's row limit."
+            : `Exported ${exported.filename}.`,
+        };
+      } catch (error) {
+        administration = {
+          ...administration,
+          reportStatus: "error",
+          message: describeAuthorityFailure(error),
+        };
+      }
+      await options.onChange();
+    },
+
+    /**
+     * Ends every session of a member of the administered context, then reloads
+     * the surface from the authority rather than adjusting anything locally —
+     * the server decides what is still live, and an operator must not be shown a
+     * revocation that did not happen.
+     *
+     * The authority refuses a user who is not a current member of the context
+     * being administered, so this cannot be turned into a way to sign out
+     * somebody outside the caller's own scope, or to escalate their own access.
+     */
+    async revokeMemberSessions(userId: string): Promise<void> {
+      const scope = administrationScope();
+      if (scope === undefined) return;
+      if (!isOnline(options.getContext())) {
+        administration = {
+          ...administration,
+          status: "offline",
+          message: "Revoking sessions needs a connection to the authority server.",
+        };
+        await options.onChange();
+        return;
+      }
+
+      administration = { ...administration, status: "loading" };
+      await options.onChange();
+      try {
+        const revoked = await transport.revokeUserSessions({ ...scope, userId });
+        await connection.loadAdministration();
+        administration = {
+          ...administration,
+          // The authority answers whether the revocation applied, not how many
+          // devices it touched, and the surface must say exactly that. A count
+          // would be invented here, and "Ended 0 sessions" would read as a
+          // refusal when what happened was that the person is no longer a
+          // member of this context at all.
+          message: revoked
+            ? "That member's sessions were ended. They will be signed out the next time any of their devices reaches the server."
+            : "No sessions were ended: that user is not a current member of this context.",
+        };
+      } catch (error) {
+        administration = {
+          ...administration,
+          status: "error",
+          message: describeAuthorityFailure(error),
+        };
+      }
+      await options.onChange();
+    },
   };
 
   return connection;
+
+  /**
+   * The business context an administration read applies to.
+   *
+   * It is taken from what the app already has selected, and only from a context
+   * the *model* declares a membership for — those are the only ones the
+   * authority's `requireAdministration` can resolve a manager role in. Returning
+   * undefined is not a permission answer: it means there is nothing selected to
+   * administer, which the surface says plainly instead of implying a refusal.
+   */
+  function administrationScope(): { contextName: string; contextId: string } | undefined {
+    const selected = options.getContext().selectedContexts ?? {};
+    for (const [contextName, contextId] of Object.entries(selected)) {
+      const declared = runtime.model.contexts?.find((context) => context.name === contextName);
+      if (declared?.membership !== undefined && contextId.length > 0)
+        return { contextName, contextId };
+    }
+    return undefined;
+  }
+
+  /** Report reads carry the app's whole selection; the runtime scopes each source row. */
+  function selectedContextsBody(): { selectedContexts?: Record<string, string> } {
+    const selected = options.getContext().selectedContexts;
+    return selected === undefined || Object.keys(selected).length === 0
+      ? {}
+      : { selectedContexts: { ...selected } };
+  }
+
+  /** Dispatch to the right bounded review endpoint. There is no generic list call. */
+  async function administrationList(
+    list: AdlAdministrationListName,
+    request: { contextName: string; contextId: string; cursor: string },
+  ): Promise<AdlAdministrationList> {
+    if (list === "accessAudit") return transport.listAccessAudit(request);
+    if (list === "runtimeAudit") return transport.listRuntimeAudit(request);
+    if (list === "memberships") return transport.listMemberships(request);
+    return transport.listInvites(request);
+  }
 
   /** Both queue-derived surfaces are read from the queue together, never apart. */
   function refreshQueueState(): void {
@@ -621,6 +901,46 @@ export function watchAuthorityReconnect(
   return () => {
     globalThis.removeEventListener?.("online", handler);
   };
+}
+
+/** Administration state with every list empty, in a stated status. */
+function emptyAdministration(status: AdlAdministrationState["status"]): AdlAdministrationState {
+  return {
+    status,
+    accessAudit: { ...EMPTY_ADMINISTRATION_LIST },
+    runtimeAudit: { ...EMPTY_ADMINISTRATION_LIST },
+    memberships: { ...EMPTY_ADMINISTRATION_LIST },
+    invites: { ...EMPTY_ADMINISTRATION_LIST },
+  };
+}
+
+/**
+ * Hands a CSV export to the browser as a download.
+ *
+ * The bytes came from the authority and go straight to a blob URL that is
+ * revoked immediately; nothing is stored, and there is no environment outside a
+ * document where this does anything at all — a test or worker context simply
+ * gets the export's own status text instead.
+ */
+function offerDownload(filename: string, contentType: string, body: string): void {
+  const document = globalThis.document;
+  const url = globalThis.URL;
+  if (document === undefined || typeof url?.createObjectURL !== "function") return;
+  const href = url.createObjectURL(new Blob([body], { type: contentType }));
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  /*
+   * Revoked on a later turn, not in a `finally`. Revoking synchronously after
+   * `click()` races the download the click just started, and the browser
+   * cancels it — the export appeared to do nothing at all. The object is still
+   * released; it is released once the download has had the chance to begin.
+   */
+  globalThis.setTimeout(() => url.revokeObjectURL(href), 30_000);
 }
 
 /** Concise, credential-free failure text. Proofs, cookies and tokens are never included. */

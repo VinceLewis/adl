@@ -2166,3 +2166,213 @@ textarea.adl-field-control {
     font-weight: 650;
   }
 }
+
+/* Administration surfaces: reports, audit review and access review. They share
+   one visual language because an operator reads them together, and nothing here
+   is styled to distinguish a refused read from an empty one. */
+.adl-report-runner,
+.adl-audit-review,
+.adl-access-review {
+  border-top: 1px solid var(--adl-color-border);
+  display: grid;
+  gap: var(--adl-space-sm);
+  justify-items: start;
+  padding-top: var(--adl-space-md);
+  width: 100%;
+}
+
+.adl-administration-heading {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.adl-administration-subheading {
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.adl-administration-hint,
+.adl-administration-note,
+.adl-administration-empty,
+.adl-administration-message,
+.adl-administration-status-line {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 68ch;
+}
+
+.adl-administration-message[role="alert"] {
+  color: var(--adl-color-danger);
+}
+
+.adl-administration-section {
+  border-top: 1px solid var(--adl-color-border);
+  display: grid;
+  gap: var(--adl-space-xs);
+  justify-items: start;
+  padding-top: var(--adl-space-sm);
+  width: 100%;
+}
+
+.adl-administration-entries {
+  display: grid;
+  gap: var(--adl-space-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.adl-administration-entry {
+  background: var(--adl-color-surface-alt);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+/* Key and value stay on one row on wide screens and stack on narrow ones: an
+   audit entry is read key-by-key, so truncating either side would lose meaning. */
+.adl-administration-pairs {
+  display: grid;
+  gap: 2px var(--adl-space-sm);
+  grid-template-columns: minmax(120px, 0.3fr) minmax(0, 1fr);
+  margin: 0;
+}
+
+.adl-administration-key {
+  color: var(--adl-color-text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.adl-administration-value {
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adl-administration-refresh,
+.adl-administration-more,
+.adl-report-run,
+.adl-report-export,
+.adl-report-more {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: var(--adl-control-height);
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+.adl-report-run {
+  background: var(--adl-color-primary);
+  border-color: var(--adl-color-primary);
+  color: var(--adl-color-text-inverted);
+}
+
+.adl-administration-refresh[disabled],
+.adl-administration-more[disabled],
+.adl-report-run[disabled],
+.adl-report-export[disabled],
+.adl-report-select[disabled],
+.adl-access-member-revoke[disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.adl-report-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+}
+
+.adl-report-label {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.adl-report-select {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text);
+  min-height: var(--adl-control-height);
+  padding: 0 var(--adl-space-sm);
+}
+
+/* The table scrolls inside its own wrapper: a wide report must never make the
+   workspace itself scroll sideways. */
+.adl-report-table-wrap {
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  max-width: 100%;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.adl-report-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 100%;
+}
+
+.adl-report-table th,
+.adl-report-table td {
+  border-bottom: 1px solid var(--adl-color-border);
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.adl-report-table th {
+  background: var(--adl-color-surface-alt);
+  font-weight: 650;
+}
+
+.adl-access-member {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+.adl-access-member-id {
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.adl-access-member-detail {
+  color: var(--adl-color-text-muted);
+  font-size: 12px;
+}
+
+.adl-access-member-revoke {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-danger);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-danger);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: auto;
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+@media (max-width: 720px) {
+  .adl-administration-pairs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adl-access-member-revoke {
+    margin-left: 0;
+  }
+}

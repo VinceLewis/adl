@@ -85,7 +85,7 @@ export class AuthorityService {
     const session = await this.sessions.verify(sessionToken);
     if (session === null) return { records: [] };
     try {
-      const context = await this.resolveContext(
+      const context = await this.resolveBootstrapContext(
         this.runtime,
         session.userId,
         request.selectedContexts,
@@ -330,6 +330,49 @@ export class AuthorityService {
       context = await runtime.withSelectedContext(contextName, contextId, context);
     }
     return context;
+  }
+
+  /**
+   * The read context for a bootstrap, which is deliberately wider than the write
+   * context a replay resolves.
+   *
+   * A device that has just signed in has selected nothing, because it cannot:
+   * the memberships that tell it which contexts exist are themselves scoped
+   * records, so resolving the context from `selectedContexts` alone returned an
+   * empty bootstrap and left the person with no context to select and nothing on
+   * screen to explain why. That was a genuine dead end in a real deployment, not
+   * only in a test.
+   *
+   * So a bootstrap additionally resolves the caller's context roles for every
+   * declared membership context they did not select. This grants nothing: the
+   * roles are derived from the caller's own accepted membership records by the
+   * same `resolveContextRoles` the runtime already uses for a `CONTEXT ALL`
+   * view, every candidate record still passes through `runtime.read` and its
+   * policy, and an object declared `SCOPE currentContext` still needs a
+   * selection. It only lets a caller learn the contexts they are already a
+   * member of.
+   *
+   * A replay keeps the narrow resolution above. A write must land in a context
+   * the client actually named, and must not become reachable by virtue of
+   * membership alone.
+   */
+  private async resolveBootstrapContext(
+    runtime: ApplicationRuntime,
+    userId: string,
+    selectedContexts: Record<string, string> | undefined,
+  ): Promise<RuntimeContext> {
+    const context = await this.resolveContext(runtime, userId, selectedContexts);
+    const selected = new Set(Object.keys(selectedContexts ?? {}));
+    const contextRoles = [...(context.contextRoles ?? [])];
+    for (const declared of runtime.model.contexts ?? []) {
+      if (declared.membership === undefined || selected.has(declared.name)) continue;
+      contextRoles.push(
+        ...(await runtime.contextService.resolveContextRoles(declared.name, context)),
+      );
+    }
+    return contextRoles.length === (context.contextRoles?.length ?? 0)
+      ? context
+      : { ...context, contextRoles };
   }
 
   private async shapeAcceptedRecords(

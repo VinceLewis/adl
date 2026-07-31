@@ -74,9 +74,10 @@ phase or still explicitly outstanding:
 - Conformance expressiveness — Phase 52.
 - Sync-mode delivery and authority coherence — Phase 53.
 - Membership projection and scoped access — Phase 54, below.
+- Retention scheduling and the administration UI — Phase 55, below.
 
-Still outstanding, in sequence order: retention scheduling and its
-administration UI (Phase 55), and reference-app gaps (Phase 56). Outside the
+Still outstanding, in sequence order: reference-app gaps and documentation
+hygiene (Phase 56). Outside the
 phase plan: TLS termination, secret
 management, CI/CD, and a hosting provider decision. The identity method itself is
 no longer open — see
@@ -764,3 +765,169 @@ keeps its ability to sync until the grace lapses or its session is revoked, so
 its owner must be able to end it without an administrator.
 `revokeMembership` still revokes the user's sessions **first**, deliberately, so
 losing access ends sync on the next contact regardless of remaining grace.
+
+## Retention scheduling and the administration UI
+
+Phase 55 turns the two capabilities that existed only as services into things an
+operator can actually run: retention gets an execution path, a schedule and a run
+log, and the Phase 43 reporting and administration reads get a browser surface
+instead of a hand-built request. Operational detail is in the
+[production runbook](operations/authority-production-runbook.md).
+
+### The retention execution path
+
+`AuthorityRetentionService` (Phase 45) still holds the prune itself, and Phase 55
+widens it from two projections to the four that grow with time rather than with
+the accepted-record set: runtime audit, operation outcomes, sessions and WebAuthn
+challenges. Each carries its own guard, and each guard is a floor rather than a
+filter a request can argue down. Runtime audit and outcomes are clamped to no
+later than `now - minimumRetentionMs`. Sessions and challenges are eligible only
+once they have **already ended** — the predicate is
+`least(coalesce(revoked_at, expires_at), expires_at) < cutoff`, which is
+"whichever ending came first", so for a row that has not ended the expression is a
+future instant and the cutoff is always in the past. An active session, including
+one deep inside its offline grace, is structurally unreachable rather than merely
+filtered out; so is a ceremony in flight.
+
+**`adl_authority_context_memberships` is deliberately absent from the prunable
+list and must stay absent.** It holds one row per accepted membership record, so
+it is bounded by the record set rather than by time, and Phase 45's rule that
+retention never touches accepted state extends to anything derived from it:
+deleting a projection row would remove a live membership from resolution without
+removing the membership. Accepted records, identities, identity links,
+credentials and invites are likewise never touched.
+
+`AuthorityRetentionRunner` runs the prune once, under mutual exclusion, and
+records what happened. The lock is `pg_advisory_lock(hashtext(
+'adl_authority_retention:<applicationId>'))` — the same session-level,
+per-application pattern Phase 54 established for startup — taken for the duration
+and released in a `finally`. A contender **waits** rather than skipping, so a
+cron invocation and an in-process schedule may overlap freely and the second
+simply proceeds once the first has committed. The four deletes and the run record
+commit together on one pinned client, so a mid-run failure leaves every
+projection exactly as it was rather than half-pruned with no record of it.
+
+`AuthorityRetentionScheduler` drives the runner on an interval inside the
+authority process. It is deliberately not a job runner: no queue, no
+distribution, no persisted intent. `ADL_RETENTION_INTERVAL_MINUTES` is the only
+thing that enables it and it is **absent by default**, so an authority that has
+not been configured for retention prunes nothing. A deployment that prefers
+`cron`, a Kubernetes `CronJob` or a systemd timer leaves the interval unset and
+runs the one-shot entry point instead; the advisory lock makes both safe at once.
+
+`runAuthorityRetentionOnce` and `authority-retention-main.ts` are that one-shot
+entry (`npm run retention`, `npm run retention:dry-run`). It reads a deliberately
+*small* environment — `ADL_DATABASE_URL`, `ADL_APPLICATION_ID` and the retention
+windows — rather than the whole authority configuration. A retention job needs no
+allowed origins, no identity verifier, no relying party and no cookie policy, and
+requiring them would make the safest way to run retention the most awkward one to
+configure. Its exit code is the scheduler's contract: 0 for completed, dry or
+held, 1 for a failure.
+
+A dry run reads the same predicates the real run deletes with, so its counts are
+the counts rather than an estimate produced by a second, differently-shaped
+query. It writes a run record with outcome `dryRun` and increments no deletion
+counter.
+
+`0009_retention_scheduling.sql` adds `adl_authority_retention_runs` and the two
+indexes the new predicates need; apply it with `adl_migrator`. The run log is
+metadata-only by construction — every column is a count, an instant, a boolean,
+an outcome name or a reduced fault name such as `Error 42P01`, and there is no
+column that could hold an accepted record, an audit payload, a token, a verifier
+or an outcome body. It is also self-trimming: recording a run trims that
+application's history to the most recent 200 rows in the same transaction, so the
+table that exists to prove retention happened does not become a fifth thing
+needing it.
+
+Observability is `adl_authority_retention_runs_total{outcome}` and
+`adl_authority_retention_deleted_total{projection}` on `AuthorityMetrics`, plus
+the `retention_run_started`, `retention_run_completed`, `retention_run_held` and
+`retention_run_failed` structured events. A failure is reported as a reduced
+fault name only; a driver message can name hosts, roles and statement text.
+
+### There is deliberately no HTTP trigger
+
+Nothing at the HTTP edge starts a retention run. That is a design constraint, not
+an omission.
+
+**Retention is application-wide; every administration authorisation in this
+repository is scoped to one business context.** `requireAdministration` gates each
+`/v1/admin/*` call on the caller passing the existing ADL membership-management
+policy in *one* selected context. A trigger route reachable under that gate would
+therefore let a context manager start a destructive, deployment-wide delete
+covering every other context's audit and outcome rows — a capability their
+membership does not confer, obtained by reaching past their own scope. There is
+no version of the route that fixes this: scoping a prune to one context would not
+be retention, and gating it on a role the model does not declare would be a second
+policy implementation living in the server.
+
+Running retention therefore stays with whoever can start the scheduled process —
+an operator with deployment access, not a session holder. The administration
+surface is given a *read* of the run log instead.
+
+### `/v1/admin/retention/status`
+
+One POST route, under the same origin, CSRF, session and rate controls as every
+other `/v1/admin/*` call, returning `{ retention: AuthorityRetentionStatusView |
+null }`. `AuthorityAdministrationService.retention` requires administration in the
+named context exactly as the other reads do, records a
+`retentionStatusReviewed` administration-audit event, and returns metadata only:
+whether this process runs an in-process schedule and at what interval, whether
+legal hold is set, the three configured windows, and the last run's outcome,
+cutoff and per-projection counts. It has no run argument, no dry-run argument and
+no cutoff argument, so it adds no capability at all — only visibility of what a
+run already did.
+
+`null` means the deployment composed no retention path, and the surface reports
+that rather than inventing a schedule. A run-log read failure degrades to "no last
+run" rather than failing the whole view: an operator asking "is retention
+configured?" must still get their answer when the run log cannot be read.
+
+### Browser administration surfaces
+
+Three components — `adl-audit-review`, `adl-access-review` and
+`adl-report-runner` — sit over the endpoints Phase 43 already exposed: report
+execution and CSV export, access-audit and runtime-audit review, membership and
+invite status, recovery status, retention status, and session revocation.
+`HttpAuthorityTransport` gains the matching client methods, and
+`connectBrowserAuthority` holds the view state as `AdlAdministrationState`.
+
+**The UI adds no authority.** It holds no operational credential — the session
+cookie is `__Host-` Secure HttpOnly and unreadable to page script, exactly as
+before — makes no authorisation decision, and is not a second scope
+implementation. The server derives identity, role and scope on every one of these
+reads, and the components render what the bridge gives them and dispatch intent
+upward. The administration chrome renders for any signed-in caller rather than
+only for one the shell believes is an administrator, precisely so that the browser
+never becomes the place where scope is decided.
+
+**Denial stays indistinguishable from absence.** A caller the authority refuses
+sees the same empty lists as one whose context genuinely has nothing in it; no
+wording anywhere says "you are not permitted"; and the `unavailable` state means
+*no context is selected to administer*, never that the caller lacks permission.
+Report execution follows the same rule — the server answers an unknown or
+unauthorised read model with an empty report rather than an error, so the surface
+reports "no rows" in both cases and cannot become an oracle for which reports
+exist. Offering every declared read model as a runnable report is safe for the
+same reason: the name is all that is ever sent, and the authority resolves it,
+applies read policy and shapes the rows.
+
+**Paging is the server's own.** `nextCursor` is opaque, short-lived and
+actor-bound; the browser replays it untouched and neither composes nor interprets
+one. Nothing is cached across contexts and nothing is merged — switching context
+starts from empty, because a stale page from another context shown under a new
+heading would be a disclosure the server never made. No count, total or aggregate
+is computed in the browser, because a locally derived number could disclose more
+than the server returned.
+
+**Session revocation cannot escalate.** The authority refuses a target who is not
+a current member of the context being administered, so an operator cannot reach
+past their own scope or grant themselves anything; the bridge then reloads the
+surface from the authority rather than adjusting anything locally, so an operator
+is never shown a revocation that did not happen. Export is unchanged from Phase
+43: the ordinary `export` policy is applied to every source record before the CSV
+is composed, so it hands the browser exactly what that caller could already read.
+
+The visual suite gains its own `administration` Playwright project with its own
+authority-configured dev server, because the default visual projects run with **no
+authority configured** and therefore render no authority chrome at all.

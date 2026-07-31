@@ -80,7 +80,16 @@ export interface AuthorityConfiguration {
   rateLimits: AuthorityRateLimits;
 }
 
-export class AuthorityConfigurationError extends Error {}
+/**
+ * The name matters, not only the message. A retention run reduces a fault to its
+ * error name before recording it — the driver's own message can carry hosts,
+ * roles and statement text — so without this every configuration refusal would
+ * land in the run log as the bare string `Error`, indistinguishable from an
+ * infrastructure fault an operator would go and investigate quite differently.
+ */
+export class AuthorityConfigurationError extends Error {
+  override readonly name = "AuthorityConfigurationError";
+}
 
 /**
  * Reads only deployment configuration. It intentionally does not model any of

@@ -383,12 +383,19 @@ describe("authority retention against real PostgreSQL", () => {
       { minimumRetentionMs: 60_000, legalHold: true },
       { before: now() },
     );
-    expect(status).toEqual({
+    // A hold reports every projection as unconsidered rather than as pruned-zero,
+    // so an operator can tell "nothing was eligible" from "nothing was allowed".
+    expect(status).toMatchObject({
       held: true,
+      dryRun: false,
       effectiveCutoff: null,
       prunedRuntimeAudit: 0,
       prunedOutcomes: 0,
+      prunedSessions: 0,
+      prunedChallenges: 0,
+      prunedTotal: 0,
     });
+    expect(status.projections.every((entry) => !entry.configured && entry.pruned === 0)).toBe(true);
     expect(await count("select count(*)::int n from adl_authority_audit_events")).toBe(1);
     expect(await count("select count(*)::int n from adl_authority_operation_outcomes")).toBe(1);
   });

@@ -222,22 +222,20 @@ repository, and only its hash is stored.
 ### Pruning expired ceremony challenges
 
 `adl_authority_webauthn_challenges` grows by one row per started ceremony,
-including abandoned ones. Nothing prunes it automatically — there is no
-scheduler in this repository (Phase 55). Run
-`PasskeyIdentityService.pruneChallenges(now)`, or the equivalent statement, on a
-schedule such as hourly:
+including abandoned ones. **This is no longer a manual procedure.** Since Phase
+55 the challenge table is one of the four projections the retention job prunes,
+under a guard that considers only challenges already consumed or expired, and
+only once that ending is itself older than `ADL_RETENTION_CHALLENGE_DAYS`
+(default 1 day). Configure and schedule it as described in
+[Running retention](#running-retention).
 
-```sql
-delete from adl_authority_webauthn_challenges
- where application_id = 'giggle-band'
-   and expires_at <= now();
-```
+Do not schedule a hand-written `delete` alongside it. A statement of your own
+has no legal-hold check, writes no run record, emits no metric or security
+event, and — unlike the job — is not serialised against a concurrent run.
 
-It removes only rows whose lifetime has already elapsed, consumed or not, so it
-can never invalidate a ceremony in flight. The rows are transient
-authentication-flow state, hold no accepted data, and are not recovery-relevant;
-excluding them from a restore is acceptable, and an in-flight ceremony simply
-has to be restarted.
+The rows remain transient authentication-flow state: they hold no accepted data
+and are not recovery-relevant, so excluding them from a restore is acceptable
+and an in-flight ceremony simply has to be restarted.
 
 ### When a signature counter regresses
 
@@ -391,9 +389,16 @@ connect and again once more than half the grace has elapsed since its last
 confirmed authentication. Each rotation inserts a new session row and revokes
 the previous one with `rotated_to_session_id` set. Row growth in
 `adl_authority_sessions` is therefore expected and is not a leak; revoked and
-expired rows are excluded from everything user-facing. Nothing in this
-repository prunes them, so treat it as a retention item alongside expired
-ceremony challenges.
+expired rows are excluded from everything user-facing.
+
+Since Phase 55 the retention job prunes that debris — see
+[Running retention](#running-retention) — but only rows for sessions that have
+**already ended**, and only once the ending is itself older than
+`ADL_RETENTION_SESSION_DAYS` (default 30 days). A session that is neither
+revoked nor expired, including one deep inside its offline grace, is structurally
+unreachable by the prune, because pruning one would sign that person out
+mid-grace with no way to tell them why. Never write a session `delete` of your
+own to hurry this along.
 
 **What a lapsed grace looks like.** The device keeps working — local reads and
 local-first writes are never gated on a session, before or after the grace
@@ -477,8 +482,8 @@ Use a database owner only to create roles. Run
 `0003_reporting_administration.sql`,
 `0004_authority_transaction_integrity.sql`,
 `0005_authority_audit_scope_and_retention.sql`,
-`0006_passkey_identity.sql`, `0007_model_fingerprint.sql`, and
-`0008_membership_projection.sql` as
+`0006_passkey_identity.sql`, `0007_model_fingerprint.sql`,
+`0008_membership_projection.sql`, and `0009_retention_scheduling.sql` as
 `adl_migrator`. Run the process as
 `adl_authority`; it has DML only and cannot create schema objects or run
 migrations. Use a pinned PostgreSQL client for any multi-statement transaction.
@@ -506,6 +511,15 @@ membership record — and gains `object_name`, a `revoked_at` mirror of the
 record's tombstone, and a context-scoped index. Nothing needs backfilling by
 hand: the authority rebuilds the projection from the accepted records at every
 start (see below).
+
+`0009_retention_scheduling.sql` is additive and re-appliable. It creates
+`adl_authority_retention_runs` — the metadata-only retention run log — and two
+indexes the prune predicates need: a partial index on already-revoked sessions,
+and a challenge index on `(application_id, expires_at)`. The Phase 42 session
+retention index covers the same columns but not the expression the session guard
+reads, which is why a further index is required rather than reused. Apply it
+before scheduling retention: without the run-log table every run rolls back and
+exits 1, and it cannot record why, so the structured log is the only report.
 
 `0007_model_fingerprint.sql` adds a nullable `model_fingerprint` column to
 `adl_authority_models`. It is additive and re-appliable, and it needs no
@@ -615,6 +629,269 @@ record and is what stops a signed-in user losing their own data on an offline
 reload; and the pending sync queue, whose operations are transformed by the same
 declared steps but never created or discarded.
 
+## Running retention
+
+Four authority projections grow with time rather than with the accepted-record
+set: runtime audit (`adl_authority_audit_events`), operation outcomes
+(`adl_authority_operation_outcomes`), sessions (`adl_authority_sessions`, one
+row per rotation) and ceremony challenges
+(`adl_authority_webauthn_challenges`, one row per started ceremony). Phase 55
+gives all four a single operator-driven prune path with a run log, metrics and
+structured log events.
+
+**Nothing prunes until you ask for it.** A deployment that has never configured
+retention has no in-process schedule and deletes nothing. That is the intended
+default: an unconfigured deployment grows, it does not silently discard
+evidence.
+
+### What is pruned, and what is never pruned
+
+| Projection | Eligible when | Window |
+| --- | --- | --- |
+| `adl_authority_audit_events` | `occurred_at` is before the effective cutoff | `ADL_RETENTION_MINIMUM_DAYS` |
+| `adl_authority_operation_outcomes` | `accepted_at` is before the effective cutoff | `ADL_RETENTION_MINIMUM_DAYS` |
+| `adl_authority_sessions` | the session has **already ended** — revoked, or past its expiry — and that ending is before the cutoff | `ADL_RETENTION_SESSION_DAYS` |
+| `adl_authority_webauthn_challenges` | the challenge is **finished** — consumed, or expired — and that ending is before the cutoff | `ADL_RETENTION_CHALLENGE_DAYS` |
+
+Each window is a floor, not a preference. The requested cutoff is clamped to no
+later than `now - window` for each projection independently, so asking for a more
+recent cutoff cannot reach an in-retention row. The session and challenge guards
+read "whichever ending came first" — `least(coalesce(revoked_at, expires_at),
+expires_at)` — which is what makes a live row structurally unreachable: for a
+session that is neither revoked nor expired the expression is `expires_at`,
+which is in the future, while the cutoff is always in the past. A ceremony in
+flight and a session inside its offline grace are therefore safe from a run that
+happens to overlap them.
+
+**What retention never touches, in any mode:**
+
+- `adl_authority_records` — accepted records, tombstones included.
+- `adl_authority_identities`, `adl_authority_identity_links`,
+  `adl_authority_webauthn_credentials`.
+- `adl_authority_invites`.
+- `adl_authority_context_memberships`. This one matters most. It is a **derived**
+  projection holding one row per accepted membership record, so it is bounded by
+  the record set rather than by time and needs no pruning at all — and deleting a
+  row there would remove a live membership from resolution **without removing the
+  membership**, which is access loss with no audit trail and no record change
+  behind it. It is deliberately absent from the prunable list in
+  `authority-retention.ts` and must stay absent.
+
+Pruning an ancient outcome only means that long-past operation id is no longer
+idempotency-cached. Accepted state and the Phase 44 atomicity guarantees are
+unaffected.
+
+### Configuration
+
+The retention job reads a deliberately small environment. It needs
+`ADL_DATABASE_URL`, `ADL_APPLICATION_ID`, and the variables below — and **not**
+the rest of the authority configuration. It requires no allowed origins, no
+identity verifier, no relying party and no cookie policy, so the safest way to
+run retention is also the simplest one to configure.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ADL_RETENTION_MINIMUM_DAYS` | 365 | Minimum retention for runtime audit and outcomes. Rows newer than this are never pruned. |
+| `ADL_RETENTION_SESSION_DAYS` | 30 | How long an **ended** session row is kept after it ended. |
+| `ADL_RETENTION_CHALLENGE_DAYS` | 1 | How long a **finished** challenge row is kept after it finished. |
+| `ADL_RETENTION_LEGAL_HOLD` | unset | `true` refuses every prune. Any other value, including unset, does not. |
+| `ADL_RETENTION_INTERVAL_MINUTES` | unset | Interval for the authority process's own in-process schedule. **Absent means no schedule at all**, which is the default. |
+
+Each day/minute value must be a positive integer; anything else is a startup
+configuration error rather than a silent fallback. Set
+`ADL_RETENTION_MINIMUM_DAYS` to at least your legal audit-retention period.
+
+The in-process schedule, when enabled, runs inside the authority process. Its
+first tick is one interval away rather than at startup, so a restart loop cannot
+become a prune loop, and the timer is unreferenced so it never holds the process
+open.
+
+### The one-shot entry point
+
+```sh
+npm run retention           # one real run, then exit
+npm run retention:dry-run   # report what would be pruned, delete nothing
+```
+
+Both compile the server sources first. On a deployed host with `dist-server`
+already built — a container image, a release artifact — invoke the compiled entry
+directly instead, which is what `cron`, a Kubernetes `CronJob` or a systemd timer
+should call:
+
+```sh
+node dist-server/src/server/authority-retention-main.js [--dry-run]
+```
+
+It prints one line: the run's own metadata-only JSON summary, which the runner
+has already written to the structured security log and the run log. A run that
+faulted carries `failureCode`, a reduced fault name such as `Error 42P01`. A
+configuration refusal that never reaches a run prints the error's name and
+message on stderr — and nothing else, because a stack, a cause or a
+configuration dump could carry a connection string.
+
+**The exit code is the contract for the scheduler**, so a wrapper can alert
+without parsing text:
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | The run completed, was a dry run, or was held by legal hold. |
+| 1 | The run failed, or the configuration was refused. |
+
+Note that a legal hold exits 0. It is a policy state, not a fault; alert on it
+from the `retention_run_held` event or the run log rather than from the exit
+code.
+
+Keep the connection string out of the crontab. Put it in a mode-0600 environment
+file and invoke a small wrapper, because `cron` gives the job almost no
+environment of its own:
+
+```sh
+#!/bin/sh
+# /usr/local/bin/adl-retention
+set -eu
+set -a
+. /etc/adl/retention.env    # ADL_DATABASE_URL, ADL_APPLICATION_ID, ADL_RETENTION_*
+set +a
+exec node /srv/adl/dist-server/src/server/authority-retention-main.js "$@"
+```
+
+```cron
+17 3 * * * /usr/local/bin/adl-retention >> /var/log/adl/retention.log 2>&1
+```
+
+Daily is a reasonable default, because every window is measured in days. Running
+it more often is safe but achieves little: a run with nothing eligible simply
+records zero and releases the lock.
+
+### Enabling it safely
+
+1. Apply `0009_retention_scheduling.sql` as `adl_migrator`.
+2. **Get legal approval before enabling pruning at all.** Retention deletes
+   audit evidence. That is a records-management decision, not an operational one.
+3. **Run a dry run and inspect it before configuring any schedule.** A dry run
+   reads the same predicates the real run deletes with, so its counts are the
+   counts rather than an estimate from a differently-shaped query. Confirm the
+   per-projection numbers are what you expect for this deployment's age and
+   traffic. A surprising number is a reason to stop, not to proceed.
+4. Only then either add the cron entry, or set `ADL_RETENTION_INTERVAL_MINUTES`
+   and restart the authority process.
+
+A dry run deletes nothing, still writes a run record with outcome `dryRun`, and
+increments no deletion counter.
+
+### Overlapping runs are safe
+
+Every run takes a session-level PostgreSQL advisory lock keyed per application:
+
+```text
+pg_advisory_lock(hashtext('adl_authority_retention:<applicationId>'))
+```
+
+It is held for the duration of the run and released in a `finally`, and a
+contender **waits** rather than skipping — so a cron invocation and an
+in-process schedule, or two schedulers, may overlap freely and the second simply
+proceeds once the first has committed. `hashtext` keys it per application, so
+unrelated applications sharing one database never serialise against each other,
+and a crashed process releases the lock when its backend ends, so it can never
+be held by nobody.
+
+Inside the lock, the four deletes and the run record commit together on one
+pinned client. A failure part-way through therefore leaves every projection
+exactly as it was, rather than half-pruned with no record of it.
+
+If a run appears to hang, look for a blocked advisory lock exactly as you would
+for a blocked startup:
+
+```sql
+select pid, granted from pg_locks where locktype = 'advisory';
+```
+
+Never release another process's advisory lock by hand while it is still running.
+Terminate the stuck backend instead, which releases the lock as a side effect.
+
+### The run log
+
+`adl_authority_retention_runs` is the durable evidence that retention happened.
+It is **metadata-only by construction**: every column is a count, an instant, a
+boolean, an outcome name, or a short reduced fault name such as `Error 42P01`.
+No column could hold an accepted record, an audit payload, a session token or
+verifier, an invite token, or an outcome body — which is why it is safe to
+return from an operator status surface and safe to include in a support bundle.
+
+It is **self-trimming**: recording a run also trims that application's history to
+the most recent 200 rows, in the same transaction, so the table that exists to
+prove retention happened does not itself become a fifth thing needing retention.
+
+Include it in backup, restore and legal-retention procedures alongside the other
+authority projections. It is the only place a completed run's counts survive
+after the log has rotated.
+
+Outcomes recorded there are `completed`, `dryRun`, `held` and `failed`. A failed
+run is recorded after its rollback, on the same pinned client, so an operator can
+see that a run failed and when — except where the failure is that the
+application id is unknown to this database, in which case the foreign key refuses
+the row and the structured log is the only report.
+
+### Observability
+
+Metrics counters, exposed by `AuthorityMetrics.prometheus()`:
+
+| Metric | Labels |
+| --- | --- |
+| `adl_authority_retention_runs_total` | `outcome` = `completed` \| `dryRun` \| `held` \| `failed` |
+| `adl_authority_retention_deleted_total` | `projection` = `runtimeAudit` \| `outcomes` \| `sessions` \| `webauthnChallenges` |
+
+Deletion counters are incremented only for a `completed` run, so a dry run adds
+nothing to them.
+
+Structured security log events, all metadata-only — counts, a cutoff, an outcome
+and a run id, never a row, payload or driver message:
+
+| Event | When |
+| --- | --- |
+| `retention_run_started` | at the start of every run, before the lock is taken |
+| `retention_run_completed` | a completed or dry run |
+| `retention_run_held` | legal hold refused the prune (`outcome: "denied"`) |
+| `retention_run_failed` | the run faulted (`reason` is the reduced fault name) |
+
+Where to read those counters depends on which path ran:
+
+- **The in-process schedule.** `createAuthorityProcess` gives the retention
+  runner and the HTTP edge the same `AuthorityMetrics` and the same logger, so a
+  scheduled run's counters appear on the authority's `/metrics` alongside every
+  request counter, and its log events appear in the same stream.
+- **The one-shot entry point.** It is a short-lived process with no endpoint to
+  scrape, by design — a cron job should not have to open a port. Its evidence is
+  the structured log line it writes and the row it commits to
+  `adl_authority_retention_runs`.
+
+Whichever path a deployment uses, the durable record is
+`adl_authority_retention_runs` plus the four log events. Alert on absence rather
+than on failure alone: treat "no `retention_run_completed` in the last N
+intervals" as the signal that retention has stopped happening, because a job that
+never ran emits nothing at all.
+
+### Reading retention status from the browser
+
+An operator who is already authorised to administer a business context can read
+retention status from the application's administration surface: it shows whether
+this deployment runs an in-process schedule and at what interval, whether legal
+hold is set, the three configured windows, and the last run's outcome, cutoff and
+per-projection counts.
+
+It is a **read, and only a read**. There is no button that runs retention, no dry
+run, and no cutoff argument, and `POST /v1/admin/retention/status` has no
+counterpart that triggers one. That is deliberate: retention is application-wide
+while every administration authorisation in this system is scoped to one business
+context, so a trigger reachable from a context-scoped session would hand a
+context manager a destructive deployment-wide action they do not otherwise have.
+Running retention stays with whoever can start the scheduled process.
+
+If the surface reports that retention status is unavailable, the deployment has
+composed no retention path — it is not a permission message. If it reports a
+schedule but the last run is old or absent, check the cron wrapper's exit codes
+and the structured log before changing any window.
+
 ## Backup, recovery, and retention
 
 Take encrypted daily logical backups and point-in-time WAL backups. Include all
@@ -629,23 +906,27 @@ credential id, a COSE public key and a counter), so they need no handling beyond
 the existing encrypted backup. `adl_authority_webauthn_challenges` is transient
 ceremony state and need not be restored. Retain 35
 daily, 12 monthly, and the current legal/audit retention period; get legal
-approval before deleting audit data. A daily job may remove expired/revoked
-session and invite verifier rows only after 35 days. That job must never delete
-accepted records.
+approval before deleting audit data. Ended session rows are pruned by the
+retention job above rather than by a job of your own; invite verifier rows are
+not pruned by anything in this repository, and a job that removes claimed,
+revoked or expired ones only after 35 days remains the operator's own. No such
+job may ever delete accepted records.
 
-Runtime audit (`adl_authority_audit_events`) and operation outcomes
-(`adl_authority_operation_outcomes`) have a bounded retention path via
-`AuthorityRetentionService.prune` (Phase 45). It is application-scoped and
-deletes only rows older than the effective cutoff, which is clamped to no later
-than `now - minimumRetentionMs`, so nothing inside the minimum retention window
-is ever removed. It refuses to run when `legalHold` is set, throws on a
-non-positive minimum window, and never touches accepted records, sessions,
-invites, or identities. Configure `minimumRetentionMs` to at least the legal
-audit-retention period and obtain legal approval before enabling it. Pruning an
-ancient outcome only drops that long-past operation id from the idempotency
-cache; accepted state and Phase 44 atomicity are unaffected. Its result is
-metadata-only (counts and the effective cutoff) and must not be logged with any
-payload.
+Runtime audit (`adl_authority_audit_events`), operation outcomes
+(`adl_authority_operation_outcomes`), sessions and ceremony challenges have a
+bounded, safeguarded retention path. Phase 45 built the prune; Phase 55 gives it
+a schedulable process entry, a run log, metrics and log events. The whole
+operating procedure — variables, the one-shot entry, the exit-code contract,
+overlap safety, and what is and is not prunable — is
+[Running retention](#running-retention). Obtain legal approval before enabling
+it, and inspect a dry run before configuring any schedule.
+
+`adl_authority_retention_runs` (Phase 55) is the metadata-only run log. Include
+it in the same backup, restore-count and legal-retention process as the other
+projections. It self-trims to the most recent 200 runs per application, so it
+needs no retention job of its own, and it holds no accepted record, audit
+payload, verifier or outcome body — only counts, instants, outcomes and reduced
+fault names.
 
 `adl_authority_audit_events` is now a populated transactional projection (Phase
 39 defined it; Phase 44 writes it inside the accepted-replay transaction).

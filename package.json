@@ -9,6 +9,8 @@
     "build": "vite build",
     "build:authority": "tsc -p tsconfig.server.json",
     "start:authority": "npm run build:authority && node dist-server/src/server/authority-main.js",
+    "retention": "npm run build:authority && node dist-server/src/server/authority-retention-main.js",
+    "retention:dry-run": "npm run build:authority && node dist-server/src/server/authority-retention-main.js --dry-run",
     "preview": "vite preview",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",

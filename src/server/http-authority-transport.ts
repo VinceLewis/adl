@@ -120,6 +120,45 @@ export class InMemoryAuthorityCredentialStore implements AuthorityCredentialStor
   }
 }
 
+/** One business context an operator administers. The server re-derives their role in it. */
+export interface AuthorityAdministrationScope {
+  contextName: string;
+  contextId: string;
+}
+
+export interface AuthorityAdministrationClientRequest extends AuthorityAdministrationScope {
+  limit?: number;
+  cursor?: string;
+}
+
+/** A bounded administration page. Entries stay opaque records: the server shapes them. */
+export interface AuthorityAdministrationPage {
+  entries: Array<Record<string, unknown>>;
+  nextCursor?: string;
+}
+
+export interface AuthorityReportClientRequest {
+  readModelName: string;
+  selectedContexts?: Record<string, string>;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface AuthorityReportPage {
+  readModelName: string;
+  fields: string[];
+  rows: Array<Record<string, unknown>>;
+  nextCursor?: string;
+  truncated: boolean;
+}
+
+export interface AuthorityReportCsv {
+  filename: string;
+  contentType: string;
+  body: string;
+  truncated: boolean;
+}
+
 export class AuthorityTransportError extends Error {
   constructor(
     message: string,
@@ -333,6 +372,141 @@ export class HttpAuthorityTransport implements AuthorityTransport {
     };
   }
 
+  /**
+   * Executes one named read model as a report. The name and the selected
+   * contexts are all that is sent: there is no field list, filter, object name
+   * or projection to widen, and the authority shapes every row through the
+   * runtime's read policy before it is serialised.
+   *
+   * A denied or unknown report comes back as an empty one rather than an error,
+   * by design on the server — so nothing here should try to distinguish them.
+   */
+  async executeReport(request: AuthorityReportClientRequest): Promise<AuthorityReportPage> {
+    const body = await this.post("/v1/reports/execute", {
+      readModelName: request.readModelName,
+      ...(request.selectedContexts === undefined
+        ? {}
+        : { selectedContexts: request.selectedContexts }),
+      ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+      ...(request.limit === undefined ? {} : { limit: request.limit }),
+    });
+    return {
+      readModelName: typeof body.readModelName === "string" ? body.readModelName : "",
+      fields: Array.isArray(body.fields)
+        ? body.fields.filter((field): field is string => typeof field === "string")
+        : [],
+      rows: Array.isArray(body.rows)
+        ? body.rows.filter((row): row is Record<string, unknown> => isRecord(row))
+        : [],
+      ...(typeof body.nextCursor === "string" ? { nextCursor: body.nextCursor } : {}),
+      truncated: body.truncated === true,
+    };
+  }
+
+  /**
+   * Exports a report as CSV. The response is not JSON, so this is the one call
+   * that reads the body as text; the filename comes from the authority's own
+   * `content-disposition` rather than being composed here.
+   */
+  async exportReport(request: {
+    readModelName: string;
+    selectedContexts?: Record<string, string>;
+  }): Promise<AuthorityReportCsv> {
+    const headers = new Headers({ "content-type": "application/json" });
+    const cookie = this.credentials.cookieHeader();
+    if (cookie !== undefined) headers.set("cookie", cookie);
+    const csrf = this.credentials.csrfToken();
+    if (csrf !== undefined) headers.set("x-adl-csrf-token", csrf);
+    if (this.options.origin !== undefined) headers.set("origin", this.options.origin);
+    if (this.options.forwardedProto !== undefined)
+      headers.set("x-forwarded-proto", this.options.forwardedProto);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/v1/reports/export`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({
+          readModelName: request.readModelName,
+          ...(request.selectedContexts === undefined
+            ? {}
+            : { selectedContexts: request.selectedContexts }),
+        }),
+      });
+    } catch (error) {
+      throw new AuthorityTransportError(
+        "The authority server could not be reached (/v1/reports/export).",
+        0,
+        error instanceof Error ? error.name : "network_error",
+      );
+    }
+    this.credentials.capture(readSetCookies(response));
+    const text = await response.text();
+    if (!response.ok)
+      throw new AuthorityTransportError(
+        "The authority server rejected /v1/reports/export.",
+        response.status,
+      );
+    return {
+      filename: filenameFromDisposition(response.headers.get("content-disposition")),
+      contentType: response.headers.get("content-type") ?? "text/csv; charset=utf-8",
+      body: text,
+      truncated: response.headers.get("x-adl-report-truncated") === "true",
+    };
+  }
+
+  /** Bounded, actor-bound access-audit review for one context. */
+  async listAccessAudit(request: AuthorityAdministrationClientRequest) {
+    return administrationPage(await this.post("/v1/admin/access-audit/list", scopeBody(request)));
+  }
+  /** Bounded, actor-bound runtime-audit review for one context. */
+  async listRuntimeAudit(request: AuthorityAdministrationClientRequest) {
+    return administrationPage(await this.post("/v1/admin/runtime-audit/list", scopeBody(request)));
+  }
+  /** Membership status for one context, revoked memberships included. */
+  async listMemberships(request: AuthorityAdministrationClientRequest) {
+    return administrationPage(await this.post("/v1/admin/memberships/list", scopeBody(request)));
+  }
+  /** Invitation status for one context. Tokens and verifiers never leave the server. */
+  async listInvites(request: AuthorityAdministrationClientRequest) {
+    return administrationPage(await this.post("/v1/admin/invites/list", scopeBody(request)));
+  }
+  /** Restore-verification status. Counts and flags only. */
+  async recoveryStatus(request: AuthorityAdministrationScope): Promise<Record<string, unknown>> {
+    return this.post("/v1/admin/recovery/status", scopeBody(request));
+  }
+  /**
+   * Retention status. There is deliberately no counterpart that *runs*
+   * retention: it is application-wide and this session is context-scoped.
+   */
+  async retentionStatus(
+    request: AuthorityAdministrationScope,
+  ): Promise<Record<string, unknown> | null> {
+    const body = await this.post("/v1/admin/retention/status", scopeBody(request));
+    return isRecord(body.retention) ? body.retention : null;
+  }
+  /**
+   * Ends every session of a member of the context being administered. The
+   * authority refuses a user who is not a current member of that context, so
+   * this cannot reach past the caller's own administrative scope.
+   *
+   * The answer is deliberately a boolean rather than a count: the authority
+   * revokes the identity's sessions wholesale and tells the caller whether that
+   * applied, not how many rows it touched. How many devices somebody had signed
+   * in is not something an administrator is owed, and reporting a count here
+   * would be inventing a number the server never sent.
+   */
+  async revokeUserSessions(
+    request: AuthorityAdministrationScope & { userId: string },
+  ): Promise<boolean> {
+    const body = await this.post("/v1/admin/sessions/revoke", {
+      ...scopeBody(request),
+      userId: request.userId,
+    });
+    return body.revoked === true;
+  }
+
   async bootstrap(
     _sessionToken: string | undefined,
     request: AuthorityBootstrapRequest = {},
@@ -443,6 +617,38 @@ function readSetCookies(response: Response): string[] {
   if (typeof headers.getSetCookie === "function") return headers.getSetCookie();
   const single = response.headers.get("set-cookie");
   return single === null ? [] : [single];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function scopeBody(request: AuthorityAdministrationClientRequest): Record<string, unknown> {
+  return {
+    contextName: request.contextName,
+    contextId: request.contextId,
+    ...(request.limit === undefined ? {} : { limit: request.limit }),
+    ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+  };
+}
+
+function administrationPage(body: Record<string, unknown>): AuthorityAdministrationPage {
+  return {
+    entries: Array.isArray(body.entries)
+      ? body.entries.filter((entry): entry is Record<string, unknown> => isRecord(entry))
+      : [],
+    ...(typeof body.nextCursor === "string" ? { nextCursor: body.nextCursor } : {}),
+  };
+}
+
+/**
+ * The filename the authority chose, taken from `content-disposition`. Anything
+ * outside a conservative character set is refused and replaced: this string
+ * becomes a download name, so it must not be able to carry a path.
+ */
+function filenameFromDisposition(header: string | null): string {
+  const match = header?.match(/filename="([^"]*)"/u)?.[1];
+  return match !== undefined && /^[a-z0-9._-]{1,120}$/iu.test(match) ? match : "report.csv";
 }
 
 function readCookieValue(header: string, name: string): string | undefined {

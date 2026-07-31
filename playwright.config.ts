@@ -24,6 +24,7 @@ import { defineConfig, devices } from "@playwright/test";
 const GIGGLE_VISUAL_SPEC = /giggle-band\.visual\.spec\.ts$/;
 const OFFLINE_SHELL_SPEC = /offline-shell\.spec\.ts$/;
 const PASSKEY_SPEC = /passkey-sign-in\.spec\.ts$/;
+const ADMINISTRATION_SPEC = /administration\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "./tests/visual",
@@ -75,6 +76,16 @@ export default defineConfig({
         viewport: { width: 1440, height: 1000 },
       },
     },
+    {
+      name: "administration",
+      testMatch: ADMINISTRATION_SPEC,
+      timeout: 120_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://localhost:5373",
+        viewport: { width: 1440, height: 1000 },
+      },
+    },
   ],
   webServer: [
     {
@@ -95,6 +106,17 @@ export default defineConfig({
       // The only server built with an authority configured, so the session
       // chrome the passkey spec drives actually renders.
       env: { VITE_ADL_AUTHORITY_URL: "http://localhost:8788" },
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
+      command: "npm run dev -- --host localhost --port 5373",
+      url: "http://localhost:5373/?demo=giggle-band",
+      // The administration chrome only renders with an authority configured, so
+      // this project needs its own server pointed at its own throwaway authority
+      // rather than sharing the passkey one — a bypassed identity deployment and
+      // a passkey deployment cannot be the same process.
+      env: { VITE_ADL_AUTHORITY_URL: "http://localhost:8789" },
       reuseExistingServer: true,
       timeout: 60_000,
     },

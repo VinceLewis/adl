@@ -28,7 +28,8 @@ export interface AuthorityAdministrationAuditEvent {
     | "runtimeAuditReviewed"
     | "membershipStatusReviewed"
     | "inviteStatusReviewed"
-    | "recoveryStatusReviewed";
+    | "recoveryStatusReviewed"
+    | "retentionStatusReviewed";
   actorId: string;
   contextName?: string;
   contextId?: string;
@@ -304,6 +305,49 @@ export interface AuthorityRecoveryStatus {
   recoveryRequired: boolean;
   lastRestoreAt?: string;
 }
+
+/**
+ * What an operator is told about retention, and the whole of it.
+ *
+ * Retention is not triggerable from here. It is application-wide and every
+ * administration authorisation in this repository is scoped to one business
+ * context, so exposing a trigger would hand a context manager a destructive
+ * application-wide action they do not otherwise have. An operator runs retention
+ * from the scheduled process entry; this surface exists so they can see that it
+ * is configured, that it ran, and what it did.
+ *
+ * Everything here is metadata: windows, a schedule, an outcome and counts. No
+ * accepted record, audit payload, token, verifier or outcome body can reach it,
+ * because the run log it reads has no column that could hold one.
+ */
+export interface AuthorityRetentionRunSummary {
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  outcome: "completed" | "dryRun" | "held" | "failed";
+  dryRun: boolean;
+  held: boolean;
+  effectiveCutoff: string | null;
+  prunedRuntimeAudit: number;
+  prunedOutcomes: number;
+  prunedSessions: number;
+  prunedChallenges: number;
+  prunedTotal: number;
+  /** A reduced fault name such as `Error 42P01`, never a driver message. */
+  failureCode?: string;
+}
+
+export interface AuthorityRetentionStatusView {
+  /** True when this authority process runs retention on its own interval. */
+  scheduled: boolean;
+  intervalMinutes?: number;
+  legalHold: boolean;
+  minimumRetentionDays: number;
+  sessionRetentionDays: number;
+  challengeRetentionDays: number;
+  /** Absent when retention has never run against this application. */
+  lastRun?: AuthorityRetentionRunSummary;
+}
 export interface AuthorityAdministrationListRequest {
   limit?: number;
   cursor?: string;
@@ -343,6 +387,14 @@ export class AuthorityAdministrationService {
      * the disclosure boundary.
      */
     private readonly membershipIndex: ContextMembershipIndex | undefined = undefined,
+    /**
+     * Metadata-only retention status. Absent when the deployment has composed no
+     * retention path at all, in which case the surface reports that rather than
+     * inventing a schedule. It is a read: nothing here can start a run.
+     */
+    private readonly retentionStatus:
+      | (() => Promise<AuthorityRetentionStatusView | null>)
+      | undefined = undefined,
   ) {
     this.runtime = new ApplicationRuntime(model, {
       storage,
@@ -488,6 +540,22 @@ export class AuthorityAdministrationService {
     const actor = await this.access.requireAdministration(token, contextName, contextId);
     const status = await this.recoveryStatus();
     await this.record("recoveryStatusReviewed", actor.userId, contextName, contextId);
+    return status;
+  }
+  /**
+   * Retention status for an operator who is already authorised to administer
+   * this context. It is gated exactly as every other administration read is, and
+   * it adds no capability: there is no run, no dry run and no cutoff argument
+   * here, only what a run already did.
+   */
+  async retention(
+    token: string | undefined,
+    contextName: string,
+    contextId: string,
+  ): Promise<AuthorityRetentionStatusView | null> {
+    const actor = await this.access.requireAdministration(token, contextName, contextId);
+    const status = (await this.retentionStatus?.()) ?? null;
+    await this.record("retentionStatusReviewed", actor.userId, contextName, contextId);
     return status;
   }
   async revokeSessions(

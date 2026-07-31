@@ -41,6 +41,10 @@ export interface AuthorityMetricsSnapshot {
   requests: Record<string, number>;
   rejections: Record<string, number>;
   rateLimited: Record<string, number>;
+  /** Retention runs by outcome: completed, dryRun, held, failed. */
+  retentionRuns: Record<string, number>;
+  /** Rows retention deleted, by projection. A dry run adds nothing here. */
+  retentionDeleted: Record<string, number>;
 }
 
 /** Small dependency-free metrics source; production adapters may scrape it. */
@@ -48,6 +52,8 @@ export class AuthorityMetrics {
   private readonly requests = new Map<string, number>();
   private readonly rejections = new Map<string, number>();
   private readonly rateLimited = new Map<string, number>();
+  private readonly retentionRuns = new Map<string, number>();
+  private readonly retentionDeleted = new Map<string, number>();
   incrementRequest(endpoint: string): void {
     increment(this.requests, endpoint);
   }
@@ -57,11 +63,30 @@ export class AuthorityMetrics {
   incrementRateLimited(endpoint: string): void {
     increment(this.rateLimited, endpoint);
   }
+  /**
+   * One retention run finished. The outcome is the whole label: a hold and a
+   * failure are operationally different things and an operator alerting on
+   * "retention stopped happening" needs to tell them apart.
+   */
+  incrementRetentionRun(outcome: string): void {
+    increment(this.retentionRuns, outcome);
+  }
+  /**
+   * Rows deleted from one projection. Counts only — the projection name is the
+   * label, and no row, key or payload is ever a metric dimension. A zero is
+   * still recorded so a projection that is configured but quiet is visibly
+   * different from one that was never pruned at all.
+   */
+  incrementRetentionDeleted(projection: string, count: number): void {
+    this.retentionDeleted.set(projection, (this.retentionDeleted.get(projection) ?? 0) + count);
+  }
   snapshot(): AuthorityMetricsSnapshot {
     return {
       requests: Object.fromEntries(this.requests),
       rejections: Object.fromEntries(this.rejections),
       rateLimited: Object.fromEntries(this.rateLimited),
+      retentionRuns: Object.fromEntries(this.retentionRuns),
+      retentionDeleted: Object.fromEntries(this.retentionDeleted),
     };
   }
   prometheus(): string {
@@ -72,6 +97,10 @@ export class AuthorityMetrics {
       ...toPrometheus("adl_authority_rejections_total", this.rejections, "reason"),
       "# TYPE adl_authority_rate_limited_total counter",
       ...toPrometheus("adl_authority_rate_limited_total", this.rateLimited),
+      "# TYPE adl_authority_retention_runs_total counter",
+      ...toPrometheus("adl_authority_retention_runs_total", this.retentionRuns, "outcome"),
+      "# TYPE adl_authority_retention_deleted_total counter",
+      ...toPrometheus("adl_authority_retention_deleted_total", this.retentionDeleted, "projection"),
       "",
     ].join("\n");
   }

@@ -205,6 +205,54 @@ describe("AuthorityService", () => {
     expect(noSession).toMatchObject({ status: "rejected", code: "ADL_AUTH_UNAUTHENTICATED" });
   });
 
+  /*
+   * The first thing a freshly signed-in device does. It cannot have selected a
+   * context, because the membership records that say which contexts exist are
+   * themselves scoped — so a bootstrap that resolved its context from
+   * `selectedContexts` alone returned nothing, and the person was left with no
+   * context to select and no way to discover one. That was a real dead end in a
+   * deployed browser, not a test artefact.
+   */
+  it("bootstraps a caller's own contexts when they have selected none", async () => {
+    const authority = await fixture();
+
+    const bootstrap = await authority.bootstrap(tokenMember, {});
+
+    const objects = bootstrap.records.map((entry) => entry.objectName).sort();
+    expect(objects).toContain("Band");
+    expect(objects).toContain("BandMember");
+  });
+
+  it("still shows a bootstrap caller nothing from a context they do not belong to", async () => {
+    const authority = await fixture();
+
+    const bootstrap = await authority.bootstrap(tokenMember, {});
+
+    // Membership is what widened the read, so it must also bound it: every band
+    // reachable here is one this caller actually belongs to.
+    const bands = bootstrap.records.filter((entry) => entry.objectName === "Band");
+    expect(bands.map((entry) => entry.record.meta.guid)).toEqual(["band-1"]);
+  });
+
+  /*
+   * The widening above is a *read* concession and must not become a write one.
+   * A write has to land in a context the client named, or membership alone would
+   * silently decide where somebody's change went.
+   */
+  it("does not let membership alone stand in for a selected context on a write", async () => {
+    const authority = await fixture();
+
+    const result = await authority.replay(tokenAdmin, {
+      operationId: "op-unselected-context",
+      kind: "create",
+      objectName: "Gig",
+      recordId: "gig-unselected-context",
+      values: { Band: "band-1", Title: "no context selected" },
+    });
+
+    expect(result).toMatchObject({ status: "rejected" });
+  });
+
   it("does not let a caller select a context they do not belong to", async () => {
     const authority = await fixture();
     const result = await authority.replay(tokenMember, {

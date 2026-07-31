@@ -395,6 +395,17 @@ export function createAuthorityHttpHandler(
           return jsonResponse(
             await administration.recovery(cookie, scope.contextName, scope.contextId),
           );
+        /*
+         * Status only, and deliberately so. Retention is application-wide while
+         * every administration authorisation here is scoped to one business
+         * context, so a trigger on this route would let a context manager reach
+         * past their context and delete for the whole deployment. Running
+         * retention stays with whoever can start the scheduled process.
+         */
+        if (pathname === "/v1/admin/retention/status")
+          return jsonResponse({
+            retention: await administration.retention(cookie, scope.contextName, scope.contextId),
+          });
         if (pathname === "/v1/admin/sessions/revoke")
           return jsonResponse(
             await administration.revokeSessions(

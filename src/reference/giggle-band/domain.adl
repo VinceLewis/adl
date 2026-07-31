@@ -399,6 +399,7 @@ POLICY EventPolicy ON Event
   RULE allowBandAdminCreateEvents ALLOW CREATE ROLE BandAdmin
   RULE allowBandAdminUpdateEvents ALLOW UPDATE ROLE BandAdmin
   RULE allowBandAdminDeleteEvents ALLOW DELETE ROLE BandAdmin
+  RULE allowBandAdminExportEvents ALLOW EXPORT ROLE BandAdmin
 END.POLICY
 
 POLICY AvailabilityPolicy ON Availability
@@ -407,6 +408,7 @@ POLICY AvailabilityPolicy ON Availability
   RULE allowAvailabilityOwnerRead ALLOW READ AUTHENTICATED WHEN User == runtime.userId
   RULE allowAvailabilityOwnerUpdate ALLOW UPDATE AUTHENTICATED WHEN User == runtime.userId
   RULE allowAvailabilityOwnerDelete ALLOW DELETE AUTHENTICATED WHEN User == runtime.userId
+  RULE allowAvailabilityOwnerExport ALLOW EXPORT AUTHENTICATED WHEN User == runtime.userId
 END.POLICY
 
 POLICY SongPolicy ON Song

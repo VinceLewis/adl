@@ -16,6 +16,7 @@ import {
   AuthorityAdministrationService,
   AuthorityReportingService,
   PostgresAuthorityAdministrationStore,
+  type AuthorityRetentionRunSummary,
 } from "./authoritative-reporting.js";
 import {
   AuthorityConfigurationError,
@@ -29,6 +30,13 @@ import {
   PostgresContextMembershipIndex,
 } from "./authority-membership-projection.js";
 import { createAuthorityNodeServer } from "./authority-node.js";
+import {
+  AuthorityRetentionRunner,
+  AuthorityRetentionScheduler,
+  PostgresAuthorityRetentionRunStore,
+  loadAuthorityRetentionConfiguration,
+  retentionPolicy,
+} from "./authority-retention-runner.js";
 import { AuthorityProjectionIntegrity } from "./authority-projection-integrity.js";
 import { AuthorityService } from "./authority-service.js";
 import { PostgresAuthorityUnitOfWork, type PostgresPool } from "./authority-unit-of-work.js";
@@ -44,7 +52,7 @@ import {
 } from "./opaque-session-adapter.js";
 import type { PostgresQueryable } from "./postgres-authority-store.js";
 import { PostgresObjectStorageBackend } from "./postgres-object-storage.js";
-import { StructuredSecurityLogger } from "./security-operations.js";
+import { AuthorityMetrics, StructuredSecurityLogger } from "./security-operations.js";
 import { SimpleWebAuthnLibrary } from "./simplewebauthn-adapter.js";
 import { PasskeyIdentityService, PostgresWebAuthnCredentialStore } from "./webauthn-identity.js";
 
@@ -164,6 +172,32 @@ export async function createAuthorityProcess(
   const administrationStore = new PostgresAuthorityAdministrationStore(database, applicationId);
   const reporting = new AuthorityReportingService(model, storage, sessions, administrationStore);
   const integrity = new AuthorityProjectionIntegrity(database, applicationId, model);
+  /*
+   * Retention is composed here but is never reachable from the HTTP edge. The
+   * runner is what the in-process schedule and the one-shot entry both drive,
+   * and the administration surface is given a *read* of its run log — so an
+   * operator can see that retention is configured and what it last did, without
+   * anyone gaining the ability to start a deployment-wide delete from a
+   * context-scoped session.
+   */
+  const retentionConfiguration = loadAuthorityRetentionConfiguration(environment);
+  const retentionRuns = new PostgresAuthorityRetentionRunStore(database, applicationId);
+  /*
+   * One metrics registry and one logger for the whole process, shared with the
+   * HTTP edge below. Letting each half default to its own instance is why the
+   * retention counters would never have been scraped: `/metrics` is served by
+   * the edge, and a runner counting into a registry nobody serves is a counter
+   * that does not exist. The one-shot entry point has no endpoint to serve at
+   * all, which is what the run log and the structured events are for.
+   */
+  const metrics = new AuthorityMetrics();
+  const logger = new StructuredSecurityLogger();
+  const retention = new AuthorityRetentionRunner(database, applicationId, {
+    policy: retentionPolicy(retentionConfiguration),
+    runs: retentionRuns,
+    metrics,
+    logger,
+  });
   const administration = new AuthorityAdministrationService(
     model,
     storage,
@@ -175,6 +209,17 @@ export async function createAuthorityProcess(
     () => integrity.recoveryStatus(),
     () => new Date(),
     membershipIndex,
+    async () => ({
+      scheduled: retentionConfiguration.intervalMinutes !== undefined,
+      ...(retentionConfiguration.intervalMinutes === undefined
+        ? {}
+        : { intervalMinutes: retentionConfiguration.intervalMinutes }),
+      legalHold: retentionConfiguration.legalHold,
+      minimumRetentionDays: retentionConfiguration.minimumRetentionDays,
+      sessionRetentionDays: retentionConfiguration.sessionRetentionDays,
+      challengeRetentionDays: retentionConfiguration.challengeRetentionDays,
+      ...(await retentionSummary(retention)),
+    }),
   );
   const identityVerifier = selectUpstreamIdentityVerifier(
     configuration,
@@ -218,6 +263,8 @@ export async function createAuthorityProcess(
     accessLifecycle,
     reporting,
     administration,
+    metrics,
+    logger,
     clientKey,
     readiness: async () => {
       try {
@@ -234,6 +281,20 @@ export async function createAuthorityProcess(
       return { ready: true };
     },
   });
+
+  /*
+   * The in-process schedule is opt-in. With no `ADL_RETENTION_INTERVAL_MINUTES`
+   * this process prunes nothing and the operator drives retention from the
+   * one-shot entry point instead; with one, both remain safe together because
+   * every run takes the same per-application advisory lock. The first tick is
+   * one interval away rather than at startup, so a restart loop cannot turn into
+   * a prune loop.
+   */
+  const scheduler =
+    retentionConfiguration.intervalMinutes === undefined
+      ? undefined
+      : new AuthorityRetentionScheduler(retention, retentionConfiguration.intervalMinutes * 60_000);
+  scheduler?.start();
 
   return {
     server,
@@ -260,10 +321,30 @@ export async function createAuthorityProcess(
         server.listen(processConfiguration.port, processConfiguration.host);
       }),
     close: async () => {
+      scheduler?.stop();
       await new Promise<void>((settle) => server.close(() => settle()));
       await pool.end();
     },
   };
+}
+
+/**
+ * The last recorded run, shaped for the status surface. A read failure is not
+ * allowed to break the whole status view: an operator asking "is retention
+ * configured?" must still get their answer when the run log cannot be read.
+ */
+async function retentionSummary(
+  retention: AuthorityRetentionRunner,
+): Promise<{ lastRun?: AuthorityRetentionRunSummary }> {
+  let latest: Awaited<ReturnType<AuthorityRetentionRunner["latest"]>> = null;
+  try {
+    latest = await retention.latest();
+  } catch {
+    return {};
+  }
+  if (latest === null) return {};
+  const { applicationId: _applicationId, ...summary } = latest;
+  return { lastRun: summary };
 }
 
 /**

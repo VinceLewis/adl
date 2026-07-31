@@ -325,6 +325,31 @@ describe("browser UI runtime", () => {
     expect(app.querySelector("[data-selected-context-id]")).not.toBeNull();
   });
 
+  /*
+   * The selection lives in the shell's own `selectedContextIds`, so `app.context`
+   * has to fold it back in. Everything outside the component reads the app
+   * through this one getter — the authority bridge above all — and returning the
+   * raw base told every one of them that nothing was selected. Sync sent no
+   * selection with its bootstrap and the administration surface could not tell
+   * which context it was meant to administer, with one plainly chosen on screen.
+   */
+  it("reports the selected business context through the context it exposes", async () => {
+    const seeded = await createSeededBandUiRuntime();
+    const app = await mountApp(seeded.model, seeded.runtime, seeded.musicianContext);
+
+    expect(app.context.selectedContexts?.Band).toBeUndefined();
+
+    const selector = requireElement<HTMLSelectElement>(app, "select[data-context-select='Band']");
+    selector.value = seeded.firstBand.meta.guid;
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+
+    expect(app.context.selectedContexts?.Band).toBe(seeded.firstBand.meta.guid);
+    // Still the caller's own identity: exposing the selection must not change
+    // anything else about the context the shell is running as.
+    expect(app.context.userId).toBe(seeded.musicianContext.userId);
+  });
+
   it("lets the user choose among multiple contexts for scoped views", async () => {
     const seeded = await createSeededBandUiRuntime();
     const app = await mountApp(seeded.model, seeded.runtime, seeded.musicianContext);

@@ -45,6 +45,7 @@ export * from "./server/authority-unit-of-work.js";
 export * from "./server/authority-membership-projection.js";
 export * from "./server/authority-projection-integrity.js";
 export * from "./server/authority-retention.js";
+export * from "./server/authority-retention-runner.js";
 export * from "./server/sync-client.js";
 export * from "./server/postgres-authority-store.js";
 export * from "./server/postgres-object-storage.js";
