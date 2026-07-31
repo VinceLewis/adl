@@ -43,6 +43,23 @@
 >   (its "What the browser project found that nothing else could" section bears
 >   directly on how this phase should verify reference-app work) and the reference
 >   app entry in `learnings/index.md`.
+> - **The demo seeds local data that the authority then rejects, and the user is
+>   shown every rejection.** `src/ui/main.ts` calls
+>   `seedBandReferenceRuntimeIfEmpty` unconditionally, including when
+>   `VITE_ADL_AUTHORITY_URL` is set. Those seeded writes enter the sync queue, the
+>   authority refuses them — the seeded identity may not create a `User` or a
+>   `Band` — and every refusal lands in the "Changes that need your attention"
+>   panel. Phase 55's screenshots show the panel filled with `ADL_POLICY_DENIED`
+>   entries before the operator has done anything at all. This is not a defect in
+>   sync recovery, which is reporting the verdicts it was given correctly; it is
+>   the reference app writing demo data into a deployment that has a real source
+>   of truth. It is pre-existing — the `passkey` project has the same condition —
+>   and it is not a disclosure or an integrity risk, which is why Phase 55 did not
+>   re-sequence for it. But it is the first thing a real operator sees, it makes
+>   every authority-configured screenshot hard to read, and it is a reference-app
+>   decision rather than a platform one, so it belongs here. Decide whether a demo
+>   with an authority configured should seed at all, and fix the fixture rather
+>   than the recovery surface.
 > - **Verification must include a browser pass over the reference app with an
 >   authority configured, not only the default visual projects.** Phase 55 added
 >   an `administration` Playwright project on port 5373 with its own throwaway
@@ -100,6 +117,10 @@ which determines which gaps still matter.
 - Decide `StreamingLink`'s sync mode. It is declared `cacheReadonly` and offered
   as user-entered band data, which cannot both be true; the platform behaviour is
   correct and settled by Phase 53, so the fix is in the model.
+- Decide whether the browser demo seeds local data when an authority is
+  configured. It currently does, and every seeded write is then refused by the
+  authority and presented to the user as a change needing their attention before
+  they have made one.
 - Implement the surviving gaps as generic model and runtime capabilities, not as
   app-specific hooks or Giggle-specific code paths.
 - Reconcile the planning and architecture documentation: target architecture
@@ -163,6 +184,8 @@ which determines which gaps still matter.
 - Every runtime action a delivered capability depends on is either granted by the
   reference model or explicitly recorded as intentionally ungranted, so no
   shipped capability is undemonstrable in the only application here.
+- Opening the reference app against a configured authority presents no rejected
+  changes the user did not make, so the recovery surface means what it says.
 - Run `npm run typecheck`, `npm test`, `npm run test:integration`,
   `npm run format:check`, `npm run build`, and `npm run verify:push` with
   screenshot inspection: shell declarations change rendering. `verify:push`
@@ -242,8 +265,9 @@ Use worktree isolation for every capability agent.
 4. Add ADL source syntax for shell, top bar and nav drawer, resolving into the
    existing presentation model.
 5. Add conformance cases and specification coverage for every new capability.
-6. Update the reference app to exercise the new capabilities, and update the gap
-   report to reflect what is now closed.
+6. Update the reference app to exercise the new capabilities, settle the demo
+   seeding question above, and update the gap report to reflect what is now
+   closed.
 7. Reconcile `docs/architecture/target-architecture.md`,
    `docs/server-authority.md`, the superseded-document banners, and
    `learnings/process/phase-execution.md`.

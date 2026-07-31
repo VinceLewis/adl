@@ -350,6 +350,44 @@ describe("browser UI runtime", () => {
     expect(app.context.userId).toBe(seeded.musicianContext.userId);
   });
 
+  /*
+   * Available contexts are a function of the memberships this device holds *and*
+   * of who the app is running as, and both change after startup: signing in
+   * replaces the identity, and the bootstrap that follows brings down the
+   * memberships that identity actually has. Resolving them once at `initialize`
+   * meant a person signed in and their contexts stayed empty until they reloaded
+   * the page, with nothing on screen to suggest a reload was what was needed.
+   * Claiming an invitation had the same shape.
+   */
+  it("surfaces a context granted after startup, without a reload", async () => {
+    const seeded = await createSeededBandUiRuntime({ memberships: "none" });
+    const app = await mountApp(seeded.model, seeded.runtime, seeded.musicianContext);
+
+    expect(app.querySelector("select[data-context-select='Band']")).toBeNull();
+    expect(app.querySelector("[data-context-empty='true']")).not.toBeNull();
+
+    await seeded.runtime.create(
+      "BandMember",
+      {
+        User: seeded.musicianContext.userId,
+        Band: seeded.firstBand.meta.guid,
+        Role: "BandAdmin",
+      },
+      bandContext(
+        { userId: "system-admin", roles: ["SystemAdmin"], channel: "api" },
+        seeded.firstBand.meta.guid,
+      ),
+    );
+    await app.refreshFromRuntime();
+    await flushUi();
+
+    // The one new context is auto-selected, exactly as it would have been had it
+    // existed at startup, and the view it scopes now has its data.
+    expect(app.querySelector("[data-context-empty='true']")).toBeNull();
+    expect(app.textContent).toContain("The Alphas");
+    expect(app.textContent).toContain("Alpha Hall");
+  });
+
   it("lets the user choose among multiple contexts for scoped views", async () => {
     const seeded = await createSeededBandUiRuntime();
     const app = await mountApp(seeded.model, seeded.runtime, seeded.musicianContext);
