@@ -133,6 +133,69 @@ always false while `>=` works), and datetime equality is textual while ordering
 is instant-based. Both are now stated in `runtime-semantics#expression-errors`
 as known sharp edges rather than left for a second implementer to discover.
 
+## Key decisions from Phase 52
+
+Phase 51 made the corpus broad; Phase 52 made it *articulate*. The binding
+constraint had stopped being size and become what a case could say.
+
+- **A setup step names its outcome, and its outcome is asserted.** An authority
+  `setup` entry takes an `alias` and an `expect` (default `accepted`). Referring
+  to `{"$ref": "<alias>.records.0.meta.revision"}` is how a case says "the
+  revision this seed produced" without naming a format. Before this, five cases
+  hard-coded `"rev-1"` — `ObjectStore.nextRevision()`'s output — and a conforming
+  runtime minting ULIDs would have failed all five while being entirely correct.
+- **A seed that fails must fail its case.** `runAuthorityReplayCase` used to
+  discard setup outcomes, so a refused seed left the scenario running against an
+  empty store and a rejection-expecting case passed because nothing was there.
+  Exactly one existing case turned out to be seeding a deliberate refusal; every
+  other seed is now *proved* accepted rather than assumed.
+- **`syncWrite` reports the decision and the queue together.** A decision alone
+  could never distinguish `localPrivate` from `localFirst`: a runtime could
+  report `queueable: false` and queue the operation anyway. Reporting the queue
+  the write left behind is what makes the mode contractual. Verified by mutation
+  — making `SyncQueue.enqueue` treat `localPrivate` as `localFirst` fails six
+  cases.
+- **`input.storage` selects the migration's storage behaviour**
+  (`transactional`, `nonTransactional`, `failingCommit`, in
+  `src/conformance/storage-behaviours.ts`). The default backend always commits,
+  so the fail-closed half of `ADL_MIGRATION_FAILED` — the half that matters —
+  had no way into the contract.
+- **`readPersistedRecords` observes storage, not a read.** Every runtime read is
+  shaped, so "computed values are not persisted" was unprovable through the
+  runtime: the reference implementation never returns an unshaped record. This
+  does not weaken the disclosure boundary — disclosure is about what a *read*
+  hands a caller — but a case must never treat what it sees here as a payload
+  the runtime was entitled to return.
+- **A literal `records` seed is for storage-shaped preconditions only.** Its
+  reason for existing is `cacheReadonly`, whose every write path is refused by
+  design, so no case could previously seed one to prove it is readable. Anything
+  the runtime can arrange must still be arranged through `setup`; a seed that
+  bypasses validation, policy or sync gating proves those layers were skipped
+  rather than that they agreed.
+- **The no-generated-values rule is checked, not asserted.**
+  `tests/conformance-suite.test.ts` scans every case for text the reference
+  runtime mints (`rev-N`, `cmd-txn-N`, `sha256-…`) and for `expected` blocks that
+  assert a minted key at all (`revision`, `guid`, `createdAt`, …). Literal
+  `records` seeds are exempt: supplying a revision to storage is input, not a
+  claim. Run against the pre-Phase-52 corpus the check flags exactly the six
+  offending cases.
+- **Prove an extension discriminates.** `tests/conformance-runner.test.ts` runs
+  every new capability twice, once where it must pass and once where it must
+  fail. An assertion that cannot fail reads as coverage while constraining
+  nothing, which is worse than no assertion at all.
+- **Offline dataset records are re-sorted by alias before being reported.**
+  `OfflineDatasetService` sorts by `(objectName, recordId)` over *generated*
+  ids, so any expectation containing two records of the same object came back in
+  an order that varied between runs — a case could pass and then fail with
+  nothing changed. The runner now applies a canonical order over the aliased
+  ids. Dataset ordering is not contractual and is now stated as such in
+  `runtime-semantics#offline-datasets`.
+- **Pair a case with its own baseline.** The tombstone group is written as
+  before/after twins: identical setup, one extra `delete` step, different
+  expected result. The pair is the discrimination proof, and it costs one extra
+  case to know that the assertion is about the delete rather than about a
+  scenario that was never reachable.
+
 ## Gaps the corpus still cannot express
 
 Recorded so a later phase does not have to rediscover them.
@@ -144,28 +207,56 @@ values — the actual disclosure guarantee — and a runtime returning every hid
 field verbatim would have passed the whole suite. An expected value of
 `"$absent"` now asserts that the key is not present.
 
+**Closed in Phase 52:** `baseRevision` naming, setup-outcome assertion,
+`localPrivate` queue exclusion, `ADL_MIGRATION_FAILED` and atomic rollback, the
+`delete` setup step, direct storage seeding, and computed-value non-persistence.
+
 Still open:
 
-- **`baseRevision` cannot be named**, so the few authority cases needing a
-  successful update hard-code `"rev-1"`, pinning a revision *format* that no spec
-  defines. Wants a setup alias, or a `$current` sentinel the runner resolves.
-- **Setup outcomes are discarded** in `authorityReplay`, so a seed that was
-  itself rejected leaves a case passing for the wrong reason.
-- **`localPrivate` is indistinguishable from `localFirst`** to the corpus:
-  `queueable` is observable only inside a refusal payload, so "allows local
-  writes but never queues them" — the defining half of the mode — cannot be
-  pinned.
-- **`ADL_MIGRATION_FAILED` and atomic rollback have no corpus coverage**, because
-  the in-memory backend always supports transactions and never throws. Covered by
-  unit and real-PostgreSQL tests instead. Wants an `input.storage` selector.
-- Setup steps offer only `create`/`update`/`transition`: no `delete`, so nothing
-  involving a tombstone is reachable. No runtime case can seed storage directly,
-  so "computed values are not persisted" cannot be proven.
+- **`metadata.modelFingerprint` cannot be asserted.** The only runtime-neutral
+  way to seed it is `persistedModel: {"modelRef": …}`, and no sentinel says "the
+  fingerprint that model derived". A rollback case can prove `modelVersion` was
+  left alone but not the fingerprint. Wants a `{"$modelFingerprint": "<ref>"}`
+  expected-value sentinel.
+- **Diagnostic messages are not reported** by `migratePersistedState`, so "a
+  diagnostic reduces a storage fault to its name and never discloses data" stays
+  TypeScript-only (`tests/model-migration.test.ts`). That is a disclosure
+  guarantee of exactly the kind `"$absent"` exists for, and it needs a way to
+  assert what a message does *not* contain rather than what it does.
+- **Diagnostic ordering across categories is unwritten.** Several cases rely on
+  migration diagnostics preceding per-record schema diagnostics; `docs/spec/`
+  names no such order.
 - Arrays must match by exact length, which makes 42-cell calendar cases mostly
   placeholders and invites off-by-one authoring errors.
 - Eight declared presentation diagnostic codes are unreachable through
   `evaluatePresentationView`, because model validation rejects those models
   first. A second runtime is unconstrained on them.
+
+## Runtime gaps Phase 52 found and deliberately did not close
+
+Both are new capability rather than defects in implemented behaviour, so neither
+was fixed here and neither was pinned by a case — a case written against current
+behaviour would absorb the gap into the cross-runtime contract.
+
+- **An `onlineRequired` write never reaches the authority.**
+  `SyncQueue.enqueue` skips every non-`localFirst` object and
+  `AuthoritySyncClient.reconcile` pushes only from that queue, so an
+  `onlineRequired` create made *while online* is written locally, logged, and
+  then never sent. There is no other push path. The Giggle Band reference app's
+  `BandInvitation` is `SYNC ONLINE_REQUIRED`, so this is reachable in the
+  reference application, not only in principle.
+- **`localPrivate` writes are accepted by the authority** and then filtered out
+  of every bootstrap, so an accepted record exists that nobody can read back.
+  Recorded before Phase 52 and still open.
+- **A row vanishing from a read model carries no signal.**
+  `resolveJoinedSource` returns the same "nothing" for a deleted record, a
+  missing lookup value, a source-scope mismatch and a read-policy denial, and
+  `executeRows` then drops the whole row. Defensible — a half-projected row
+  would be worse, and a signal would itself be a disclosure — but it is now
+  stated in the spec rather than left for a second implementer to infer.
+- **`ADL_STORAGE_ERROR` for an already-deleted delete is coarse**, and
+  indistinguishable from deleting an id that never existed, while the authority
+  path has a dedicated already-deleted conflict outcome. Pinned as-is.
 
 ## Practical guidance
 

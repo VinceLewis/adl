@@ -64,7 +64,12 @@ record. Search requires search permission first, then filters each candidate
 through read permission, context scope, computed fields, and read shaping.
 
 Delete persists a tombstone and excludes deleted records from normal read and
-search paths.
+search paths. A tombstone retains the record's values in storage: deletion is a
+state, not a purge, and the id it holds is never freed. Deleting an
+already-deleted record is refused, because the record is no longer reachable
+through the normal path — the runtime does not distinguish that refusal from
+deleting an id that never existed, while the authority does return a distinct
+already-deleted conflict.
 
 Generic browser CRUD rendering is list-first by default. Object list views show
 the list/table as the primary surface. Row selection and create controls open a
@@ -153,6 +158,12 @@ transition, and command responses. They evaluate in resolved dependency order
 and may reference stored fields or earlier computed fields on the same object.
 Computed values are not persisted.
 
+A stored value under a computed field's name is not authoritative. Every
+read-time evaluation overwrites it with the computed result, so persisted state
+left behind by an earlier model — one in which the field was stored rather than
+computed — can never be returned. A runtime is not required to remove such a
+value from storage; it is required never to disclose it.
+
 ## Read Models
 
 Read models execute through `ApplicationRuntime.executeReadModel`. The first
@@ -162,6 +173,14 @@ scope, search/read policy, and source scope checks before projection.
 
 Expression fields evaluate in declaration order over already-projected row
 values, after source read policy shaping.
+
+A deleted source record resolves to nothing, exactly as an unreadable or
+out-of-scope one does. When the record that fails to resolve is a joined source,
+the whole row is dropped rather than projected with the joined fields missing,
+so a row can disappear from a read model while its primary record is still live
+and still carries the reference. This is deliberate — a half-projected row would
+be indistinguishable from a real one — but it means a read model is not a place
+to observe why a row is absent.
 
 ## Presentation Evaluation
 
@@ -284,6 +303,13 @@ checked only for matching context instance ids and must not be merged into
 global roles. Cross-context read models remove the selected context for that
 business context and use available context roles.
 
+Membership is resolved over **active** membership records only: deleting a
+membership record revokes the context role it granted. A context is available
+only while its context-object record is also active, so deleting the context
+object removes the context from the available set even when the membership
+record granting it survives. Both are checks against the current record set
+rather than a cached grant, so revocation takes effect on the next resolution.
+
 ## Sync Modes
 
 `localFirst` allows local writes and queues syncable operations.
@@ -292,6 +318,18 @@ business context and use available context roles.
 `localPrivate` allows local writes but excludes them from the sync queue.
 
 Policy checks run before sync-mode write checks.
+
+A write decision carries `queueable`, and it is a claim about what the runtime
+did, not a label: an allowed write is queued if and only if its decision says
+`queueable`. `localPrivate` is `queueable: false` for **every** operation kind —
+create, update, delete and transition — whether the context is online or
+offline, and whether or not other operations are already queued. This is the
+only observable difference between `localPrivate` and `localFirst`; a runtime
+that queued a `localPrivate` write would have implemented one mode twice.
+
+A refused write is queue-neutral. Nothing a `cacheReadonly` or offline
+`onlineRequired` write attempts may reach the queue, so a refusal can never cost
+a device the operations it was already holding.
 
 ## Offline Datasets
 
@@ -302,6 +340,15 @@ through policy-enforcing runtime search/read paths.
 `onlineRequired` records are excluded from offline datasets.
 `cacheReadonly` records can be included for reads. `localPrivate` records can be
 included locally but are not queued for sync.
+
+Deleted records are excluded from a dataset. A dataset's reported context roles
+follow the same active-membership and active-context rules as context resolution
+itself, so deleting a membership record or its context object empties the scope
+it granted rather than leaving a dataset that outlives it.
+
+Dataset ordering is not contractual. Records are returned grouped by object, but
+the order within an object depends on record ids, whose shape no specification
+defines.
 
 ## Inspection
 
@@ -455,6 +502,21 @@ timestamps, accepted state or scope. A usable id is 1 to 320 characters, carries
 no surrounding whitespace, and contains no control characters. It is never
 trimmed — the accepted record has to come back under the exact id the caller
 holds, so a whitespace-padded id is refused rather than silently rewritten.
+
+An `update`, `delete` or `transition` intent also carries a `baseRevision`: the
+revision the client last saw. It must equal the record's **current** revision for
+the intent to be applied — anything else takes the `conflict` path below, whether
+it is a revision the authority superseded or one it never issued. An accepted
+mutation **advances** the record's revision, so the revision an accepted outcome
+returns is the one the next intent must carry.
+
+A revision is **opaque**. No format is defined and none may be assumed: a client
+round-trips the value the authority returned rather than constructing, parsing,
+incrementing or ordering one. This is a contract obligation rather than a
+convention. A caller that derived the next revision from the last would be
+depending on a guarantee only one implementation makes, and so would a
+conformance case that spelled a revision out instead of naming the outcome it
+came from.
 
 An outcome is one of four:
 

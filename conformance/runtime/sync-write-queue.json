@@ -1,0 +1,932 @@
+{
+  "version": 1,
+  "models": {
+    "syncWriteModes": {
+      "app": {
+        "name": "SyncWriteModes"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "LocalFirstTask",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true,
+              "defaultValue": "Draft"
+            }
+          ],
+          "lifecycle": {
+            "name": "LocalFirstTaskLifecycle",
+            "stateField": "Status",
+            "initialState": "Draft",
+            "states": [
+              {
+                "name": "Draft"
+              },
+              {
+                "name": "Done",
+                "terminal": true
+              }
+            ],
+            "actions": [
+              {
+                "name": "complete",
+                "from": "Draft",
+                "to": "Done",
+                "policyRefs": ["LocalFirstTaskPolicy"]
+              }
+            ]
+          },
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "LocalPrivateNote",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true,
+              "defaultValue": "Draft"
+            }
+          ],
+          "lifecycle": {
+            "name": "LocalPrivateNoteLifecycle",
+            "stateField": "Status",
+            "initialState": "Draft",
+            "states": [
+              {
+                "name": "Draft"
+              },
+              {
+                "name": "Done",
+                "terminal": true
+              }
+            ],
+            "actions": [
+              {
+                "name": "complete",
+                "from": "Draft",
+                "to": "Done",
+                "policyRefs": ["LocalPrivateNotePolicy"]
+              }
+            ]
+          },
+          "sync": {
+            "mode": "localPrivate",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "CacheReadonlyItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "cacheReadonly",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "OnlineRequiredItem",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "onlineRequired",
+            "scope": "all"
+          }
+        }
+      ],
+      "policies": [
+        {
+          "name": "LocalFirstTaskPolicy",
+          "object": "LocalFirstTask",
+          "rules": [
+            {
+              "name": "allowAdminAllLocalFirstTask",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "LocalPrivateNotePolicy",
+          "object": "LocalPrivateNote",
+          "rules": [
+            {
+              "name": "allowAdminAllLocalPrivateNote",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "CacheReadonlyItemPolicy",
+          "object": "CacheReadonlyItem",
+          "rules": [
+            {
+              "name": "allowAdminAllCacheReadonlyItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "OnlineRequiredItemPolicy",
+          "object": "OnlineRequiredItem",
+          "rules": [
+            {
+              "name": "allowAdminAllOnlineRequiredItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "syncwrite.localfirst.create-queues.001",
+      "title": "A localFirst create is allowed and lands in the sync queue",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "input": {
+        "objectName": "LocalFirstTask",
+        "write": "create",
+        "values": {
+          "Name": "Draft task"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalFirstTask",
+            "operation": "create",
+            "mode": "localFirst",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localfirst.create-offline-queues.001",
+      "title": "An offline localFirst create still queues, so the operation is not lost",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "input": {
+        "objectName": "LocalFirstTask",
+        "write": "create",
+        "values": {
+          "Name": "Offline task"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalFirstTask",
+            "operation": "create",
+            "mode": "localFirst",
+            "online": false,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localfirst.update-queues.001",
+      "title": "A localFirst update queues a second entry alongside the seeded create",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Original"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalFirstTask",
+        "write": "update",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "patch": {
+          "Name": "Renamed"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalFirstTask",
+            "operation": "update",
+            "mode": "localFirst",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$seeded",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "update",
+              "recordId": "$seeded",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localfirst.delete-queues.001",
+      "title": "A localFirst delete queues a delete entry",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Doomed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalFirstTask",
+        "write": "delete",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalFirstTask",
+            "operation": "delete",
+            "mode": "localFirst",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$seeded",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "delete",
+              "recordId": "$seeded",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localfirst.transition-queues.001",
+      "title": "A localFirst lifecycle transition queues a transition entry",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Transitionable"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalFirstTask",
+        "write": "transition",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "actionName": "complete",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalFirstTask",
+            "operation": "transition",
+            "mode": "localFirst",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$seeded",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "transition",
+              "recordId": "$seeded",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localprivate.create-not-queued.001",
+      "title": "A localPrivate create is allowed and is never queued",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "input": {
+        "objectName": "LocalPrivateNote",
+        "write": "create",
+        "values": {
+          "Name": "Private note"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalPrivateNote",
+            "operation": "create",
+            "mode": "localPrivate",
+            "online": true,
+            "queueable": false,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": []
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localprivate.create-offline-not-queued.001",
+      "title": "An offline localPrivate create is allowed and still queues nothing",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "input": {
+        "objectName": "LocalPrivateNote",
+        "write": "create",
+        "values": {
+          "Name": "Offline private note"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalPrivateNote",
+            "operation": "create",
+            "mode": "localPrivate",
+            "online": false,
+            "queueable": false,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": []
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localprivate.update-not-queued.001",
+      "title": "A localPrivate update is allowed and neither it nor its seed is queued",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "LocalPrivateNote",
+          "values": {
+            "Name": "Original"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalPrivateNote",
+        "write": "update",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "patch": {
+          "Name": "Renamed"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalPrivateNote",
+            "operation": "update",
+            "mode": "localPrivate",
+            "online": true,
+            "queueable": false,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": []
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localprivate.delete-not-queued.001",
+      "title": "A localPrivate delete is allowed and is never queued",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "LocalPrivateNote",
+          "values": {
+            "Name": "Doomed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalPrivateNote",
+        "write": "delete",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalPrivateNote",
+            "operation": "delete",
+            "mode": "localPrivate",
+            "online": true,
+            "queueable": false,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": []
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localprivate.transition-not-queued.001",
+      "title": "A localPrivate lifecycle transition is allowed and is never queued",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "LocalPrivateNote",
+          "values": {
+            "Name": "Transitionable"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalPrivateNote",
+        "write": "transition",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "actionName": "complete",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalPrivateNote",
+            "operation": "transition",
+            "mode": "localPrivate",
+            "online": true,
+            "queueable": false,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": []
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localprivate.excluded-from-a-live-queue.001",
+      "title": "A localPrivate write adds nothing to a queue a localFirst write has already filled",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "queued",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Syncable"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalPrivateNote",
+        "write": "create",
+        "values": {
+          "Name": "Private note"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalPrivateNote",
+            "operation": "create",
+            "mode": "localPrivate",
+            "online": true,
+            "queueable": false,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$queued",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.cachereadonly.create-refused-leaves-queue-untouched.001",
+      "title": "A cacheReadonly create is refused and leaves the existing queue untouched",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "queued",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Syncable"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "CacheReadonlyItem",
+        "write": "create",
+        "values": {
+          "Name": "Refused"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": false,
+            "objectName": "CacheReadonlyItem",
+            "operation": "create",
+            "mode": "cacheReadonly",
+            "online": true,
+            "queueable": false,
+            "readonly": true
+          },
+          "write": {
+            "status": "refused",
+            "code": "ADL_SYNC_POLICY_DENIED",
+            "recordId": "$absent"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$queued",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.onlinerequired.offline-create-refused-leaves-queue-untouched.001",
+      "title": "An offline onlineRequired create is refused and leaves the existing queue untouched",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "queued",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Syncable"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "write": "create",
+        "values": {
+          "Name": "Refused"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": false,
+            "objectName": "OnlineRequiredItem",
+            "operation": "create",
+            "mode": "onlineRequired",
+            "online": false,
+            "queueable": false,
+            "readonly": true
+          },
+          "write": {
+            "status": "refused",
+            "code": "ADL_SYNC_POLICY_DENIED",
+            "recordId": "$absent"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$queued",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

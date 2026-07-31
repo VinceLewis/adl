@@ -223,7 +223,7 @@ repository, and only its hash is stored.
 
 `adl_authority_webauthn_challenges` grows by one row per started ceremony,
 including abandoned ones. Nothing prunes it automatically — there is no
-scheduler in this repository (Phase 54). Run
+scheduler in this repository (Phase 55). Run
 `PasskeyIdentityService.pruneChallenges(now)`, or the equivalent statement, on a
 schedule such as hourly:
 

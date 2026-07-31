@@ -2424,6 +2424,7 @@
         },
         "setup": [
           {
+            "alias": "original",
             "intent": {
               "operationId": "op-first",
               "kind": "create",
@@ -2436,6 +2437,7 @@
             }
           },
           {
+            "expect": "rejected",
             "intent": {
               "operationId": "op-second",
               "kind": "create",
@@ -2456,7 +2458,9 @@
           "patch": {
             "Body": "Probe"
           },
-          "baseRevision": "rev-1"
+          "baseRevision": {
+            "$ref": "original.records.0.meta.revision"
+          }
         }
       },
       "expected": {
@@ -2492,6 +2496,7 @@
         },
         "setup": [
           {
+            "alias": "original",
             "intent": {
               "operationId": "op-first",
               "kind": "create",
@@ -2508,7 +2513,9 @@
               "kind": "delete",
               "objectName": "Note",
               "recordId": "note-gone",
-              "baseRevision": "rev-1"
+              "baseRevision": {
+                "$ref": "original.records.0.meta.revision"
+              }
             }
           }
         ],
@@ -2545,6 +2552,7 @@
         },
         "setup": [
           {
+            "alias": "seeded",
             "intent": {
               "operationId": "op-create",
               "kind": "create",
@@ -2564,7 +2572,9 @@
           "patch": {
             "Title": "After"
           },
-          "baseRevision": "rev-1"
+          "baseRevision": {
+            "$ref": "seeded.records.0.meta.revision"
+          }
         }
       },
       "expected": {
@@ -2586,6 +2596,142 @@
       }
     },
     {
+      "id": "authority.update.advances-the-revision.001",
+      "title": "A second update is accepted under the revision the first update produced",
+      "specRef": "runtime-semantics#authority-replay-and-outcomes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "alias": "created",
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-chain",
+              "values": {
+                "Title": "First"
+              }
+            }
+          },
+          {
+            "alias": "firstUpdate",
+            "intent": {
+              "operationId": "op-update-1",
+              "kind": "update",
+              "objectName": "Note",
+              "recordId": "note-chain",
+              "patch": {
+                "Title": "Second"
+              },
+              "baseRevision": {
+                "$ref": "created.records.0.meta.revision"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-update-2",
+          "kind": "update",
+          "objectName": "Note",
+          "recordId": "note-chain",
+          "patch": {
+            "Title": "Third"
+          },
+          "baseRevision": {
+            "$ref": "firstUpdate.records.0.meta.revision"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-update-2",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-chain",
+              "values": {
+                "Title": "Third"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.update.superseded-base-revision-conflict.001",
+      "title": "The revision an accepted update superseded is no longer a usable base revision",
+      "specRef": "runtime-semantics#authority-replay-and-outcomes",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "alias": "created",
+            "intent": {
+              "operationId": "op-create",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-superseded",
+              "values": {
+                "Title": "First"
+              }
+            }
+          },
+          {
+            "alias": "firstUpdate",
+            "intent": {
+              "operationId": "op-update-1",
+              "kind": "update",
+              "objectName": "Note",
+              "recordId": "note-superseded",
+              "patch": {
+                "Title": "Second"
+              },
+              "baseRevision": {
+                "$ref": "created.records.0.meta.revision"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-update-2",
+          "kind": "update",
+          "objectName": "Note",
+          "recordId": "note-superseded",
+          "patch": {
+            "Title": "Third"
+          },
+          "baseRevision": {
+            "$ref": "created.records.0.meta.revision"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "conflict",
+          "operationId": "op-update-2",
+          "code": "ADL_SYNC_CONFLICT",
+          "recovery": "serverWins"
+        }
+      }
+    },
+    {
       "id": "authority.delete.accepted-tombstone.001",
       "title": "An accepted delete returns a tombstone carrying no values",
       "specRef": "runtime-semantics#crud-and-search",
@@ -2599,6 +2745,7 @@
         },
         "setup": [
           {
+            "alias": "seeded",
             "intent": {
               "operationId": "op-create",
               "kind": "create",
@@ -2615,7 +2762,9 @@
           "kind": "delete",
           "objectName": "Note",
           "recordId": "note-delete",
-          "baseRevision": "rev-1"
+          "baseRevision": {
+            "$ref": "seeded.records.0.meta.revision"
+          }
         }
       },
       "expected": {
@@ -2792,7 +2941,7 @@
           "patch": {
             "Title": "Client value"
           },
-          "baseRevision": "rev-1"
+          "baseRevision": "any-revision"
         }
       },
       "expected": {
@@ -2819,6 +2968,7 @@
         },
         "setup": [
           {
+            "alias": "seeded",
             "intent": {
               "operationId": "op-create",
               "kind": "create",
@@ -2830,12 +2980,15 @@
             }
           },
           {
+            "alias": "tombstone",
             "intent": {
               "operationId": "op-delete-1",
               "kind": "delete",
               "objectName": "Note",
               "recordId": "note-twice",
-              "baseRevision": "rev-1"
+              "baseRevision": {
+                "$ref": "seeded.records.0.meta.revision"
+              }
             }
           }
         ],
@@ -2844,7 +2997,9 @@
           "kind": "delete",
           "objectName": "Note",
           "recordId": "note-twice",
-          "baseRevision": "rev-2"
+          "baseRevision": {
+            "$ref": "tombstone.records.0.meta.revision"
+          }
         }
       },
       "expected": {

@@ -224,3 +224,30 @@ integration run. `verify:push` only if renderer output changed.
    remaining gap **repository-wide**, not merely the next gap in the subsystem
    this phase touched; if a higher-value gap exists elsewhere, say so and
    re-sequence. Then verify, commit, and push Phase 52.
+
+## Outcome
+
+Executed. The runner gained setup aliasing with `$ref` over authority input,
+setup-outcome assertion, a `syncWrite` operation reporting the decision and the
+resulting queue, a `readPersistedRecords` operation reporting storage rather
+than a shaped read, migration storage selection, a literal `records` seed and a
+`delete` setup step. The five revision-dependent cases were re-expressed, and
+`tests/conformance-suite.test.ts` now checks mechanically that no case depends on
+a generated value's format — run against the pre-phase corpus it flags exactly
+the six offending cases. `tests/conformance-runner.test.ts` exercises every new
+capability twice, once where it must pass and once where it must fail.
+
+No semantic defect was found in the runtime by the new cases; the one failing
+case was a defect in the case, which had never declared that its seed was a
+deliberate refusal. One runner defect was fixed: offline dataset records were
+reported in generated-id order, so an expectation containing two records of the
+same object could pass and then fail with nothing changed.
+
+**Handoff: re-sequenced.** The `syncWrite` work demonstrated that an
+`onlineRequired` write never reaches the authority, and that the reference app's
+`BandInvitation` is declared with that mode. That is a user-visible
+data-delivery defect, and it outranks the membership-projection optimisation
+that held Phase 53. It was inserted as
+`docs/phases/phase-53-sync-mode-delivery-and-authority-coherence.md`, carrying
+the `localPrivate` authority asymmetry with it because both are the same
+question, and the former phases 53, 54 and 55 were renumbered to 54, 55 and 56.

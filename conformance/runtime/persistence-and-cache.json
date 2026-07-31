@@ -1,0 +1,871 @@
+{
+  "version": 1,
+  "models": {
+    "computedPersistence": {
+      "app": {
+        "name": "ComputedPersistence"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Invoice",
+          "fields": [
+            {
+              "name": "UnitPrice",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Quantity",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "computedFields": [
+            {
+              "name": "Total",
+              "type": "number",
+              "expression": {
+                "kind": "binary",
+                "operator": "*",
+                "left": {
+                  "kind": "field",
+                  "field": "UnitPrice"
+                },
+                "right": {
+                  "kind": "field",
+                  "field": "Quantity"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "InvoicePolicy",
+          "object": "Invoice",
+          "rules": [
+            {
+              "name": "allowAdminAllInvoiceOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "cachedCatalog": {
+      "app": {
+        "name": "CachedCatalog"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Rate",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Amount",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "cacheReadonly",
+            "scope": "all"
+          }
+        }
+      ],
+      "policies": [
+        {
+          "name": "RatePolicy",
+          "object": "Rate",
+          "rules": [
+            {
+              "name": "allowAdminAllRateOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "persistence.computed.absent-from-storage-after-create.001",
+      "title": "A created record stores its source fields and no computed field key",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "readPersistedRecords",
+      "modelRef": "computedPersistence",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "invoice",
+          "objectName": "Invoice",
+          "values": {
+            "UnitPrice": 4,
+            "Quantity": 5
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Invoice",
+              "recordId": "$invoice",
+              "schemaVersion": 1,
+              "deleted": false,
+              "values": {
+                "UnitPrice": 4,
+                "Quantity": 5,
+                "Total": "$absent"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "persistence.computed.present-on-read-after-create.001",
+      "title": "The same created record reads back with its computed value derived",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "read",
+      "modelRef": "computedPersistence",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "invoice",
+          "objectName": "Invoice",
+          "values": {
+            "UnitPrice": 4,
+            "Quantity": 5
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Invoice",
+        "id": {
+          "$ref": "invoice.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Invoice",
+          "recordId": "$invoice",
+          "values": {
+            "UnitPrice": 4,
+            "Quantity": 5,
+            "Total": 20
+          }
+        }
+      }
+    },
+    {
+      "id": "persistence.computed.absent-from-storage-after-update.001",
+      "title": "An update that changes a computed field's inputs still stores no computed key",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "readPersistedRecords",
+      "modelRef": "computedPersistence",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "invoice",
+          "objectName": "Invoice",
+          "values": {
+            "UnitPrice": 4,
+            "Quantity": 5
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Invoice",
+          "id": {
+            "$ref": "invoice.meta.guid"
+          },
+          "patch": {
+            "Quantity": 7
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Invoice",
+              "recordId": "$invoice",
+              "schemaVersion": 1,
+              "deleted": false,
+              "values": {
+                "UnitPrice": 4,
+                "Quantity": 7,
+                "Total": "$absent"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "persistence.computed.read-reflects-updated-inputs.001",
+      "title": "A read after that update derives the computed value from the new inputs",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "read",
+      "modelRef": "computedPersistence",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "invoice",
+          "objectName": "Invoice",
+          "values": {
+            "UnitPrice": 4,
+            "Quantity": 5
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Invoice",
+          "id": {
+            "$ref": "invoice.meta.guid"
+          },
+          "patch": {
+            "Quantity": 7
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Invoice",
+        "id": {
+          "$ref": "invoice.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Invoice",
+          "recordId": "$invoice",
+          "values": {
+            "UnitPrice": 4,
+            "Quantity": 7,
+            "Total": 28
+          }
+        }
+      }
+    },
+    {
+      "id": "persistence.computed.deleted-record-stores-no-computed-key.001",
+      "title": "A tombstoned record still carries no computed field key in storage",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "readPersistedRecords",
+      "modelRef": "computedPersistence",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "invoice",
+          "objectName": "Invoice",
+          "values": {
+            "UnitPrice": 3,
+            "Quantity": 6
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Invoice",
+          "id": {
+            "$ref": "invoice.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-30T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Invoice",
+              "recordId": "$invoice",
+              "deleted": true,
+              "values": {
+                "UnitPrice": 3,
+                "Quantity": 6,
+                "Total": "$absent"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "persistence.computed.stored-value-is-not-authoritative.001",
+      "title": "A stored value under a computed field's name does not survive a read",
+      "specRef": "runtime-semantics#computed-fields",
+      "operation": "read",
+      "modelRef": "computedPersistence",
+      "records": [
+        {
+          "objectName": "Invoice",
+          "record": {
+            "meta": {
+              "guid": "invoice-stale",
+              "object": "Invoice",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "UnitPrice": 2,
+              "Quantity": 3,
+              "Total": 999
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Invoice",
+        "id": "invoice-stale",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Invoice",
+          "recordId": "invoice-stale",
+          "values": {
+            "UnitPrice": 2,
+            "Quantity": 3,
+            "Total": 6
+          }
+        }
+      }
+    },
+    {
+      "id": "persistence.computed.stored-value-is-not-authoritative-in-search.001",
+      "title": "Search recomputes over a stored value under a computed field's name",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "search",
+      "modelRef": "computedPersistence",
+      "records": [
+        {
+          "objectName": "Invoice",
+          "record": {
+            "meta": {
+              "guid": "invoice-stale",
+              "object": "Invoice",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "UnitPrice": 2,
+              "Quantity": 3,
+              "Total": 999
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Invoice",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-30T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "objectName": "Invoice",
+            "recordId": "invoice-stale",
+            "values": {
+              "UnitPrice": 2,
+              "Quantity": 3,
+              "Total": 6
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cacheread.read.seeded-record.001",
+      "title": "A cache-readonly record placed in storage is readable",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "read",
+      "modelRef": "cachedCatalog",
+      "records": [
+        {
+          "objectName": "Rate",
+          "record": {
+            "meta": {
+              "guid": "rate-1",
+              "object": "Rate",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Standard",
+              "Amount": 10
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Rate",
+        "id": "rate-1",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Rate",
+          "recordId": "rate-1",
+          "values": {
+            "Name": "Standard",
+            "Amount": 10
+          }
+        }
+      }
+    },
+    {
+      "id": "cacheread.read.seeded-record-offline.001",
+      "title": "A cache-readonly record is readable while offline",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "read",
+      "modelRef": "cachedCatalog",
+      "records": [
+        {
+          "objectName": "Rate",
+          "record": {
+            "meta": {
+              "guid": "rate-1",
+              "object": "Rate",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Standard",
+              "Amount": 10
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Rate",
+        "id": "rate-1",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": false,
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Rate",
+          "recordId": "rate-1",
+          "values": {
+            "Name": "Standard",
+            "Amount": 10
+          }
+        }
+      }
+    },
+    {
+      "id": "cacheread.search.seeded-records.001",
+      "title": "Search returns cache-readonly records placed in storage",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "search",
+      "modelRef": "cachedCatalog",
+      "records": [
+        {
+          "objectName": "Rate",
+          "record": {
+            "meta": {
+              "guid": "rate-1",
+              "object": "Rate",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Standard",
+              "Amount": 10
+            }
+          }
+        },
+        {
+          "objectName": "Rate",
+          "record": {
+            "meta": {
+              "guid": "rate-2",
+              "object": "Rate",
+              "schemaVersion": 1,
+              "revision": "seed-b",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Premium",
+              "Amount": 25
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Rate",
+        "query": {
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            }
+          ]
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "objectName": "Rate",
+            "recordId": "rate-2",
+            "values": {
+              "Name": "Premium",
+              "Amount": 25
+            }
+          },
+          {
+            "objectName": "Rate",
+            "recordId": "rate-1",
+            "values": {
+              "Name": "Standard",
+              "Amount": 10
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cacheread.offline-dataset.included.001",
+      "title": "Cache-readonly records are included in the offline dataset for reads",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "cachedCatalog",
+      "records": [
+        {
+          "objectName": "Rate",
+          "record": {
+            "meta": {
+              "guid": "rate-1",
+              "object": "Rate",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Standard",
+              "Amount": 10
+            }
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Rate",
+              "recordId": "rate-1",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "cacheReadonly",
+                  "scope": "all"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cacheread.write.update-of-seeded-record-refused.001",
+      "title": "A cache-readonly record placed in storage still refuses a local update",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "update",
+      "modelRef": "cachedCatalog",
+      "records": [
+        {
+          "objectName": "Rate",
+          "record": {
+            "meta": {
+              "guid": "rate-1",
+              "object": "Rate",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Standard",
+              "Amount": 10
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Rate",
+        "id": "rate-1",
+        "patch": {
+          "Amount": 99
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED",
+          "decision": {
+            "allowed": false,
+            "objectName": "Rate",
+            "operation": "update",
+            "mode": "cacheReadonly",
+            "online": true,
+            "queueable": false,
+            "readonly": true
+          }
+        }
+      }
+    },
+    {
+      "id": "cacheread.write.delete-of-seeded-record-refused.001",
+      "title": "A cache-readonly record placed in storage still refuses a local delete",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "delete",
+      "modelRef": "cachedCatalog",
+      "records": [
+        {
+          "objectName": "Rate",
+          "record": {
+            "meta": {
+              "guid": "rate-1",
+              "object": "Rate",
+              "schemaVersion": 1,
+              "revision": "seed-a",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "createdBy": "seed",
+              "updatedAt": "2026-01-01T00:00:00.000Z",
+              "updatedBy": "seed",
+              "syncStatus": "synced"
+            },
+            "values": {
+              "Name": "Standard",
+              "Amount": 10
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Rate",
+        "id": "rate-1",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-30T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_SYNC_POLICY_DENIED",
+          "decision": {
+            "allowed": false,
+            "objectName": "Rate",
+            "operation": "delete",
+            "mode": "cacheReadonly",
+            "online": true,
+            "queueable": false,
+            "readonly": true
+          }
+        }
+      }
+    }
+  ]
+}

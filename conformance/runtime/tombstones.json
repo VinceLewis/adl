@@ -1,0 +1,2023 @@
+{
+  "version": 1,
+  "models": {
+    "tombstoneJoin": {
+      "app": {
+        "name": "TombstoneJoin"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Customer",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Tier",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "Order",
+          "fields": [
+            {
+              "name": "Customer",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Customer",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Amount",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "Reference",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "OrderWithCustomer",
+          "sources": [
+            {
+              "name": "order",
+              "object": "Order"
+            },
+            {
+              "name": "customer",
+              "object": "Customer"
+            }
+          ],
+          "fields": [
+            {
+              "name": "OrderReference",
+              "source": "order",
+              "field": "Reference"
+            },
+            {
+              "name": "CustomerName",
+              "source": "customer",
+              "field": "Name"
+            },
+            {
+              "name": "Tier",
+              "source": "customer",
+              "field": "Tier"
+            },
+            {
+              "name": "Amount",
+              "source": "order",
+              "field": "Amount"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Amount",
+              "direction": "desc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "CustomerPolicy",
+          "object": "Customer",
+          "rules": [
+            {
+              "name": "allowAdminAllCustomerOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "OrderPolicy",
+          "object": "Order",
+          "rules": [
+            {
+              "name": "allowAdminAllOrderOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "tombstoneContext": {
+      "app": {
+        "name": "TombstoneContext"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "BandLeader"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "required"
+          },
+          "membership": {
+            "object": "BandMembership",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMembership",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gig",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Fee",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "GigsAcrossBands",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            },
+            {
+              "name": "Fee",
+              "source": "gig",
+              "field": "Fee"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowAdminAllBands",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandMembershipPolicy",
+          "object": "BandMembership",
+          "rules": [
+            {
+              "name": "allowAdminAllBandMemberships",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAllGigs",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandLeaderAllGigs",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["BandLeader"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "tombstoneContextSync": {
+      "app": {
+        "name": "TombstoneContextSync"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "BandLeader"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "required"
+          },
+          "membership": {
+            "object": "BandMembership",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMembership",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gig",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowAdminAllBands",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandMembershipPolicy",
+          "object": "BandMembership",
+          "rules": [
+            {
+              "name": "allowAdminAllBandMemberships",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowAdminAllGigs",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "tombstoneNote": {
+      "app": {
+        "name": "TombstoneNote"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Note",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAdminAllNoteOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "tombstone.read.live-record-returned.001",
+      "title": "Baseline: a live record is returned by read",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "read",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Kept"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Note",
+          "recordId": "$note",
+          "values": {
+            "Title": "Kept"
+          }
+        }
+      }
+    },
+    {
+      "id": "tombstone.read.deleted-record-not-returned.001",
+      "title": "A tombstone is not returned by read: the same id that read a record now reads nothing",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "read",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Kept"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": null
+      }
+    },
+    {
+      "id": "tombstone.search.live-records-returned.001",
+      "title": "Baseline: search returns both records before either is deleted",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "search",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "kept",
+          "objectName": "Note",
+          "values": {
+            "Title": "Kept"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "removed",
+          "objectName": "Note",
+          "values": {
+            "Title": "Removed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "objectName": "Note",
+            "recordId": "$kept",
+            "values": {
+              "Title": "Kept"
+            }
+          },
+          {
+            "objectName": "Note",
+            "recordId": "$removed",
+            "values": {
+              "Title": "Removed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tombstone.search.deleted-record-not-returned.001",
+      "title": "A tombstone is excluded from search while its live sibling is still returned",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "search",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "kept",
+          "objectName": "Note",
+          "values": {
+            "Title": "Kept"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "removed",
+          "objectName": "Note",
+          "values": {
+            "Title": "Removed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Note",
+          "id": {
+            "$ref": "removed.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "objectName": "Note",
+            "recordId": "$kept",
+            "values": {
+              "Title": "Kept"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tombstone.delete.already-deleted-refused.001",
+      "title": "Deleting a tombstone is refused rather than silently succeeding a second time",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "delete",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Removed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "code": "ADL_STORAGE_ERROR"
+        }
+      }
+    },
+    {
+      "id": "tombstone.persisted.tombstone-retained-in-storage.001",
+      "title": "A delete leaves a tombstone in storage rather than erasing the record",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "readPersistedRecords",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "kept",
+          "objectName": "Note",
+          "values": {
+            "Title": "Kept"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "removed",
+          "objectName": "Note",
+          "values": {
+            "Title": "Removed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Note",
+          "id": {
+            "$ref": "removed.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$kept",
+              "deleted": false,
+              "values": {
+                "Title": "Kept"
+              }
+            },
+            {
+              "objectName": "Note",
+              "recordId": "$removed",
+              "deleted": true,
+              "values": {
+                "Title": "Removed"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.read-model.join-target-live.001",
+      "title": "Baseline: every order projects a row while its joined customer is live",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "tombstoneJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Bravo",
+            "Tier": "Silver"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "acmeOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravoOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "bravo.meta.guid"
+            },
+            "Amount": 250,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "OrderReference": "O-2",
+                "CustomerName": "Bravo",
+                "Tier": "Silver",
+                "Amount": 250
+              },
+              "sources": {
+                "order": {
+                  "objectName": "Order",
+                  "recordId": "$bravoOrder"
+                },
+                "customer": {
+                  "objectName": "Customer",
+                  "recordId": "$bravo"
+                }
+              }
+            },
+            {
+              "values": {
+                "OrderReference": "O-1",
+                "CustomerName": "Acme",
+                "Tier": "Gold",
+                "Amount": 100
+              },
+              "sources": {
+                "order": {
+                  "objectName": "Order",
+                  "recordId": "$acmeOrder"
+                },
+                "customer": {
+                  "objectName": "Customer",
+                  "recordId": "$acme"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.read-model.join-target-deleted.001",
+      "title": "Deleting a joined source record drops the whole row, not merely the joined fields",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "tombstoneJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Bravo",
+            "Tier": "Silver"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "acmeOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravoOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "bravo.meta.guid"
+            },
+            "Amount": 250,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Customer",
+          "id": {
+            "$ref": "acme.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "OrderReference": "O-2",
+                "CustomerName": "Bravo",
+                "Tier": "Silver",
+                "Amount": 250
+              },
+              "sources": {
+                "order": {
+                  "objectName": "Order",
+                  "recordId": "$bravoOrder"
+                },
+                "customer": {
+                  "objectName": "Customer",
+                  "recordId": "$bravo"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.read-model.deleted-join-target-leaves-primary-live.001",
+      "title": "The order whose row vanished is itself untouched and still carries the deleted customer's id",
+      "specRef": "runtime-semantics#crud-and-search",
+      "operation": "search",
+      "modelRef": "tombstoneJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Bravo",
+            "Tier": "Silver"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "acmeOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravoOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "bravo.meta.guid"
+            },
+            "Amount": 250,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Customer",
+          "id": {
+            "$ref": "acme.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "objectName": "Order",
+            "recordId": "$acmeOrder",
+            "values": {
+              "Reference": "O-1",
+              "Amount": 100,
+              "Customer": {
+                "$ref": "acme.meta.guid"
+              }
+            }
+          },
+          {
+            "objectName": "Order",
+            "recordId": "$bravoOrder",
+            "values": {
+              "Reference": "O-2",
+              "Amount": 250
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tombstone.read-model.primary-source-deleted.001",
+      "title": "Deleting the primary source record removes its row from the read model",
+      "specRef": "runtime-semantics#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "tombstoneJoin",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "acme",
+          "objectName": "Customer",
+          "values": {
+            "Name": "Acme",
+            "Tier": "Gold"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "keptOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 250,
+            "Reference": "O-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "removedOrder",
+          "objectName": "Order",
+          "values": {
+            "Customer": {
+              "$ref": "acme.meta.guid"
+            },
+            "Amount": 100,
+            "Reference": "O-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Order",
+          "id": {
+            "$ref": "removedOrder.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "OrderWithCustomer",
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "OrderReference": "O-2",
+                "CustomerName": "Acme",
+                "Amount": 250
+              },
+              "sources": {
+                "order": {
+                  "objectName": "Order",
+                  "recordId": "$keptOrder"
+                },
+                "customer": {
+                  "objectName": "Customer",
+                  "recordId": "$acme"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.context.membership-grants-scoped-read-model.001",
+      "title": "Baseline: a membership record grants the context role an all-mode read model resolves from",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "executeReadModel",
+      "modelRef": "tombstoneContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsAcrossBands",
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Venue": "Alpha Hall",
+                "Fee": 100
+              },
+              "sources": {
+                "gig": {
+                  "objectName": "Gig",
+                  "recordId": "$alphaGig"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.context.deleted-membership-revokes-scoped-read-model.001",
+      "title": "Deleting the membership record revokes the context role and the scoped rows with it",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "executeReadModel",
+      "modelRef": "tombstoneContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "BandMembership",
+          "id": {
+            "$ref": "alphaMembership.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsAcrossBands",
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "tombstone.context.deleted-context-object-revokes-scoped-read-model.001",
+      "title": "Deleting the context object leaves the available set even though the membership record survives",
+      "specRef": "runtime-semantics#business-contexts",
+      "operation": "executeReadModel",
+      "modelRef": "tombstoneContext",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall",
+            "Fee": 100
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Band",
+          "id": {
+            "$ref": "alpha.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GigsAcrossBands",
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "tombstone.offline-dataset.live-record-included.001",
+      "title": "Baseline: an offline dataset carries the record before it is deleted",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "removed",
+          "objectName": "Note",
+          "values": {
+            "Title": "Removed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$removed",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "all"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.offline-dataset.excludes-deleted-record.001",
+      "title": "An offline dataset excludes a tombstoned record while keeping its live sibling",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "tombstoneNote",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "kept",
+          "objectName": "Note",
+          "values": {
+            "Title": "Kept"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "removed",
+          "objectName": "Note",
+          "values": {
+            "Title": "Removed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Note",
+          "id": {
+            "$ref": "removed.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$kept",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "all"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.offline-dataset.membership-grants-context-scope.001",
+      "title": "Baseline: a membership record puts its band, itself and its scoped gig in the offline dataset",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "tombstoneContextSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Band",
+              "recordId": "$alpha"
+            },
+            {
+              "objectName": "BandMembership",
+              "recordId": "$alphaMembership"
+            },
+            {
+              "objectName": "Gig",
+              "recordId": "$alphaGig"
+            }
+          ],
+          "contextRoles": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alpha.meta.guid"
+              },
+              "role": "BandLeader"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tombstone.offline-dataset.deleted-membership-leaves-context-scope.001",
+      "title": "Deleting the membership record empties the dataset's context roles and its context-scoped records",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "tombstoneContextSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "BandMembership",
+          "id": {
+            "$ref": "alphaMembership.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [],
+          "contextRoles": []
+        }
+      }
+    },
+    {
+      "id": "tombstone.offline-dataset.deleted-context-object-leaves-available-set.001",
+      "title": "Deleting the context object empties the available set while the surviving membership row stays unscoped",
+      "specRef": "runtime-semantics#offline-datasets",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "tombstoneContextSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "Alpha"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaMembership",
+          "objectName": "BandMembership",
+          "values": {
+            "User": "musician-1",
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandLeader"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaGig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Venue": "Alpha Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            },
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Band",
+          "id": {
+            "$ref": "alpha.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "now": "2026-07-31T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "musician-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:05:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "BandMembership",
+              "recordId": "$alphaMembership"
+            }
+          ],
+          "contextRoles": []
+        }
+      }
+    }
+  ]
+}

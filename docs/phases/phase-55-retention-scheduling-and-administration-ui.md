@@ -1,8 +1,8 @@
-# Phase 54 - Retention Scheduling and Administration UI
+# Phase 55 - Retention Scheduling and Administration UI
 
-> Renumbered from Phase 49 by the Phase 47 handoff, then 50, 51, 53, and now
-> Phase 54 by the Phase 51 handoff, which inserted conformance expressiveness
-> ahead of it. This phase still follows the membership projection, because its
+> Renumbered from Phase 49 by the Phase 47 handoff, then 50, 51, 53, 54, and now
+> Phase 55 by the Phase 52 handoff, which inserted sync-mode delivery ahead of
+> it. This phase still follows the membership projection, because its
 > administration surface consumes those scoped membership reads. Evidence and
 > scope are unchanged; only its position in the sequence moved.
 
@@ -17,7 +17,7 @@ HTTP.
 
 - **Retention never runs.** Phase 45 built `AuthorityRetentionService` with a
   safeguarded `prune` path (`src/server/authority-retention.ts`), and the
-  membership-projection phase (now Phase 53) explicitly listed a scheduler or HTTP
+  membership-projection phase (now Phase 54) explicitly listed a scheduler or HTTP
   surface for it as a non-goal. Nothing invokes it: there is no scheduler, no
   administrative endpoint, and no operator procedure, so the runtime-audit and
   operation-outcome projections would grow without bound in any real deployment
@@ -48,7 +48,7 @@ HTTP.
   never remove a session that is still active, because that would sign a user out
   mid-grace with no way to tell them.
 
-This phase depends on Phase 45 retention safeguards, Phase 53 scoped membership
+This phase depends on Phase 45 retention safeguards, Phase 54 scoped membership
 reads, and the Phase 46/47 client transport and session UI. It also depends on
 Phase 49's challenge storage and Phase 50's session rotation and device list —
 the device list is the surface an operator's session revocation must stay
@@ -82,7 +82,7 @@ consistent with.
 - Session revocation from the UI must be reversible only through normal identity
   flows and must not let an operator escalate their own access.
 - Preserve Phase 42 controls, Phase 44 atomicity, Phase 45 scope/retention, and
-  Phase 53 scoped membership reads.
+  Phase 54 scoped membership reads.
 
 ## Deliverables
 
@@ -120,8 +120,8 @@ consistent with.
   query builder.
 - New identity flows, provider selection, or changes to the Phase 46 identity
   switch.
-- Conformance depth or model migrations, which are Phase 51 and precede this
-  phase; band-app modelling gaps (Phase 55).
+- Conformance depth or model migrations, which are Phase 51 and 52 and precede
+  this phase; band-app modelling gaps (Phase 56).
 - External job runners, message queues, or distributed scheduling
   infrastructure: a single schedulable process entry is sufficient.
 
@@ -130,7 +130,7 @@ consistent with.
 - Phase 45 retention safeguards and application-scoped outcomes.
 - Phase 43 reporting and administration services and endpoints.
 - Phase 46 deployment slice and Phase 47 session/identity UI.
-- Phase 53 scoped membership reads.
+- Phase 54 scoped membership reads.
 
 ## Parallel Execution Plan
 
@@ -180,8 +180,8 @@ Use worktree isolation for the administration UI streams.
    surface including an unauthorised and a wrongly scoped caller.
 6. Update the runbook with the retention operating procedure,
    `docs/server-authority.md`, the threat model, and learnings.
-7. **Required next-phase planning handoff:** before Phase 54 closes, review
-   `docs/phases/phase-55-reference-app-gaps-and-documentation-hygiene.md` and
+7. **Required next-phase planning handoff:** before Phase 55 closes, review
+   `docs/phases/phase-56-reference-app-gaps-and-documentation-hygiene.md` and
    revise it if this phase's results change its scope, constraints, deliverables,
-   or tasks. The handoff must justify Phase 55 as the highest-value remaining gap
-   repository-wide. Then verify, commit, and push Phase 54.
+   or tasks. The handoff must justify Phase 56 as the highest-value remaining gap
+   repository-wide. Then verify, commit, and push Phase 55.

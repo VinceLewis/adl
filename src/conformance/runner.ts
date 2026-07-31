@@ -20,6 +20,12 @@ import type {
 import { runRuntimeStartupCompatibilityChecks } from "../runtime/startup-compatibility.js";
 import { RuntimeStartupError, noopRuntimeLogger } from "../runtime/runtime-types.js";
 import type { RuntimeStartupDiagnostic } from "../runtime/runtime-types.js";
+import { SyncPolicyError } from "../runtime/sync-policy-service.js";
+import type { SyncWriteDecision } from "../runtime/sync-policy-service.js";
+import type { SyncQueueEntry } from "../runtime/sync-queue.js";
+import { createConformanceStorage } from "./storage-behaviours.js";
+import type { ConformanceStorageBehaviour } from "./storage-behaviours.js";
+export type { ConformanceStorageBehaviour } from "./storage-behaviours.js";
 import { AuthorityService } from "../server/authority-service.js";
 import { StaticSessionAdapter } from "../server/session-adapter.js";
 import type { AuthorityOperationIntent, AuthorityOutcome } from "../server/authority-types.js";
@@ -142,6 +148,13 @@ export interface ModelMigrationConformanceCase extends ConformanceCaseBase {
     records?: Array<{ objectName: string; record: StoredObjectRecord }>;
     /** Off means plan only: the case asserts a refusal without rewriting state. */
     applyMigrations?: boolean;
+    /**
+     * The storage the migration runs against. The default backend always
+     * supports transactions and never fails, so without this a case could only
+     * ever state what a migration does when everything works — leaving the
+     * fail-closed half of the guarantee unsayable.
+     */
+    storage?: ConformanceStorageBehaviour;
   };
 }
 
@@ -169,6 +182,21 @@ export interface AuthorityConformanceCase extends ConformanceCaseBase {
 export interface AuthorityConformanceIntent {
   session?: string;
   intent: AuthorityOperationIntent;
+  /**
+   * Names this step's outcome so a later intent can refer to what it produced —
+   * `{"$ref": "seeded.records.0.meta.revision"}` rather than a literal revision.
+   * Revisions are minted by the runtime, so a case that spelled one out would
+   * pin a format no specification defines and fail a conforming runtime that
+   * minted ULIDs instead.
+   */
+  alias?: string;
+  /**
+   * The status this seed must produce; `accepted` unless the case is
+   * deliberately seeding a refusal. A seed whose outcome is never checked can
+   * fail silently and leave a rejection-expecting case passing because the store
+   * was empty rather than because the rule under test fired.
+   */
+  expect?: AuthorityOutcome["status"];
 }
 
 export interface RuntimeConformanceCase extends ConformanceCaseBase {
@@ -184,15 +212,29 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
     | "evaluateDecisionTable"
     | "executeReadModel"
     | "evaluatePresentationView"
-    | "evaluateOfflineDataset";
+    | "evaluateOfflineDataset"
+    | "syncWrite"
+    | "readPersistedRecords";
   model?: PartialApplicationModel;
   modelRef?: string;
+  /**
+   * Storage-shaped preconditions, written straight into the backend before the
+   * runtime opens it.
+   *
+   * This exists for states `setup` cannot reach: a `cacheReadonly` object, whose
+   * every write path is refused by design, and records that predate a rule the
+   * runtime now enforces. It is not a shortcut around the boundary under test —
+   * anything the runtime can arrange must still be arranged through `setup`,
+   * because a seed that bypasses validation, policy or sync gating proves those
+   * layers were skipped rather than that they agreed.
+   */
+  records?: Array<{ objectName: string; record: StoredObjectRecord }>;
   setup?: RuntimeConformanceStep[];
   input: RuntimeConformanceInput;
 }
 
 export interface RuntimeConformanceStep {
-  operation: "create" | "update" | "transition";
+  operation: "create" | "update" | "delete" | "transition";
   alias?: string;
   objectName: string;
   values?: Record<string, JsonValue>;
@@ -239,8 +281,27 @@ export type RuntimeConformanceInput =
       updates?: Record<string, JsonValue>;
     }
   | {
+      objectName: string;
+      write: "create" | "update" | "delete" | "transition";
+      values?: Record<string, JsonValue>;
+      id?: JsonValue;
+      patch?: Record<string, JsonValue>;
+      actionName?: string;
+      context: JsonRuntimeContext;
+    }
+  | {
       context: JsonRuntimeContext;
     };
+
+type SyncWriteOperationInput = {
+  objectName: string;
+  write: "create" | "update" | "delete" | "transition";
+  values?: Record<string, JsonValue>;
+  id?: JsonValue;
+  patch?: Record<string, JsonValue>;
+  actionName?: string;
+  context: JsonRuntimeContext;
+};
 
 type ObjectRuntimeOperationInput = {
   objectName: string;
@@ -344,7 +405,7 @@ async function runCaseActual(
       case "migratePersistedState":
         return await runMigratePersistedStateCase(conformanceCase, models);
       case "authorityReplay":
-        return await runAuthorityReplayCase(conformanceCase, models);
+        return await runAuthorityReplayCase(conformanceCase, models, state);
       default:
         return await runRuntimeCase(conformanceCase, models, state);
     }
@@ -542,7 +603,7 @@ async function runMigratePersistedStateCase(
   models: Record<string, PartialApplicationModel>,
 ): Promise<ConformanceActual> {
   const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
-  const storage = new InMemoryObjectStorageBackend();
+  const storage = createConformanceStorage(conformanceCase.input.storage);
   const seeded = seedMetadata(conformanceCase.input, models);
   if (seeded !== undefined) {
     await storage.writeApplicationMetadata(seeded);
@@ -594,6 +655,7 @@ async function runMigratePersistedStateCase(
 async function runAuthorityReplayCase(
   conformanceCase: AuthorityConformanceCase,
   models: Record<string, PartialApplicationModel>,
+  state: RunState,
 ): Promise<ConformanceActual> {
   const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
   const declaredSessions = Object.entries(
@@ -613,13 +675,33 @@ async function runAuthorityReplayCase(
   const firstSessionName = declaredSessions[0]?.[0] ?? "primary";
   const authority = new AuthorityService(model, new InMemoryObjectStorageBackend(), sessions);
 
-  for (const step of conformanceCase.input.setup ?? []) {
-    await authority.replay(tokensByName.get(step.session ?? firstSessionName), step.intent);
+  for (const [index, step] of (conformanceCase.input.setup ?? []).entries()) {
+    // Resolved one step at a time, so a seed can be expressed in terms of what
+    // the seed before it produced.
+    const intent = resolveRefs(step.intent, state) as AuthorityOperationIntent;
+    const outcome = await authority.replay(
+      tokensByName.get(step.session ?? firstSessionName),
+      intent,
+    );
+
+    const expected = step.expect ?? "accepted";
+    if (outcome.status !== expected) {
+      // Left as a thrown error rather than a status in the result, because a
+      // failed seed means the case never ran the scenario it describes — and a
+      // rejection-expecting case would otherwise pass on an empty store.
+      throw new Error(
+        `Authority setup step ${index} ('${step.intent.operationId}') was '${outcome.status}', expected '${expected}'.`,
+      );
+    }
+
+    if (step.alias !== undefined) {
+      state.aliases[step.alias] = outcome;
+    }
   }
 
   const outcome = await authority.replay(
     tokensByName.get(conformanceCase.input.session ?? firstSessionName),
-    conformanceCase.input.intent,
+    resolveRefs(conformanceCase.input.intent, state) as AuthorityOperationIntent,
   );
 
   return { ok: true, result: normaliseAuthorityOutcome(outcome) };
@@ -659,7 +741,12 @@ async function runRuntimeCase(
   state: RunState,
 ): Promise<ConformanceActual> {
   const source = getPartialModel(conformanceCase, models);
-  const runtime = new ApplicationRuntime(resolveApplicationModel(source));
+  const storage = new InMemoryObjectStorageBackend();
+  for (const item of conformanceCase.records ?? []) {
+    await storage.create(item.objectName, item.record);
+  }
+
+  const runtime = new ApplicationRuntime(resolveApplicationModel(source), { storage });
 
   for (const setup of conformanceCase.setup ?? []) {
     const value = await runRuntimeStep(
@@ -673,8 +760,135 @@ async function runRuntimeCase(
   }
 
   const input = resolveRefs(conformanceCase.input, state) as RuntimeConformanceInput;
+
+  if (conformanceCase.operation === "syncWrite") {
+    return {
+      ok: true,
+      result: await runSyncWrite(runtime, input as SyncWriteOperationInput, state),
+    };
+  }
+
+  if (conformanceCase.operation === "readPersistedRecords") {
+    return { ok: true, result: await reportPersistedRecords(runtime, storage, state) };
+  }
+
   const result = await runRuntimeOperation(runtime, conformanceCase.operation, input);
   return { ok: true, result: normaliseRuntimeResult(result, state) };
+}
+
+/**
+ * A local write, its sync decision, and the queue that write left behind.
+ *
+ * `localPrivate` and `localFirst` differ in exactly one observable way — both
+ * allow the write, only one queues it for the authority — and a decision alone
+ * cannot state that: a runtime could report `queueable: false` and queue the
+ * operation anyway. Reporting the queue is what makes the two modes
+ * distinguishable to the corpus rather than to one implementation's internals.
+ */
+async function runSyncWrite(
+  runtime: ApplicationRuntime,
+  input: SyncWriteOperationInput,
+  state: RunState,
+): Promise<JsonValue> {
+  const context = parseContext(input.context);
+  const write = input.write;
+  const attempt = async (): Promise<{ status: string; recordId?: string; code?: string }> => {
+    try {
+      const record = await runRuntimeStep(runtime, {
+        operation: write,
+        objectName: input.objectName,
+        context: input.context,
+        ...(input.values === undefined ? {} : { values: input.values }),
+        ...(input.id === undefined ? {} : { id: input.id }),
+        ...(input.patch === undefined ? {} : { patch: input.patch }),
+        ...(input.actionName === undefined ? {} : { actionName: input.actionName }),
+      });
+      return {
+        status: "written",
+        ...(isRecord(record) ? { recordId: aliasForRecordId(record.meta.guid, state) } : {}),
+      };
+    } catch (error) {
+      if (error instanceof SyncPolicyError) {
+        // Reported rather than rethrown, so a refusal can assert the queue it
+        // did *not* grow as well as the code it raised.
+        return { status: "refused", code: error.code };
+      }
+      throw error;
+    }
+  };
+
+  const outcome = await attempt();
+
+  return {
+    decision: normaliseSyncDecision(
+      runtime.syncPolicy.evaluateLocalWrite(input.objectName, write, context),
+    ),
+    write: outcome,
+    queue: runtime.syncQueue.getEntries().map((entry) => normaliseSyncQueueEntry(entry, state)),
+  } as unknown as JsonValue;
+}
+
+function normaliseSyncDecision(decision: SyncWriteDecision): JsonValue {
+  return {
+    allowed: decision.allowed,
+    objectName: decision.objectName,
+    operation: decision.operation,
+    mode: decision.mode,
+    online: decision.online,
+    queueable: decision.queueable,
+    readonly: decision.readonly,
+  };
+}
+
+/** `queueId` and `opId` are generated, so an entry is named by what it carries. */
+function normaliseSyncQueueEntry(entry: SyncQueueEntry, state: RunState): JsonValue {
+  return {
+    objectName: entry.operation.object,
+    operation: entry.operation.operation,
+    recordId: aliasForRecordId(entry.operation.recordId, state),
+    mode: entry.objectSync.mode,
+    status: entry.operation.status,
+  };
+}
+
+/**
+ * What storage actually holds, rather than what a read returns.
+ *
+ * Every runtime read is shaped — computed fields are added, hidden and
+ * policy-denied fields are dropped — so no case reading through the runtime can
+ * distinguish "this value is derived on read" from "this value was written and
+ * happens to agree". Persistence claims need to be observed at the layer that
+ * makes them.
+ *
+ * This does not weaken the disclosure boundary, and must not be used as though
+ * it did. Disclosure is about what a *read* hands a caller; a case may state
+ * that a hidden field is in storage and, in the same breath, that a read omits
+ * it. What no case may do is treat what it sees here as a payload the runtime
+ * was entitled to return.
+ */
+async function reportPersistedRecords(
+  runtime: ApplicationRuntime,
+  storage: InMemoryObjectStorageBackend,
+  state: RunState,
+): Promise<JsonValue> {
+  await runtime.whenReady();
+  return {
+    records: (await storage.listRecords())
+      .map((persisted) => ({
+        objectName: persisted.objectName,
+        // Ordered by the alias, not the generated guid, so a case's expected
+        // array does not depend on how a runtime happens to mint ids.
+        recordId: aliasForRecordId(persisted.record.meta.guid, state),
+        schemaVersion: persisted.record.meta.schemaVersion,
+        deleted: persisted.record.meta.deletedAt !== undefined,
+        values: persisted.record.values,
+      }))
+      .sort(
+        (left, right) =>
+          left.objectName.localeCompare(right.objectName) ||
+          left.recordId.localeCompare(right.recordId),
+      ),
+  } as unknown as JsonValue;
 }
 
 async function runRuntimeStep(
@@ -691,6 +905,12 @@ async function runRuntimeStep(
         step.patch ?? {},
         parseContext(step.context),
       );
+    case "delete":
+      return runtime.delete(
+        step.objectName,
+        requireText(step.id, "setup delete id"),
+        parseContext(step.context),
+      );
     case "transition":
       return runtime.transition(
         step.objectName,
@@ -703,7 +923,7 @@ async function runRuntimeStep(
 
 async function runRuntimeOperation(
   runtime: ApplicationRuntime,
-  operation: RuntimeConformanceCase["operation"],
+  operation: Exclude<RuntimeConformanceCase["operation"], "syncWrite" | "readPersistedRecords">,
   input: RuntimeConformanceInput,
 ): Promise<unknown> {
   switch (operation) {
@@ -909,7 +1129,12 @@ function normaliseRuntimeResult(value: unknown, state: RunState): JsonValue {
   if (isObject(value) && "records" in value) {
     const records = value.records as JsonValue[];
     return {
-      records: normaliseRecordIds(records, state),
+      // Re-ordered by the alias, not by the generated id the runtime sorted on.
+      // An offline dataset orders records by `(objectName, recordId)`, and no
+      // specification defines a record id's shape — so two records of the same
+      // object came back in an order that varied between runs and would vary
+      // between runtimes, making the array unassertable at all.
+      records: sortNormalisedRecords(normaliseRecordIds(records, state)),
       ...(Array.isArray(value.contextRoles)
         ? { contextRoles: value.contextRoles as JsonValue }
         : {}),
@@ -946,6 +1171,30 @@ function normaliseRuntimeResult(value: unknown, state: RunState): JsonValue {
   }
 
   return normaliseRecordIds(value, state);
+}
+
+/**
+ * Canonical order for a set of `{objectName, recordId}` references, applied
+ * after ids have been replaced by their aliases. Left untouched unless every
+ * entry carries both keys, so nothing else that happens to be called `records`
+ * is reordered.
+ */
+function sortNormalisedRecords(value: JsonValue): JsonValue {
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (item) =>
+        isObject(item) && typeof item.objectName === "string" && typeof item.recordId === "string",
+    )
+  ) {
+    return value;
+  }
+
+  return [...value].sort((left, right) => {
+    const a = left as { objectName: string; recordId: string };
+    const b = right as { objectName: string; recordId: string };
+    return a.objectName.localeCompare(b.objectName) || a.recordId.localeCompare(b.recordId);
+  }) as JsonValue;
 }
 
 function normaliseRecord(record: StoredObjectRecord, state: RunState): JsonValue {

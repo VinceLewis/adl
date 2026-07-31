@@ -53,6 +53,16 @@ describe("ADL conformance corpus", () => {
         expect(dangling).toEqual([]);
       });
 
+      it("depends on no generated revision, id, digest or timestamp", () => {
+        const offences = suite.cases.flatMap((conformanceCase) =>
+          findGeneratedValueDependencies(conformanceCase).map(
+            (offence) => `${conformanceCase.id} -> ${offence}`,
+          ),
+        );
+
+        expect(offences).toEqual([]);
+      });
+
       it("passes against the TypeScript semantic reference runtime", async () => {
         const results = await runConformanceSuite(suite);
         const failures = results.filter((result) => !result.pass);
@@ -62,6 +72,69 @@ describe("ADL conformance corpus", () => {
     });
   }
 });
+
+/**
+ * Text the reference runtime mints. `rev-1` is the one that mattered: five cases
+ * hard-coded it as a `baseRevision`, so a conforming runtime minting ULIDs would
+ * have failed them while being entirely correct. Nothing in `docs/spec/` defines
+ * any of these shapes, which is precisely why no case may name one.
+ */
+const GENERATED_VALUE_SHAPES = [/^rev-\d+$/, /^cmd-txn-\d+$/, /^sha256-/, /^sync-op-/];
+
+/**
+ * Keys whose values are minted rather than declared. Asserting one at all is a
+ * dependency on a generated value, whatever its text — a case that pinned a
+ * `createdAt` would be pinning the clock.
+ */
+const GENERATED_KEYS = new Set([
+  "revision",
+  "guid",
+  "queueId",
+  "opId",
+  "auditId",
+  "createdAt",
+  "updatedAt",
+  "deletedAt",
+  "occurredAt",
+  "recordedAt",
+]);
+
+/**
+ * The acceptance criterion for this, demonstrated rather than asserted.
+ *
+ * Literal storage seeds are exempt: a `records` entry supplies a revision to
+ * storage, which is input, not a claim about what a runtime would produce.
+ */
+function findGeneratedValueDependencies(value: unknown, path = "", inExpected = false): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      findGeneratedValueDependencies(item, `${path}[${index}]`, inExpected),
+    );
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return Object.entries(value).flatMap(([key, item]) => {
+      if (key === "records" || key === "applicationMetadata") {
+        return [];
+      }
+
+      const childPath = path === "" ? key : `${path}.${key}`;
+      const nowInExpected = inExpected || key === "expected";
+
+      if (nowInExpected && GENERATED_KEYS.has(key) && typeof item === "string") {
+        return [`${childPath} asserts the generated value '${item}'`];
+      }
+
+      return findGeneratedValueDependencies(item, childPath, nowInExpected);
+    });
+  }
+
+  if (typeof value === "string" && GENERATED_VALUE_SHAPES.some((shape) => shape.test(value))) {
+    return [`${path} names the reference runtime's generated '${value}'`];
+  }
+
+  return [];
+}
 
 function discoverSuiteFiles(): string[] {
   const root = fileURLToPath(new URL("../conformance/", import.meta.url));

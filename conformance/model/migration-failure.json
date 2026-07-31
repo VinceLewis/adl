@@ -1,0 +1,867 @@
+{
+  "version": 1,
+  "models": {
+    "bookingV100": {
+      "modelVersion": "1.0.0",
+      "app": {
+        "name": "BookingContract"
+      },
+      "objects": [
+        {
+          "name": "Booking",
+          "fields": [
+            {
+              "name": "Venue",
+              "type": "text"
+            },
+            {
+              "name": "LegacyNote",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "bookingV110": {
+      "modelVersion": "1.1.0",
+      "app": {
+        "name": "BookingContract"
+      },
+      "objects": [
+        {
+          "name": "Booking",
+          "schemaVersion": 2,
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text"
+            },
+            {
+              "name": "PayoutCents",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Contact",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "migrations": [
+        {
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "objects": [
+            {
+              "object": "Booking",
+              "schemaVersion": 2,
+              "steps": [
+                {
+                  "kind": "renameField",
+                  "from": "Venue",
+                  "to": "VenueName"
+                },
+                {
+                  "kind": "addField",
+                  "field": "PayoutCents",
+                  "defaultValue": 0
+                },
+                {
+                  "kind": "dropField",
+                  "field": "LegacyNote"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "migration.failure.source-model-validates.001",
+      "title": "The model that wrote the persisted state in these cases is itself valid",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "bookingV100",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "migration.failure.target-model-validates.001",
+      "title": "The migrating model used by every failure case is itself valid, so a refusal is never an artefact of a broken model",
+      "specRef": "resolved-model#model-versions-and-migrations",
+      "operation": "validateModel",
+      "modelRef": "bookingV110",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "migration.failure.transactional-backend-migrates.001",
+      "title": "Baseline: over a transactional backend this model migrates this state, so a later refusal is attributable to the storage and not to the model",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "storage": "transactional",
+        "persistedModel": {
+          "modelRef": "bookingV100"
+        },
+        "records": [
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-a",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-a",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-b",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-b",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "Great American",
+                "PayoutCents": 150000
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r2-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-c",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Booking",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0,
+                "Venue": "$absent",
+                "LegacyNote": "$absent"
+              }
+            },
+            {
+              "objectName": "Booking",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "Great American",
+                "PayoutCents": 150000,
+                "Venue": "$absent"
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.failure.default-storage-is-transactional.001",
+      "title": "A case that names no storage behaviour gets a transactional backend, so the failure cases differ from this one in exactly one input",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "persistedModel": {
+          "modelRef": "bookingV100"
+        },
+        "records": [
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-a",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-a",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-b",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-b",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "Great American",
+                "PayoutCents": 150000
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r2-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-c",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Booking",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0,
+                "Venue": "$absent",
+                "LegacyNote": "$absent"
+              }
+            },
+            {
+              "objectName": "Booking",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "Great American",
+                "PayoutCents": 150000,
+                "Venue": "$absent"
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.failure.commit-failure-rolls-back-atomically.001",
+      "title": "A migration whose commit fails reports ADL_MIGRATION_FAILED and leaves every record and the metadata row exactly as they were",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "storage": "failingCommit",
+        "persistedModel": {
+          "modelRef": "bookingV100"
+        },
+        "records": [
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-a",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-a",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-b",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-b",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "Great American",
+                "PayoutCents": 150000
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r2-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-c",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_MIGRATION_FAILED",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Booking.r1-booking-a.meta.schemaVersion",
+              "expected": 2,
+              "actual": 1
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Booking.r1-booking-b.meta.schemaVersion",
+              "expected": 2,
+              "actual": 1
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.0.0"
+          },
+          "records": [
+            {
+              "objectName": "Booking",
+              "schemaVersion": 1,
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note",
+                "VenueName": "$absent",
+                "PayoutCents": "$absent"
+              }
+            },
+            {
+              "objectName": "Booking",
+              "schemaVersion": 1,
+              "values": {
+                "Venue": "Great American",
+                "PayoutCents": 150000,
+                "VenueName": "$absent"
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.failure.non-transactional-backend-is-refused.001",
+      "title": "A backend that cannot commit atomically is refused with ADL_MIGRATION_FAILED rather than migrated write by write, and nothing is half-applied",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "storage": "nonTransactional",
+        "persistedModel": {
+          "modelRef": "bookingV100"
+        },
+        "records": [
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-a",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-a",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          },
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-b",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-b",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "Great American",
+                "PayoutCents": 150000
+              }
+            }
+          },
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r2-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-c",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_MIGRATION_FAILED",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Booking.r1-booking-a.meta.schemaVersion",
+              "expected": 2,
+              "actual": 1
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Booking.r1-booking-b.meta.schemaVersion",
+              "expected": 2,
+              "actual": 1
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.0.0"
+          },
+          "records": [
+            {
+              "objectName": "Booking",
+              "schemaVersion": 1,
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note",
+                "VenueName": "$absent",
+                "PayoutCents": "$absent"
+              }
+            },
+            {
+              "objectName": "Booking",
+              "schemaVersion": 1,
+              "values": {
+                "Venue": "Great American",
+                "PayoutCents": 150000,
+                "VenueName": "$absent"
+              }
+            },
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.failure.non-transactional-backend-proceeds-when-nothing-migrates.001",
+      "title": "The non-transactional refusal is specific to needing a migration: the same backend opens state already at the model's version",
+      "specRef": "runtime-semantics#schema-version-compatibility",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "storage": "nonTransactional",
+        "persistedModel": {
+          "modelRef": "bookingV110"
+        },
+        "records": [
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-a",
+                "object": "Booking",
+                "schemaVersion": 2,
+                "revision": "rev-seeded-a",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Booking",
+              "schemaVersion": 2,
+              "values": {
+                "VenueName": "The Roxy",
+                "PayoutCents": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.failure.metadata-row-is-inside-the-commit.001",
+      "title": "A failed commit that had no record to rewrite still leaves the metadata row at the persisted version: the new version is never observable over unmigrated records",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "storage": "failingCommit",
+        "persistedModel": {
+          "modelRef": "bookingV100"
+        },
+        "records": [
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r2-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-c",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_MIGRATION_FAILED",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.0.0"
+          },
+          "records": [
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.failure.metadata-row-advances-when-the-commit-succeeds.001",
+      "title": "The same record-free hop over a transactional backend advances the metadata row, so the previous case pins the commit and not the absence of work",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "storage": "transactional",
+        "persistedModel": {
+          "modelRef": "bookingV100"
+        },
+        "records": [
+          {
+            "objectName": "Contact",
+            "record": {
+              "meta": {
+                "guid": "r2-contact",
+                "object": "Contact",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-c",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "diagnostics": [
+            {
+              "severity": "info",
+              "code": "ADL_MODEL_MIGRATION_APPLIED",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.1.0"
+          },
+          "records": [
+            {
+              "objectName": "Contact",
+              "schemaVersion": 1,
+              "values": {
+                "Name": "Ada"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "migration.failure.plan-only-never-reaches-the-commit.001",
+      "title": "With migrations planned but not applied, a backend whose commit always fails still reports an incompatibility rather than a migration failure",
+      "specRef": "runtime-semantics#model-migration",
+      "operation": "migratePersistedState",
+      "modelRef": "bookingV110",
+      "input": {
+        "storage": "failingCommit",
+        "applyMigrations": false,
+        "persistedModel": {
+          "modelRef": "bookingV100"
+        },
+        "records": [
+          {
+            "objectName": "Booking",
+            "record": {
+              "meta": {
+                "guid": "r1-booking-a",
+                "object": "Booking",
+                "schemaVersion": 1,
+                "revision": "rev-seeded-a",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "createdBy": "user-1",
+                "updatedAt": "2026-01-01T00:00:00.000Z",
+                "updatedBy": "user-1",
+                "syncStatus": "synced"
+              },
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_MODEL_VERSION_MISMATCH",
+              "path": "metadata.modelVersion",
+              "expected": "1.1.0",
+              "actual": "1.0.0"
+            },
+            {
+              "severity": "error",
+              "code": "ADL_PERSISTED_RECORD_SCHEMA_VERSION_MISMATCH",
+              "path": "records.Booking.r1-booking-a.meta.schemaVersion",
+              "expected": 2,
+              "actual": 1
+            }
+          ],
+          "metadata": {
+            "modelVersion": "1.0.0"
+          },
+          "records": [
+            {
+              "objectName": "Booking",
+              "schemaVersion": 1,
+              "values": {
+                "Venue": "The Roxy",
+                "LegacyNote": "import note",
+                "VenueName": "$absent",
+                "PayoutCents": "$absent"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

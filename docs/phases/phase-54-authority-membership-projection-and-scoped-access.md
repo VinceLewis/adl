@@ -1,7 +1,7 @@
-# Phase 53 - Authority Membership Projection and Scoped Access Paths
+# Phase 54 - Authority Membership Projection and Scoped Access Paths
 
-> Renumbered from Phase 46, then 48, 49, 50 and 52, and now Phase 53 by the
-> Phase 51 handoff. Every move has had the same cause: this work is an
+> Renumbered from Phase 46, then 48, 49, 50, 52 and 53, and now Phase 54 by the
+> Phase 52 handoff. Every move has had the same cause: this work is an
 > optimisation and integrity refactor of a subsystem with no production users, so
 > anything with a user-visible or repository-wide effect outranks it. Its evidence
 > and scope are unchanged; only its position in the sequence moved. Phase 47
@@ -51,24 +51,43 @@
 > coherent phase's worth of work and are recorded in
 > `learnings/implementation/conformance-suite.md`.
 >
-> **Outcome: accepted and applied.** That work is now Phase 52
+> **Outcome: accepted and applied.** That work became Phase 52
 > (`docs/phases/phase-52-conformance-expressiveness-and-contract-completion.md`),
-> and this document, Phase 54 and Phase 55 were renumbered accordingly, per the
+> and this document and the two after it were renumbered accordingly, per the
 > repository-wide handoff rule in `learnings/process/phase-execution.md`. It was
 > not folded into Phase 51 because it is genuinely separate work rather than a
 > loose end.
 >
-> Two smaller findings belong to **this** phase's subsystem when it runs, and are
+> One smaller finding belongs to **this** phase's subsystem when it runs, and is
 > added to its scope below:
 >
 > - `migrateAcceptedState` takes **no advisory lock**. Two authority processes
 >   starting simultaneously against one projection would each plan and apply the
 >   same hop. The steps are total and both commits are atomic, so no corruption
 >   could be constructed, but it is untested and unguarded.
-> - The authority accepts `localPrivate` writes and then filters those records out
->   of every bootstrap, so an accepted record can be written that nobody can ever
->   read back. `cacheReadonly` is refused symmetrically. Either refuse it or
->   document the asymmetry.
+
+> **Phase 52 handoff (re-sequenced; accepted).** Phase 52 made the conformance
+> corpus able to state what ADL relies on, and in doing so demonstrated that
+> **an `onlineRequired` write never reaches the authority**: `SyncQueue.enqueue`
+> skips every non-`localFirst` object, `AuthoritySyncClient.reconcile` pushes
+> only from that queue, and no other push path exists. The Giggle Band reference
+> app declares `BandInvitation` as `SYNC ONLINE_REQUIRED`, so an invitation
+> created in the deployed app is written locally and then silently never sent.
+>
+> That is a user-visible data-delivery defect; this phase is an optimisation of a
+> subsystem with no production users. By the standard this repository has applied
+> since Phase 46, the sync gap outranks it, so it was inserted ahead as Phase 53
+> (`docs/phases/phase-53-sync-mode-delivery-and-authority-coherence.md`) and this
+> document moved to 54.
+>
+> The `localPrivate` authority asymmetry — an accepted record that no bootstrap
+> ever returns — moved with it. It was always the same question as the
+> `onlineRequired` one (which sync modes have a path to and from the authority),
+> and splitting the two across phases would have decided half of it twice.
+>
+> This phase's own evidence is intact and unchanged: the membership projection
+> still has no writer, and the three `listRecords()` scans are still O(all
+> accepted records). Nothing Phase 52 did touches them.
 
 ## Objective
 
@@ -126,11 +145,6 @@ precedent.
   against one projection cannot both plan and apply the same model migration.
   Phase 51 left this unguarded and untested; the steps are total and each commit
   is atomic, so this is a robustness gap rather than a demonstrated corruption.
-- Decide and implement the `localPrivate` asymmetry at the authority: a
-  `localPrivate` write is currently accepted and then filtered out of every
-  bootstrap, so it becomes an accepted record nobody can read. `cacheReadonly` is
-  refused symmetrically. Either refuse it with `ADL_SYNC_POLICY_DENIED` or state
-  in the spec why it is accepted.
 
 ## Constraints
 
@@ -181,10 +195,10 @@ precedent.
 
 - New reporting UI, BI connectors, generic SQL, identity flows, a new sync
   protocol, database engine, or ADL language syntax.
-- Conformance depth and model migrations, which are now Phase 51 and precede this
-  phase.
+- Conformance depth and model migrations (Phase 51) and conformance
+  expressiveness (Phase 52), both of which precede this phase.
 - A scheduler/HTTP surface for `AuthorityRetentionService.prune` (retention
-  wiring is Phase 54, not this phase's scoping objective).
+  wiring is Phase 55, not this phase's scoping objective).
 - Cross-store distributed transactions with external identity providers or email
   delivery, and arbitrary operator database access.
 
@@ -240,10 +254,10 @@ an ephemeral port, so parallel runs are safe but pay a container each).
    PostgreSQL.
 6. Update the production runbook, server authority documentation, threat model,
    specifications if required, and learnings.
-7. **Required next-phase planning handoff:** before Phase 53 closes, review
-   `docs/phases/phase-54-retention-scheduling-and-administration-ui.md` and
+7. **Required next-phase planning handoff:** before Phase 54 closes, review
+   `docs/phases/phase-55-retention-scheduling-and-administration-ui.md` and
    revise it if this phase's results change its scope, constraints,
-   deliverables, or tasks. The handoff must justify Phase 54 as the
+   deliverables, or tasks. The handoff must justify Phase 55 as the
    highest-value remaining gap **repository-wide**, not merely the next gap in
    the subsystem this phase touched; if a higher-value gap exists elsewhere, say
-   so and re-sequence. Then verify, commit, and push Phase 53.
+   so and re-sequence. Then verify, commit, and push Phase 54.
