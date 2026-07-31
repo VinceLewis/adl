@@ -53,7 +53,10 @@ export interface BandReferenceSeed {
   availability: StoredObjectRecord;
   firstSong: StoredObjectRecord;
   secondSong: StoredObjectRecord;
+  thirdSong: StoredObjectRecord;
+  fourthSong: StoredObjectRecord;
   firstSetList: StoredObjectRecord;
+  secondSetList: StoredObjectRecord;
   firstSetListItem: StoredObjectRecord;
   invitation: StoredObjectRecord;
 }
@@ -220,6 +223,26 @@ export async function seedBandReferenceRuntime(
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
+  const thirdSong = await runtime.create(
+    "Song",
+    {
+      Band: firstBand.meta.guid,
+      Title: "Harbour Lights",
+      Composer: "Casey Morgan",
+      DurationSeconds: 236,
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  const fourthSong = await runtime.create(
+    "Song",
+    {
+      Band: firstBand.meta.guid,
+      Title: "Slow Tide",
+      Composer: "The Alphas",
+      DurationSeconds: 245,
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
   const firstSetList = await runtime.create(
     "SetList",
     {
@@ -230,6 +253,9 @@ export async function seedBandReferenceRuntime(
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
+  // The set-list child collection on `SetListForm` is the surface Phase 59 makes
+  // declarable, so the demo has to seed enough songs for reordering to mean
+  // something: one row cannot be moved anywhere.
   const firstSetListItem = await runtime.create(
     "SetListItem",
     {
@@ -247,6 +273,39 @@ export async function seedBandReferenceRuntime(
       SetList: firstSetList.meta.guid,
       Song: secondSong.meta.guid,
       Position: 2,
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  await runtime.create(
+    "SetListItem",
+    {
+      Band: firstBand.meta.guid,
+      SetList: firstSetList.meta.guid,
+      Song: thirdSong.meta.guid,
+      Position: 3,
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  // A second set list in the same band, so the child collection's relationship
+  // picker has a candidate: `linkExisting` moves an existing item to this
+  // parent, and with only one set list every candidate is already linked.
+  const secondSetList = await runtime.create(
+    "SetList",
+    {
+      Band: firstBand.meta.guid,
+      Name: "Rehearsal running order",
+      Description: "Working order for the Beta Rooms rehearsal.",
+      CreatedBy: musician.meta.guid,
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  await runtime.create(
+    "SetListItem",
+    {
+      Band: firstBand.meta.guid,
+      SetList: secondSetList.meta.guid,
+      Song: fourthSong.meta.guid,
+      Position: 1,
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
@@ -289,7 +348,10 @@ export async function seedBandReferenceRuntime(
     availability,
     firstSong,
     secondSong,
+    thirdSong,
+    fourthSong,
     firstSetList,
+    secondSetList,
     firstSetListItem,
     invitation,
   };

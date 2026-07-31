@@ -305,6 +305,21 @@ export class CommandRecordIdsMismatchError extends RuntimeError {
 }
 
 /**
+ * A batch intent replayed with no writes.
+ *
+ * A batch crosses the wire as its writes, so an empty one describes a
+ * transaction that committed nothing. Accepting it would record a durable
+ * accepted verdict covering no records, which the originating device would then
+ * apply to the records it believes the batch wrote. Refused as a `RuntimeError`
+ * so it settles as an ordinary rejection rather than as a retryable fault.
+ */
+export class BatchWritesMissingError extends RuntimeError {
+  constructor(message: string, details?: unknown) {
+    super("ADL_RUNTIME_BATCH_WRITES_MISSING", message, details);
+  }
+}
+
+/**
  * A discard asked for on a record the device is not free to throw away.
  *
  * Discarding is permitted only for a record whose own create the authority

@@ -1,5 +1,6 @@
 import type { ApplicationRuntime } from "../../runtime/application-runtime.js";
 import type {
+  EditChildOperationKind,
   JsonValue,
   ResolvedField,
   ResolvedObject,
@@ -10,6 +11,7 @@ import type { RuntimeContext, RuntimeValidationIssue } from "../../runtime/runti
 import type {
   RuntimeEditSurface,
   RuntimeEditChildCollectionSection,
+  RuntimeEditChildRow,
   RuntimeRelationshipPickerResult,
 } from "../../runtime/edit-surface-runtime.js";
 import {
@@ -47,6 +49,18 @@ export class AdlFormViewElement extends HTMLElement {
   private _editSurface: RuntimeEditSurface | undefined;
   private pickerResult: RuntimeRelationshipPickerResult | undefined;
   private pickerLoadingSection: string | undefined;
+  private dragChildId: string | undefined;
+  private dragSection: string | undefined;
+  /**
+   * Resolved display labels for child-row lookup fields, and the loads in
+   * flight. A child row holds raw values, so a `LOOKUP` column rendered straight
+   * would show a record guid where `adl-list-view` shows a name — the same
+   * column, the same model, two different answers. Mirrors that component's
+   * cache deliberately: same key, same read-through the policy-enforcing
+   * `runtime.read`, same fall back to the id when the target cannot be read.
+   */
+  private lookupLabels = new Map<string, string>();
+  private pendingLookupLabels = new Set<string>();
 
   private readonly handleFormInput = (): void => {
     const activeElement = document.activeElement;
@@ -137,6 +151,12 @@ export class AdlFormViewElement extends HTMLElement {
       return;
     }
 
+    const reorderButton = target.closest<HTMLButtonElement>("button[data-child-reorder]");
+    if (reorderButton !== null) {
+      this.handleReorderButtonClick(event, reorderButton);
+      return;
+    }
+
     if (action === null) {
       return;
     }
@@ -204,6 +224,82 @@ export class AdlFormViewElement extends HTMLElement {
     );
   };
 
+  /**
+   * Drag and drop is the pointer affordance for reorder; the up/down buttons
+   * beside every reorderable row are the accessible route and are never hidden
+   * when reorder is permitted. Both dispatch exactly the same staged operation,
+   * so nothing depends on a pointer being available.
+   */
+  private readonly handleChildDragStart = (event: Event): void => {
+    const row = reorderableRowFromEvent(event);
+    if (row === null) {
+      return;
+    }
+
+    this.dragChildId = row.dataset.childId;
+    this.dragSection = row.dataset.childSection;
+    row.classList.add("adl-child-row-dragging");
+    const transfer = (event as DragEvent).dataTransfer;
+    if (transfer !== null && transfer !== undefined) {
+      transfer.effectAllowed = "move";
+      transfer.setData("text/plain", row.dataset.childId ?? "");
+    }
+  };
+
+  private readonly handleChildDragOver = (event: Event): void => {
+    const row = reorderableRowFromEvent(event);
+    if (row === null || this.dragChildId === undefined) {
+      return;
+    }
+
+    if (row.dataset.childSection !== this.dragSection) {
+      return;
+    }
+
+    event.preventDefault();
+    const transfer = (event as DragEvent).dataTransfer;
+    if (transfer !== null && transfer !== undefined) {
+      transfer.dropEffect = "move";
+    }
+    this.markDropTarget(row);
+  };
+
+  private readonly handleChildDragLeave = (event: Event): void => {
+    const row = reorderableRowFromEvent(event);
+    row?.classList.remove("adl-child-row-drop-target");
+  };
+
+  private readonly handleChildDrop = (event: Event): void => {
+    const row = reorderableRowFromEvent(event);
+    const section = this.dragSection;
+    const childId = this.dragChildId;
+    this.clearDragMarkers();
+    this.dragSection = undefined;
+    this.dragChildId = undefined;
+    if (row === null || section === undefined || childId === undefined) {
+      return;
+    }
+
+    event.preventDefault();
+    if (row.dataset.childSection !== section || row.dataset.childId === childId) {
+      return;
+    }
+
+    const childObject = row.dataset.childObject;
+    const position = Number(row.dataset.childRowPosition);
+    if (childObject === undefined || !Number.isInteger(position)) {
+      return;
+    }
+
+    this.dispatchReorder(section, childObject, childId, position);
+  };
+
+  private readonly handleChildDragEnd = (): void => {
+    this.clearDragMarkers();
+    this.dragSection = undefined;
+    this.dragChildId = undefined;
+  };
+
   set runtime(runtime: ApplicationRuntime | undefined) {
     this._runtime = runtime;
     this.render();
@@ -254,6 +350,11 @@ export class AdlFormViewElement extends HTMLElement {
     this.addEventListener("click", this.handleChildClick);
     this.addEventListener("input", this.handleFormInput);
     this.addEventListener("change", this.handleFormInput);
+    this.addEventListener("dragstart", this.handleChildDragStart);
+    this.addEventListener("dragover", this.handleChildDragOver);
+    this.addEventListener("dragleave", this.handleChildDragLeave);
+    this.addEventListener("drop", this.handleChildDrop);
+    this.addEventListener("dragend", this.handleChildDragEnd);
     this.render();
   }
 
@@ -262,6 +363,11 @@ export class AdlFormViewElement extends HTMLElement {
     this.removeEventListener("click", this.handleChildClick);
     this.removeEventListener("input", this.handleFormInput);
     this.removeEventListener("change", this.handleFormInput);
+    this.removeEventListener("dragstart", this.handleChildDragStart);
+    this.removeEventListener("dragover", this.handleChildDragOver);
+    this.removeEventListener("dragleave", this.handleChildDragLeave);
+    this.removeEventListener("drop", this.handleChildDrop);
+    this.removeEventListener("dragend", this.handleChildDragEnd);
   }
 
   private render(): void {
@@ -306,6 +412,7 @@ export class AdlFormViewElement extends HTMLElement {
 
     this.configureFields(fields);
     this.configureActions();
+    this.queueChildLookupLabelLoads();
   }
 
   private getRenderedFields(): ResolvedField[] {
@@ -389,52 +496,307 @@ export class AdlFormViewElement extends HTMLElement {
     `;
   }
 
+  /** A child cell, with a `LOOKUP` field shown by its display value once loaded. */
+  private formatChildCell(field: ResolvedField, value: JsonValue | undefined): string {
+    if (field.lookup === undefined || typeof value !== "string" || value.length === 0) {
+      return formatChildValue(value);
+    }
+
+    return this.lookupLabels.get(childLookupLabelKey(field, value)) ?? value;
+  }
+
+  /**
+   * Starts a read for every unresolved child-row lookup value on screen.
+   *
+   * Called after rendering rather than before, so the first paint shows the raw
+   * id and is replaced rather than being blocked on a read per row. Each load
+   * re-renders exactly once, and the pending set is what stops a re-render
+   * queueing the same read again.
+   */
+  private queueChildLookupLabelLoads(): void {
+    if (!this.isConnected || this._runtime === undefined || this._context === undefined) {
+      return;
+    }
+
+    for (const section of this._editSurface?.sections ?? []) {
+      if (section.kind !== "childCollection") {
+        continue;
+      }
+
+      for (const field of section.fields) {
+        if (field.lookup === undefined) {
+          continue;
+        }
+        for (const row of section.rows) {
+          const value = row.values[field.name];
+          if (typeof value !== "string" || value.length === 0) {
+            continue;
+          }
+
+          const key = childLookupLabelKey(field, value);
+          if (this.lookupLabels.has(key) || this.pendingLookupLabels.has(key)) {
+            continue;
+          }
+
+          this.pendingLookupLabels.add(key);
+          void this.loadChildLookupLabel(field, value, key);
+        }
+      }
+    }
+  }
+
+  private async loadChildLookupLabel(
+    field: ResolvedField,
+    recordId: string,
+    key: string,
+  ): Promise<void> {
+    if (this._runtime === undefined || this._context === undefined || field.lookup === undefined) {
+      this.pendingLookupLabels.delete(key);
+      return;
+    }
+
+    try {
+      const record = await this._runtime.read(field.lookup.targetObject, recordId, this._context);
+      const label = record?.values[field.lookup.displayField];
+      if (label !== undefined && label !== null) {
+        this.lookupLabels.set(key, String(label));
+      }
+    } catch {
+      // A target the caller may not read stays as its id rather than as a gap:
+      // the row still has to identify itself, and the id is what we have.
+      this.lookupLabels.set(key, recordId);
+    } finally {
+      this.pendingLookupLabels.delete(key);
+      this.render();
+    }
+  }
+
   private renderChildRows(section: RuntimeEditChildCollectionSection): string {
     if (section.rows.length === 0) {
       return `<div class="adl-empty">${escapeHtml(section.emptyState.text || "No child records.")}</div>`;
     }
 
+    const rows = this.orderedChildRows(section);
+    // Only persisted rows carry a position: a staged create has no record for a
+    // reorder to name, and a staged link is applied before any ordering matters.
+    const ordered = rows.filter((row) => row.source === "persisted");
+
     return `
-      <div class="adl-child-rows">
-        ${section.rows
-          .map(
-            (row) => `
-              <div class="adl-child-row" data-child-row="${escapeHtml(row.id)}">
-                <div class="adl-child-row-values">
-                  ${section.fields
-                    .map(
-                      (field) =>
-                        `<span>${escapeHtml(formatChildValue(row.values[field.name]))}</span>`,
-                    )
-                    .join("")}
-                </div>
-                <div class="adl-child-row-actions">
-                  ${row.actions
-                    .filter((action) => action.visible)
-                    .map(
-                      (action) => `
-                        <button
-                          type="button"
-                          data-child-action="${escapeHtml(action.operation)}"
-                          data-child-section="${escapeHtml(section.name)}"
-                          data-child-object="${escapeHtml(section.childObject)}"
-                          ${
-                            row.source === "staged"
-                              ? `data-staged-operation-id="${escapeHtml(row.stagedOperationId ?? "")}"`
-                              : `data-child-id="${escapeHtml(row.record?.meta.guid ?? row.id)}"`
-                          }
-                          ${action.enabled ? "" : "disabled"}
-                        >${escapeHtml(action.operation === "remove" ? "Remove" : titleCaseIdentifier(action.operation))}</button>
-                      `,
-                    )
-                    .join("")}
-                </div>
-              </div>
-            `,
-          )
+      <div class="adl-child-rows" data-child-rows="${escapeHtml(section.name)}">
+        ${rows
+          .map((row) => this.renderChildRow(section, row, ordered.indexOf(row), ordered.length))
           .join("")}
       </div>
     `;
+  }
+
+  private renderChildRow(
+    section: RuntimeEditChildCollectionSection,
+    row: RuntimeEditChildRow,
+    orderIndex: number,
+    orderedCount: number,
+  ): string {
+    const reorderAction = row.actions.find((action) => action.operation === "reorder");
+    const reorderable =
+      isSectionReorderable(section) && orderIndex >= 0 && reorderAction?.visible === true;
+    const childId = row.record?.meta.guid ?? row.id;
+
+    return `
+      <div
+        class="adl-child-row${reorderable ? " adl-child-row-reorderable" : ""}"
+        data-child-row="${escapeHtml(row.id)}"
+        data-child-section="${escapeHtml(section.name)}"
+        data-child-object="${escapeHtml(section.childObject)}"
+        ${orderIndex >= 0 ? `data-child-row-position="${orderIndex + 1}"` : ""}
+        ${row.source === "persisted" ? `data-child-id="${escapeHtml(childId)}"` : ""}
+        ${reorderable ? 'draggable="true"' : ""}
+      >
+        ${reorderable ? this.renderReorderControls(section, row, orderIndex, orderedCount, reorderAction?.enabled === true) : ""}
+        <div class="adl-child-row-values">
+          ${section.fields
+            .map(
+              (field) =>
+                `<span>${escapeHtml(this.formatChildCell(field, row.values[field.name]))}</span>`,
+            )
+            .join("")}
+        </div>
+        <div class="adl-child-row-actions">
+          ${row.actions
+            // `reorder` has its own controls; rendering it here too would offer a
+            // button that carries no target position.
+            .filter((action) => action.visible && action.operation !== "reorder")
+            .map(
+              (action) => `
+                <button
+                  type="button"
+                  data-child-action="${escapeHtml(action.operation)}"
+                  data-child-section="${escapeHtml(section.name)}"
+                  data-child-object="${escapeHtml(section.childObject)}"
+                  ${
+                    row.source === "staged"
+                      ? `data-staged-operation-id="${escapeHtml(row.stagedOperationId ?? "")}"`
+                      : `data-child-id="${escapeHtml(childId)}"`
+                  }
+                  ${action.enabled ? "" : "disabled"}
+                >${escapeHtml(childActionLabel(action.operation))}</button>
+              `,
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderReorderControls(
+    section: RuntimeEditChildCollectionSection,
+    row: RuntimeEditChildRow,
+    orderIndex: number,
+    orderedCount: number,
+    enabled: boolean,
+  ): string {
+    const childId = row.record?.meta.guid ?? row.id;
+    const label = childRowLabel(section, row, orderIndex);
+    const control = (direction: "up" | "down", position: number, disabled: boolean): string => `
+      <button
+        type="button"
+        class="adl-child-reorder-button"
+        data-child-reorder="${direction}"
+        data-child-section="${escapeHtml(section.name)}"
+        data-child-object="${escapeHtml(section.childObject)}"
+        data-child-id="${escapeHtml(childId)}"
+        data-child-position="${position}"
+        aria-label="Move ${escapeHtml(label)} ${direction}"
+        title="Move ${direction}"
+        ${disabled ? "disabled" : ""}
+      >${direction === "up" ? "&#8593;" : "&#8595;"}</button>
+    `;
+
+    return `
+      <div
+        class="adl-child-row-reorder"
+        role="group"
+        aria-label="Reorder ${escapeHtml(label)}"
+        data-child-reorder-controls="${escapeHtml(section.name)}"
+      >
+        ${control("up", orderIndex, !enabled || orderIndex === 0)}
+        ${control("down", orderIndex + 2, !enabled || orderIndex >= orderedCount - 1)}
+      </div>
+    `;
+  }
+
+  /**
+   * Rows render in the order the section's `orderField` declares, with staged
+   * reorders applied on top as moves.
+   *
+   * The move simulation mirrors what `commitPlannedTransaction`'s
+   * ordered-collection expansion does when the batch is committed: naming one
+   * record's position shifts its siblings to keep the collection contiguous.
+   * Re-sorting by the raw field value instead would show two rows sharing a
+   * position until the parent is saved.
+   */
+  private orderedChildRows(section: RuntimeEditChildCollectionSection): RuntimeEditChildRow[] {
+    const persisted = section.rows.filter((row) => row.source === "persisted");
+    const staged = section.rows.filter((row) => row.source !== "persisted");
+    const orderField = section.orderField;
+    if (orderField === undefined) {
+      return [...persisted, ...staged];
+    }
+
+    const ordered = [...persisted].sort((left, right) =>
+      compareOrderValues(left.values[orderField], right.values[orderField]),
+    );
+
+    for (const operation of this._editSurface?.stagedChanges ?? []) {
+      if (
+        operation.section !== section.name ||
+        operation.operation !== "reorder" ||
+        operation.childId === undefined ||
+        operation.position === undefined
+      ) {
+        continue;
+      }
+
+      const index = ordered.findIndex(
+        (row) => (row.record?.meta.guid ?? row.id) === operation.childId,
+      );
+      if (index < 0) {
+        continue;
+      }
+
+      const [moved] = ordered.splice(index, 1);
+      if (moved === undefined) {
+        continue;
+      }
+      ordered.splice(clampIndex(operation.position - 1, ordered.length), 0, moved);
+    }
+
+    return [...ordered, ...staged];
+  }
+
+  private handleReorderButtonClick(event: Event, button: HTMLButtonElement): void {
+    event.stopPropagation();
+    if (button.disabled) {
+      return;
+    }
+
+    const sectionName = button.dataset.childSection;
+    const childObject = button.dataset.childObject;
+    const childId = button.dataset.childId;
+    const position = Number(button.dataset.childPosition);
+    if (
+      sectionName === undefined ||
+      childObject === undefined ||
+      childId === undefined ||
+      !Number.isInteger(position)
+    ) {
+      return;
+    }
+
+    this.dispatchReorder(sectionName, childObject, childId, position);
+  }
+
+  /**
+   * The only route a reorder takes. The child record is never written here: the
+   * app stages the operation and `ApplicationRuntime.applyStagedChildChanges`
+   * plans and commits it, which keeps policy, sync and ordered-collection
+   * enforcement in the runtime.
+   */
+  private dispatchReorder(
+    sectionName: string,
+    childObject: string,
+    childId: string,
+    position: number,
+  ): void {
+    this.dispatchEvent(
+      new CustomEvent<StageChildOperationDetail>("adl-stage-child-operation", {
+        bubbles: true,
+        detail: {
+          section: sectionName,
+          operation: "reorder",
+          childObject,
+          childId,
+          position,
+        },
+      }),
+    );
+  }
+
+  private markDropTarget(row: HTMLElement): void {
+    for (const candidate of this.querySelectorAll(".adl-child-row-drop-target")) {
+      if (candidate !== row) {
+        candidate.classList.remove("adl-child-row-drop-target");
+      }
+    }
+    row.classList.add("adl-child-row-drop-target");
+  }
+
+  private clearDragMarkers(): void {
+    for (const candidate of this.querySelectorAll(
+      ".adl-child-row-drop-target, .adl-child-row-dragging",
+    )) {
+      candidate.classList.remove("adl-child-row-drop-target");
+      candidate.classList.remove("adl-child-row-dragging");
+    }
   }
 
   private renderChildDraft(section: RuntimeEditChildCollectionSection): string {
@@ -817,6 +1179,31 @@ function normalizeActionLabel(label: string): string {
   return label.trim().toLowerCase();
 }
 
+/**
+ * What a child-row control is called on screen.
+ *
+ * Exhaustive over `EditChildOperationKind` on purpose. Title-casing the
+ * operation name put "Update Child" on a button — a machine name a person has to
+ * translate, beside "Remove", which reads as English only by coincidence of how
+ * it was spelled in the enum.
+ */
+const CHILD_ACTION_LABELS: Record<EditChildOperationKind, string> = {
+  createChild: "Add",
+  linkExisting: "Link",
+  updateChild: "Edit",
+  unlink: "Unlink",
+  remove: "Remove",
+  reorder: "Reorder",
+};
+
+function childActionLabel(operation: EditChildOperationKind): string {
+  return CHILD_ACTION_LABELS[operation];
+}
+
+function childLookupLabelKey(field: ResolvedField, recordId: string): string {
+  return `${field.lookup?.targetObject ?? ""}:${field.lookup?.displayField ?? ""}:${recordId}`;
+}
+
 function formatChildValue(value: JsonValue | undefined): string {
   if (value === undefined || value === null) {
     return "";
@@ -827,6 +1214,52 @@ function formatChildValue(value: JsonValue | undefined): string {
   }
 
   return String(value);
+}
+
+function isSectionReorderable(section: RuntimeEditChildCollectionSection): boolean {
+  return section.operations.includes("reorder") && section.orderField !== undefined;
+}
+
+function childRowLabel(
+  section: RuntimeEditChildCollectionSection,
+  row: RuntimeEditChildRow,
+  orderIndex: number,
+): string {
+  for (const field of section.fields) {
+    const text = formatChildValue(row.values[field.name]).trim();
+    if (text.length > 0) {
+      return text;
+    }
+  }
+
+  return `row ${orderIndex + 1}`;
+}
+
+function compareOrderValues(left: JsonValue | undefined, right: JsonValue | undefined): number {
+  const leftNumber = typeof left === "number" ? left : Number.NaN;
+  const rightNumber = typeof right === "number" ? right : Number.NaN;
+  if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber)) {
+    return leftNumber - rightNumber;
+  }
+  // A row with no order value yet sorts last rather than jumping to the front.
+  if (Number.isNaN(leftNumber) !== Number.isNaN(rightNumber)) {
+    return Number.isNaN(leftNumber) ? 1 : -1;
+  }
+  return formatChildValue(left).localeCompare(formatChildValue(right), "en", { numeric: true });
+}
+
+function clampIndex(index: number, length: number): number {
+  return Math.min(Math.max(index, 0), length);
+}
+
+function reorderableRowFromEvent(event: Event): HTMLElement | null {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return null;
+  }
+
+  const row = target.closest<HTMLElement>(".adl-child-row[draggable='true']");
+  return row;
 }
 
 function cssEscape(value: string): string {

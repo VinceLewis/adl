@@ -102,6 +102,67 @@ describe("band reference app model", () => {
     });
   });
 
+  it("declares the set-list edit surface entirely in ADL", () => {
+    const model = createBandReferenceModel();
+    const setList = model.objects.find((object) => object.name === "SetList");
+    const form = setList?.views.find((view) => view.name === "SetListForm");
+
+    expect(validateApplicationModel(model)).toEqual([]);
+    expect(form?.kind).toBe("form");
+    expect(form?.editContainer).toBe("page");
+    expect(form?.editSections).toEqual([
+      {
+        name: "Details",
+        kind: "fields",
+        heading: "Set list",
+        fields: ["Name", "Description"],
+      },
+      {
+        name: "Songs",
+        kind: "childCollection",
+        heading: "Songs",
+        childObject: "SetListItem",
+        parentField: "SetList",
+        childView: "SetListItemList",
+        operations: ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
+        staged: true,
+        orderField: "Position",
+        emptyState: { text: "No songs in this set list yet." },
+        picker: {
+          name: "SetListItemPicker",
+          // `SetListItem` is the child object, so the picker's candidates are
+          // existing set-list items rather than songs: `linkExisting` sets the
+          // child's parent field, and validation requires an object source to
+          // be the child object and a read-model source to include it.
+          sourceKind: "readModel",
+          source: "SetListItemsByPosition",
+          selection: "multiple",
+          displayFields: ["SongTitle", "SetListName"],
+          searchFields: ["SongTitle", "SetListName"],
+          sort: [{ field: "SongTitle", direction: "asc" }],
+          excludeAlreadyLinked: true,
+          emptyState: {
+            text: "Every set-list item in this band is already in this set list.",
+          },
+        },
+      },
+    ]);
+    // The standalone list view and its shell nav entry survive this phase: it
+    // adds in-place editing rather than replacing the separate surface.
+    expect(
+      model.objects.find((object) => object.name === "SetListItem")?.views.map((view) => view.name),
+    ).toContain("SetListItemList");
+    expect(model.shell.nav.items.map((item) => item.view)).toEqual(
+      expect.arrayContaining(["SetListList", "SetListForm", "SetListItemList"]),
+    );
+    // The list that opens the surface has to agree about the container, because
+    // the container is chosen by the view that is active when editing starts.
+    expect(setList?.views.find((view) => view.name === "SetListList")?.editContainer).toBe("page");
+    expect(model.commands?.map((command) => command.name)).toEqual(
+      expect.arrayContaining(["AddSongsToSetList", "ReorderSetList"]),
+    );
+  });
+
   it("exposes the Giggle Band example as the same ADL model with an example app identity", () => {
     const model = createGiggleBandExampleModel();
 
@@ -115,6 +176,88 @@ describe("band reference app model", () => {
 });
 
 describe("band reference app runtime", () => {
+  /*
+   * The acceptance criterion this phase is judged on, against the real reference
+   * model rather than a fixture: a view declared entirely in ADL renders a child
+   * collection and offers every operation it declared.
+   *
+   * `createChild` and `linkExisting` are the two that were invisible.
+   * `SetListItem` is `SCOPE Band FIELD Band`, so evaluating them with a patch
+   * that named only the parent left the policy engine with no context id to
+   * resolve `ROLE BandAdmin` against, and the collection's Add and Link controls
+   * did not render for a band admin who had been granted exactly that role. The
+   * fix seeds the scope value from the caller's own selection, and the staged
+   * create seeds the same value so the prediction and the write agree.
+   */
+  it("offers every declared child operation on the ADL-declared set-list surface", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    const surface = await seeded.runtime.evaluateEditSurface(
+      "SetList",
+      "SetListForm",
+      seeded.firstBandContext,
+      { mode: "edit", recordId: seeded.firstSetList.meta.guid },
+    );
+    const section = surface.sections.find((candidate) => candidate.kind === "childCollection");
+    if (section?.kind !== "childCollection") {
+      throw new Error("Expected the ADL-declared child collection to be evaluated.");
+    }
+
+    expect(section.name).toBe("Songs");
+    expect(section.rows.length).toBeGreaterThan(0);
+    expect(
+      section.actions.map((action) => [action.operation, action.visible, action.enabled]),
+      // Row-level operations appear in the collection's action list too, marked
+      // invisible: the collection offers Add and Link, and the rows offer the
+      // rest. Both are stated so a regression in either direction is caught.
+    ).toEqual([
+      ["createChild", true, true],
+      ["linkExisting", true, true],
+      ["updateChild", false, false],
+      ["remove", false, false],
+      ["reorder", false, false],
+    ]);
+    // Every row operation the section declared is offered too, so the collection
+    // is editable in place rather than merely listed.
+    expect(
+      section.rows[0]?.actions.map((action) => [action.operation, action.visible, action.enabled]),
+    ).toEqual([
+      ["updateChild", true, true],
+      ["remove", true, true],
+      ["reorder", true, true],
+    ]);
+  });
+
+  it("stages a child create that carries the selected band scope", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    const applied = await seeded.runtime.applyStagedChildChanges({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      parentRecordId: seeded.firstSetList.meta.guid,
+      context: seeded.firstBandContext,
+      stagedChanges: [
+        {
+          id: "staged-1",
+          section: "Songs",
+          operation: "createChild",
+          childObject: "SetListItem",
+          // Deliberately no `Band`: the child form never asks for a context the
+          // user selected before opening the parent at all.
+          values: { Song: seeded.thirdSong.meta.guid, Position: 4 },
+        },
+      ],
+    });
+
+    const created = await seeded.runtime.read(
+      "SetListItem",
+      applied.applied[0]?.recordId ?? "",
+      seeded.firstBandContext,
+    );
+    expect(created?.values.Band).toBe(seeded.firstBand.meta.guid);
+    expect(created?.values.SetList).toBe(seeded.firstSetList.meta.guid);
+  });
+
   it("resolves one user as Admin in one band and Member in another", async () => {
     const seeded = await createSeededBandReferenceRuntime();
 
@@ -257,20 +400,35 @@ describe("band reference app runtime", () => {
       "SetListItemsByPosition",
       seeded.firstBandContext,
     );
-    expect(setList.rows.map((row) => row.values)).toEqual([
-      {
-        Position: 1,
-        SetListName: "August headline",
-        SongTitle: "Neon Map",
-        DurationSeconds: 214,
-      },
-      {
-        Position: 2,
-        SetListName: "August headline",
-        SongTitle: "Late Signal",
-        DurationSeconds: 188,
-      },
-    ]);
+    expect(setList.rows.map((row) => row.values)).toEqual(
+      expect.arrayContaining([
+        {
+          Position: 1,
+          SetListName: "August headline",
+          SongTitle: "Neon Map",
+          DurationSeconds: 214,
+        },
+        {
+          Position: 2,
+          SetListName: "August headline",
+          SongTitle: "Late Signal",
+          DurationSeconds: 188,
+        },
+        {
+          Position: 3,
+          SetListName: "August headline",
+          SongTitle: "Harbour Lights",
+          DurationSeconds: 236,
+        },
+        {
+          Position: 1,
+          SetListName: "Rehearsal running order",
+          SongTitle: "Slow Tide",
+          DurationSeconds: 245,
+        },
+      ]),
+    );
+    expect(setList.rows.map((row) => row.values.Position)).toEqual([1, 1, 2, 3]);
   });
 
   it("evaluates offline datasets for selected-band and cross-band views", async () => {
@@ -450,7 +608,11 @@ describe("band reference app runtime", () => {
     // Only invitations go now. The seeded local-first work is allowed to wait
     // for the next reconcile, which is that mode's contract.
     expect(
-      new Set(sent.map((intent) => (intent.kind === "command" ? "" : intent.objectName))),
+      new Set(
+        sent.map((intent) =>
+          intent.kind === "command" || intent.kind === "batch" ? "" : intent.objectName,
+        ),
+      ),
     ).toEqual(new Set(["BandInvitation"]));
     expect(sent).toContainEqual(
       expect.objectContaining({
@@ -516,6 +678,93 @@ describe("band reference app runtime", () => {
         Status: "Pending",
       },
     });
+  });
+
+  it("edits set-list items in place through the ADL-declared child collection", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const context: RuntimeContext = { ...seeded.firstBandContext, channel: "ui" };
+
+    const surface = await seeded.runtime.evaluateEditSurface("SetList", "SetListForm", context, {
+      mode: "edit",
+      recordId: seeded.firstSetList.meta.guid,
+    });
+    const songs = surface.sections.find((section) => section.name === "Songs");
+    if (songs?.kind !== "childCollection") {
+      throw new Error("SetListForm must declare a 'Songs' child collection.");
+    }
+
+    expect(songs.childObject).toBe("SetListItem");
+    expect(songs.parentField).toBe("SetList");
+    expect(songs.orderField).toBe("Position");
+    // `CHILD_VIEW SetListItemList` chooses the child columns, and the parent
+    // field is never one of them.
+    expect(songs.fields.map((field) => field.name)).toEqual(["Position", "Song", "Notes"]);
+    expect(songs.rows.map((row) => row.values.Position)).toEqual([1, 2, 3]);
+    expect(
+      songs.rows.map((row) =>
+        row.actions.filter((action) => action.visible).map((a) => a.operation),
+      ),
+    ).toEqual([
+      ["updateChild", "remove", "reorder"],
+      ["updateChild", "remove", "reorder"],
+      ["updateChild", "remove", "reorder"],
+    ]);
+
+    const thirdRow = songs.rows[2];
+    expect(thirdRow).toBeDefined();
+
+    // One staged batch: the last song moves to the top, and the ORDERED
+    // constraint's `REORDER shift` moves the two it displaced.
+    await seeded.runtime.applyStagedChildChanges({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      parentRecordId: seeded.firstSetList.meta.guid,
+      context,
+      stagedChanges: [
+        {
+          id: "staged-reorder-1",
+          section: "Songs",
+          operation: "reorder",
+          childObject: "SetListItem",
+          childId: thirdRow?.id ?? "",
+          position: 1,
+        },
+      ],
+    });
+
+    const reordered = await seeded.runtime.executeReadModel(
+      "SetListItemsByPosition",
+      seeded.firstBandContext,
+    );
+    expect(
+      reordered.rows
+        .filter((row) => row.values.SetListName === "August headline")
+        .map((row) => [row.values.Position, row.values.SongTitle]),
+    ).toEqual([
+      [1, "Harbour Lights"],
+      [2, "Neon Map"],
+      [3, "Late Signal"],
+    ]);
+  });
+
+  it("offers set-list items from other set lists to the declared relationship picker", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const context: RuntimeContext = { ...seeded.firstBandContext, channel: "ui" };
+
+    const picker = await seeded.runtime.evaluateRelationshipPicker({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      sectionName: "Songs",
+      context,
+      recordId: seeded.firstSetList.meta.guid,
+    });
+
+    expect(picker.picker.sourceKind).toBe("readModel");
+    expect(picker.picker.source).toBe("SetListItemsByPosition");
+    // `EXCLUDE_LINKED` removes the three items already in this set list, so the
+    // only candidate is the one belonging to the other set list in this band.
+    expect(picker.candidates.map((candidate) => candidate.values.SongTitle)).toEqual(["Slow Tide"]);
+    expect(picker.diagnostics).toEqual([]);
   });
 
   it("enforces scoped uniqueness and ordered set-list positions", async () => {
@@ -672,12 +921,17 @@ describe("band reference browser demo", () => {
     await flushUi();
     await waitForText(app, "Glass Arcade");
 
+    // The standalone list survives Phase 59: adding the in-place child
+    // collection to `SetListForm` does not remove the separate surface, and
+    // both edit the same records.
     const rows = [...app.querySelectorAll("adl-list-view tbody tr")];
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(5);
     expect(rows.map((row) => row.textContent?.replace(/\s+/g, " ").trim())).toEqual([
       expect.stringContaining("Neon Map"),
+      expect.stringContaining("Slow Tide"),
       expect.stringContaining("Late Signal"),
       expect.stringContaining("Glass Arcade"),
+      expect.stringContaining("Harbour Lights"),
     ]);
     expect(app.textContent).toContain("August headline");
     expect(app.textContent).not.toContain(seeded.firstSong.meta.guid);
@@ -703,6 +957,61 @@ describe("band reference browser demo", () => {
     expect([...song.options].map((option) => option.textContent?.trim())).toEqual(
       expect.arrayContaining(["Neon Map", "Late Signal"]),
     );
+  });
+
+  it("renders the set list's songs inside the set-list edit surface", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const app = document.createElement("adl-app") as AdlAppElement;
+    app.model = seeded.model;
+    app.runtime = seeded.runtime;
+    app.context = {
+      ...seeded.firstBandContext,
+      channel: "ui",
+    };
+
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    // The shell nav entry this phase added is how the surface is reached: it
+    // lists the band's set lists, and opening one shows the set list with its
+    // songs edited in place.
+    navigateWithDrawer(app, "SetListForm");
+    await flushUi();
+    await waitForText(app, "August headline");
+    expect(app.textContent).toContain("Rehearsal running order");
+
+    requireElement<HTMLTableRowElement>(
+      app,
+      `tr[data-record-id='${seeded.firstSetList.meta.guid}']`,
+    ).click();
+    await flushUi();
+    await flushUi();
+
+    // `EDIT_CONTAINER page` puts the parent-with-children surface on the page
+    // rather than in the default modal.
+    expect(app.querySelector("[data-edit-container='page']")).not.toBeNull();
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Songs']");
+    expect(section.querySelector("h3")?.textContent?.trim()).toBe("Songs");
+
+    const items = (
+      await seeded.runtime.search("SetListItem", undefined, seeded.firstBandContext)
+    ).filter((item) => item.values.SetList === seeded.firstSetList.meta.guid);
+    const rows = [...section.querySelectorAll("[data-child-row]")];
+
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.getAttribute("data-child-row-position"))).toEqual(["1", "2", "3"]);
+    expect(rows.map((row) => row.getAttribute("data-child-id"))).toEqual(
+      [1, 2, 3].map(
+        (position) => items.find((item) => item.values.Position === position)?.meta.guid,
+      ),
+    );
+    // Reorder is declared on the collection and the ORDERED constraint backs
+    // it, so every row offers the move controls.
+    expect(section.querySelectorAll("button[data-child-reorder]")).toHaveLength(6);
+    expect(section.textContent).not.toContain("No songs in this set list yet.");
+    expect(section.textContent).not.toContain(seeded.firstSetList.meta.guid);
   });
 
   it("renders event records as plain save/delete forms without lifecycle actions", async () => {

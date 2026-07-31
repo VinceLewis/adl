@@ -426,6 +426,247 @@ describe("parent-child edit surfaces", () => {
   });
 });
 
+/**
+ * The refusals that happen before anything is committed.
+ *
+ * Each of these is checked while the batch is still being planned, so the guard
+ * being proved is not only that the caller was told: it is that a staged
+ * operation the model does not permit cannot take the permitted operations
+ * beside it into storage. Since Phase 59 the batch commits once, so a refusal
+ * anywhere must leave storage and the sync queue untouched — the assertions
+ * below are against both, never against the thrown error alone.
+ */
+describe("staged child changes the model does not permit", () => {
+  async function eventWithRuntime(): Promise<{
+    runtime: ApplicationRuntime;
+    eventId: string;
+  }> {
+    const runtime = new ApplicationRuntime(createEditSurfaceModel());
+    const event = await runtime.create("Event", { Title: "Launch" }, adminContext);
+    runtime.syncQueue.clear();
+    return { runtime, eventId: event.meta.guid };
+  }
+
+  async function expectNothingApplied(runtime: ApplicationRuntime): Promise<void> {
+    expect(await runtime.search("SetList", {}, adminContext)).toEqual([]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  }
+
+  it("refuses a staged operation naming a child collection the view does not declare", async () => {
+    const { runtime, eventId } = await eventWithRuntime();
+
+    await expect(
+      runtime.applyStagedChildChanges({
+        objectName: "Event",
+        viewName: "EventForm",
+        parentRecordId: eventId,
+        context: adminContext,
+        stagedChanges: [
+          {
+            id: "valid",
+            section: "SetLists",
+            operation: "createChild",
+            childObject: "SetList",
+            values: { Title: "Opening set" },
+          },
+          {
+            id: "unknown-section",
+            section: "Encores",
+            operation: "createChild",
+            childObject: "SetList",
+            values: { Title: "Encore" },
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "ADL_RUNTIME_VALIDATION_FAILED",
+      issues: [expect.objectContaining({ code: "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED" })],
+    });
+
+    await expectNothingApplied(runtime);
+  });
+
+  /**
+   * The section names the child object it manages, so a staged operation that
+   * disagrees is refused rather than reinterpreted. Trusting the caller's
+   * `childObject` would let a staged change reach an object the view never
+   * declared, with the parent field of the one it did.
+   */
+  it("refuses a staged operation targeting a different child object than the section manages", async () => {
+    const { runtime, eventId } = await eventWithRuntime();
+
+    await expect(
+      runtime.applyStagedChildChanges({
+        objectName: "Event",
+        viewName: "EventForm",
+        parentRecordId: eventId,
+        context: adminContext,
+        stagedChanges: [
+          {
+            id: "wrong-object",
+            section: "SetLists",
+            operation: "createChild",
+            childObject: "Event",
+            values: { Title: "Nested event" },
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "ADL_RUNTIME_VALIDATION_FAILED",
+      issues: [expect.objectContaining({ code: "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED" })],
+    });
+
+    await expectNothingApplied(runtime);
+  });
+
+  /**
+   * `SetLists` declares createChild, linkExisting, updateChild and remove. The
+   * runtime is the enforcement point for that list: the browser hides the
+   * actions it did not declare, but hiding a control is not a check.
+   */
+  it("refuses an operation the model did not permit even when the runtime supports it", async () => {
+    const { runtime, eventId } = await eventWithRuntime();
+    const setList = await runtime.create(
+      "SetList",
+      { Event: eventId, Title: "Main set", Position: 1 },
+      adminContext,
+    );
+    runtime.syncQueue.clear();
+
+    await expect(
+      runtime.applyStagedChildChanges({
+        objectName: "Event",
+        viewName: "EventForm",
+        parentRecordId: eventId,
+        context: adminContext,
+        stagedChanges: [
+          {
+            id: "unlink",
+            section: "SetLists",
+            operation: "unlink",
+            childObject: "SetList",
+            childId: setList.meta.guid,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "ADL_RUNTIME_VALIDATION_FAILED",
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED",
+          message: expect.stringContaining("does not support operation 'unlink'"),
+        }),
+      ],
+    });
+
+    // The child is still linked, and nothing was queued to say otherwise.
+    expect(
+      (await runtime.search("SetList", {}, adminContext)).map((record) => record.values.Event),
+    ).toEqual([eventId]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
+  /**
+   * An operation that names no child record cannot be planned. It is refused
+   * mid-batch, after the create before it has already been planned, which is
+   * exactly the position from which the pre-Phase-59 loop would have committed
+   * that create and then failed.
+   */
+  it("refuses a staged operation that names no child record, without applying the batch", async () => {
+    const { runtime, eventId } = await eventWithRuntime();
+
+    await expect(
+      runtime.applyStagedChildChanges({
+        objectName: "Event",
+        viewName: "EventForm",
+        parentRecordId: eventId,
+        context: adminContext,
+        stagedChanges: [
+          {
+            id: "valid",
+            section: "SetLists",
+            operation: "createChild",
+            childObject: "SetList",
+            values: { Title: "Opening set" },
+          },
+          {
+            id: "missing-child-id",
+            section: "SetLists",
+            operation: "updateChild",
+            childObject: "SetList",
+            values: { Title: "Renamed" },
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "ADL_RUNTIME_VALIDATION_FAILED",
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED",
+          message: expect.stringContaining("requires childId"),
+        }),
+      ],
+    });
+
+    await expectNothingApplied(runtime);
+  });
+
+  /**
+   * The duplicate-link refusal, now proved to take the rest of the batch with
+   * it. Two staged links to the same child would otherwise have committed the
+   * create beside them before the duplicate was noticed.
+   */
+  it("refuses duplicate staged links without applying the rest of the batch", async () => {
+    const { runtime, eventId } = await eventWithRuntime();
+    const alpha = await runtime.create("SetList", { Title: "Alpha" }, adminContext);
+    runtime.syncQueue.clear();
+
+    await expect(
+      runtime.applyStagedChildChanges({
+        objectName: "Event",
+        viewName: "EventForm",
+        parentRecordId: eventId,
+        context: adminContext,
+        stagedChanges: [
+          {
+            id: "create",
+            section: "SetLists",
+            operation: "createChild",
+            childObject: "SetList",
+            values: { Title: "Opening set" },
+          },
+          {
+            id: "link-alpha",
+            section: "SetLists",
+            operation: "linkExisting",
+            childObject: "SetList",
+            childId: alpha.meta.guid,
+          },
+          {
+            id: "link-alpha-again",
+            section: "SetLists",
+            operation: "linkExisting",
+            childObject: "SetList",
+            childId: alpha.meta.guid,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "ADL_RUNTIME_VALIDATION_FAILED",
+      issues: [expect.objectContaining({ code: "ADL_RUNTIME_RELATIONSHIP_PICKER_DUPLICATE" })],
+    });
+
+    // Alpha is unlinked and the staged create never happened.
+    expect(
+      (await runtime.search("SetList", {}, adminContext)).map((record) => [
+        record.values.Title,
+        record.values.Event,
+      ]),
+    ).toEqual([["Alpha", undefined]]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+});
+
 function createEditSurfaceModel(): ResolvedApplicationModel {
   return resolveApplicationModel(createEditSurfacePartialModel());
 }

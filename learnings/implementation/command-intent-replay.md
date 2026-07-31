@@ -195,9 +195,17 @@ has steps.
   dismissed and after a reload, and a record the command *created* can be thrown
   away by the user, because a refused create is the only case in which the
   authority has no copy to contradict the removal. See [[record-sync-state]].
-- **Only model-declared commands are transactional across the boundary.** An
+- ~~**Only model-declared commands are transactional across the boundary.** An
   ad-hoc multi-record write, and a lifecycle transition with side effects, still
-  replay as independent per-record intents and can still land partially.
+  replay as independent per-record intents and can still land partially.~~
+  **Half-closed in Phase 59.** `LocalOperationKind` gained `"batch"`, the sibling
+  of `"command"` for a transaction no model declares, and an edit surface's
+  staged child changes now use it. The two kinds differ only in payload: a
+  command crosses the wire as its *input*, because the authority can re-execute
+  it; a batch has nothing to re-execute, so it crosses as its *writes*, each
+  still planned server-side through the ordinary policy, validation, scope,
+  constraint and revision path. See [[edit-surface-language]]. **A lifecycle
+  transition with side effects is still not transactional** and remains open.
 - **The manifest cannot express a write the re-execution plans differently.** By
   design — divergence is refused rather than reconciled — but it means a model
   change that alters how many records a command plans invalidates any queue

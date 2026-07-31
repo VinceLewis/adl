@@ -106,6 +106,10 @@ export const DEFAULT_AUDIT_OPERATIONS = [
  * records, and have no delivery path at all — while its per-step writes are
  * deliberately not queued separately, because the authority must be told about
  * the transaction rather than about its pieces.
+ *
+ * `batch` is here for exactly that reason, one kind later: an edit surface's
+ * staged child changes are also queued as one entry standing for a transaction,
+ * and would also have had no delivery path at all if the log did not carry them.
  */
 export const DEFAULT_OPERATION_LOG_OPERATIONS = [
   "create",
@@ -113,6 +117,7 @@ export const DEFAULT_OPERATION_LOG_OPERATIONS = [
   "delete",
   "transition",
   "command",
+  "batch",
 ] as const;
 
 export const LOCAL_OPERATION_STATUSES = [

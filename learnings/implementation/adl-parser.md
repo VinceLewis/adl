@@ -51,6 +51,27 @@ Read this before changing the ADL lexer, parser, AST-to-partial-model compiler, 
   only `VIEW` blocks into the first object of the same name, allowing
   `domain.adl` plus `ui.adl` without redefining domain fields.
 
+## Key decisions from Phase 59
+
+- Edit-surface syntax lives inside the ordinary object-scoped `VIEW` block:
+  `EDIT_CONTAINER`, an `EDIT_SECTION ... END.EDIT_SECTION` block, and a
+  `CHILD_COLLECTION ... END.CHILD_COLLECTION` block containing an optional
+  `PICKER ... END.PICKER`. It compiles to `PartialViewModel.editContainer` and
+  `PartialViewModel.editSections`, which already resolved and validated.
+- It is `EDIT_SECTION` rather than `SECTION` because a view's `SECTION` already
+  means a composed presentation section and a view may declare both.
+- New keywords take the underscore form only. `READ_MODEL`/`READ.MODEL` and
+  `ICON_MAP`/`ICON.MAP` accept a dotted alias for historical reasons; do not add
+  more, and note that the underscore-only form is what keeps `END.<BLOCK>`
+  unambiguous for a two-word block name.
+- Flag directives (`STAGED`, `EXCLUDE_LINKED`) mean `true` when written bare and
+  accept an explicit boolean, because both resolve to `true` by default and
+  turning one off is otherwise unsayable.
+- `compileAdl` omits `editSections` entirely when a view authors none, so
+  resolution still supplies the default `fields` section. An empty array would
+  resolve to a view with no editable fields at all. See
+  [[edit-surface-language]].
+
 ## Practical guidance
 
 - Keep parser syntax declarative. Unsupported procedural keywords such as `FETCH`, `STORE`, `LOOP`, `SET`, `DART.INLINE`, and `SQL.INTO` should remain rejected.

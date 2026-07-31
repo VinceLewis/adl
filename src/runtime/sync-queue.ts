@@ -76,8 +76,31 @@ export interface CoveredQueueRecord {
  * exactly this purpose — because the authority answered the command as one
  * transaction and its answer is equally true of every row it produced. The
  * created subset is the manifest, which names creates and only creates.
+ *
+ * A batch is the same claim for the same reason, and reads it from the same kind
+ * of list: `batch.records` is every record the transaction wrote, `batch.writes`
+ * is only the ones the caller requested. Coverage must come from the former. The
+ * two differ exactly when the platform derived a write — an ordered-collection
+ * shift — and reading coverage from `writes` left those siblings reporting
+ * `pending` for ever after a refusal, waiting on an answer nothing could give.
+ * The created subset still comes from `writes`, because only a requested write
+ * is ever a create.
  */
 export function coveredQueueRecords(operation: LocalOperation): CoveredQueueRecord[] {
+  const batch = operation.batch;
+  if (operation.operation === "batch" && batch !== undefined) {
+    const created = new Set(
+      batch.writes
+        .filter((write) => write.operation === "create")
+        .map((write) => `${write.objectName}\0${write.recordId}`),
+    );
+    return batch.records.map((record) => ({
+      objectName: record.objectName,
+      recordId: record.recordId,
+      created: created.has(`${record.objectName}\0${record.recordId}`),
+    }));
+  }
+
   const command = operation.command;
   if (operation.operation !== "command" || command === undefined) {
     return [

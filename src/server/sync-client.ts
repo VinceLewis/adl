@@ -7,8 +7,9 @@ import type {
 } from "../runtime/sync-queue.js";
 import { requiresImmediateDelivery } from "../runtime/sync-policy-service.js";
 import { coveredQueueRecords } from "../runtime/sync-queue.js";
-import type { LocalOperationKind } from "../model/resolved-model.js";
+import type { LocalBatchWrite, LocalOperationKind } from "../model/resolved-model.js";
 import type {
+  AuthorityBatchWrite,
   AuthorityBootstrapRecord,
   AuthorityBootstrapRequest,
   AuthorityBootstrapResponse,
@@ -53,8 +54,9 @@ export interface SyncRecoveryItem {
    * failures against whichever object happens to be filed first.
    */
   commandName?: string;
+  /** The label to present. A batch has no command name, so it carries this alone. */
   commandLabel?: string;
-  /** How many records the operation covers; more than one only for a command. */
+  /** How many records the operation covers; more than one only for a transaction. */
   recordCount?: number;
   status: SyncRecoveryStatus;
   code: string;
@@ -82,7 +84,7 @@ export interface SyncDeliveryItem {
   /** Present only for a command; see {@link SyncRecoveryItem.commandName}. */
   commandName?: string;
   commandLabel?: string;
-  /** How many records the operation covers; more than one only for a command. */
+  /** How many records the operation covers; more than one only for a transaction. */
   recordCount?: number;
   /** Credential-free failure text for the last attempt. */
   message: string;
@@ -456,25 +458,44 @@ function toDeliveryItem(entry: SyncQueueEntry): SyncDeliveryItem {
     objectName: entry.operation.object,
     recordId: entry.operation.recordId,
     operation: entry.operation.operation,
-    ...commandIdentity(entry),
+    ...transactionIdentity(entry),
     message: entry.delivery?.message ?? "",
     attemptedAt: entry.delivery?.attemptedAt ?? "",
   };
 }
 
 /**
- * What a command is called and how much it covers — and nothing else. The
- * command's input is deliberately not surfaced: like every other field on these
- * items this is queue metadata, and a command's input can carry record values a
- * recovery panel has no read policy behind it to disclose.
+ * What a transaction is called and how much it covers — and nothing else. The
+ * command's input, and a batch's write values, are deliberately not surfaced:
+ * like every other field on these items this is queue metadata, and both can
+ * carry record values a recovery panel has no read policy behind it to disclose.
+ *
+ * A batch is named here for the same reason a command is. Its entry's
+ * `objectName`/`recordId` name the *representative* record it was filed under,
+ * so rendering them would tell someone their refused set-list edit was a
+ * rejected "Batch SetListItem" against a row they never touched directly. A
+ * batch has no declaration to take a name from, so it carries the label the
+ * writer supplied — the edit surface passes its view's name.
  */
-function commandIdentity(entry: SyncQueueEntry): {
+function transactionIdentity(entry: SyncQueueEntry): {
   commandName?: string;
   commandLabel?: string;
   recordCount?: number;
 } {
-  const command = entry.operation.command;
-  if (entry.operation.operation !== "command" || command === undefined) {
+  const operation = entry.operation;
+  const batch = operation.batch;
+  if (operation.operation === "batch" && batch !== undefined) {
+    return {
+      ...(batch.label === undefined ? {} : { commandLabel: batch.label }),
+      // Every record the verdict covers, derived writes included, exactly as a
+      // command counts its `records`. Counting only the requested writes would
+      // understate what a refusal has just marked.
+      recordCount: batch.records.length,
+    };
+  }
+
+  const command = operation.command;
+  if (operation.operation !== "command" || command === undefined) {
     return {};
   }
 
@@ -495,7 +516,7 @@ function toRecoveryItem(entry: SyncQueueEntry): SyncRecoveryItem {
     objectName: entry.operation.object,
     recordId: entry.operation.recordId,
     operation: entry.operation.operation,
-    ...commandIdentity(entry),
+    ...transactionIdentity(entry),
     status: recovery?.status ?? "conflict",
     code: recovery?.code ?? "",
     message: recovery?.message ?? "",
@@ -562,6 +583,22 @@ function toIntent(
       ...selected,
     };
   }
+  if (operation.operation === "batch") {
+    const batch = operation.batch;
+    if (batch === undefined) {
+      throw new Error(`Queued batch operation '${operation.opId}' carries no writes.`);
+    }
+    return {
+      operationId,
+      kind: "batch",
+      // Sent as the writes rather than as work to re-execute, because nothing in
+      // the model describes this transaction. Each still carries what an
+      // individual intent of the same kind would: the id a create already holds,
+      // and the revision an update or delete was planned against.
+      writes: batch.writes.map(toBatchIntentWrite),
+      ...selected,
+    };
+  }
   if (operation.operation === "create")
     return {
       operationId,
@@ -600,5 +637,40 @@ function toIntent(
     patch: operation.patch ?? {},
     baseRevision,
     ...selected,
+  };
+}
+
+/**
+ * A queued batch write as the wire shape.
+ *
+ * An absent base revision cannot be invented, for the same reason it cannot be
+ * for a single update: the authority answers an empty one with a conflict, which
+ * is visible, rather than the write vanishing into an unconditional overwrite.
+ */
+function toBatchIntentWrite(write: LocalBatchWrite): AuthorityBatchWrite {
+  if (write.operation === "create") {
+    return {
+      operation: "create",
+      objectName: write.objectName,
+      recordId: write.recordId,
+      values: write.values ?? {},
+    };
+  }
+
+  if (write.operation === "delete") {
+    return {
+      operation: "delete",
+      objectName: write.objectName,
+      recordId: write.recordId,
+      baseRevision: write.baseRevision ?? "",
+    };
+  }
+
+  return {
+    operation: "update",
+    objectName: write.objectName,
+    recordId: write.recordId,
+    patch: write.patch ?? {},
+    baseRevision: write.baseRevision ?? "",
   };
 }

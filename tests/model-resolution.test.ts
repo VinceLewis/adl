@@ -165,6 +165,7 @@ describe("resolveApplicationModel", () => {
       "delete",
       "transition",
       "command",
+      "batch",
     ]);
     expect("contexts" in resolved).toBe(false);
     expect("readModels" in resolved).toBe(false);
@@ -177,6 +178,120 @@ describe("resolveApplicationModel", () => {
       value: "modal",
       origin: "platformDefault",
     });
+  });
+
+  /*
+   * ADL syntax requires a picker name, so this default is only reachable from a
+   * hand-built partial model. It still has to hold: the resolved model, not the
+   * language, is the contract every consumer reads.
+   */
+  it("names an unnamed relationship picker after its section and defaults its source", () => {
+    const resolved = resolveApplicationModel({
+      app: { name: "Orders", startView: "OrderList" },
+      objects: [
+        {
+          name: "Order",
+          fields: [{ name: "Code", type: "text" }],
+          views: [
+            { name: "OrderList", kind: "list", fields: ["Code"] },
+            {
+              name: "OrderForm",
+              kind: "form",
+              fields: ["Code"],
+              editSections: [
+                {
+                  name: "Lines",
+                  kind: "childCollection",
+                  childObject: "OrderLine",
+                  parentField: "Order",
+                  operations: ["linkExisting"],
+                  picker: {},
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: "OrderLine",
+          fields: [
+            {
+              name: "Order",
+              type: "text",
+              lookup: { targetObject: "Order", displayField: "Code" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const section = resolved.objects[0]?.views[1]?.editSections[0];
+    if (section?.kind !== "childCollection") {
+      throw new Error("Expected a child collection edit section.");
+    }
+
+    expect(section.picker).toEqual({
+      name: "LinesPicker",
+      sourceKind: "object",
+      source: "OrderLine",
+      selection: "multiple",
+      displayFields: [],
+      searchFields: [],
+      sort: [],
+      excludeAlreadyLinked: true,
+      emptyState: { text: "No records available to link." },
+    });
+  });
+
+  /*
+   * A read-model picker has no child object to fall back on, so an omitted
+   * source resolves to the empty string and the validator reports it, rather
+   * than the resolver silently inventing a read model that does not exist.
+   */
+  it("leaves a read-model picker source empty when the partial model omits it", () => {
+    const resolved = resolveApplicationModel({
+      app: { name: "Orders", startView: "OrderList" },
+      objects: [
+        {
+          name: "Order",
+          fields: [{ name: "Code", type: "text" }],
+          views: [
+            { name: "OrderList", kind: "list", fields: ["Code"] },
+            {
+              name: "OrderForm",
+              kind: "form",
+              fields: ["Code"],
+              editSections: [
+                {
+                  name: "Lines",
+                  kind: "childCollection",
+                  childObject: "OrderLine",
+                  parentField: "Order",
+                  operations: ["linkExisting"],
+                  picker: { sourceKind: "readModel" },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: "OrderLine",
+          fields: [
+            {
+              name: "Order",
+              type: "text",
+              lookup: { targetObject: "Order", displayField: "Code" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const section = resolved.objects[0]?.views[1]?.editSections[0];
+    if (section?.kind !== "childCollection") {
+      throw new Error("Expected a child collection edit section.");
+    }
+
+    expect(section.picker).toMatchObject({ sourceKind: "readModel", source: "" });
   });
 
   it("produces deterministic output for the same input", () => {

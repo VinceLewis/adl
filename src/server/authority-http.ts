@@ -13,6 +13,7 @@ import {
 import { AuthorityService } from "./authority-service.js";
 import type {
   AuthorityBootstrapRequest,
+  AuthorityBatchWrite,
   AuthorityCommandRecordId,
   AuthorityOperationIntent,
 } from "./authority-types.js";
@@ -37,6 +38,14 @@ import { PasskeyCeremonyError, type PasskeyIdentityService } from "./webauthn-id
  * limit alone would let a small request ask for a very large one.
  */
 const MAX_COMMAND_RECORD_IDS = 1_000;
+
+/**
+ * How many writes one batch intent may carry, bounded for the same reason and to
+ * the same generosity. A batch is an edit surface's staged child changes, so a
+ * realistic one is dozens; the bound exists to stop a request asking for an
+ * unbounded transaction, not to express what a form is expected to produce.
+ */
+const MAX_BATCH_WRITES = 1_000;
 
 export interface AuthorityHttpDependencies {
   configuration: AuthorityConfiguration;
@@ -595,6 +604,12 @@ function operationIntent(body: Record<string, JsonValue>): AuthorityOperationInt
       input: requiredRecord(body, "input"),
       recordIds: requiredCommandRecordIds(body, "recordIds"),
     };
+  if (kind === "batch")
+    return {
+      ...base,
+      kind,
+      writes: requiredBatchWrites(body, "writes"),
+    };
   if (kind === "update")
     return {
       ...base,
@@ -772,6 +787,48 @@ function requiredCommandRecordIds(
       objectName: requiredString(entry, "objectName"),
       recordId: requiredRecordId(entry, "recordId"),
     };
+  });
+}
+/**
+ * The writes a batch intent carries.
+ *
+ * Bounded for the same reason a command's manifest is: one request must not be
+ * able to ask the authority to plan an unbounded transaction, and the body-size
+ * limit alone would still allow a very large one. Each write is shape-checked
+ * here as well as in the service, because neither layer may assume the other
+ * ran — a create's record id is a storage key supplied by an untrusted caller,
+ * exactly as it is for a single create intent.
+ */
+function requiredBatchWrites(body: Record<string, JsonValue>, key: string): AuthorityBatchWrite[] {
+  const value = body[key];
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_BATCH_WRITES)
+    throw new RequestShapeError("malformed_request");
+  return value.map((entry) => {
+    if (!isJsonRecord(entry)) throw new RequestShapeError("malformed_request");
+    const operation = entry.operation;
+    if (operation === "create")
+      return {
+        operation,
+        objectName: requiredString(entry, "objectName"),
+        recordId: requiredRecordId(entry, "recordId"),
+        values: requiredRecord(entry, "values"),
+      };
+    if (operation === "update")
+      return {
+        operation,
+        objectName: requiredString(entry, "objectName"),
+        recordId: requiredString(entry, "recordId"),
+        patch: requiredRecord(entry, "patch"),
+        baseRevision: requiredString(entry, "baseRevision"),
+      };
+    if (operation === "delete")
+      return {
+        operation,
+        objectName: requiredString(entry, "objectName"),
+        recordId: requiredString(entry, "recordId"),
+        baseRevision: requiredString(entry, "baseRevision"),
+      };
+    throw new RequestShapeError("malformed_request");
   });
 }
 function requiredRecord(body: Record<string, JsonValue>, key: string): Record<string, JsonValue> {

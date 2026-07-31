@@ -300,16 +300,25 @@ export function describeDeliveryItem(item: SyncDeliveryItem): string {
  * or fails as one transaction, so one entry stands for every record it wrote;
  * saying so is what stops one verdict reading as a verdict against one record
  * while the rest of the command silently went through.
+ *
+ * All of that is equally true of a `batch` — an edit surface's staged child
+ * changes, which are one transaction with no command behind them. It differs
+ * only in having no command name to fall back on, so it is named by the label
+ * the writer supplied and, failing that, by what it is.
  */
 function describeSyncItem(item: SyncRecoveryItem | SyncDeliveryItem): string {
-  if (item.operation !== "command") {
+  if (item.operation !== "command" && item.operation !== "batch") {
     return `${describeOperationKind(item.operation)} ${item.objectName}`;
   }
 
-  const name = item.commandLabel ?? describeCommandName(item.commandName);
+  const name =
+    item.commandLabel ??
+    (item.operation === "batch"
+      ? OPERATION_KIND_LABELS.batch
+      : describeCommandName(item.commandName));
   const recordCount = item.recordCount ?? 0;
 
-  return recordCount > 1 ? `${name} ${describeRecordCoverage(recordCount)}` : name;
+  return recordCount > 1 ? `${name} ${describeRecordCoverage(item.operation, recordCount)}` : name;
 }
 
 /**
@@ -325,8 +334,8 @@ function describeCommandName(commandName: string | undefined): string {
 }
 
 /** Plain and countable: one change on screen, and how far it reaches. */
-function describeRecordCoverage(recordCount: number): string {
-  return `— one command covering ${recordCount} records`;
+function describeRecordCoverage(operation: "command" | "batch", recordCount: number): string {
+  return `— one ${operation === "batch" ? "change" : "command"} covering ${recordCount} records`;
 }
 
 function describeOperationKind(operation: SyncRecoveryItem["operation"]): string {
@@ -345,4 +354,5 @@ const OPERATION_KIND_LABELS: Record<LocalOperationKind, string> = {
   delete: "Delete",
   transition: "Transition",
   command: "Command",
+  batch: "Related changes",
 };

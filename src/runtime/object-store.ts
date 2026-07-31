@@ -1,6 +1,7 @@
 import type {
   CommandStepAuthority,
   JsonValue,
+  LocalBatchWrite,
   LocalCommandRecordId,
   LocalOperationKind,
   PlatformRecordMetadata,
@@ -129,6 +130,22 @@ export interface PlannedTransactionCommitOptions {
      * validation, lifecycle, scope and precondition check again server-side.
      */
     input: Record<string, JsonValue>;
+  };
+  /**
+   * An ad-hoc transaction with no command behind it — today, an edit surface's
+   * staged child changes.
+   *
+   * It is mutually exclusive with `command`: both mean "queue this as one entry",
+   * and a transaction cannot be two units of work at once. What differs is what
+   * the entry carries. A command carries its input, because the authority can
+   * re-execute it. A batch has nothing to re-execute, so the entry carries the
+   * requested writes themselves, which is why only the requested writes are
+   * named: a derived ordered-collection write updates a record that already
+   * exists, and re-planning it server-side reaches the same record through the
+   * same constraint.
+   */
+  batch?: {
+    label?: string;
   };
 }
 
@@ -529,6 +546,12 @@ export class ObjectStore {
     options: PlannedTransactionCommitOptions = {},
   ): Promise<StoredObjectRecord[]> {
     await this.startupGuard();
+    if (options.command !== undefined && options.batch !== undefined) {
+      throw new StorageError(
+        "A planned transaction may be queued as a command or as a batch, never as both.",
+        { commandName: options.command.name },
+      );
+    }
     // Ordered-collection consequences are planned here rather than by each
     // caller, so a reorder is one transaction and one storage commit however it
     // was requested: direct CRUD, a command step, or a replayed intent.
@@ -537,12 +560,14 @@ export class ObjectStore {
 
     const commandTransactionId =
       options.command === undefined ? undefined : this.nextCommandTransactionId();
-    // A command's steps are logged for local history but never queued
+    // A command's or batch's writes are logged for local history but never queued
     // individually: the authority has to be told about the transaction, and one
-    // entry per step is precisely the shape that loses it.
-    const queueSteps = options.command === undefined;
+    // entry per write is precisely the shape that loses it.
+    const queueSteps = options.command === undefined && options.batch === undefined;
     const commandRecordIds: LocalCommandRecordId[] = [];
     const commandRecords: Array<{ objectName: string; recordId: string }> = [];
+    const batchWrites: LocalBatchWrite[] = [];
+    const batchRecords: Array<{ objectName: string; recordId: string }> = [];
     await this.commitStorageWrites(plan.writes);
 
     const committed: StoredObjectRecord[] = [];
@@ -648,12 +673,29 @@ export class ObjectStore {
         }
       }
 
+      if (options.batch !== undefined) {
+        // Every write, derived ones included: the verdict on this transaction is
+        // equally true of every row it produced, and a sibling an ordered shift
+        // moved would otherwise report `pending` for ever.
+        batchRecords.push({ objectName: write.objectName, recordId: write.record.meta.guid });
+        // Only the requested writes cross the wire. A derived ordered-collection
+        // write updates a record that already exists, and the authority re-derives
+        // it from the same constraint; sending it would apply it twice.
+        if (index < writes.length) {
+          batchWrites.push(toBatchWrite(write));
+        }
+      }
+
       // Only the requested writes are returned, positionally, so a caller still
       // gets exactly the records it asked for. Derived writes are visible where
       // side effects belong: audit, the operation log, and the sync queue.
       if (index < writes.length) {
         committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
       }
+    }
+
+    if (options.batch !== undefined) {
+      this.recordBatchOperation(options.batch, plan.writes, batchWrites, batchRecords, context);
     }
 
     if (options.command !== undefined && commandTransactionId !== undefined) {
@@ -688,7 +730,7 @@ export class ObjectStore {
     commandTransactionId: string,
     context: RuntimeContext,
   ): void {
-    const representative = this.representativeCommandWrite(writes);
+    const representative = this.representativeTransactionWrite(writes);
     if (representative === undefined) {
       return;
     }
@@ -715,16 +757,69 @@ export class ObjectStore {
   }
 
   /**
-   * The write whose object decides how the queued command is treated.
+   * Queues an ad-hoc multi-record transaction as one entry.
    *
-   * A queue entry carries one object's sync declaration, and a command has as
-   * many as it has steps. The most demanding mode wins: a command containing an
-   * `onlineRequired` step was accepted on the belief that the authority was
+   * The reason is the one Phase 57 established for commands: a transaction that
+   * replays as independent per-record intents is not a transaction across the
+   * sync boundary, and can land partially at the authority however carefully it
+   * was committed locally. What differs is only the payload — a batch has no
+   * declaration to re-execute, so the entry carries the writes.
+   *
+   * Nothing is queued when the batch produced no writes; an empty entry would
+   * report an operation nobody performed.
+   */
+  private recordBatchOperation(
+    batch: NonNullable<PlannedTransactionCommitOptions["batch"]>,
+    writes: PlannedObjectWrite[],
+    batchWrites: LocalBatchWrite[],
+    batchRecords: Array<{ objectName: string; recordId: string }>,
+    context: RuntimeContext,
+  ): void {
+    if (batchWrites.length === 0) {
+      return;
+    }
+
+    const representative = this.representativeTransactionWrite(writes);
+    if (representative === undefined) {
+      return;
+    }
+
+    this.recordOperation(
+      "batch",
+      representative.objectName,
+      representative.record,
+      context,
+      {
+        batch: {
+          ...(batch.label === undefined ? {} : { label: batch.label }),
+          writes: cloneJson(batchWrites),
+          // Every record the transaction wrote, not only the requested ones, so
+          // one verdict answers for every row it produced.
+          records: cloneJson(batchRecords),
+        },
+      },
+      true,
+    );
+  }
+
+  /**
+   * The write whose object decides how the queued transaction is treated.
+   *
+   * A queue entry carries one object's sync declaration, and a transaction has
+   * as many as it has writes. The most demanding mode wins: a command containing
+   * an `onlineRequired` step was accepted on the belief that the authority was
    * reachable, so it must be delivered now rather than held like a `localFirst`
    * write. Model validation refuses a command whose steps disagree about
    * queueability at all, so this only ever chooses between modes that queue.
+   *
+   * A staged batch reaches this with the same question and the same answer. Its
+   * writes are one child object's in practice, but nothing in the contract says
+   * so, and picking the first write's mode would have let a `localFirst` child
+   * decide the fate of an `onlineRequired` one beside it.
    */
-  private representativeCommandWrite(writes: PlannedObjectWrite[]): PlannedObjectWrite | undefined {
+  private representativeTransactionWrite(
+    writes: PlannedObjectWrite[],
+  ): PlannedObjectWrite | undefined {
     let best: PlannedObjectWrite | undefined;
     let bestRank = -1;
     for (const write of writes) {
@@ -1735,6 +1830,43 @@ function withoutRejectedCreate<T extends PlatformRecordMetadata>(meta: T): T {
 
   const { syncRejectedCreate: _spent, ...rest } = meta;
   return rest as T;
+}
+
+/**
+ * One committed write as the authority must be told about it.
+ *
+ * A create sends the record's values rather than the caller's input, so the
+ * authority re-plans from what was actually stored — defaults, computed inputs
+ * and prepared values included. An update or delete sends the revision it was
+ * planned against, which is what turns a write the authority has since changed
+ * into a visible conflict rather than a silent overwrite.
+ */
+function toBatchWrite(write: PlannedObjectWrite): LocalBatchWrite {
+  if (write.operation === "create") {
+    return {
+      operation: "create",
+      objectName: write.objectName,
+      recordId: write.record.meta.guid,
+      values: cloneJson(write.record.values),
+    };
+  }
+
+  if (write.operation === "delete") {
+    return {
+      operation: "delete",
+      objectName: write.objectName,
+      recordId: write.record.meta.guid,
+      baseRevision: write.existing.meta.revision,
+    };
+  }
+
+  return {
+    operation: "update",
+    objectName: write.objectName,
+    recordId: write.record.meta.guid,
+    patch: cloneJson(write.patch),
+    baseRevision: write.existing.meta.revision,
+  };
 }
 
 function stateProperty(currentState: string | undefined): { currentState: string } | {} {

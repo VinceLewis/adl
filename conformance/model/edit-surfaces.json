@@ -1,0 +1,466 @@
+{
+  "version": 1,
+  "models": {
+    "orderEditSurfaces": {
+      "adl": [
+        "APP 'Order Edit Surfaces'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  DISPLAY Code",
+        "  FIELD Code TEXT REQUIRED",
+        "  FIELD Notes TEXT",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code Notes",
+        "    EDIT_CONTAINER page",
+        "    EDIT_SECTION Details HEADING 'Order'",
+        "      FIELDS Code Notes",
+        "    END.EDIT_SECTION",
+        "    CHILD_COLLECTION Lines HEADING 'Lines'",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      CHILD_VIEW OrderLineList",
+        "      OPERATIONS createChild linkExisting updateChild unlink remove reorder",
+        "      STAGED",
+        "      ORDER_FIELD Position",
+        "      EMPTY_TEXT 'No lines yet.'",
+        "      PICKER LinePicker",
+        "        SOURCE OBJECT OrderLine",
+        "        SELECTION single",
+        "        DISPLAY Description",
+        "        SEARCH Description",
+        "        SORT Position ASC",
+        "        EXCLUDE_LINKED",
+        "        EMPTY_TEXT 'Nothing to link.'",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "",
+        "  VIEW OrderList LIST",
+        "    FIELDS Code Notes",
+        "    ACTIONS read",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "",
+        "  VIEW OrderLineList LIST",
+        "    FIELDS Description Position",
+        "    ACTIONS read",
+        "  END.VIEW",
+        "END.OBJECT"
+      ]
+    },
+    "unknownChildObject": {
+      "adl": [
+        "APP 'Unknown Child Object'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderRow PARENT_FIELD Order",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT"
+      ]
+    },
+    "parentFieldNotALookupToTheParent": {
+      "adl": [
+        "APP 'Parent Field Invalid'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Description",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    },
+    "unknownChildView": {
+      "adl": [
+        "APP 'Unknown Child View'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      CHILD_VIEW OrderLineGrid",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    },
+    "unknownOrderField": {
+      "adl": [
+        "APP 'Unknown Order Field'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      OPERATIONS createChild updateChild reorder",
+        "      ORDER_FIELD Rank",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    },
+    "pickerWithoutLinkExisting": {
+      "adl": [
+        "APP 'Picker Without Link'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      OPERATIONS createChild updateChild unlink",
+        "      PICKER LinePicker",
+        "        SOURCE OBJECT OrderLine",
+        "        DISPLAY Description",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    },
+    "pickerWithUnknownCandidateFields": {
+      "adl": [
+        "APP 'Picker Unknown Fields'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      OPERATIONS createChild linkExisting unlink",
+        "      PICKER LinePicker",
+        "        SOURCE OBJECT OrderLine",
+        "        DISPLAY Nickname",
+        "        SEARCH Nickname",
+        "        SORT Rank ASC",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "edit-surface.language.container.001",
+      "title": "EDIT_CONTAINER in ADL source chooses the view's CRUD container",
+      "specRef": "language#edit-surfaces",
+      "operation": "resolveModel",
+      "modelRef": "orderEditSurfaces",
+      "input": {
+        "select": ["objects.0.views.0.editContainer", "objects.0.views.1.editContainer"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editContainer": "page",
+          "objects.0.views.1.editContainer": "modal"
+        }
+      }
+    },
+    {
+      "id": "edit-surface.language.field-section.001",
+      "title": "EDIT_SECTION in ADL source resolves to an authored field section",
+      "specRef": "language#edit-surfaces",
+      "operation": "resolveModel",
+      "modelRef": "orderEditSurfaces",
+      "input": { "select": ["objects.0.views.0.editSections.0"] },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editSections.0": {
+            "name": "Details",
+            "kind": "fields",
+            "heading": "Order",
+            "fields": ["Code", "Notes"]
+          }
+        }
+      }
+    },
+    {
+      "id": "edit-surface.language.child-collection.001",
+      "title": "CHILD_COLLECTION in ADL source resolves to a child collection section",
+      "specRef": "language#edit-surfaces",
+      "operation": "resolveModel",
+      "modelRef": "orderEditSurfaces",
+      "input": { "select": ["objects.0.views.0.editSections.1"] },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editSections.1": {
+            "name": "Lines",
+            "kind": "childCollection",
+            "heading": "Lines",
+            "childObject": "OrderLine",
+            "parentField": "Order",
+            "childView": "OrderLineList",
+            "operations": [
+              "createChild",
+              "linkExisting",
+              "updateChild",
+              "unlink",
+              "remove",
+              "reorder"
+            ],
+            "staged": true,
+            "orderField": "Position",
+            "emptyState": { "text": "No lines yet." },
+            "picker": {
+              "name": "LinePicker",
+              "sourceKind": "object",
+              "source": "OrderLine",
+              "selection": "single",
+              "displayFields": ["Description"],
+              "searchFields": ["Description"],
+              "sort": [{ "field": "Position", "direction": "asc" }],
+              "excludeAlreadyLinked": true,
+              "emptyState": { "text": "Nothing to link." }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "edit-surface.language.default-section.001",
+      "title": "A view that declares no edit sections still resolves the default fields section",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "resolveModel",
+      "modelRef": "orderEditSurfaces",
+      "input": { "select": ["objects.0.views.1.editSections"] },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.1.editSections": [
+            { "name": "Fields", "kind": "fields", "fields": ["Code", "Notes"] }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.language.origins.001",
+      "title": "An authored edit container and child collection are reported as source, a default container as a platform default",
+      "specRef": "runtime-semantics#inspection",
+      "operation": "inspectResolvedModel",
+      "modelRef": "orderEditSurfaces",
+      "input": {
+        "selectOrigins": [
+          "objects[0].views[0].editContainer",
+          "objects[0].views[0].editSections[1].operations",
+          "objects[0].views[1].editContainer",
+          "objects[0].views[1].editSections[0].kind"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "origins": [
+            {
+              "path": "objects[0].views[0].editContainer",
+              "value": "page",
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[0].editSections[1].operations",
+              "value": [
+                "createChild",
+                "linkExisting",
+                "updateChild",
+                "unlink",
+                "remove",
+                "reorder"
+              ],
+              "origin": "source"
+            },
+            {
+              "path": "objects[0].views[1].editContainer",
+              "value": "modal",
+              "origin": "platformDefault"
+            },
+            {
+              "path": "objects[0].views[1].editSections[0].kind",
+              "value": "fields",
+              "origin": "platformDefault"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.language.valid.001",
+      "title": "The whole authored edit surface validates clean",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "orderEditSurfaces",
+      "expected": { "ok": true, "result": [] }
+    },
+    {
+      "id": "edit-surface.validation.child-object-unknown.001",
+      "title": "A child collection naming an object that does not exist is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "unknownChildObject",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_EDIT_SECTION_CHILD_OBJECT_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].childObject"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.parent-field-invalid.001",
+      "title": "A parent field that does not look up the parent object is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "parentFieldNotALookupToTheParent",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_EDIT_SECTION_PARENT_FIELD_INVALID",
+            "path": "objects[0].views[0].editSections[0].parentField"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.child-view-unknown.001",
+      "title": "A child view the child object does not declare is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "unknownChildView",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_EDIT_SECTION_CHILD_VIEW_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].childView"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.order-field-unknown.001",
+      "title": "An order field the child object does not carry is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "unknownOrderField",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].orderField"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.picker-link-operation.001",
+      "title": "A picker on a collection that cannot link existing children is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "pickerWithoutLinkExisting",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED",
+            "path": "objects[0].views[0].editSections[0].picker.name"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.picker-candidate-fields.001",
+      "title": "Picker display, search and sort fields must exist on the candidate source",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "pickerWithUnknownCandidateFields",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].picker.displayFields[0]"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].picker.searchFields[0]"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].picker.sort[0].field"
+          }
+        ]
+      }
+    }
+  ]
+}

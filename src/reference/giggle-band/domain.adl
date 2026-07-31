@@ -175,6 +175,7 @@ OBJECT SetList
 
   VIEW SetListList LIST
     CONTEXT REQUIRED Band
+    EDIT_CONTAINER page
     FIELDS Name Description
     SEARCH Name
     ACTIONS create read update delete

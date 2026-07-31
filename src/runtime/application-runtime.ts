@@ -205,9 +205,22 @@ export class ApplicationRuntime {
         searchWithQuery: (objectName, query, context) => this.search(objectName, query, context),
         executeReadModel: (readModelName, context, query) =>
           this.executeReadModel(readModelName, context, query),
-        create: (objectName, values, context) => this.create(objectName, values, context),
-        update: (objectName, id, patch, context) => this.update(objectName, id, patch, context),
-        delete: (objectName, id, context) => this.delete(objectName, id, context),
+        // These reach the object store directly rather than through `create`,
+        // `update` and `delete`, because those commit — and a staged batch must
+        // commit once, not once per child. The context is not re-wrapped here:
+        // `applyStagedChildChanges` resolves context members before handing the
+        // context in, so every planned write sees the same principals a direct
+        // write would.
+        planCreate: (objectName, values, context) =>
+          this.objectStore.planCreateForTransaction(objectName, values, context),
+        planUpdate: (objectName, id, patch, context) =>
+          this.objectStore.planUpdateForTransaction(objectName, id, patch, context),
+        planDelete: (objectName, id, context) =>
+          this.objectStore.planDeleteForTransaction(objectName, id, context),
+        commitBatch: (writes, context, options) =>
+          this.objectStore.commitPlannedTransaction(writes, context, {
+            batch: options.label === undefined ? {} : { label: options.label },
+          }),
         evaluatePolicy: (objectName, action, context, options = {}) => {
           const object = this.index.getObject(objectName);
           const currentState =

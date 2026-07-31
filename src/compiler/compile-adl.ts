@@ -11,6 +11,7 @@ import type {
   CommandStepDeclarationAst,
   ContextGrantDeclarationAst,
   DecisionTableDeclarationAst,
+  EditSectionDeclarationAst,
   FieldDeclarationAst,
   MigrationDeclarationAst,
   MigrationStepAst,
@@ -18,6 +19,7 @@ import type {
   ObjectDeclarationAst,
   PolicyDeclarationAst,
   PolicyRuleDeclarationAst,
+  RelationshipPickerDeclarationAst,
   PresentationActionControlDeclarationAst,
   PresentationCalendarDeclarationAst,
   PresentationControlDeclarationAst,
@@ -53,6 +55,7 @@ import type {
   PartialCommandStepModel,
   PartialContextGrantModel,
   PartialDecisionTableModel,
+  PartialEditSectionModel,
   PartialFieldModel,
   PartialLifecycleModel,
   PartialLifecycleActionModel,
@@ -76,6 +79,7 @@ import type {
   PartialPresentationStateModel,
   PartialPrincipalSelectorModel,
   PartialReadModelModel,
+  PartialRelationshipPickerModel,
   PartialShellControlModel,
   PartialShellModel,
   PartialShellNavDrawerModel,
@@ -640,6 +644,7 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
     kind: view.viewKind,
     ...(view.context === undefined ? {} : { context: viewContextToPartial(view.context) }),
     ...(view.readModel === undefined ? {} : { readModel: view.readModel }),
+    ...(view.editContainer === undefined ? {} : { editContainer: view.editContainer }),
     fields: [...view.fields],
     searchFields: [...view.searchFields],
     sort: view.sort.map((sort) => ({
@@ -647,6 +652,12 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
       direction: sort.direction,
     })),
     actions: [...view.actions],
+    // Omitted entirely when the view authored none, so resolution still supplies
+    // the default `fields` section. An empty array would resolve to a view with
+    // no editable fields at all.
+    ...(view.editSections.length === 0
+      ? {}
+      : { editSections: view.editSections.map(editSectionToPartial) }),
     ...(view.presentation === undefined
       ? {}
       : {
@@ -663,6 +674,55 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
             sections: view.presentation.sections.map(presentationSectionToPartial),
           },
         }),
+  };
+}
+
+function editSectionToPartial(section: EditSectionDeclarationAst): PartialEditSectionModel {
+  if (section.kind === "EditFieldsSectionDeclaration") {
+    return {
+      name: section.name,
+      kind: "fields",
+      ...(section.heading === undefined ? {} : { heading: section.heading }),
+      ...(section.fields === undefined ? {} : { fields: [...section.fields] }),
+    };
+  }
+
+  return {
+    name: section.name,
+    kind: "childCollection",
+    ...(section.heading === undefined ? {} : { heading: section.heading }),
+    childObject: section.childObject,
+    parentField: section.parentField,
+    ...(section.childView === undefined ? {} : { childView: section.childView }),
+    ...(section.operations === undefined ? {} : { operations: [...section.operations] }),
+    ...(section.staged === undefined ? {} : { staged: section.staged }),
+    ...(section.orderField === undefined ? {} : { orderField: section.orderField }),
+    ...(section.emptyText === undefined ? {} : { emptyState: { text: section.emptyText } }),
+    ...(section.picker === undefined
+      ? {}
+      : { picker: relationshipPickerToPartial(section.picker) }),
+  };
+}
+
+function relationshipPickerToPartial(
+  picker: RelationshipPickerDeclarationAst,
+): PartialRelationshipPickerModel {
+  return {
+    name: picker.name,
+    ...(picker.sourceKind === undefined ? {} : { sourceKind: picker.sourceKind }),
+    ...(picker.source === undefined ? {} : { source: picker.source }),
+    ...(picker.selection === undefined ? {} : { selection: picker.selection }),
+    // Left absent rather than empty so resolution keeps its own defaulting: an
+    // empty display list is a picker showing nothing, which no author means.
+    ...(picker.displayFields.length === 0 ? {} : { displayFields: [...picker.displayFields] }),
+    ...(picker.searchFields.length === 0 ? {} : { searchFields: [...picker.searchFields] }),
+    ...(picker.sort.length === 0
+      ? {}
+      : { sort: picker.sort.map((sort) => ({ field: sort.field, direction: sort.direction })) }),
+    ...(picker.excludeAlreadyLinked === undefined
+      ? {}
+      : { excludeAlreadyLinked: picker.excludeAlreadyLinked }),
+    ...(picker.emptyText === undefined ? {} : { emptyState: { text: picker.emptyText } }),
   };
 }
 

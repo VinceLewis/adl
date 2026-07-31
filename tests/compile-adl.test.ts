@@ -127,6 +127,181 @@ describe("compileAdl", () => {
     });
   });
 
+  /*
+   * The example is the round trip: an ADL file an author could write, compiled
+   * with no diagnostics into the same resolved edit-surface shape hand-built
+   * partial models used to be the only producer of.
+   */
+  it("compiles the PurchaseOrder example's edit surface into resolved edit sections", () => {
+    const result = compileAdl(readExample("purchase-order.adl"));
+    const form = result.model.objects
+      .find((object) => object.name === "PurchaseOrder")
+      ?.views.find((view) => view.name === "PurchaseOrderForm");
+
+    expect(result.diagnostics).toEqual([]);
+    expect(validateApplicationModel(result.model)).toEqual([]);
+    expect(form?.editContainer).toBe("page");
+    expect(form?.editSections).toEqual([
+      {
+        name: "Details",
+        heading: "Order details",
+        kind: "fields",
+        fields: ["PONumber", "Supplier", "Value", "Status"],
+      },
+      {
+        name: "Commentary",
+        heading: "Commentary",
+        kind: "fields",
+        fields: ["InternalNotes", "ApprovalComment"],
+      },
+      {
+        name: "Lines",
+        heading: "Order lines",
+        kind: "childCollection",
+        childObject: "PurchaseOrderLine",
+        parentField: "PurchaseOrder",
+        childView: "PurchaseOrderLineList",
+        operations: ["createChild", "linkExisting", "updateChild", "unlink", "remove", "reorder"],
+        staged: true,
+        orderField: "Position",
+        emptyState: { text: "No order lines yet." },
+        picker: {
+          name: "PurchaseOrderLinePicker",
+          sourceKind: "object",
+          source: "PurchaseOrderLine",
+          selection: "multiple",
+          displayFields: ["Description", "Quantity", "LineValue"],
+          searchFields: ["Description"],
+          sort: [{ field: "Description", direction: "asc" }],
+          excludeAlreadyLinked: true,
+          emptyState: { text: "No unassigned order lines to link." },
+        },
+      },
+    ]);
+  });
+
+  it("applies resolver edit-surface defaults to declarations that omit them", () => {
+    const result = compileAdl(`APP Orders
+  START_VIEW OrderList
+END.APP
+
+OBJECT Order
+  KEY Code
+  DISPLAY Code
+  FIELD Code TEXT REQUIRED
+  FIELD Notes TEXT
+
+  VIEW OrderList LIST
+    FIELDS Code Notes
+  END.VIEW
+
+  VIEW OrderForm FORM
+    FIELDS Code Notes
+    EDIT_SECTION Details
+    END.EDIT_SECTION
+    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      STAGED false
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION LinkedLines
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS linkExisting
+      PICKER OrderLinePicker
+        EXCLUDE_LINKED false
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+
+  VIEW OrderLinkForm FORM
+    FIELDS Code
+    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS linkExisting
+      PICKER OrderLinePicker
+        SOURCE READ_MODEL OrderLineCandidates
+        SELECTION single
+        DISPLAY Description
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT OrderLine
+  DISPLAY Description
+  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code
+  FIELD Description TEXT
+  FIELD Position NUMBER REQUIRED
+END.OBJECT
+
+READ_MODEL OrderLineCandidates
+  SOURCE line OBJECT OrderLine
+  FIELD Description FROM line.Description
+END.READ_MODEL
+`);
+
+    const order = result.model.objects.find((object) => object.name === "Order");
+    const list = order?.views.find((view) => view.name === "OrderList");
+    const form = order?.views.find((view) => view.name === "OrderForm");
+    const linkForm = order?.views.find((view) => view.name === "OrderLinkForm");
+
+    expect(result.diagnostics).toEqual([]);
+
+    // A view that declares no edit sections still gets the default single
+    // `fields` section over its own field list.
+    expect(list?.editContainer).toBe("modal");
+    expect(list?.editSections).toEqual([
+      { name: "Fields", kind: "fields", fields: ["Code", "Notes"] },
+    ]);
+
+    // An EDIT_SECTION with no FIELDS means the view's own fields, which is a
+    // different statement from an empty field list.
+    expect(form?.editSections[0]).toEqual({
+      name: "Details",
+      kind: "fields",
+      fields: ["Code", "Notes"],
+    });
+    expect(form?.editSections[1]).toEqual({
+      name: "Lines",
+      kind: "childCollection",
+      childObject: "OrderLine",
+      parentField: "Order",
+      operations: ["createChild", "updateChild", "unlink"],
+      staged: false,
+      emptyState: { text: "" },
+    });
+    expect(form?.editSections[2]).toEqual({
+      name: "LinkedLines",
+      kind: "childCollection",
+      childObject: "OrderLine",
+      parentField: "Order",
+      operations: ["linkExisting"],
+      staged: true,
+      emptyState: { text: "" },
+      picker: {
+        name: "OrderLinePicker",
+        // An object-sourced picker with no SOURCE defaults to the child object.
+        sourceKind: "object",
+        source: "OrderLine",
+        selection: "multiple",
+        displayFields: [],
+        searchFields: [],
+        sort: [],
+        excludeAlreadyLinked: false,
+        emptyState: { text: "No records available to link." },
+      },
+    });
+
+    expect(linkForm?.editSections[0]).toMatchObject({
+      kind: "childCollection",
+      picker: {
+        sourceKind: "readModel",
+        source: "OrderLineCandidates",
+        selection: "single",
+        excludeAlreadyLinked: true,
+      },
+    });
+  });
+
   it("normalizes context-aware sync scope spellings", () => {
     const result = compileAdl(`APP DatasetScopes
 END.APP
@@ -903,18 +1078,22 @@ END.POLICY
         ["BandMemberAvailabilityBoard", "Who is free", 45],
         ["SongLibrary", "Songs", 50],
         ["SetListList", "Set Lists", 60],
+        // The set list's own form, which now edits its items in place. Declared
+        // in `ui.adl` rather than left to derivation, so it gets a label a person
+        // would use and a deterministic place beside the list it belongs to.
+        ["SetListForm", "Set list editor", 62],
         ["StreamingLinkList", "Streaming", 65],
         ["BandDirectory", "Bands", 70],
         // Undeclared views keep their derived ordering after the declared ones,
-        // which is why adding two NAV entries moves this block from 80 to 100.
-        ["UserProfileList", "User Profile List", 100],
-        ["BandProfile", "Band Profile", 110],
-        ["BandMemberList", "Band Member List", 120],
-        ["BandInvitationList", "Band Invitation List", 130],
-        ["BandEventForm", "Band Event Form", 140],
-        ["SetListItemList", "Set List Item List", 150],
-        ["SetListByPosition", "Set List By Position", 160],
-        ["DevicePreferenceList", "Device Preference List", 170],
+        // which is why adding three NAV entries moves this block from 80 to 110.
+        ["UserProfileList", "User Profile List", 110],
+        ["BandProfile", "Band Profile", 120],
+        ["BandMemberList", "Band Member List", 130],
+        ["BandInvitationList", "Band Invitation List", 140],
+        ["BandEventForm", "Band Event Form", 150],
+        ["SetListItemList", "Set List Item List", 160],
+        ["SetListByPosition", "Set List By Position", 170],
+        ["DevicePreferenceList", "Device Preference List", 180],
       ],
     );
     expect(

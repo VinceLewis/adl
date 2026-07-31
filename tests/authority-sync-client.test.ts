@@ -1024,9 +1024,14 @@ function withoutSelectedContexts(operation: LocalOperation): LocalOperation {
   return copy;
 }
 
-/** A command intent names no single object; every intent this suite sends does. */
+/**
+ * A command or batch intent names no single object; every intent this suite
+ * sends does.
+ */
 function intentObjectName(intent: AuthorityOperationIntent): string {
-  return intent.kind === "command" ? intent.commandName : intent.objectName;
+  if (intent.kind === "command") return intent.commandName;
+  if (intent.kind === "batch") return intent.writes[0]?.objectName ?? "";
+  return intent.objectName;
 }
 
 /** Fails every replay the way an unreachable authority does: no verdict at all. */

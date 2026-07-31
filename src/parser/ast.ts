@@ -1,5 +1,7 @@
 import type {
   ConflictStrategy,
+  EditChildOperationKind,
+  EditContainerMode,
   FieldType,
   JsonValue,
   JsonPrimitive,
@@ -24,6 +26,8 @@ import type {
   ReadModelJoinCardinality,
   ReadModelSourceScope,
   ReadModelStrategy,
+  RelationshipPickerSelectionMode,
+  RelationshipPickerSourceKind,
   ResolvedContextMemberPrincipal,
   ResolvedExpression,
   ResolvedCommandValueExpression,
@@ -78,7 +82,10 @@ export type BlockName =
   | "ICON_MAP"
   | "STATUS_MAP"
   | "MIGRATION"
-  | "SHELL";
+  | "SHELL"
+  | "EDIT_SECTION"
+  | "CHILD_COLLECTION"
+  | "PICKER";
 
 export interface EndMarkerNode {
   kind: "EndMarker";
@@ -422,11 +429,67 @@ export interface ViewDeclarationAst {
   viewKind: ViewKind;
   context?: ViewContextDeclarationAst;
   readModel?: string;
+  editContainer?: EditContainerMode;
   fields: string[];
   searchFields: string[];
   sort: SortDeclarationAst[];
   actions: string[];
+  /**
+   * Authored edit sections, empty when the view declares none. An empty list is
+   * not "no sections": resolution turns it into the default `fields` section
+   * over `view.fields`, which is what every view has always had.
+   */
+  editSections: EditSectionDeclarationAst[];
   presentation?: ViewPresentationDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export type EditSectionDeclarationAst =
+  | EditFieldsSectionDeclarationAst
+  | EditChildCollectionDeclarationAst;
+
+export interface EditFieldsSectionDeclarationAst {
+  kind: "EditFieldsSectionDeclaration";
+  name: string;
+  heading?: string;
+  /**
+   * Omitted when the section declares no `FIELDS`, which resolves to the view's
+   * own field list. That is a different statement from an empty list, which no
+   * syntax can produce.
+   */
+  fields?: string[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface EditChildCollectionDeclarationAst {
+  kind: "EditChildCollectionDeclaration";
+  name: string;
+  heading?: string;
+  childObject: string;
+  parentField: string;
+  childView?: string;
+  operations?: EditChildOperationKind[];
+  staged?: boolean;
+  orderField?: string;
+  emptyText?: string;
+  picker?: RelationshipPickerDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface RelationshipPickerDeclarationAst {
+  kind: "RelationshipPickerDeclaration";
+  name: string;
+  sourceKind?: RelationshipPickerSourceKind;
+  source?: string;
+  selection?: RelationshipPickerSelectionMode;
+  displayFields: string[];
+  searchFields: string[];
+  sort: SortDeclarationAst[];
+  excludeAlreadyLinked?: boolean;
+  emptyText?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }

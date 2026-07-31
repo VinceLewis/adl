@@ -10,6 +10,8 @@ import type {
 } from "../model/resolved-model.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import { validateApplicationModel } from "../compiler/validate-model.js";
+import { adlAstToPartialApplicationModel } from "../compiler/compile-adl.js";
+import { parseAdl } from "../parser/parser.js";
 import { evaluateExpression } from "../runtime/expression-evaluator.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import { InMemoryObjectStorageBackend } from "../runtime/object-storage-backend.js";
@@ -23,6 +25,11 @@ import type { RuntimeStartupDiagnostic } from "../runtime/runtime-types.js";
 import { SyncPolicyError } from "../runtime/sync-policy-service.js";
 import type { SyncWriteDecision } from "../runtime/sync-policy-service.js";
 import type { SyncQueueEntry } from "../runtime/sync-queue.js";
+import type {
+  RuntimeApplyStagedChildResult,
+  RuntimeEditSection,
+  RuntimeEditSurface,
+} from "../runtime/edit-surface-runtime.js";
 import { createConformanceStorage } from "./storage-behaviours.js";
 import type { ConformanceStorageBehaviour } from "./storage-behaviours.js";
 export type { ConformanceStorageBehaviour } from "./storage-behaviours.js";
@@ -40,9 +47,29 @@ import type {
 
 export interface ConformanceSuite {
   version: 1;
-  models?: Record<string, PartialApplicationModel>;
+  models?: Record<string, ConformanceModelInput>;
   cases: ConformanceCase[];
 }
+
+/**
+ * A model authored in ADL source rather than in the resolved model's own shape.
+ *
+ * Every other model in the corpus is a partial resolved model, which states what
+ * a runtime must *hold* and says nothing at all about the language that produced
+ * it. `docs/spec/language.md` is one of the three specification layers, and until
+ * this existed no case could pin a single line of it: a syntax could be added,
+ * removed or silently changed in meaning and the whole suite would still pass.
+ *
+ * The source is a list of lines rather than one string because ADL is
+ * line-oriented and JSON has no multi-line literal. Lines are joined with a
+ * newline exactly as written, so indentation in the corpus is indentation in the
+ * source.
+ */
+export interface ConformanceAdlSource {
+  adl: string | string[];
+}
+
+export type ConformanceModelInput = PartialApplicationModel | ConformanceAdlSource;
 
 export type ConformanceCase =
   | ExpressionConformanceCase
@@ -75,7 +102,7 @@ export interface ExpressionConformanceCase extends ConformanceCaseBase {
 
 export interface ModelResolutionConformanceCase extends ConformanceCaseBase {
   operation: "resolveModel";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   input?: {
     select?: string[];
@@ -84,13 +111,13 @@ export interface ModelResolutionConformanceCase extends ConformanceCaseBase {
 
 export interface ModelValidationConformanceCase extends ConformanceCaseBase {
   operation: "validateModel";
-  model?: PartialApplicationModel | ResolvedApplicationModel;
+  model?: ConformanceModelInput | ResolvedApplicationModel;
   modelRef?: string;
 }
 
 export interface InspectConformanceCase extends ConformanceCaseBase {
   operation: "inspectResolvedModel";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   input?: {
     selectOrigins?: string[];
@@ -100,7 +127,7 @@ export interface InspectConformanceCase extends ConformanceCaseBase {
 
 export interface StartupCompatibilityConformanceCase extends ConformanceCaseBase {
   operation: "startupCompatibility";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   input?: {
     /**
@@ -110,7 +137,7 @@ export interface StartupCompatibilityConformanceCase extends ConformanceCaseBase
      * digest — which would pin the whole resolved-model shape and break on any
      * unrelated model addition.
      */
-    persistedModel?: PartialApplicationModel | { modelRef: string };
+    persistedModel?: ConformanceModelInput | { modelRef: string };
     /** Literal metadata; overrides anything `persistedModel` derived. */
     applicationMetadata?: PersistedApplicationMetadata;
     records?: Array<{ objectName: string; record: StoredObjectRecord }>;
@@ -128,8 +155,8 @@ export interface StartupCompatibilityConformanceCase extends ConformanceCaseBase
 export interface ModelFingerprintConformanceCase extends ConformanceCaseBase {
   operation: "compareModelFingerprints";
   input: {
-    left: PartialApplicationModel | { modelRef: string };
-    right: PartialApplicationModel | { modelRef: string };
+    left: ConformanceModelInput | { modelRef: string };
+    right: ConformanceModelInput | { modelRef: string };
   };
 }
 
@@ -142,11 +169,11 @@ export interface ModelFingerprintConformanceCase extends ConformanceCaseBase {
  */
 export interface ModelMigrationConformanceCase extends ConformanceCaseBase {
   operation: "migratePersistedState";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   input: {
     /** The model that wrote the state; see the startup-compatibility case. */
-    persistedModel?: PartialApplicationModel | { modelRef: string };
+    persistedModel?: ConformanceModelInput | { modelRef: string };
     /** Literal metadata; overrides anything `persistedModel` derived. */
     applicationMetadata?: PersistedApplicationMetadata;
     records?: Array<{ objectName: string; record: StoredObjectRecord }>;
@@ -171,7 +198,7 @@ export interface ModelMigrationConformanceCase extends ConformanceCaseBase {
  */
 export interface AuthorityConformanceCase extends ConformanceCaseBase {
   operation: "authorityReplay";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   input: {
     /** Seeded through the same replay path, so nothing bypasses the authority. */
@@ -191,7 +218,7 @@ export interface AuthorityConformanceCase extends ConformanceCaseBase {
  */
 export interface AuthorityBootstrapConformanceCase extends ConformanceCaseBase {
   operation: "authorityBootstrap";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   input: {
     /** Seeded through the replay path, so the bootstrap reads real accepted state. */
@@ -227,7 +254,7 @@ export interface AuthorityBootstrapConformanceCase extends ConformanceCaseBase {
  */
 export interface SyncReconcileConformanceCase extends ConformanceCaseBase {
   operation: "syncReconcile";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   input: {
     sessions?: Record<string, { userId: string }>;
@@ -294,11 +321,13 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
     | "evaluateDecisionTable"
     | "executeReadModel"
     | "evaluatePresentationView"
+    | "evaluateEditSurface"
+    | "applyStagedChildChanges"
     | "evaluateOfflineDataset"
     | "syncWrite"
     | "syncCommand"
     | "readPersistedRecords";
-  model?: PartialApplicationModel;
+  model?: ConformanceModelInput;
   modelRef?: string;
   /**
    * Storage-shaped preconditions, written straight into the backend before the
@@ -317,7 +346,13 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
 }
 
 export interface RuntimeConformanceStep {
-  operation: "create" | "update" | "delete" | "transition" | "executeCommand";
+  operation:
+    | "create"
+    | "update"
+    | "delete"
+    | "transition"
+    | "executeCommand"
+    | "applyStagedChildChanges";
   alias?: string;
   /** Required by every operation except `executeCommand`, which names a command instead. */
   objectName?: string;
@@ -335,7 +370,36 @@ export interface RuntimeConformanceStep {
    */
   commandName?: string;
   input?: Record<string, JsonValue>;
+  /**
+   * `applyStagedChildChanges` only: the parent view whose child collections the
+   * staged operations belong to, the parent record they are applied to, and the
+   * operations themselves. This is the second multi-record write a device can
+   * make, and like a command it commits as one transaction and queues once — so
+   * a case about the sync boundary has to be able to make one.
+   *
+   * Every record the batch writes is registered in the alias table under the
+   * staged operation's own id, which the case authored, so no case names an id
+   * the runtime minted.
+   */
+  viewName?: string;
+  parentRecordId?: JsonValue;
+  stagedChanges?: ConformanceStagedChildOperation[];
   context: JsonRuntimeContext;
+}
+
+/**
+ * One staged child change, exactly as a caller holds it before the parent's form
+ * is saved. `id` is the case's own name for the operation and is what the runner
+ * aliases the resulting record under.
+ */
+export interface ConformanceStagedChildOperation {
+  id: string;
+  section: string;
+  operation: "createChild" | "linkExisting" | "updateChild" | "unlink" | "remove" | "reorder";
+  childObject: string;
+  childId?: string;
+  values?: Record<string, JsonValue>;
+  position?: number;
 }
 
 export type RuntimeConformanceInput =
@@ -386,6 +450,25 @@ export type RuntimeConformanceInput =
       actionName?: string;
       context: JsonRuntimeContext;
     }
+  // `evaluateEditSurface`: the edit composition a view declares, resolved against
+  // a parent record and whatever the caller has staged but not yet saved.
+  | {
+      objectName: string;
+      viewName: string;
+      mode: "create" | "edit";
+      recordId?: JsonValue;
+      stagedChanges?: ConformanceStagedChildOperation[];
+      context: JsonRuntimeContext;
+    }
+  // `applyStagedChildChanges`: a staged batch committed against an existing
+  // parent, reported together with the queue and the storage it left behind.
+  | {
+      objectName: string;
+      viewName: string;
+      parentRecordId: JsonValue;
+      stagedChanges: ConformanceStagedChildOperation[];
+      context: JsonRuntimeContext;
+    }
   | {
       context: JsonRuntimeContext;
     };
@@ -414,6 +497,49 @@ type SyncWriteOperationInput = {
 type SyncCommandOperationInput = {
   commandName: string;
   input: Record<string, JsonValue>;
+  context: JsonRuntimeContext;
+};
+
+/**
+ * A staged batch of child changes, reported together with the queue *and* the
+ * storage it left behind.
+ *
+ * Three observations rather than one, for the reason `syncReconcile` reports
+ * three. The result says what the runtime claims it did; the queue says what the
+ * authority will be told; storage says what the device is actually holding. Any
+ * one alone is satisfiable by a runtime that applies the changes one at a time
+ * and reports them as a batch — and a batch applied one at a time is the exact
+ * defect this closes, because it can fail halfway and leave the parent's
+ * children half-changed.
+ */
+type StagedChildOperationInput = {
+  objectName: string;
+  viewName: string;
+  parentRecordId: JsonValue;
+  stagedChanges: ConformanceStagedChildOperation[];
+  context: JsonRuntimeContext;
+};
+
+type PresentationViewOperationInput = {
+  objectName: string;
+  viewName: string;
+  context: JsonRuntimeContext;
+  state?: Record<string, JsonValue>;
+  updates?: Record<string, JsonValue>;
+};
+
+/**
+ * An edit surface evaluated for a parent record, including whatever the caller
+ * has staged and not yet saved. `mode` distinguishes a form for a parent that
+ * exists from one for a parent that does not, which is the whole reason staged
+ * changes exist.
+ */
+type EditSurfaceOperationInput = {
+  objectName: string;
+  viewName: string;
+  mode: "create" | "edit";
+  recordId?: JsonValue;
+  stagedChanges?: ConformanceStagedChildOperation[];
   context: JsonRuntimeContext;
 };
 
@@ -481,7 +607,7 @@ export async function runConformanceSuite(
 
 export async function runConformanceCase(
   conformanceCase: ConformanceCase,
-  models: Record<string, PartialApplicationModel> = {},
+  models: Record<string, ConformanceModelInput> = {},
 ): Promise<ConformanceRunResult> {
   const state: RunState = { aliases: {}, recordAliases: new Map() };
   const actual = await runCaseActual(conformanceCase, models, state);
@@ -499,7 +625,7 @@ export async function runConformanceCase(
 
 async function runCaseActual(
   conformanceCase: ConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
   state: RunState,
 ): Promise<ConformanceActual> {
   try {
@@ -556,7 +682,7 @@ function runExpressionCase(conformanceCase: ExpressionConformanceCase): Conforma
 
 function runResolveModelCase(
   conformanceCase: ModelResolutionConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
 ): ConformanceActual {
   const source = getPartialModel(conformanceCase, models);
   const model = resolveApplicationModel(source);
@@ -570,7 +696,7 @@ function runResolveModelCase(
 
 function runValidateModelCase(
   conformanceCase: ModelValidationConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
 ): ConformanceActual {
   const source = getPartialOrResolvedModel(conformanceCase, models);
   const model = isResolvedApplicationModel(source) ? source : resolveApplicationModel(source);
@@ -588,7 +714,7 @@ function runValidateModelCase(
 
 function runInspectCase(
   conformanceCase: InspectConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
 ): ConformanceActual {
   const source = getPartialModel(conformanceCase, models);
   const model = resolveApplicationModel(source);
@@ -617,7 +743,7 @@ function runInspectCase(
 
 async function runStartupCompatibilityCase(
   conformanceCase: StartupCompatibilityConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
 ): Promise<ConformanceActual> {
   const source = getPartialModel(conformanceCase, models);
   const model = resolveApplicationModel(source);
@@ -655,7 +781,7 @@ async function runStartupCompatibilityCase(
 
 function runCompareModelFingerprintsCase(
   conformanceCase: ModelFingerprintConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
 ): ConformanceActual {
   const left = resolveApplicationModel(selectModel(conformanceCase.input.left, models));
   const right = resolveApplicationModel(selectModel(conformanceCase.input.right, models));
@@ -679,11 +805,11 @@ function runCompareModelFingerprintsCase(
 function seedMetadata(
   input:
     | {
-        persistedModel?: PartialApplicationModel | { modelRef: string };
+        persistedModel?: ConformanceModelInput | { modelRef: string };
         applicationMetadata?: PersistedApplicationMetadata;
       }
     | undefined,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
 ): PersistedApplicationMetadata | undefined {
   if (input === undefined) {
     return undefined;
@@ -708,17 +834,17 @@ function seedMetadata(
 }
 
 function selectModel(
-  source: PartialApplicationModel | { modelRef: string },
-  models: Record<string, PartialApplicationModel>,
+  source: ConformanceModelInput | { modelRef: string },
+  models: Record<string, ConformanceModelInput>,
 ): PartialApplicationModel {
   return "modelRef" in source && typeof source.modelRef === "string"
     ? getPartialModel({ modelRef: source.modelRef }, models)
-    : (source as PartialApplicationModel);
+    : toPartialModel(source as ConformanceModelInput);
 }
 
 async function runMigratePersistedStateCase(
   conformanceCase: ModelMigrationConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
 ): Promise<ConformanceActual> {
   const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
   const storage = createConformanceStorage(conformanceCase.input.storage);
@@ -853,7 +979,7 @@ async function seedAuthority(
 
 async function runAuthorityReplayCase(
   conformanceCase: AuthorityConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
   state: RunState,
 ): Promise<ConformanceActual> {
   const fixture = await seedAuthority(
@@ -876,7 +1002,7 @@ async function runAuthorityReplayCase(
  */
 async function runAuthorityBootstrapCase(
   conformanceCase: AuthorityBootstrapConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
   state: RunState,
 ): Promise<ConformanceActual> {
   const fixture = await seedAuthority(
@@ -974,7 +1100,7 @@ function normaliseAuthorityOutcome(outcome: AuthorityOutcome): JsonValue {
  */
 async function runSyncReconcileCase(
   conformanceCase: SyncReconcileConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
   state: RunState,
 ): Promise<ConformanceActual> {
   const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
@@ -1061,7 +1187,7 @@ function normaliseReconcileOutcome(outcome: AuthorityOutcome): JsonValue {
 
 async function runRuntimeCase(
   conformanceCase: RuntimeConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  models: Record<string, ConformanceModelInput>,
   state: RunState,
 ): Promise<ConformanceActual> {
   const source = getPartialModel(conformanceCase, models);
@@ -1097,6 +1223,18 @@ async function runRuntimeCase(
     return {
       ok: true,
       result: await runSyncCommand(runtime, input as SyncCommandOperationInput, state),
+    };
+  }
+
+  if (conformanceCase.operation === "applyStagedChildChanges") {
+    return {
+      ok: true,
+      result: await runStagedChildChanges(
+        runtime,
+        storage,
+        input as StagedChildOperationInput,
+        state,
+      ),
     };
   }
 
@@ -1240,6 +1378,101 @@ function commandStepAlias(step: string, itemIndex: number | undefined): string {
 }
 
 /**
+ * A staged batch applied against an existing parent: what it claims, what it
+ * queued, and what storage now holds.
+ *
+ * A refusal is reported rather than rethrown, exactly as a refused command is,
+ * because the substance of the all-or-nothing guarantee is what the refusal
+ * *left behind*. A case that could only assert the error code would be unable to
+ * say the one thing that matters — that no child was written and nothing was
+ * queued — and a runtime applying the changes one at a time would raise the same
+ * code from the second one while the first was already committed and enqueued.
+ */
+async function runStagedChildChanges(
+  runtime: ApplicationRuntime,
+  storage: InMemoryObjectStorageBackend,
+  input: StagedChildOperationInput,
+  state: RunState,
+): Promise<JsonValue> {
+  const apply = await (async (): Promise<JsonValue> => {
+    try {
+      const result = await applyStagedChildChanges(runtime, input, state);
+      return {
+        status: "applied",
+        applied: result.applied.map((applied) => ({
+          operationId: applied.operationId,
+          operation: applied.operation,
+          childObject: applied.childObject,
+          ...(applied.recordId === undefined
+            ? {}
+            : { recordId: aliasForRecordId(applied.recordId, state) }),
+        })),
+      } as unknown as JsonValue;
+    } catch (error) {
+      if (isObject(error) && typeof error.code === "string") {
+        return {
+          status: "refused",
+          code: error.code,
+          // The issue codes, not their messages. Several distinct refusals share
+          // the outer validation code — a constraint the batch broke and an
+          // operation the collection never permitted are both
+          // `ADL_RUNTIME_VALIDATION_FAILED` — so without these a case could not
+          // say *which* rule refused, only that something did.
+          ...(Array.isArray(error.issues)
+            ? {
+                issues: (error.issues as Array<{ code?: string }>).map((issue) => ({
+                  code: issue.code,
+                })),
+              }
+            : {}),
+        } as unknown as JsonValue;
+      }
+      throw error;
+    }
+  })();
+
+  const persisted = (await reportPersistedRecords(runtime, storage, state)) as {
+    records: JsonValue;
+  };
+
+  return {
+    apply,
+    queue: runtime.syncQueue.getEntries().map((entry) => normaliseSyncQueueEntry(entry, state)),
+    records: persisted.records,
+  } as unknown as JsonValue;
+}
+
+/**
+ * Applies a staged batch and names every record it wrote after the staged
+ * operation that asked for it.
+ *
+ * The staged operation's id is the case's own text, so aliasing by it keeps the
+ * corpus free of ids the runtime minted — the same reason a command's records
+ * are aliased by step name.
+ */
+async function applyStagedChildChanges(
+  runtime: ApplicationRuntime,
+  input: StagedChildOperationInput,
+  state: RunState,
+): Promise<RuntimeApplyStagedChildResult> {
+  const result = await runtime.applyStagedChildChanges({
+    objectName: input.objectName,
+    viewName: input.viewName,
+    parentRecordId: requireText(input.parentRecordId, "staged change parentRecordId"),
+    stagedChanges: input.stagedChanges.map((staged) => ({ ...staged })),
+    context: parseContext(input.context),
+  });
+
+  for (const applied of result.applied) {
+    if (applied.recordId !== undefined && applied.recordId !== "") {
+      state.recordAliases.set(applied.recordId, applied.operationId);
+    }
+  }
+
+  return result;
+}
+
+/**
  * `queueId` and `opId` are generated, so an entry is named by what it carries.
  *
  * A `command` entry carries the whole transaction rather than one row, so it
@@ -1250,6 +1483,12 @@ function commandStepAlias(step: string, itemIndex: number | undefined): string {
  * indistinguishable from an ordinary create on the same object, so no case could
  * state that a command queues once and names all of its records.
  *
+ * A `batch` entry carries a whole ad-hoc transaction the same way, and reports
+ * its writes: a batch has no declaration to re-execute, so the writes *are* what
+ * crosses the wire. Without this an entry of kind `batch` would be
+ * indistinguishable from an ordinary create on the first record it touched, and
+ * no case could state that a staged batch queues once for all of its children.
+ *
  * `selectedContexts` is reported because it is captured when the operation
  * executes, not when the queue drains: an entry that carried no selection would
  * be replayed against whatever was selected later.
@@ -1257,6 +1496,7 @@ function commandStepAlias(step: string, itemIndex: number | undefined): string {
 function normaliseSyncQueueEntry(entry: SyncQueueEntry, state: RunState): JsonValue {
   const operation = entry.operation;
   const command = operation.command;
+  const batch = operation.batch;
   return {
     objectName: operation.object,
     operation: operation.operation,
@@ -1293,6 +1533,42 @@ function normaliseSyncQueueEntry(entry: SyncQueueEntry, state: RunState): JsonVa
               recordId: aliasForRecordId(supplied.recordId, state),
             })),
             records: command.records.map((named) => ({
+              objectName: named.objectName,
+              recordId: aliasForRecordId(named.recordId, state),
+            })),
+          },
+        }),
+    ...(batch === undefined
+      ? {}
+      : {
+          batch: {
+            ...(batch.label === undefined ? {} : { label: batch.label }),
+            // `baseRevision` is deliberately not reported. It is minted by the
+            // runtime, so a case asserting one would pin a format no
+            // specification defines — the same rule that keeps revisions out of
+            // every other expectation. That an update carries the revision it
+            // was planned against is stated where it is observable instead: a
+            // batch whose base revision has moved on is answered with a
+            // conflict.
+            writes: batch.writes.map((write) => ({
+              operation: write.operation,
+              objectName: write.objectName,
+              recordId: aliasForRecordId(write.recordId, state),
+              ...(write.values === undefined
+                ? {}
+                : { values: normaliseRecordIds(write.values, state) }),
+              ...(write.patch === undefined
+                ? {}
+                : { patch: normaliseRecordIds(write.patch, state) }),
+            })),
+            // Every record the transaction wrote, derived writes included, which
+            // is a strictly larger list than the writes above whenever an
+            // ordered-collection shift moved a sibling. Reported separately for
+            // the same reason it is stored separately: the wire payload and the
+            // set of records one verdict answers for are different questions,
+            // and a case that could only see the payload could not state that a
+            // shifted sibling is settled too.
+            records: batch.records.map((named) => ({
               objectName: named.objectName,
               recordId: aliasForRecordId(named.recordId, state),
             })),
@@ -1395,6 +1671,18 @@ async function runRuntimeStep(
       }
       return result;
     }
+    case "applyStagedChildChanges":
+      return applyStagedChildChanges(
+        runtime,
+        {
+          objectName: requireText(step.objectName, "step objectName"),
+          viewName: requireText(step.viewName, "step viewName"),
+          parentRecordId: requireText(step.parentRecordId, "step parentRecordId"),
+          stagedChanges: step.stagedChanges ?? [],
+          context: step.context,
+        },
+        state,
+      );
   }
 }
 
@@ -1402,7 +1690,7 @@ async function runRuntimeOperation(
   runtime: ApplicationRuntime,
   operation: Exclude<
     RuntimeConformanceCase["operation"],
-    "syncWrite" | "syncCommand" | "readPersistedRecords"
+    "syncWrite" | "syncCommand" | "readPersistedRecords" | "applyStagedChildChanges"
   >,
   input: RuntimeConformanceInput,
 ): Promise<unknown> {
@@ -1476,7 +1764,7 @@ async function runRuntimeOperation(
       );
     }
     case "evaluatePresentationView": {
-      const typed = input as Extract<RuntimeConformanceInput, { viewName: string }>;
+      const typed = input as PresentationViewOperationInput;
       return runtime.evaluatePresentationView(
         typed.objectName,
         typed.viewName,
@@ -1484,6 +1772,23 @@ async function runRuntimeOperation(
         {
           ...(typed.state === undefined ? {} : { state: typed.state }),
           ...(typed.updates === undefined ? {} : { updates: typed.updates }),
+        },
+      );
+    }
+    case "evaluateEditSurface": {
+      const typed = input as EditSurfaceOperationInput;
+      return runtime.evaluateEditSurface(
+        typed.objectName,
+        typed.viewName,
+        parseContext(typed.context),
+        {
+          mode: typed.mode,
+          ...(typed.recordId === undefined
+            ? {}
+            : { recordId: requireText(typed.recordId, "edit surface recordId") }),
+          ...(typed.stagedChanges === undefined
+            ? {}
+            : { stagedChanges: typed.stagedChanges.map((staged) => ({ ...staged })) }),
         },
       );
     }
@@ -1513,36 +1818,67 @@ function parseContext(context: JsonRuntimeContext): RuntimeContext {
 }
 
 function getPartialModel(
-  conformanceCase: { model?: PartialApplicationModel; modelRef?: string },
-  models: Record<string, PartialApplicationModel>,
+  conformanceCase: { model?: ConformanceModelInput; modelRef?: string },
+  models: Record<string, ConformanceModelInput>,
 ): PartialApplicationModel {
   if (conformanceCase.model !== undefined) {
-    return conformanceCase.model;
+    return toPartialModel(conformanceCase.model);
   }
 
   if (conformanceCase.modelRef !== undefined) {
     const model = models[conformanceCase.modelRef];
     if (model !== undefined) {
-      return model;
+      return toPartialModel(model);
     }
   }
 
   throw new Error(`Conformance case references unknown model '${conformanceCase.modelRef ?? ""}'.`);
 }
 
-function getPartialOrResolvedModel(
-  conformanceCase: ModelValidationConformanceCase,
-  models: Record<string, PartialApplicationModel>,
-): PartialApplicationModel | ResolvedApplicationModel {
-  if (conformanceCase.model !== undefined) {
-    return conformanceCase.model;
+/**
+ * Compiles a model authored in ADL, and passes any other model through.
+ *
+ * Only the parse and the AST-to-partial conversion are run here. Resolution and
+ * validation are deliberately left to whichever operation the case declares, so
+ * an ADL-authored model reaches exactly the same code path a JSON-authored one
+ * does — a source that resolves differently from the partial model it produces
+ * would otherwise be indistinguishable from one that does not.
+ */
+function toPartialModel(input: ConformanceModelInput): PartialApplicationModel {
+  if (!isAdlSource(input)) {
+    return input;
   }
 
-  return getPartialModel(conformanceCase, models);
+  return adlAstToPartialApplicationModel(
+    parseAdl(typeof input.adl === "string" ? input.adl : input.adl.join("\n")),
+  );
+}
+
+function isAdlSource(value: ConformanceModelInput): value is ConformanceAdlSource {
+  const adl = (value as ConformanceAdlSource).adl;
+  return typeof adl === "string" || Array.isArray(adl);
+}
+
+function getPartialOrResolvedModel(
+  conformanceCase: ModelValidationConformanceCase,
+  models: Record<string, ConformanceModelInput>,
+): PartialApplicationModel | ResolvedApplicationModel {
+  const model = conformanceCase.model;
+  if (model !== undefined && isResolvedApplicationModel(model)) {
+    return model;
+  }
+
+  return getPartialModel(
+    {
+      ...(model === undefined ? {} : { model }),
+      ...(conformanceCase.modelRef === undefined ? {} : { modelRef: conformanceCase.modelRef }),
+    },
+    models,
+  );
 }
 
 function isResolvedApplicationModel(
-  value: PartialApplicationModel | ResolvedApplicationModel,
+  value: ConformanceModelInput | ResolvedApplicationModel,
 ): value is ResolvedApplicationModel {
   return "modelVersion" in value && "defaults" in value;
 }
@@ -1590,6 +1926,10 @@ function getPath(value: unknown, path: string): unknown {
 function normaliseRuntimeResult(value: unknown, state: RunState): JsonValue {
   if (isRecord(value)) {
     return normaliseRecord(value, state);
+  }
+
+  if (isEditSurface(value)) {
+    return normaliseEditSurface(value, state);
   }
 
   if (Array.isArray(value) && value.every(isRecord)) {
@@ -1675,6 +2015,98 @@ function sortNormalisedRecords(value: JsonValue): JsonValue {
     const b = right as { objectName: string; recordId: string };
     return a.objectName.localeCompare(b.objectName) || a.recordId.localeCompare(b.recordId);
   }) as JsonValue;
+}
+
+function isEditSurface(value: unknown): value is RuntimeEditSurface {
+  return (
+    isObject(value) &&
+    typeof value.object === "string" &&
+    typeof value.view === "string" &&
+    typeof value.mode === "string" &&
+    Array.isArray(value.sections) &&
+    Array.isArray(value.stagedChanges)
+  );
+}
+
+/**
+ * An evaluated edit surface, reduced to the composition it resolved to.
+ *
+ * A section's `fields` are full resolved fields, so reporting them whole would
+ * make every case a snapshot of the field contract and fail on any unrelated
+ * field addition. What an edit surface case is about is which fields a section
+ * groups, which children it embeds, what may be done to them, and what a picker
+ * offers — so the fields are reduced to their names and the rest is reported as
+ * declared.
+ *
+ * Child row ids go through the alias table, because they are records the case
+ * seeded and never ids a case should spell out.
+ */
+function normaliseEditSurface(surface: RuntimeEditSurface, state: RunState): JsonValue {
+  return {
+    object: surface.object,
+    view: surface.view,
+    mode: surface.mode,
+    sections: surface.sections.map((section) => normaliseEditSection(section, state)),
+    diagnostics: surface.diagnostics.map((diagnostic) => ({
+      severity: diagnostic.severity,
+      code: diagnostic.code,
+      ...(diagnostic.section === undefined ? {} : { section: diagnostic.section }),
+    })),
+  } as unknown as JsonValue;
+}
+
+function normaliseEditSection(section: RuntimeEditSection, state: RunState): JsonValue {
+  const base = {
+    name: section.name,
+    kind: section.kind,
+    ...(section.heading === undefined ? {} : { heading: section.heading }),
+    fields: section.fields.map((field) => field.name),
+  };
+
+  if (section.kind === "fields") {
+    return base as unknown as JsonValue;
+  }
+
+  return {
+    ...base,
+    childObject: section.childObject,
+    parentField: section.parentField,
+    ...(section.childView === undefined ? {} : { childView: section.childView }),
+    operations: [...section.operations],
+    staged: section.staged,
+    ...(section.orderField === undefined ? {} : { orderField: section.orderField }),
+    emptyState: section.emptyState,
+    ...(section.picker === undefined
+      ? {}
+      : {
+          picker: {
+            name: section.picker.name,
+            sourceKind: section.picker.sourceKind,
+            source: section.picker.source,
+            selection: section.picker.selection,
+            displayFields: [...section.picker.displayFields],
+            searchFields: [...section.picker.searchFields],
+            sort: section.picker.sort.map((sort) => ({ ...sort })),
+            excludeAlreadyLinked: section.picker.excludeAlreadyLinked,
+            emptyState: section.picker.emptyState,
+          },
+        }),
+    rows: section.rows.map((row) => ({
+      id: aliasForRecordId(row.id, state),
+      source: row.source,
+      values: normaliseRecordIds(row.values, state),
+      actions: row.actions.map((action) => ({
+        operation: action.operation,
+        visible: action.visible,
+        enabled: action.enabled,
+      })),
+    })),
+    actions: section.actions.map((action) => ({
+      operation: action.operation,
+      visible: action.visible,
+      enabled: action.enabled,
+    })),
+  } as unknown as JsonValue;
 }
 
 function normaliseRecord(record: StoredObjectRecord, state: RunState): JsonValue {

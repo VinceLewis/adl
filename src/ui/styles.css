@@ -1465,6 +1465,47 @@ button:disabled {
   border-bottom: 0;
 }
 
+.adl-child-row-reorderable {
+  cursor: grab;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.adl-child-row-dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+
+.adl-child-row-drop-target {
+  box-shadow: inset 0 2px 0 0 var(--adl-color-primary);
+}
+
+.adl-child-row-reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.adl-child-reorder-button {
+  align-items: center;
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text-muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 11px;
+  justify-content: center;
+  line-height: 1;
+  min-height: 16px;
+  min-width: 22px;
+  padding: 0;
+}
+
+.adl-child-reorder-button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
 .adl-child-row-values {
   display: flex;
   flex-wrap: wrap;
@@ -2281,6 +2322,45 @@ textarea.adl-field-control {
 
   .adl-dashboard-workspace {
     padding: var(--adl-space-md);
+  }
+
+  /*
+   * At mobile widths the values and the two control clusters cannot share a row
+   * without cramping, so the row stacks and the reorder handle sits beside the
+   * row actions rather than in its own leading column.
+   */
+  .adl-child-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adl-child-row-reorderable {
+    grid-template-areas:
+      "values values"
+      "reorder actions";
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .adl-child-row-reorderable .adl-child-row-values {
+    grid-area: values;
+  }
+
+  .adl-child-row-reorderable .adl-child-row-reorder {
+    flex-direction: row;
+    grid-area: reorder;
+  }
+
+  .adl-child-row-reorderable .adl-child-row-actions {
+    grid-area: actions;
+    justify-content: end;
+  }
+
+  .adl-child-row-actions {
+    flex-wrap: wrap;
+  }
+
+  .adl-child-reorder-button {
+    min-height: 28px;
+    min-width: 34px;
   }
 
   .adl-event-row {

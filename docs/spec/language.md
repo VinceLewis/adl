@@ -124,7 +124,7 @@ supports transactions; a backend that does not refuses before anything persists.
 
 A business context is normally reached through its `MEMBERSHIP` declaration.
 `CONTEXT_GRANT` declares a second route, for the case where somebody must reach a
-context *in order to* join it:
+context _in order to_ join it:
 
 ```adl
 CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee CONTEXT_FIELD Band WHEN Status == 'Pending'
@@ -275,7 +275,7 @@ Implemented view-level declarations:
 - local `STATE Name Type DEFAULT Literal`
 - `ICON_MAP Name FOR Field ... END.ICON_MAP`
 - `STATUS name LABEL 'Label' ARIA_LABEL 'Accessible label' ICON iconRef
-  THEME colorStatusEvent PRECEDENCE 10`
+THEME colorStatusEvent PRECEDENCE 10`
 - `STATUS_MAP Name FOR Field ... END.STATUS_MAP`
 - `LEGEND Name TITLE 'Title' STATUSES statusName ...`
 - `SECTION Name ... END.SECTION`
@@ -339,6 +339,102 @@ END.VIEW
 
 Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
 framework component names, procedural render loops, or host functions.
+
+## Edit Surfaces
+
+A view may declare how its CRUD form is composed: which container it opens in,
+which field groups it presents, and which child collections are edited inside
+it. These declarations resolve onto `ResolvedView.editContainer` and
+`ResolvedView.editSections`; see
+[resolved-model#view-presentation](resolved-model.md) for the resolved contract
+and [runtime-semantics#staged-child-changes](runtime-semantics.md) for what a
+runtime does with them.
+
+`EDIT_CONTAINER modal|drawer|page|splitPane` chooses where a create or edit form
+opens. The default is `modal`.
+
+`EDIT_SECTION Name ... END.EDIT_SECTION` declares a field group. It accepts
+`HEADING 'text'` — on the header line or on its own line — and `FIELDS`. A
+section that declares no `FIELDS` inherits the view's own fields. A view that
+declares no edit sections at all resolves one `fields` section over `view.fields`,
+so adding this syntax changes nothing an existing model does.
+
+`CHILD_COLLECTION Name ... END.CHILD_COLLECTION` declares a collection of child
+records edited inside the parent's form:
+
+- `CHILD <object> PARENT_FIELD <field>` — both required. The child object alone
+  does not say which of its lookups points back at this parent, and inferring one
+  would silently pick a field when a child has two.
+- `CHILD_VIEW <view>` — an optional view on the child object, for the columns the
+  rows display.
+- `OPERATIONS createChild linkExisting updateChild unlink remove reorder` — any
+  subset, in any order. The default is `createChild updateChild unlink`.
+- `STAGED` (or `STAGED false`) — whether child changes are held until the parent
+  is saved. The bare word means `true`, which is the default.
+- `ORDER_FIELD <field>` — the child field carrying position. Required when
+  `reorder` is among the operations.
+- `EMPTY_TEXT 'text'` — what to show when the collection is empty.
+- `PICKER ... END.PICKER` — see below.
+
+`PICKER Name ... END.PICKER` declares how `linkExisting` finds candidates. It is
+only meaningful on a collection whose operations include `linkExisting`, and is
+refused otherwise:
+
+- `SOURCE OBJECT <object>` or `SOURCE READ_MODEL <read model>`. An object source
+  must be the child object; a read-model source must include the child object,
+  so every candidate resolves to a child record id. Omitting `SOURCE` resolves to
+  the child object.
+- `SELECTION single|multiple` — the default is `multiple`.
+- `DISPLAY <fields>`, `SEARCH <fields>`, `SORT <field> ASC|DESC` — over candidate
+  fields.
+- `EXCLUDE_LINKED` (or `EXCLUDE_LINKED false`) — whether candidates already
+  linked to this parent are hidden. The bare word means `true`, which is the
+  default.
+- `EMPTY_TEXT 'text'` — what to show when no candidate remains.
+
+```adl
+OBJECT Order
+  DISPLAY Code
+  FIELD Code TEXT REQUIRED
+  FIELD Notes TEXT
+
+  VIEW OrderForm FORM
+    FIELDS Code Notes
+    EDIT_CONTAINER page
+
+    EDIT_SECTION Details HEADING 'Order'
+      FIELDS Code Notes
+    END.EDIT_SECTION
+
+    CHILD_COLLECTION Lines HEADING 'Lines'
+      CHILD OrderLine PARENT_FIELD Order
+      CHILD_VIEW OrderLineList
+      OPERATIONS createChild linkExisting updateChild unlink remove reorder
+      STAGED
+      ORDER_FIELD Position
+      EMPTY_TEXT 'No lines yet.'
+
+      PICKER LinePicker
+        SOURCE OBJECT OrderLine
+        SELECTION single
+        DISPLAY Description
+        SEARCH Description
+        SORT Position ASC
+        EXCLUDE_LINKED
+        EMPTY_TEXT 'Nothing to link.'
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+```
+
+`EDIT_SECTION` is spelled differently from the composed-presentation `SECTION`
+because a view may declare both, and two different things cannot share one
+keyword without one of them changing meaning by position.
+
+Declaring a child collection grants nothing. The child object's own policy,
+scope, constraints and sync mode still decide every write, and an operation the
+collection does not list is refused by the runtime rather than merely hidden.
 
 ## Shell Navigation
 

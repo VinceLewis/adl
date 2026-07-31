@@ -74,10 +74,12 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   preconditions, policy, validation, sync, audit, and operation logging.
 - Phase 33 added CRUD `ResolvedView.editSections` for parent edit surfaces.
   Every view resolves an inspectable default `fields` edit section from
-  `view.fields`; authored JSON/TypeScript partial models can add
-  `childCollection` sections that point to a child object and lookup field back
-  to the parent. ADL source syntax for these edit sections is intentionally not
-  implemented yet.
+  `view.fields`; authored models can add `childCollection` sections that point
+  to a child object and lookup field back to the parent. **Phase 59 added ADL
+  source syntax for all of it** — `EDIT_CONTAINER`, `EDIT_SECTION`,
+  `CHILD_COLLECTION` and `PICKER`, resolving to these same shapes — and made a
+  staged batch of child changes commit as one transaction and replay as one
+  operation. See [[edit-surface-language]].
 - Parent-child edit evaluation is exposed through
   `ApplicationRuntime.evaluateEditSurface(...)`. Existing parent child rows are
   loaded through child-object runtime search, then filtered by the declared

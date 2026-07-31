@@ -1,0 +1,956 @@
+{
+  "version": 1,
+  "models": {
+    "orderEditSurface": {
+      "adl": [
+        "APP 'Order Edit Surface Runtime'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  DISPLAY Code",
+        "  FIELD Code TEXT REQUIRED",
+        "  FIELD Notes TEXT",
+        "  SYNC LOCAL_FIRST SCOPE all",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code Notes",
+        "    EDIT_CONTAINER page",
+        "    EDIT_SECTION Details HEADING 'Order'",
+        "      FIELDS Code Notes",
+        "    END.EDIT_SECTION",
+        "    CHILD_COLLECTION Lines HEADING 'Lines'",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      CHILD_VIEW OrderLineList",
+        "      OPERATIONS createChild linkExisting updateChild unlink remove reorder",
+        "      ORDER_FIELD Position",
+        "      EMPTY_TEXT 'No lines yet.'",
+        "      PICKER LinePicker",
+        "        SOURCE OBJECT OrderLine",
+        "        SELECTION multiple",
+        "        DISPLAY Description",
+        "        SEARCH Description",
+        "        SORT Position ASC",
+        "        EXCLUDE_LINKED",
+        "        EMPTY_TEXT 'Nothing to link.'",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "",
+        "  VIEW OrderAppendOnlyForm FORM",
+        "    FIELDS Code Notes",
+        "    CHILD_COLLECTION Lines HEADING 'Lines'",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      OPERATIONS createChild",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  CONSTRAINT uniqueOrderLineDescription UNIQUE FIELDS Description",
+        "  CONSTRAINT orderedOrderLines ORDERED PARENT Order POSITION Position REORDER shift COMPACT onDelete",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "  SYNC LOCAL_FIRST SCOPE all",
+        "",
+        "  VIEW OrderLineList LIST",
+        "    FIELDS Description Position",
+        "    ACTIONS read",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "POLICY OrderPolicy ON Order",
+        "  RULE allowOrder ALLOW * AUTHENTICATED",
+        "END.POLICY",
+        "",
+        "POLICY OrderLinePolicy ON OrderLine",
+        "  RULE allowOrderLine ALLOW * AUTHENTICATED",
+        "END.POLICY"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "edit-surface.evaluate.declared-in-adl.001",
+      "title": "A view declared entirely in ADL evaluates to its authored sections, child rows and picker",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "evaluateEditSurface",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "mode": "edit",
+        "recordId": {
+          "$ref": "order.meta.guid"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "object": "Order",
+          "view": "OrderForm",
+          "mode": "edit",
+          "sections": [
+            {
+              "name": "Details",
+              "kind": "fields",
+              "heading": "Order",
+              "fields": ["Code", "Notes"]
+            },
+            {
+              "name": "Lines",
+              "kind": "childCollection",
+              "heading": "Lines",
+              "childObject": "OrderLine",
+              "parentField": "Order",
+              "childView": "OrderLineList",
+              "fields": ["Description", "Position"],
+              "operations": [
+                "createChild",
+                "linkExisting",
+                "updateChild",
+                "unlink",
+                "remove",
+                "reorder"
+              ],
+              "staged": true,
+              "orderField": "Position",
+              "emptyState": {
+                "text": "No lines yet."
+              },
+              "picker": {
+                "name": "LinePicker",
+                "sourceKind": "object",
+                "source": "OrderLine",
+                "selection": "multiple",
+                "displayFields": ["Description"],
+                "searchFields": ["Description"],
+                "sort": [
+                  {
+                    "field": "Position",
+                    "direction": "asc"
+                  }
+                ],
+                "excludeAlreadyLinked": true,
+                "emptyState": {
+                  "text": "Nothing to link."
+                }
+              },
+              "rows": [
+                {
+                  "id": "$strings",
+                  "source": "persisted",
+                  "values": {
+                    "Description": "Strings",
+                    "Position": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.one-batch-entry.001",
+      "title": "A staged batch commits every child change and queues exactly one batch operation covering all of them",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "parentRecordId": {
+          "$ref": "order.meta.guid"
+        },
+        "stagedChanges": [
+          {
+            "id": "strings",
+            "section": "Lines",
+            "operation": "createChild",
+            "childObject": "OrderLine",
+            "values": {
+              "Description": "Strings",
+              "Position": 1
+            }
+          },
+          {
+            "id": "picks",
+            "section": "Lines",
+            "operation": "createChild",
+            "childObject": "OrderLine",
+            "values": {
+              "Description": "Picks",
+              "Position": 2
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "applied",
+            "applied": [
+              {
+                "operationId": "strings",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "recordId": "$strings"
+              },
+              {
+                "operationId": "picks",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "recordId": "$picks"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Order",
+              "operation": "create",
+              "recordId": "$order",
+              "mode": "localFirst"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "batch",
+              "recordId": "$strings",
+              "mode": "localFirst",
+              "batch": {
+                "writes": [
+                  {
+                    "operation": "create",
+                    "objectName": "OrderLine",
+                    "recordId": "$strings",
+                    "values": {
+                      "Description": "Strings",
+                      "Position": 1,
+                      "Order": "$order"
+                    }
+                  },
+                  {
+                    "operation": "create",
+                    "objectName": "OrderLine",
+                    "recordId": "$picks",
+                    "values": {
+                      "Description": "Picks",
+                      "Position": 2,
+                      "Order": "$order"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order",
+              "syncStatus": "pending"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$picks",
+              "syncStatus": "pending",
+              "values": {
+                "Description": "Picks",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "syncStatus": "pending",
+              "values": {
+                "Description": "Strings",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.all-or-nothing.001",
+      "title": "A staged batch one of whose changes is refused writes nothing and queues nothing, including the change that would have succeeded alone",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "parentRecordId": {
+          "$ref": "order.meta.guid"
+        },
+        "stagedChanges": [
+          {
+            "id": "picks",
+            "section": "Lines",
+            "operation": "createChild",
+            "childObject": "OrderLine",
+            "values": {
+              "Description": "Picks",
+              "Position": 2
+            }
+          },
+          {
+            "id": "duplicate",
+            "section": "Lines",
+            "operation": "createChild",
+            "childObject": "OrderLine",
+            "values": {
+              "Description": "Strings",
+              "Position": 3
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "refused",
+            "code": "ADL_RUNTIME_VALIDATION_FAILED"
+          },
+          "queue": [
+            {
+              "objectName": "Order",
+              "operation": "create",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "create",
+              "recordId": "$strings"
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "values": {
+                "Description": "Strings",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.derived-writes-are-covered.001",
+      "title": "A staged insert that shifts a sibling queues one batch whose record coverage includes the sibling it moved, though only the requested write crosses the wire",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "parentRecordId": {
+          "$ref": "order.meta.guid"
+        },
+        "stagedChanges": [
+          {
+            "id": "picks",
+            "section": "Lines",
+            "operation": "createChild",
+            "childObject": "OrderLine",
+            "values": {
+              "Description": "Picks",
+              "Position": 1
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "applied",
+            "applied": [
+              {
+                "operationId": "picks",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "recordId": "$picks"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Order",
+              "operation": "create",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "create",
+              "recordId": "$strings"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "batch",
+              "recordId": "$picks",
+              "batch": {
+                "writes": [
+                  {
+                    "operation": "create",
+                    "objectName": "OrderLine",
+                    "recordId": "$picks",
+                    "values": {
+                      "Description": "Picks",
+                      "Position": 1,
+                      "Order": "$order"
+                    }
+                  }
+                ],
+                "records": [
+                  {
+                    "objectName": "OrderLine",
+                    "recordId": "$picks"
+                  },
+                  {
+                    "objectName": "OrderLine",
+                    "recordId": "$strings"
+                  }
+                ]
+              }
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$picks",
+              "values": {
+                "Description": "Picks",
+                "Position": 1
+              }
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "values": {
+                "Description": "Strings",
+                "Position": 2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.reconcile-accepted.001",
+      "title": "A staged batch crosses the sync boundary as one operation and settles every record it wrote",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "syncReconcile",
+      "modelRef": "orderEditSurface",
+      "input": {
+        "device": [
+          {
+            "operation": "create",
+            "alias": "order",
+            "objectName": "Order",
+            "values": {
+              "Code": "A-1"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          },
+          {
+            "operation": "applyStagedChildChanges",
+            "objectName": "Order",
+            "viewName": "OrderForm",
+            "parentRecordId": {
+              "$ref": "order.meta.guid"
+            },
+            "stagedChanges": [
+              {
+                "id": "strings",
+                "section": "Lines",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "values": {
+                  "Description": "Strings",
+                  "Position": 1
+                }
+              },
+              {
+                "id": "picks",
+                "section": "Lines",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "values": {
+                  "Description": "Picks",
+                  "Position": 2
+                }
+              }
+            ],
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "accepted"
+            },
+            {
+              "status": "accepted"
+            }
+          ],
+          "queue": [],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order",
+              "syncStatus": "synced"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$picks",
+              "syncStatus": "synced",
+              "syncRejectedCreate": "$absent",
+              "values": {
+                "Description": "Picks",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "syncStatus": "synced",
+              "syncRejectedCreate": "$absent",
+              "values": {
+                "Description": "Strings",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.reconcile-refused.002",
+      "title": "The baseline for the case above: a batch the authority refuses leaves every record it wrote rejected, including the child the authority had no quarrel with",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "syncReconcile",
+      "modelRef": "orderEditSurface",
+      "input": {
+        "authoritySetup": [
+          {
+            "intent": {
+              "operationId": "op-seed-order",
+              "kind": "create",
+              "objectName": "Order",
+              "recordId": "order-seed",
+              "values": {
+                "Code": "SEED"
+              }
+            }
+          },
+          {
+            "intent": {
+              "operationId": "op-seed-line",
+              "kind": "create",
+              "objectName": "OrderLine",
+              "recordId": "line-seed",
+              "values": {
+                "Order": "order-seed",
+                "Description": "Strings",
+                "Position": 1
+              }
+            }
+          }
+        ],
+        "device": [
+          {
+            "operation": "create",
+            "alias": "order",
+            "objectName": "Order",
+            "values": {
+              "Code": "A-1"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          },
+          {
+            "operation": "applyStagedChildChanges",
+            "objectName": "Order",
+            "viewName": "OrderForm",
+            "parentRecordId": {
+              "$ref": "order.meta.guid"
+            },
+            "stagedChanges": [
+              {
+                "id": "picks",
+                "section": "Lines",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "values": {
+                  "Description": "Picks",
+                  "Position": 1
+                }
+              },
+              {
+                "id": "duplicate",
+                "section": "Lines",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "values": {
+                  "Description": "Strings",
+                  "Position": 2
+                }
+              }
+            ],
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "accepted"
+            },
+            {
+              "status": "rejected",
+              "code": "ADL_RUNTIME_VALIDATION_FAILED"
+            }
+          ],
+          "queue": [
+            {
+              "objectName": "OrderLine",
+              "operation": "batch",
+              "recordId": "$picks",
+              "recovery": {
+                "status": "rejected",
+                "code": "ADL_RUNTIME_VALIDATION_FAILED"
+              }
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order",
+              "syncStatus": "synced"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$duplicate",
+              "syncStatus": "rejected",
+              "syncRejectedCreate": true,
+              "values": {
+                "Description": "Strings",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$picks",
+              "syncStatus": "rejected",
+              "syncRejectedCreate": true,
+              "values": {
+                "Description": "Picks",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.operation-not-permitted.001",
+      "title": "A staged operation the collection does not declare is refused by the runtime, not merely hidden by a renderer",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderAppendOnlyForm",
+        "parentRecordId": {
+          "$ref": "order.meta.guid"
+        },
+        "stagedChanges": [
+          {
+            "id": "drop",
+            "section": "Lines",
+            "operation": "remove",
+            "childObject": "OrderLine",
+            "childId": {
+              "$ref": "strings.meta.guid"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "refused",
+            "code": "ADL_RUNTIME_VALIDATION_FAILED",
+            "issues": [
+              {
+                "code": "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Order",
+              "operation": "create",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "create",
+              "recordId": "$strings"
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "deleted": false,
+              "values": {
+                "Description": "Strings",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

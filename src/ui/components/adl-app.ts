@@ -123,6 +123,11 @@ export class AdlAppElement extends HTMLElement {
   private presentationStateByView = new Map<string, Record<string, JsonValue>>();
   private editSurface: RuntimeEditSurface | undefined;
   private stagedChildChanges: RuntimeStagedChildOperation[] = [];
+  /**
+   * Monotonic, because collapsing removes entries: deriving the suffix from the
+   * current list length would reissue an id a retained operation still holds.
+   */
+  private stagedChildSequence = 0;
   private selectedRecord: StoredObjectRecord | undefined;
   private editContainerOpen = false;
   private mode: UiMode = "edit";
@@ -565,15 +570,25 @@ export class AdlAppElement extends HTMLElement {
     } else {
       const childIds =
         detail.childIds ?? (detail.childId === undefined ? [undefined] : [detail.childId]);
+      // A staged batch now commits as one transaction whose writes are all
+      // planned against pre-transaction state, so two staged operations naming
+      // the same child record would be last-write-wins rather than sequential.
+      // Repeated edits of one row — dragging it twice, tapping Move up three
+      // times — therefore collapse into the single operation that carries the
+      // user's final intent, before anything is submitted.
+      const retained = this.stagedChildChanges.filter(
+        (operation) => !collapsesStagedChildOperation(operation, detail, childIds),
+      );
       this.stagedChildChanges = [
-        ...this.stagedChildChanges,
-        ...childIds.map((childId, index) => ({
-          id: `child-${Date.now()}-${this.stagedChildChanges.length + index + 1}`,
+        ...retained,
+        ...childIds.map((childId) => ({
+          id: `child-${Date.now()}-${this.nextStagedChildSequence()}`,
           section: detail.section,
           operation: detail.operation,
           childObject: detail.childObject,
           ...(childId === undefined ? {} : { childId }),
           ...(detail.values === undefined ? {} : { values: detail.values }),
+          ...(detail.position === undefined ? {} : { position: detail.position }),
         })),
       ];
     }
@@ -1258,6 +1273,11 @@ export class AdlAppElement extends HTMLElement {
 
     this.presentationStateByView.set(stateKey, { ...presentation.state });
     this.presentationView = presentation;
+  }
+
+  private nextStagedChildSequence(): number {
+    this.stagedChildSequence += 1;
+    return this.stagedChildSequence;
   }
 
   private async refreshEditSurface(): Promise<void> {
@@ -2321,6 +2341,33 @@ export function defineAdlApp(): void {
   if (customElements.get("adl-app") === undefined) {
     customElements.define("adl-app", AdlAppElement);
   }
+}
+
+/**
+ * Whether a newly staged child operation supersedes one already staged.
+ *
+ * Only `reorder` and `updateChild` collapse, and only against the same section,
+ * kind and child record: they are absolute statements about one row, so the
+ * latest one is the whole truth. `remove`, `unlink` and `linkExisting` are not
+ * collapsed here — duplicate links are already refused by the runtime, and
+ * silently dropping a second removal would hide a caller mistake rather than
+ * fix one.
+ */
+function collapsesStagedChildOperation(
+  existing: RuntimeStagedChildOperation,
+  detail: StageChildOperationDetail,
+  childIds: (string | undefined)[],
+): boolean {
+  if (detail.operation !== "reorder" && detail.operation !== "updateChild") {
+    return false;
+  }
+
+  return (
+    existing.section === detail.section &&
+    existing.operation === detail.operation &&
+    existing.childId !== undefined &&
+    childIds.includes(existing.childId)
+  );
 }
 
 function failNoObjects(): never {

@@ -579,9 +579,9 @@ views. Normal list views default to `modal`, so the list/table is the primary
 surface and create/edit forms open only from explicit user actions. `drawer`
 and `page` are also renderer-neutral hints consumed by the browser runtime.
 `splitPane` is supported as an explicit dense workflow that keeps list and form
-visible together. ADL source syntax for setting this property is not
-implemented yet; use JSON/TypeScript partial models or fixtures when a phase
-needs to exercise a non-default mode.
+visible together. ADL source syntax for setting this property is
+`EDIT_CONTAINER modal|drawer|page|splitPane` inside a `VIEW` block; see
+[language#edit-surfaces](language.md).
 
 The implemented presentation model resolves to structured data for:
 
@@ -639,6 +639,11 @@ read-model list binding, row fragments, icon maps, deterministic formatting,
 ordering, semantic statuses, legends, empty states, and inspect output for
 presentation defaults and references.
 
+Edit surfaces are covered by `conformance/model/edit-surfaces.json`, which states
+what the ADL syntax resolves to and which declarations are refused, and
+`conformance/runtime/edit-surfaces.json`, which states what an ADL-declared child
+collection evaluates to and what a staged batch commits, queues and reconciles.
+
 ## Implementation Notes
 
 Parser/compiler support is implemented for the smallest useful subset:
@@ -656,6 +661,10 @@ Parser/compiler support is implemented for the smallest useful subset:
 11. `CALENDAR ... FROM ...` with `DATE_FIELD`, `TITLE_FIELD`,
     `SUMMARY_FIELDS`, `MONTH`, `MONTH_STATE`, `WEEK_START`, `RANGE`,
     `EMPTY_TEXT`, and cell `ACTION`
+12. edit surfaces: `EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION` with
+    `CHILD ... PARENT_FIELD`, `CHILD_VIEW`, `OPERATIONS`, `STAGED`,
+    `ORDER_FIELD` and `EMPTY_TEXT`, and a nested `PICKER` with `SOURCE`,
+    `SELECTION`, `DISPLAY`, `SEARCH`, `SORT`, `EXCLUDE_LINKED` and `EMPTY_TEXT`
 
 Unsupported source constructs include `SELECT`, `CONTEXT_SELECTOR`, arbitrary
 CSS, raw SVG, framework component names, host callbacks, procedural render
@@ -713,28 +722,28 @@ back to the same list context after save, cancel, close, delete, or lifecycle
 transition. This path still uses runtime policy presentation for field
 visibility/editability and runtime services for all write enforcement.
 
-CRUD form views can now declare resolved-model `editSections`. Field sections
-group parent fields. Child collection sections embed records whose child object
-has a lookup field back to the parent object. The browser renderer consumes
+CRUD form views declare resolved-model `editSections`. Field sections group
+parent fields. Child collection sections embed records whose child object has a
+lookup field back to the parent object. The browser renderer consumes
 `ApplicationRuntime.evaluateEditSurface` output and renders the child rows in
 the same modal, drawer, page, or split-pane form container. New-parent workflows
 stage child operations explicitly until the parent record exists; canceling the
 container discards those staged operations, while save applies them through
-runtime services after the parent save succeeds. ADL source syntax for authored
-child edit sections is not implemented yet; JSON/TypeScript partial models can
-use the resolved contract.
+runtime services after the parent save succeeds — as one transaction, so a batch
+that fails at any one change leaves none of them written and none queued. ADL
+source syntax is `EDIT_CONTAINER`, `EDIT_SECTION` and `CHILD_COLLECTION`; see
+[language#edit-surfaces](language.md).
 
-Child collection sections can now declare relationship pickers for
-`linkExisting` operations. The generic browser renderer opens a modal picker,
-supports single-select or multi-select candidate choices, renders empty
-candidate states as neutral empty states, and stages selected child ids back
-through the existing `linkExisting` child-operation flow. Picker candidate
-sources may be the child object or a read model containing the child object.
-Candidate loading goes through `ApplicationRuntime.evaluateRelationshipPicker`,
-so policy and context scoping apply before search text, already-linked
-exclusion, and picker ordering. ADL source syntax for authored picker blocks is
-not implemented yet; JSON/TypeScript partial models can use the resolved
-contract.
+Child collection sections can declare relationship pickers for `linkExisting`
+operations. The generic browser renderer opens a modal picker, supports
+single-select or multi-select candidate choices, renders empty candidate states
+as neutral empty states, and stages selected child ids back through the existing
+`linkExisting` child-operation flow. Picker candidate sources may be the child
+object or a read model containing the child object. Candidate loading goes
+through `ApplicationRuntime.evaluateRelationshipPicker`, so policy and context
+scoping apply before search text, already-linked exclusion, and picker ordering.
+ADL source syntax is the `PICKER` block inside `CHILD_COLLECTION`; see
+[language#edit-surfaces](language.md).
 
 The generic browser shell renders application navigation through a hamburger
 drawer from resolved shell nav metadata rather than exposing a raw view selector

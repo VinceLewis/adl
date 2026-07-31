@@ -60,4 +60,11 @@ export interface StageChildOperationDetail {
   childIds?: string[];
   values?: Record<string, JsonValue>;
   stagedOperationId?: string;
+  /**
+   * The 1-based target position for a `reorder`, matching
+   * `RuntimeStagedChildOperation.position`. It is the whole payload of a
+   * reorder: the browser never writes the child's order field itself, it names
+   * the position it wants and lets the runtime plan the sibling shifts.
+   */
+  position?: number;
 }

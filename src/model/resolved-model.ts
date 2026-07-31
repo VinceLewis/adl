@@ -167,11 +167,29 @@ export type SyncStatus = "local" | "pending" | "synced" | "conflict" | "rejected
  * step writing into a context an earlier step established has no context to
  * write into, and a batch lands partially. The command kind is what lets the
  * queue carry the transaction rather than its pieces.
+ *
+ * `batch` is the same idea for a transaction no command declares: an edit
+ * surface's staged child changes, which the user made as one act of editing and
+ * which must therefore land as one. It differs from `command` in what crosses
+ * the wire. A command is re-executed from its input, because a command exists in
+ * the model and the authority can run it again. A batch has no such declaration,
+ * so it crosses as the writes themselves — each one still checked server-side by
+ * the same policy, validation, scope and constraint path an individual intent
+ * takes, but all of them inside one transaction.
  */
-export type LocalOperationKind = "create" | "update" | "delete" | "transition" | "command";
+export type LocalOperationKind =
+  | "create"
+  | "update"
+  | "delete"
+  | "transition"
+  | "command"
+  | "batch";
 export type LocalOperationStatus = "pending" | "sent" | "accepted" | "rejected" | "conflict";
-/** Audit stays per record: a command is audited as the writes it made, step by step. */
-export type AuditOperation = Exclude<LocalOperationKind, "command"> | "read" | "search";
+/**
+ * Audit stays per record: a command is audited as the writes it made, step by
+ * step, and so is a batch. Only the queue needs the transaction as one thing.
+ */
+export type AuditOperation = Exclude<LocalOperationKind, "command" | "batch"> | "read" | "search";
 export type ThemeRadius = "none" | "small" | "medium" | "large";
 export type ThemeDensity = "compact" | "comfortable" | "spacious";
 export type ThemeNav = "top" | "side" | "bottom";
@@ -1418,6 +1436,61 @@ export interface LocalCommandOperation {
   records: Array<{ objectName: string; recordId: string }>;
 }
 
+/**
+ * One record write inside a batched transaction, as the authority must be told
+ * about it.
+ *
+ * A create carries the id the device already minted, for the same reason a
+ * create intent does: an authority-minted id would come back naming a record the
+ * device does not have. An update or delete carries the revision it was planned
+ * against, so a stale write is a visible conflict rather than a silent
+ * overwrite.
+ */
+export interface LocalBatchWrite {
+  operation: "create" | "update" | "delete";
+  objectName: string;
+  recordId: string;
+  /** Present for a create: the values the record was created with locally. */
+  values?: Record<string, JsonValue>;
+  /** Present for an update: the fields the caller asked to change. */
+  patch?: Record<string, JsonValue>;
+  /** Present for an update or delete: the revision the write was planned against. */
+  baseRevision?: string;
+}
+
+/**
+ * An ad-hoc multi-record transaction as one queued unit of work.
+ *
+ * Unlike a command, there is no model declaration to re-execute, so the writes
+ * themselves cross the wire in planned order. That is not a licence: the
+ * authority applies each one through the ordinary runtime write path, so every
+ * policy, validation, lifecycle, scope and constraint check runs server-side
+ * exactly as it ran on the device — and, because they run inside one authority
+ * transaction, a batch that fails at any write lands none of them.
+ */
+export interface LocalBatchOperation {
+  /** What produced the batch, for local history and operator-facing surfaces. */
+  label?: string;
+  /**
+   * The wire payload: the writes the caller *requested*, which is what the
+   * authority is told about. A write the platform derived — an ordered-collection
+   * shift — is deliberately absent, because the authority re-derives it from the
+   * same constraint and being told about it twice would apply it twice.
+   */
+  writes: LocalBatchWrite[];
+  /**
+   * Every record the transaction wrote, derived writes included, so a verdict can
+   * be reported over all of them.
+   *
+   * Separate from `writes` for exactly the reason a command's `records` is
+   * separate from its `recordIds`: the wire payload and the record-coverage list
+   * answer different questions. Deriving coverage from `writes` left the siblings
+   * an ordered-collection shift moved reporting `pending` for ever after a
+   * refusal — waiting on an answer that nothing queued could ever give.
+   */
+  records: Array<{ objectName: string; recordId: string }>;
+}
+
 export interface LocalOperation {
   opId: string;
   object: string;
@@ -1436,6 +1509,13 @@ export interface LocalOperation {
    * has to be told about the transaction rather than about its pieces.
    */
   command?: LocalCommandOperation;
+  /**
+   * Present only when `operation` is `"batch"`: every write of an ad-hoc
+   * transaction, queued as one entry. As with a command, the per-record writes
+   * are still recorded in the operation log for local history and are simply not
+   * queued separately.
+   */
+  batch?: LocalBatchOperation;
   /**
    * The business contexts selected when this operation executed.
    *

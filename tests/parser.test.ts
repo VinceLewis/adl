@@ -521,6 +521,268 @@ END.POLICY
     });
   });
 
+  it("parses view edit sections, child collections, relationship pickers, and EDIT_CONTAINER", () => {
+    const ast = parseAdl(`APP Phase59
+END.APP
+
+OBJECT Order
+  FIELD Code TEXT
+  FIELD Notes TEXT
+
+  VIEW OrderForm FORM
+    FIELDS Code Notes
+    EDIT_CONTAINER page
+    EDIT_SECTION Details HEADING 'Order'
+      FIELDS Code Notes
+    END.EDIT_SECTION
+    CHILD_COLLECTION Lines HEADING 'Lines'
+      CHILD OrderLine PARENT_FIELD Order
+      CHILD_VIEW OrderLineList
+      OPERATIONS createChild linkExisting updateChild unlink remove reorder
+      STAGED
+      ORDER_FIELD Position
+      EMPTY_TEXT 'No lines yet.'
+      PICKER OrderLinePicker
+        SOURCE OBJECT OrderLine
+        SELECTION multiple
+        DISPLAY Description Quantity
+        SEARCH Description
+        SORT Description ASC
+        EXCLUDE_LINKED
+        EMPTY_TEXT 'Nothing to link.'
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+`);
+
+    const view = ast.objects[0]?.views[0];
+
+    expect(view?.editContainer).toBe("page");
+    expect(view?.editSections[0]).toMatchObject({
+      kind: "EditFieldsSectionDeclaration",
+      name: "Details",
+      heading: "Order",
+      fields: ["Code", "Notes"],
+    });
+    expect(view?.editSections[1]).toMatchObject({
+      kind: "EditChildCollectionDeclaration",
+      name: "Lines",
+      heading: "Lines",
+      childObject: "OrderLine",
+      parentField: "Order",
+      childView: "OrderLineList",
+      operations: ["createChild", "linkExisting", "updateChild", "unlink", "remove", "reorder"],
+      staged: true,
+      orderField: "Position",
+      emptyText: "No lines yet.",
+      picker: {
+        kind: "RelationshipPickerDeclaration",
+        name: "OrderLinePicker",
+        sourceKind: "object",
+        source: "OrderLine",
+        selection: "multiple",
+        displayFields: ["Description", "Quantity"],
+        searchFields: ["Description"],
+        sort: [{ field: "Description", direction: "asc" }],
+        excludeAlreadyLinked: true,
+        emptyText: "Nothing to link.",
+      },
+    });
+  });
+
+  /*
+   * `STAGED` and `EXCLUDE_LINKED` both resolve to `true` by default, so the bare
+   * word has to mean `true` for the declaration to read as English. Turning one
+   * off is otherwise unsayable, which is the whole reason the explicit form
+   * exists — so both forms are pinned here.
+   */
+  it("parses the bare and explicit forms of STAGED and EXCLUDE_LINKED, and a read-model picker source", () => {
+    const ast = parseAdl(`APP Phase59
+END.APP
+
+OBJECT Order
+  FIELD Code TEXT
+
+  VIEW OrderForm FORM
+    FIELDS Code
+    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      STAGED false
+      PICKER OrderLinePicker
+        SOURCE READ_MODEL OrderLineCandidates
+        SELECTION single
+        EXCLUDE_LINKED false
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+`);
+
+    const section = ast.objects[0]?.views[0]?.editSections[0];
+    if (section?.kind !== "EditChildCollectionDeclaration") {
+      throw new Error("Expected a child collection declaration.");
+    }
+
+    expect(section.staged).toBe(false);
+    // Absent rather than empty, so resolution still applies its own defaults.
+    expect(section.operations).toBeUndefined();
+    expect(section.heading).toBeUndefined();
+    expect(section.picker).toMatchObject({
+      sourceKind: "readModel",
+      source: "OrderLineCandidates",
+      selection: "single",
+      excludeAlreadyLinked: false,
+    });
+  });
+
+  it("reports malformed edit surface declarations with the options it accepts", () => {
+    const wrap = (body: string): string => `APP Phase59
+END.APP
+
+OBJECT Order
+  FIELD Code TEXT
+
+  VIEW OrderForm FORM
+${body}
+  END.VIEW
+END.OBJECT
+`;
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      EMPTY_TEXT 'No lines yet.'
+    END.CHILD_COLLECTION`),
+      "Expected CHILD_COLLECTION CHILD directive with PARENT_FIELD",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine
+    END.CHILD_COLLECTION`),
+      "Expected CHILD_COLLECTION CHILD directive",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS explode createChild updateChild
+    END.CHILD_COLLECTION`),
+      "Expected child collection operation createChild, linkExisting, updateChild, unlink, remove, or reorder, but found 'explode'.",
+    );
+
+    expectParseFailure(
+      wrap("    EDIT_CONTAINER popup"),
+      "Expected edit container mode MODAL, DRAWER, PAGE, or SPLITPANE, but found 'popup'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order`),
+      "or END.CHILD_COLLECTION",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      PICKER OrderLinePicker
+        SOURCE OBJECT OrderLine
+    END.CHILD_COLLECTION`),
+      "or END.PICKER",
+    );
+
+    expectParseFailure(
+      wrap(`    EDIT_SECTION Details
+      FIELDS Code`),
+      "or END.EDIT_SECTION",
+    );
+
+    expectParseFailure(
+      wrap(`    EDIT_SECTION Details
+      CHILD OrderLine PARENT_FIELD Order
+    END.EDIT_SECTION`),
+      "Expected EDIT_SECTION directive HEADING, FIELDS, or END.EDIT_SECTION, but found 'CHILD'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      SELECTION single
+    END.CHILD_COLLECTION`),
+      "Expected CHILD_COLLECTION directive HEADING, CHILD, CHILD_VIEW, OPERATIONS, STAGED, ORDER_FIELD, EMPTY_TEXT, PICKER, or END.CHILD_COLLECTION, but found 'SELECTION'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      PICKER OrderLinePicker
+        STAGED
+      END.PICKER
+    END.CHILD_COLLECTION`),
+      "Expected PICKER directive SOURCE, SELECTION, DISPLAY, SEARCH, SORT, EXCLUDE_LINKED, EMPTY_TEXT, or END.PICKER, but found 'STAGED'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      PICKER OrderLinePicker
+        SOURCE TABLE OrderLine
+      END.PICKER
+    END.CHILD_COLLECTION`),
+      "Expected relationship picker source kind OBJECT or READ_MODEL, but found 'TABLE'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      PICKER OrderLinePicker
+        SELECTION many
+      END.PICKER
+    END.CHILD_COLLECTION`),
+      "Expected relationship picker selection mode SINGLE or MULTIPLE, but found 'many'.",
+    );
+
+    expectParseFailure(
+      wrap(`    EDIT_SECTION Details FIELDS Code
+    END.EDIT_SECTION`),
+      "Expected EDIT_SECTION header option HEADING or end of line, but found 'FIELDS'.",
+    );
+  });
+
+  /*
+   * An unknown operation must be reported at its own token. Reading the whole
+   * line first and then mapping it names the *last* operation as unexpected,
+   * which is usually a valid word and sends the author to the wrong column.
+   */
+  it("locates an unknown child operation at the offending word", () => {
+    try {
+      parseAdl(`APP Phase59
+END.APP
+
+OBJECT Order
+  FIELD Code TEXT
+
+  VIEW OrderForm FORM
+    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS explode createChild updateChild
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+`);
+    } catch (error) {
+      if (!(error instanceof ParseError)) {
+        throw error;
+      }
+
+      expect(error.diagnostic.message).toContain("'explode'");
+      expect(error.diagnostic.sourceRange.start).toMatchObject({ line: 10, column: 18 });
+      return;
+    }
+
+    throw new Error("Expected an unknown child operation to throw.");
+  });
+
   it("reports malformed Phase 56 declarations with the options it accepts", () => {
     expectParseFailure(
       `APP Phase56

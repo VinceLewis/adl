@@ -192,6 +192,71 @@ what feeds the sync queue. It is deliberately **not** an audit operation: audit
 stays per record, so a command's effects are auditable as the creates and updates
 they are, under the command metadata that names the business action.
 
+## Staged Child Changes
+
+A view's `editSections` describe how its CRUD form is composed; see
+[resolved-model#view-presentation](resolved-model.md) for the resolved contract
+and [language#edit-surfaces](language.md) for the source syntax. Evaluating an
+edit surface resolves each section against the parent record: a `fields` section
+reports the fields it groups, and a `childCollection` section reports the child
+rows that already point at this parent, the operations the model permits, and the
+picker if one is declared.
+
+Evaluation is a read and enforces nothing new. Child rows are loaded through the
+child object's ordinary policy-enforcing search and then filtered to the declared
+parent field, and picker candidates come from the child object's `search` or from
+`executeReadModel` before any picker-specific text matching, already-linked
+exclusion or ordering is applied. Action visibility on a child row is shaped by
+the child object's own policy and sync decisions, so a collection that lists an
+operation the caller may not perform reports it as not enabled rather than
+hiding the refusal until the write.
+
+Applying a staged batch is a **single transaction**. Every staged operation is
+planned first — running exactly the policy, validation, lifecycle, scope,
+constraint and sync checks the direct write APIs run — and all of the planned
+writes are then committed together. So:
+
+- if any one staged change is refused, **none** of them is written and **none**
+  of them is queued, including changes that would have succeeded on their own;
+- the ordered-collection expansion applies to the batch as a whole, so a reorder
+  and an insert commit one coherent set of positions rather than a sequence of
+  intermediate ones;
+- a successful batch produces **exactly one** sync-queue entry, whose operation
+  kind is `batch`, covering every record the batch wrote. Its per-record writes
+  are still recorded in the operation log and in audit; they are simply not
+  queued.
+
+The reasoning is the one [command replay](#command-replay) states. A transaction
+replayed as independent per-record intents is not a transaction across the sync
+boundary and can land partially at the authority however carefully it was
+committed locally. What differs from a command is only the payload: a batch has
+no model declaration to re-execute, so the queued entry carries the writes
+themselves — a create carries the id the device minted, and an update or delete
+carries the revision it was planned against.
+
+At the authority a batch is applied as one transaction too. Each write goes
+through the ordinary runtime create, update or delete path, so policy,
+validation, lifecycle, scope and constraints all run server-side; a create's
+supplied id is refused when taken; and an update or delete whose base revision
+has moved on is a conflict. None of the writes lands unless all of them do. A
+batch replayed with no writes is refused with `ADL_RUNTIME_BATCH_WRITES_MISSING`,
+because a transaction that claims to have written nothing would record a durable
+verdict about no records at all.
+
+A batch's verdict settles **as a unit**, exactly as a command's does. The verdict
+is recorded on every record the batch wrote — the entry's own `objectName` and
+`recordId` name only a representative — so an accepted batch leaves all of them
+`synced`, a conflicted batch leaves all of them `conflict`, and a refused batch
+leaves all of them `rejected`. A record the batch _created_ additionally carries
+the licence to be discarded locally, because a refused create is the only case in
+which the authority holds no copy to contradict the removal. See
+[record sync state](#record-sync-state) and [what a verdict covers](#what-a-verdict-covers).
+
+`batch` is in the default operation-log operations for the reason `command` is:
+the operation log is what feeds the sync queue, so a kind the model does not log
+has no delivery path at all. Like `command`, it is deliberately not an audit
+operation; audit stays per record.
+
 ## Decision Tables
 
 Decision-table inputs evaluate first against the source values. Row conditions
@@ -305,11 +370,14 @@ shaped by child-object policy and sync state for each operation.
 Unsaved parents cannot be used as persisted relationship targets. Child changes
 for a create workflow are represented as explicit staged operations and are
 included in the evaluated edit surface. Saving the parent may then call
-`ApplicationRuntime.applyStagedChildChanges`, which applies staged operations in
-the supplied order through normal runtime create, update, and delete paths.
-Those paths continue to enforce validation, policy, constraints, sync, audit,
-and operation-log behavior. Cancelling a create/edit container discards the
-caller-held staged operation list.
+`ApplicationRuntime.applyStagedChildChanges`, which plans every staged operation
+in the supplied order through the normal runtime create, update and delete
+paths — so validation, policy, constraints, sync, audit and operation-log
+behavior are all enforced exactly as they are for a direct write — and then
+commits the whole set as one transaction. See
+[staged child changes](#staged-child-changes) for what that guarantees.
+Cancelling a create/edit container discards the caller-held staged operation
+list.
 
 Relationship picker candidates evaluate through
 `ApplicationRuntime.evaluateRelationshipPicker`. The runtime loads candidates
@@ -500,7 +568,11 @@ one its queue entry names. For an ordinary create, update, delete or transition
 that is the same record. For a command it is every record all of its steps wrote:
 the authority answered the command as one transaction, so its answer is equally
 true of every row that transaction produced, and a command's queue entry names a
-representative record rather than the subject of the change.
+representative record rather than the subject of the change. For a
+[batch](#staged-child-changes) it is every record the transaction wrote, derived
+writes included — a sibling an ordered-collection shift moved is covered by the
+same verdict, and reading coverage from the wire payload alone would leave it
+waiting for an answer nothing could give.
 
 An accepted operation leaves every record it covered `synced`, including records
 the outcome did not return — an accepted delete returns a tombstone the caller
@@ -533,7 +605,7 @@ refused create does not give the authority a copy, and the edit is refused in it
 turn as an update to a record the authority does not have. It is spent when the
 authority produces a copy under that id: an accepted operation, or a
 reconciliation, including the collision case where the create was refused
-*because* the id already named a record the authority holds. A runtime that
+_because_ the id already named a record the authority holds. A runtime that
 cleared it on any local write strands the record one edit after the refusal, with
 nothing left saying it can be thrown away.
 

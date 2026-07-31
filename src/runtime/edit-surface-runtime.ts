@@ -12,6 +12,7 @@ import type {
   ResolvedView,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import type { PlannedObjectWrite } from "./object-store.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { RuntimeModelError, RuntimeValidationError, cloneJson } from "./runtime-types.js";
 import type { PolicyDecision, RuntimeContext, RuntimeLogger } from "./runtime-types.js";
@@ -30,18 +31,35 @@ export interface RuntimeEditSurfaceDataSource {
     context: RuntimeContext,
     query: { sort?: ResolvedSort[]; limit?: number },
   ): Promise<RuntimeReadModelResult>;
-  create(
+  /**
+   * A staged batch plans every write and commits them together, rather than
+   * executing them one at a time.
+   *
+   * Executing them one at a time is what it used to do, and it meant a batch of
+   * child changes was never a transaction: it could fail halfway and leave the
+   * parent's children half-changed, and it reached the authority as one intent
+   * per child, which could land partially there too. The planning calls below
+   * run exactly the same policy, validation, scope and sync checks the direct
+   * write APIs run — they simply stop short of committing.
+   */
+  planCreate(
     objectName: string,
     values: Record<string, JsonValue>,
     context: RuntimeContext,
-  ): Promise<StoredObjectRecord>;
-  update(
+  ): Promise<PlannedObjectWrite>;
+  planUpdate(
     objectName: string,
     id: string,
     patch: Record<string, JsonValue>,
     context: RuntimeContext,
-  ): Promise<StoredObjectRecord>;
-  delete(objectName: string, id: string, context: RuntimeContext): Promise<StoredObjectRecord>;
+  ): Promise<PlannedObjectWrite>;
+  planDelete(objectName: string, id: string, context: RuntimeContext): Promise<PlannedObjectWrite>;
+  /** Commits planned writes as one storage transaction and one queued operation. */
+  commitBatch(
+    writes: PlannedObjectWrite[],
+    context: RuntimeContext,
+    options: { label?: string },
+  ): Promise<StoredObjectRecord[]>;
   evaluatePolicy(
     objectName: string,
     action: "create" | "update" | "delete",
@@ -291,10 +309,11 @@ export class EditSurfaceRuntime {
         })
         .map((section) => [section.name, section]),
     );
-    const applied: RuntimeAppliedChildOperation[] = [];
     this.requireNoDuplicateLinkOperations(input.stagedChanges, sectionsByName);
 
-    for (const operation of input.stagedChanges.map(cloneStagedOperation)) {
+    const operations = input.stagedChanges.map(cloneStagedOperation);
+    const writes: PlannedObjectWrite[] = [];
+    for (const operation of operations) {
       const section = sectionsByName.get(operation.section);
       if (section === undefined) {
         throw unsupportedOperation(
@@ -317,13 +336,28 @@ export class EditSurfaceRuntime {
         );
       }
 
-      const result = await this.applyStagedOperation(section, parent, operation, input.context);
-      applied.push(result);
+      writes.push(await this.planStagedOperation(section, parent, operation, input.context));
     }
+
+    // One commit for the whole staged batch: either every child change lands and
+    // one entry is queued for all of them, or a refusal at any single write
+    // leaves nothing written and nothing queued. Planning above has already run
+    // each write's policy, validation, scope and sync checks, so a refusal here
+    // is the same refusal the one-at-a-time path produced — it simply now takes
+    // the rest of the batch down with it, which is the point.
+    // The label names the *parent*, because that is the change the person made.
+    // The queue entry is filed under a representative child record, so without a
+    // label a refused set-list edit would be presented to them as a rejection
+    // against a set-list item row they never touched directly.
+    const committed = await this.dataSource.commitBatch(writes, input.context, {
+      label: `Changes to ${object.name}`,
+    });
 
     return {
       parentRecordId: parent.meta.guid,
-      applied,
+      applied: operations.map((operation, index) =>
+        appliedOperation(operation, committed[index]?.meta.guid ?? ""),
+      ),
     };
   }
 
@@ -528,8 +562,17 @@ export class EditSurfaceRuntime {
     }
 
     const action = operation === "createChild" ? "create" : "update";
-    const patch =
-      parentRecord === undefined ? {} : { [section.parentField]: parentRecord.meta.guid };
+    // The scope value is part of the patch because it is part of the write. A
+    // context-scoped child evaluated without it has no context id for the policy
+    // engine to resolve context roles against, so a `ROLE BandAdmin` rule cannot
+    // match and the collection's Add and Link controls silently do not render —
+    // for a model whose author has granted exactly that role. The prediction and
+    // the write must agree, which is why `planStagedOperation` seeds the same
+    // value rather than this one merely asserting it.
+    const patch = {
+      ...scopeValues(childObject, context),
+      ...(parentRecord === undefined ? {} : { [section.parentField]: parentRecord.meta.guid }),
+    };
     const decision = this.dataSource.evaluatePolicy(childObject.name, action, context, { patch });
     const sync = this.dataSource.canWrite(childObject.name, action, context);
     return {
@@ -574,22 +617,39 @@ export class EditSurfaceRuntime {
     };
   }
 
-  private async applyStagedOperation(
+  /**
+   * Turns one staged child operation into a planned write.
+   *
+   * Every branch plans rather than writes, so the whole batch can be handed to
+   * one commit. Planning is against pre-transaction state, which is the same
+   * contract a command's steps have had since Phase 57: two staged operations
+   * that target the same child record would each be planned against the record
+   * as it was, and the later one would win. The edit surface never produces such
+   * a pair — the browser collapses repeated edits of one row into a single
+   * staged operation before submitting — and a caller that constructs one by
+   * hand gets last-write-wins, not a silent partial commit.
+   */
+  private async planStagedOperation(
     section: ResolvedEditChildCollectionSection,
     parent: StoredObjectRecord,
     operation: RuntimeStagedChildOperation,
     context: RuntimeContext,
-  ): Promise<RuntimeAppliedChildOperation> {
+  ): Promise<PlannedObjectWrite> {
     if (operation.operation === "createChild") {
-      const created = await this.dataSource.create(
+      return this.dataSource.planCreate(
         section.childObject,
         {
+          // Seeded first so an explicit staged value still wins. Without it a
+          // `SCOPE` child created from inside its parent's form carries no
+          // context id at all, and fails its own required-field check and the
+          // object-scope gate — the child form has no reason to ask for a
+          // context the user has already selected.
+          ...scopeValues(this.index.getObject(section.childObject), context),
           ...(operation.values ?? {}),
           [section.parentField]: parent.meta.guid,
         },
         context,
       );
-      return appliedOperation(operation, created.meta.guid);
     }
 
     if (operation.childId === undefined) {
@@ -605,38 +665,34 @@ export class EditSurfaceRuntime {
         );
       }
 
-      const linked = await this.dataSource.update(
+      return this.dataSource.planUpdate(
         section.childObject,
         operation.childId,
         { [section.parentField]: parent.meta.guid },
         context,
       );
-      return appliedOperation(operation, linked.meta.guid);
     }
 
     if (operation.operation === "unlink") {
-      const unlinked = await this.dataSource.update(
+      return this.dataSource.planUpdate(
         section.childObject,
         operation.childId,
         { [section.parentField]: null },
         context,
       );
-      return appliedOperation(operation, unlinked.meta.guid);
     }
 
     if (operation.operation === "remove") {
-      const removed = await this.dataSource.delete(section.childObject, operation.childId, context);
-      return appliedOperation(operation, removed.meta.guid);
+      return this.dataSource.planDelete(section.childObject, operation.childId, context);
     }
 
     if (operation.operation === "updateChild") {
-      const updated = await this.dataSource.update(
+      return this.dataSource.planUpdate(
         section.childObject,
         operation.childId,
         operation.values ?? {},
         context,
       );
-      return appliedOperation(operation, updated.meta.guid);
     }
 
     if (operation.operation === "reorder") {
@@ -646,13 +702,12 @@ export class EditSurfaceRuntime {
           `Staged reorder operation '${operation.id}' requires orderField and position.`,
         );
       }
-      const reordered = await this.dataSource.update(
+      return this.dataSource.planUpdate(
         section.childObject,
         operation.childId,
         { [section.orderField]: operation.position },
         context,
       );
-      return appliedOperation(operation, reordered.meta.guid);
     }
 
     throw unsupportedOperation(
@@ -806,6 +861,32 @@ function evaluateFieldsSection(
     ...(section.heading === undefined ? {} : { heading: section.heading }),
     fields,
   };
+}
+
+/**
+ * The context-scope field a write on this object must carry, taken from the
+ * caller's current selection.
+ *
+ * This is the same rule the browser applies to a top-level create
+ * (`applySelectedScopeToCreateValues`), applied where a *child* create is made:
+ * inside its parent's form, where nothing has asked the user to name a context
+ * because they selected one before opening the form at all. It grants nothing —
+ * the value comes from the caller's own selection, and
+ * `requireObjectScopeForValues` still refuses a write into a context they are
+ * not in.
+ *
+ * Empty when the object declares no scope, or when nothing is selected for the
+ * context it declares; in the second case the write is refused downstream, which
+ * is the honest outcome rather than one invented here.
+ */
+function scopeValues(object: ResolvedObject, context: RuntimeContext): Record<string, JsonValue> {
+  const scope = object.scope;
+  if (scope === undefined) {
+    return {};
+  }
+
+  const contextId = context.selectedContexts?.[scope.context];
+  return contextId === undefined ? {} : { [scope.field]: contextId };
 }
 
 function getChildSectionFields(

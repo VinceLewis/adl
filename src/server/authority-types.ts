@@ -75,7 +75,36 @@ export type AuthorityOperationIntent =
        */
       recordIds: AuthorityCommandRecordId[];
       selectedContexts?: Record<string, string>;
+    }
+  | {
+      operationId: string;
+      kind: "batch";
+      /**
+       * The writes of one ad-hoc transaction, in the order the device planned
+       * them, applied here inside a single authority transaction.
+       *
+       * A batch has no model declaration to re-execute, so unlike a command it
+       * crosses the wire as its writes. That is a difference in payload, never in
+       * trust: each write goes through the ordinary runtime create/update/delete
+       * path, so policy, validation, lifecycle, scope and constraints all run
+       * server-side, a create's supplied id is shape-checked and refused when
+       * taken, and an update or delete whose base revision is stale is a conflict.
+       * The only thing the batch adds is that none of them lands unless all do.
+       */
+      writes: AuthorityBatchWrite[];
+      selectedContexts?: Record<string, string>;
     };
+
+export type AuthorityBatchWrite =
+  | { operation: "create"; objectName: string; recordId: string; values: Record<string, JsonValue> }
+  | {
+      operation: "update";
+      objectName: string;
+      recordId: string;
+      patch: Record<string, JsonValue>;
+      baseRevision: string;
+    }
+  | { operation: "delete"; objectName: string; recordId: string; baseRevision: string };
 
 export type AuthorityOutcome =
   | { status: "accepted"; operationId: string; records: StoredObjectRecord[] }

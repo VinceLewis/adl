@@ -84,6 +84,54 @@ test.describe("Giggle Band visual smoke", () => {
     });
   });
 
+  /*
+   * The surface this phase exists for: a set list editing its own items in
+   * place, declared entirely in ADL. It is `EDIT_CONTAINER page`, so there is no
+   * `.adl-edit-container` to look for — the form is the workspace.
+   */
+  test("captures the ADL-declared set-list edit surface on every configured viewport", async ({
+    page,
+  }, testInfo) => {
+    await openGiggleApp(page);
+    await selectBandContext(page);
+    await navigateTo(page, {
+      name: "set-lists",
+      navItem: "SetListList",
+      expectedText: "August headline",
+    });
+
+    // Named rather than positional: the two viewports do not agree on which row
+    // is first, and this test is about one particular set list's contents.
+    await page.locator("tr[data-record-id]").filter({ hasText: "August headline" }).click();
+    await expect(page.locator("adl-form-view")).toBeVisible();
+
+    // Scoped to the section element: `data-child-section` is also on every
+    // control inside it, so the bare attribute selector is not unique.
+    const songs = page.locator("section.adl-child-section[data-child-section='Songs']");
+    await expect(songs).toBeVisible();
+    // The declared heading, the child rows, and the reorder affordance the
+    // section's `reorder` operation and `ORDER_FIELD` earn it.
+    await expect(songs).toContainText("Songs");
+    await expect(songs.locator("[data-child-row]")).not.toHaveCount(0);
+    await expect(songs.locator("button[data-child-reorder]").first()).toBeVisible();
+    // A lookup column shows the song's title, not its record id. The child-row
+    // renderer resolves lookups asynchronously, so this also waits for it.
+    await expect(songs).toContainText("Neon Map");
+    // `createChild` and `linkExisting` were invisible for a context-scoped child
+    // until the policy patch carried the selected scope; their controls are the
+    // visible proof that it does.
+    await expect(songs.locator("button[data-child-action='createChild']")).toBeVisible();
+    await expect(songs.locator("button[data-child-action='linkExisting']")).toBeVisible();
+
+    await expectAppReady(page);
+    await expectNoDocumentHorizontalOverflow(page);
+    await expectNoVisibleElementOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`giggle-${testInfo.project.name}-set-list-edit.png`),
+      fullPage: true,
+    });
+  });
+
   test("opens calendar availability records modally and returns to calendar", async ({
     page,
   }, testInfo) => {

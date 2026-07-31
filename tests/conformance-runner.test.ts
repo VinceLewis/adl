@@ -4,6 +4,7 @@ import type {
   AuthorityConformanceCase,
   JsonValue,
   ModelMigrationConformanceCase,
+  ModelResolutionConformanceCase,
   PartialApplicationModel,
   RuntimeConformanceCase,
   SyncReconcileConformanceCase,
@@ -946,6 +947,287 @@ describe("syncReconcile", () => {
     const result = await runConformanceCase(
       conflicted("resubmitMine", {
         records: [{ recordId: "note-1", syncStatus: "conflict" }],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+});
+
+/**
+ * The Phase 59 runner extensions, shown to discriminate.
+ *
+ * Two things were unsayable before them. A model could only be stated in the
+ * resolved model's own shape, so `docs/spec/language.md` — one of the three
+ * specification layers — had no case pinning a single line of it; and no
+ * operation reached an edit surface at all, so the one write a device makes that
+ * covers several records without a command declaration could not be described.
+ */
+const orderEditSurfaceAdl = [
+  "APP 'Runner Order Edit Surface'",
+  "END.APP",
+  "",
+  "OBJECT Order",
+  "  DISPLAY Code",
+  "  FIELD Code TEXT REQUIRED",
+  "  SYNC LOCAL_FIRST SCOPE all",
+  "",
+  "  VIEW OrderForm FORM",
+  "    FIELDS Code",
+  "    EDIT_CONTAINER page",
+  "    CHILD_COLLECTION Lines HEADING 'Lines'",
+  "      CHILD OrderLine PARENT_FIELD Order",
+  "      OPERATIONS createChild updateChild unlink",
+  "      EMPTY_TEXT 'No lines yet.'",
+  "    END.CHILD_COLLECTION",
+  "  END.VIEW",
+  "END.OBJECT",
+  "",
+  "OBJECT OrderLine",
+  "  CONSTRAINT uniqueOrderLineDescription UNIQUE FIELDS Description",
+  "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+  "  FIELD Description TEXT REQUIRED",
+  "  SYNC LOCAL_FIRST SCOPE all",
+  "END.OBJECT",
+  "",
+  "POLICY OrderPolicy ON Order",
+  "  RULE allowOrder ALLOW * AUTHENTICATED",
+  "END.POLICY",
+  "",
+  "POLICY OrderLinePolicy ON OrderLine",
+  "  RULE allowOrderLine ALLOW * AUTHENTICATED",
+  "END.POLICY",
+];
+
+const orderContext = { userId: "user-1", roles: [], channel: "ui" as const, online: true };
+
+describe("models authored in ADL source", () => {
+  const containerCase = (adl: string[], editContainer: string): ModelResolutionConformanceCase => ({
+    id: "runner.adl.edit-container",
+    title: "ADL source resolves to the model it declares",
+    specRef: "language#edit-surfaces",
+    operation: "resolveModel",
+    model: { adl },
+    input: { select: ["objects.0.views.0.editContainer"] },
+    expected: { ok: true, result: { "objects.0.views.0.editContainer": editContainer } },
+  });
+
+  it("compiles a model written in ADL and resolves it", async () => {
+    const result = await runConformanceCase(containerCase(orderEditSurfaceAdl, "page"));
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails when the source does not say what the case claims", async () => {
+    // Without this the `adl` input would read as coverage of the language while
+    // constraining nothing: any source at all would satisfy an expectation that
+    // could not tell one from another.
+    const result = await runConformanceCase(
+      containerCase(
+        orderEditSurfaceAdl.filter((line) => !line.includes("EDIT_CONTAINER")),
+        "page",
+      ),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  it("reports a source the parser refuses rather than passing an empty model through", async () => {
+    const result = await runConformanceCase(
+      containerCase([...orderEditSurfaceAdl, "CHILD_COLLECTION Orphan"], "page"),
+    );
+
+    expect(result.pass).toBe(false);
+    expect(result.actual.ok).toBe(false);
+  });
+});
+
+describe("evaluateEditSurface", () => {
+  const surface = (result: JsonValue): RuntimeConformanceCase => ({
+    id: "runner.editsurface.child-collection",
+    title: "An ADL-declared child collection, evaluated against its parent",
+    specRef: "runtime-semantics#staged-child-changes",
+    operation: "evaluateEditSurface",
+    model: { adl: orderEditSurfaceAdl },
+    setup: [
+      {
+        operation: "create",
+        alias: "order",
+        objectName: "Order",
+        values: { Code: "A-1" },
+        context: orderContext,
+      },
+      {
+        operation: "create",
+        alias: "line",
+        objectName: "OrderLine",
+        values: { Order: { $ref: "order.meta.guid" }, Description: "Strings" },
+        context: orderContext,
+      },
+    ],
+    input: {
+      objectName: "Order",
+      viewName: "OrderForm",
+      mode: "edit",
+      recordId: { $ref: "order.meta.guid" },
+      context: orderContext,
+    },
+    expected: { ok: true, result },
+  });
+
+  it("reports the child rows that point at this parent", async () => {
+    const result = await runConformanceCase(
+      surface({
+        sections: [
+          {
+            name: "Lines",
+            kind: "childCollection",
+            childObject: "OrderLine",
+            parentField: "Order",
+            rows: [{ id: "$line", source: "persisted", values: { Description: "Strings" } }],
+          },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same surface asserted to carry an operation the model did not permit", async () => {
+    // `linkExisting` is deliberately absent from the source above. Without this,
+    // "the operations are reported" would be satisfied by any list at all.
+    const result = await runConformanceCase(
+      surface({
+        sections: [
+          { name: "Lines", operations: ["createChild", "linkExisting", "updateChild", "unlink"] },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+});
+
+describe("applyStagedChildChanges", () => {
+  const staged = (
+    changes: Array<Record<string, unknown>>,
+    result: JsonValue,
+  ): RuntimeConformanceCase => ({
+    id: "runner.staged.batch",
+    title: "A staged batch, the queue it left behind, and what storage holds",
+    specRef: "runtime-semantics#staged-child-changes",
+    operation: "applyStagedChildChanges",
+    model: { adl: orderEditSurfaceAdl },
+    setup: [
+      {
+        operation: "create",
+        alias: "order",
+        objectName: "Order",
+        values: { Code: "A-1" },
+        context: orderContext,
+      },
+    ],
+    input: {
+      objectName: "Order",
+      viewName: "OrderForm",
+      parentRecordId: { $ref: "order.meta.guid" },
+      stagedChanges: changes,
+      context: orderContext,
+    } as unknown as RuntimeConformanceCase["input"],
+    expected: { ok: true, result },
+  });
+
+  const twoCreates = [
+    {
+      id: "strings",
+      section: "Lines",
+      operation: "createChild",
+      childObject: "OrderLine",
+      values: { Description: "Strings" },
+    },
+    {
+      id: "picks",
+      section: "Lines",
+      operation: "createChild",
+      childObject: "OrderLine",
+      values: { Description: "Picks" },
+    },
+  ];
+
+  it("queues one batch entry naming every record the batch wrote", async () => {
+    const result = await runConformanceCase(
+      staged(twoCreates, {
+        apply: { status: "applied" },
+        queue: [
+          { objectName: "Order", operation: "create", recordId: "$order" },
+          {
+            objectName: "OrderLine",
+            operation: "batch",
+            recordId: "$strings",
+            batch: {
+              writes: [
+                { operation: "create", objectName: "OrderLine", recordId: "$strings" },
+                { operation: "create", objectName: "OrderLine", recordId: "$picks" },
+              ],
+            },
+          },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same batch asserted to have queued its children separately", async () => {
+    // The discrimination the phase turns on: a runtime applying the staged
+    // changes one at a time — the shape that can land partially at the authority
+    // and leave the parent's children half-changed — fails exactly here.
+    const result = await runConformanceCase(
+      staged(twoCreates, {
+        queue: [
+          { objectName: "Order", operation: "create" },
+          { objectName: "OrderLine", operation: "create" },
+          { objectName: "OrderLine", operation: "create" },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  const oneRefusedChange = [
+    twoCreates[0] as Record<string, unknown>,
+    {
+      id: "duplicate",
+      section: "Lines",
+      operation: "createChild",
+      childObject: "OrderLine",
+      values: { Description: "Strings" },
+    },
+  ];
+
+  it("reports a refused batch with nothing written and nothing queued", async () => {
+    const result = await runConformanceCase(
+      staged(oneRefusedChange, {
+        apply: { status: "refused", code: "ADL_RUNTIME_VALIDATION_FAILED" },
+        queue: [{ objectName: "Order", operation: "create", recordId: "$order" }],
+        records: [{ objectName: "Order", recordId: "$order" }],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails that refusal asserted to have kept the change that would have succeeded", async () => {
+    // The first staged change is valid on its own, so a one-at-a-time
+    // implementation commits and queues it before the second is refused. That
+    // residue is the whole defect, and it has to be assertable.
+    const result = await runConformanceCase(
+      staged(oneRefusedChange, {
+        records: [
+          { objectName: "Order" },
+          { objectName: "OrderLine", values: { Description: "Strings" } },
+        ],
       } as unknown as JsonValue),
     );
 

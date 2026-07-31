@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LIFECYCLE_STATE_FIELD,
   MODEL_VALIDATION_CODES,
+  compileAdl,
   resolveApplicationModel,
   validateApplicationModel,
 } from "../src/index.js";
@@ -166,6 +167,165 @@ describe("validateApplicationModel", () => {
         MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN,
         MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN,
       ]),
+    );
+  });
+
+  /*
+   * These diagnostics existed long before any ADL syntax could reach them, so
+   * until now nothing proved an authored file produces them. Each broken
+   * declaration below is one an author can actually write.
+   */
+  it("reports edit surface and relationship picker diagnostics from ADL source", () => {
+    const result = compileAdl(`APP Orders
+  START_VIEW OrderList
+END.APP
+
+OBJECT Order
+  KEY Code
+  DISPLAY Code
+  FIELD Code TEXT REQUIRED
+  FIELD Notes TEXT
+
+  VIEW OrderList LIST
+    FIELDS Code Notes
+  END.VIEW
+
+  VIEW OrderForm FORM
+    FIELDS Code Notes
+    EDIT_SECTION Details
+      FIELDS Code Missing
+    END.EDIT_SECTION
+    EDIT_SECTION Details
+      FIELDS Notes
+    END.EDIT_SECTION
+    CHILD_COLLECTION UnknownChild
+      CHILD Nowhere PARENT_FIELD Order
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION UnknownParentField
+      CHILD OrderLine PARENT_FIELD Missing
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION NotALookupBack
+      CHILD OrderLine PARENT_FIELD Description
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION UnknownChildView
+      CHILD OrderLine PARENT_FIELD Order
+      CHILD_VIEW NoSuchView
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION UnknownOrderField
+      CHILD OrderLine PARENT_FIELD Order
+      ORDER_FIELD Missing
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION ReorderWithoutOrderField
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS createChild reorder
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION PickerWithoutLink
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS createChild
+      PICKER LinesPicker
+        DISPLAY Description
+      END.PICKER
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION PickerFields
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS linkExisting
+      PICKER LinesPicker
+        DISPLAY NoDisplay
+        SEARCH NoSearch
+        SORT NoSort ASC
+      END.PICKER
+    END.CHILD_COLLECTION
+    CHILD_COLLECTION PickerWrongSource
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS linkExisting
+      PICKER LinesPicker
+        SOURCE OBJECT Order
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT OrderLine
+  DISPLAY Description
+  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code
+  FIELD Description TEXT
+  FIELD Position NUMBER REQUIRED
+END.OBJECT
+`);
+
+    expect(result.diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.path])).toEqual([
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_DUPLICATE,
+        "objects[0].views[1].editSections[1].name",
+      ],
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[0].fields[1]",
+      ],
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_CHILD_OBJECT_UNKNOWN,
+        "objects[0].views[1].editSections[2].childObject",
+      ],
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PARENT_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[3].parentField",
+      ],
+      // Declared, but a lookup at something other than the parent, so it cannot
+      // be the field this collection is a collection of.
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PARENT_FIELD_INVALID,
+        "objects[0].views[1].editSections[4].parentField",
+      ],
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_CHILD_VIEW_UNKNOWN,
+        "objects[0].views[1].editSections[5].childView",
+      ],
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[6].orderField",
+      ],
+      // Reorder with no order field at all: the same code, because the missing
+      // thing is the same thing.
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[7].orderField",
+      ],
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED,
+        "objects[0].views[1].editSections[8].picker.name",
+      ],
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[9].picker.displayFields[0]",
+      ],
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[9].picker.searchFields[0]",
+      ],
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[9].picker.sort[0].field",
+      ],
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        "objects[0].views[1].editSections[10].picker.source",
+      ],
+    ]);
+    expect(
+      result.diagnostics.find(
+        (diagnostic) =>
+          diagnostic.code === MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PARENT_FIELD_INVALID,
+      )?.message,
+    ).toBe(
+      "Edit child collection 'NotALookupBack' parent field 'Description' must lookup parent object 'Order'.",
+    );
+    expect(
+      result.diagnostics.find(
+        (diagnostic) =>
+          diagnostic.code === MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+      )?.message,
+    ).toBe(
+      "Relationship picker 'LinesPicker' object source 'Order' must be child object 'OrderLine'.",
     );
   });
 

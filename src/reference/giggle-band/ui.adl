@@ -5,6 +5,7 @@ SHELL
   NAV MyAvailabilityList LABEL 'Availability' ICON calendar GROUP Main ORDER 40 VISIBLE WHEN CONTEXT Band SELECTED
   NAV SongLibrary LABEL 'Songs' ICON music GROUP Library ORDER 50
   NAV SetListList LABEL 'Set Lists' ICON list GROUP Library ORDER 60
+  NAV SetListForm LABEL 'Set list editor' ICON list GROUP Library ORDER 62
   NAV BandDirectory LABEL 'Bands' ICON users GROUP Admin ORDER 70
   NAV BandMemberAvailabilityBoard LABEL 'Who is free' ICON users GROUP Main ORDER 45 VISIBLE WHEN CONTEXT Band SELECTED
   NAV StreamingLinkList LABEL 'Streaming' ICON music GROUP Library ORDER 65
@@ -166,5 +167,37 @@ OBJECT Event
         END.ACTION
       END.CALENDAR
     END.SECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT SetList
+  VIEW SetListForm FORM
+    CONTEXT REQUIRED Band
+    EDIT_CONTAINER page
+    FIELDS Name Description
+    ACTIONS create read update delete
+
+    EDIT_SECTION Details HEADING 'Set list'
+      FIELDS Name Description
+    END.EDIT_SECTION
+
+    CHILD_COLLECTION Songs HEADING 'Songs'
+      CHILD SetListItem PARENT_FIELD SetList
+      CHILD_VIEW SetListItemList
+      OPERATIONS createChild linkExisting updateChild remove reorder
+      STAGED
+      ORDER_FIELD Position
+      EMPTY_TEXT 'No songs in this set list yet.'
+
+      PICKER SetListItemPicker
+        SOURCE READ_MODEL SetListItemsByPosition
+        SELECTION multiple
+        DISPLAY SongTitle SetListName
+        SEARCH SongTitle SetListName
+        SORT SongTitle ASC
+        EXCLUDE_LINKED
+        EMPTY_TEXT 'Every set-list item in this band is already in this set list.'
+      END.PICKER
+    END.CHILD_COLLECTION
   END.VIEW
 END.OBJECT

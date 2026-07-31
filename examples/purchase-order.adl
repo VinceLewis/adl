@@ -56,6 +56,51 @@ OBJECT PurchaseOrder
   VIEW PurchaseOrderForm FORM
     FIELDS PONumber Supplier Value Status InternalNotes ApprovalComment
     ACTIONS save delete submit approve
+    EDIT_CONTAINER page
+    EDIT_SECTION Details HEADING 'Order details'
+      FIELDS PONumber Supplier Value Status
+    END.EDIT_SECTION
+    EDIT_SECTION Commentary HEADING 'Commentary'
+      FIELDS InternalNotes ApprovalComment
+    END.EDIT_SECTION
+    CHILD_COLLECTION Lines HEADING 'Order lines'
+      CHILD PurchaseOrderLine PARENT_FIELD PurchaseOrder
+      CHILD_VIEW PurchaseOrderLineList
+      OPERATIONS createChild linkExisting updateChild unlink remove reorder
+      STAGED
+      ORDER_FIELD Position
+      EMPTY_TEXT 'No order lines yet.'
+      PICKER PurchaseOrderLinePicker
+        SOURCE OBJECT PurchaseOrderLine
+        SELECTION multiple
+        DISPLAY Description Quantity LineValue
+        SEARCH Description
+        SORT Description ASC
+        EXCLUDE_LINKED
+        EMPTY_TEXT 'No unassigned order lines to link.'
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE AssignedToUser CONFLICT StateTransitionWins
+END.OBJECT
+
+OBJECT PurchaseOrderLine
+  DISPLAY Description
+
+  FIELD PurchaseOrder TEXT REQUIRED LOOKUP PurchaseOrder DISPLAY Supplier
+  FIELD Description TEXT(120) REQUIRED
+  FIELD Quantity NUMBER REQUIRED MIN(1)
+  FIELD LineValue NUMBER REQUIRED MIN(0)
+  FIELD Position NUMBER REQUIRED
+
+  CONSTRAINT orderedPurchaseOrderLines ORDERED PARENT PurchaseOrder POSITION Position REORDER shift COMPACT onDelete
+
+  VIEW PurchaseOrderLineList LIST
+    FIELDS Description Quantity LineValue Position
+    SEARCH Description
+    SORT Position ASC
+    ACTIONS create read update delete
   END.VIEW
 
   SYNC LOCAL_FIRST SCOPE AssignedToUser CONFLICT StateTransitionWins

@@ -9,11 +9,11 @@ import { RuntimeError, noopRuntimeLogger, safeContextLog } from "./runtime-types
 import type { RuntimeContext, RuntimeLogger } from "./runtime-types.js";
 
 /**
- * A write against one record. A command is never one of these: it is the
- * transaction such writes commit in, and it is gated by the modes of the objects
- * its steps touch rather than by a mode of its own.
+ * A write against one record. Neither a command nor a batch is ever one of
+ * these: each is the transaction such writes commit in, and each is gated by the
+ * modes of the objects its writes touch rather than by a mode of its own.
  */
-export type LocalRecordWriteKind = Exclude<LocalOperationKind, "command">;
+export type LocalRecordWriteKind = Exclude<LocalOperationKind, "command" | "batch">;
 
 export interface SyncWriteDecision {
   allowed: boolean;

@@ -1,5 +1,6 @@
 import type {
   JsonValue,
+  LocalBatchOperation,
   LocalCommandOperation,
   LocalOperation,
   LocalOperationKind,
@@ -23,6 +24,8 @@ export interface OperationLogDetails {
   commandTransactionId?: string;
   /** The whole command, for the single entry that stands for the transaction. */
   command?: LocalCommandOperation;
+  /** The whole batch, for the single entry that stands for an ad-hoc transaction. */
+  batch?: LocalBatchOperation;
   lifecycleAction?: string;
   fromState?: string;
   toState?: string;
@@ -72,6 +75,7 @@ export class OperationLog {
         ? {}
         : { commandTransactionId: details.commandTransactionId }),
       ...(details.command === undefined ? {} : { command: cloneJson(details.command) }),
+      ...(details.batch === undefined ? {} : { batch: cloneJson(details.batch) }),
       // Captured here rather than read at drain time, so a queue drained after
       // the user switched contexts — or after a reload — replays every operation
       // against the selection that was in force when it was made.

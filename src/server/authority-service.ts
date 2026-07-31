@@ -2,9 +2,15 @@ import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/reso
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import type { ContextMembershipIndex } from "../runtime/context-membership-index.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
-import { CommandRecordIdsMismatchError, RuntimeError } from "../runtime/runtime-types.js";
+import {
+  BatchWritesMissingError,
+  CommandRecordIdsMismatchError,
+  RuntimeError,
+} from "../runtime/runtime-types.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
+import type { PlannedObjectWrite } from "../runtime/object-store.js";
 import type {
+  AuthorityBatchWrite,
   AuthorityOperationIntent,
   AuthorityOutcome,
   AuthorityOutcomeStore,
@@ -313,6 +319,7 @@ export class AuthorityService {
         })
       ).steps.map((step) => step.record);
     }
+    if (intent.kind === "batch") return this.applyBatch(runtime, intent.writes, context);
     const record = await runtime.objectStore.getRecordForRuntime(
       intent.objectName,
       intent.recordId,
@@ -343,6 +350,86 @@ export class AuthorityService {
     return [
       await runtime.transition(intent.objectName, intent.recordId, intent.actionName, context),
     ];
+  }
+
+  /**
+   * Applies a batch's writes as one authority transaction.
+   *
+   * Every write is *planned* first and committed together, rather than executed
+   * one at a time. That is the whole point of the kind: executing them in a loop
+   * would be the per-record replay this exists to replace, and would leave the
+   * authority holding half a batch whenever a later write is refused — the
+   * failure the device already refuses to produce locally.
+   *
+   * Planning also runs the ordinary checks. A create's supplied id is
+   * shape-checked and refused when taken; an update or delete is refused as a
+   * conflict when the authority's copy has moved on; and policy, validation,
+   * lifecycle, scope and constraints all run through `planCreateForTransaction`,
+   * `planUpdateForTransaction` and `planDeleteForTransaction` exactly as they do
+   * for a single intent.
+   */
+  private async applyBatch(
+    runtime: ApplicationRuntime,
+    writes: AuthorityBatchWrite[],
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord[]> {
+    // Checked here rather than only at the edge, for the reason a command's
+    // manifest is: this service is constructed directly by tests and tooling, so
+    // an edge-only check would be no check on that path. An empty batch is a
+    // transaction that claims to have written nothing, and accepting it would
+    // record a durable verdict about no records at all.
+    if (!Array.isArray(writes) || writes.length === 0)
+      throw new BatchWritesMissingError("A batch must be replayed with the writes it committed.");
+
+    const planned: PlannedObjectWrite[] = [];
+    for (const write of writes) {
+      if (write.operation === "create") {
+        planned.push(
+          await runtime.objectStore.planCreateForTransaction(
+            write.objectName,
+            write.values,
+            context,
+            "caller",
+            { recordId: write.recordId },
+          ),
+        );
+        continue;
+      }
+
+      const record = await runtime.objectStore.getRecordForRuntime(
+        write.objectName,
+        write.recordId,
+      );
+      if (record === null)
+        throw new RevisionConflictError(
+          "The record no longer exists.",
+          write.objectName,
+          this.manualConflict(write.objectName),
+        );
+      if (record.meta.revision !== write.baseRevision)
+        throw new RevisionConflictError(
+          "The record changed on the authority server.",
+          write.objectName,
+          this.manualConflict(write.objectName),
+        );
+
+      planned.push(
+        write.operation === "delete"
+          ? await runtime.objectStore.planDeleteForTransaction(
+              write.objectName,
+              write.recordId,
+              context,
+            )
+          : await runtime.objectStore.planUpdateForTransaction(
+              write.objectName,
+              write.recordId,
+              write.patch,
+              context,
+            ),
+      );
+    }
+
+    return runtime.objectStore.commitPlannedTransaction(planned, context);
   }
 
   private async resolveContext(

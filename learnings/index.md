@@ -197,6 +197,17 @@ controls, or mobile business-context selectors, also read:
 
 - `implementation/shell-navigation.md`
 
+Before tasks that change ADL syntax for edit surfaces (`EDIT_CONTAINER`,
+`EDIT_SECTION`, `CHILD_COLLECTION`, `PICKER`), the edit-surface runtime, how a
+staged batch of child changes is committed or queued, the `batch` local-operation
+kind, or anything that adds another ad-hoc multi-record write, also read:
+
+- `implementation/edit-surface-language.md`
+- `implementation/ui-presentation-model.md`
+- `implementation/command-intent-replay.md`
+- `implementation/record-sync-state.md`
+- `implementation/adl-parser.md`
+
 Before tasks that add or change ADL reference applications, model-driven demo fixtures, or follow-up platform gaps discovered by a reference app, also read:
 
 - `implementation/reference-app-models.md`
@@ -277,3 +288,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/context-grants-and-relationship-access.md`: read before changing business-context availability, the object-scope gate, policy principals, read-model joins, command-established contexts, or anything that decides whether one user may see another user's records.
 - `implementation/record-sync-state.md`: read before changing how a record's sync state is produced or cleared, before adding a surface that reports what a device is holding, or before adding any local removal of a row the authority refused.
 - `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.
+- `implementation/edit-surface-language.md`: read before changing ADL edit-surface syntax, the edit-surface runtime, how a staged batch of child changes commits or queues, the `batch` local-operation kind, or anything that adds another ad-hoc multi-record write.

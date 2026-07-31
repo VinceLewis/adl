@@ -280,18 +280,36 @@ error.
 
 ### Local operation kinds
 
-Local operations are `create`, `update`, `delete`, `transition` and `command`.
-The first four describe one record each. `command` describes a whole
+Local operations are `create`, `update`, `delete`, `transition`, `command` and
+`batch`. The first four describe one record each. `command` describes a whole
 model-declared command: it carries the command name and optional label, the input
 the command ran on, the record-id manifest for every record the command created
 (step name, item index for an iterating step, object name, record id — in planned
 order), and the full list of records the command wrote.
 
-A `command` operation is filed under a representative step object, so that a
-queue entry still carries exactly one object's sync declaration; the step object
-with the most demanding queueable mode is chosen. `command` is not an audit
-operation. See [runtime-semantics#command-replay](runtime-semantics.md) for what
-a runtime must do with it.
+`batch` describes an ad-hoc multi-record transaction that no command declares —
+the staged child changes of an edit surface are the implemented producer. Having
+no declaration to re-execute, it carries the **writes** instead of an input: each
+names an operation (`create`, `update` or `delete`), an object and a record id,
+plus the values a create was made with, the patch an update asked for, and the
+revision an update or delete was planned against. Only the writes the caller
+_requested_ are carried, because the authority re-derives a platform-derived
+write — an ordered-collection shift — from the same constraint, and being told
+about it twice would apply it twice.
+
+`batch` additionally carries the full list of records the transaction wrote,
+derived writes included, so one verdict can be reported over all of them. It is
+separate from the writes for the reason a command's record list is separate from
+its manifest: the wire payload and the record-coverage list answer different
+questions. The batch needs no separate created-record manifest, because only a
+requested write is ever a create.
+
+A `command` or `batch` operation is filed under a representative write's object,
+so that a queue entry still carries exactly one object's sync declaration; the
+object with the most demanding queueable mode is chosen. Neither is an audit
+operation. See [runtime-semantics#command-replay](runtime-semantics.md) and
+[runtime-semantics#staged-child-changes](runtime-semantics.md) for what a runtime
+must do with them.
 
 ## View Presentation
 
@@ -299,9 +317,8 @@ Resolved views include `editContainer`, a renderer-neutral CRUD presentation
 hint with values `modal`, `drawer`, `page`, and `splitPane`. Browser runtimes
 use it when a list row or create control opens an object form. The default is
 `modal`, making normal CRUD views list-first. `splitPane` preserves the older
-dense back-office list/form layout as an explicit option. This property is
-model-level only in the current implementation; ADL source syntax for choosing
-it is not implemented yet.
+dense back-office list/form layout as an explicit option. ADL source syntax for
+choosing it is `EDIT_CONTAINER`; see [language#edit-surfaces](language.md).
 
 Resolved views also include `editSections`. The default is one `fields` section
 derived from `view.fields`. A view may instead declare explicit field sections
@@ -310,7 +327,8 @@ child lookup field that points at the parent object, an optional child view for
 display fields, supported operations, staged-change behavior, optional order
 field, and empty-state text. The implemented child operation names are
 `createChild`, `linkExisting`, `updateChild`, `unlink`, `remove`, and
-`reorder`.
+`reorder`. The defaults are `createChild`, `updateChild` and `unlink` for
+operations, staged changes enabled, and empty empty-state text.
 
 Child collections that support `linkExisting` may declare a renderer-neutral
 `picker`:
@@ -328,6 +346,11 @@ include the child object as one source so each candidate can resolve to a
 deterministic child record id. These declarations are renderer-neutral; they
 describe edit composition and relationship intent, not browser components or
 storage tables.
+
+Edit sections, child collections and pickers are declarable in ADL source; see
+[language#edit-surfaces](language.md) for the syntax and
+[runtime-semantics#staged-child-changes](runtime-semantics.md) for what a runtime
+does with them.
 
 Resolved views may include an optional `presentation` contract. This is
 renderer-neutral JSON-compatible data consumed by UI runtimes, not parser AST
