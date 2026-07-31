@@ -503,6 +503,68 @@ describe("command replay against real PostgreSQL", () => {
       ),
     ).toBe(0);
   });
+
+  /**
+   * Phase 58. Every record a command commits is stored as the authority's own
+   * accepted state, and carries no device bookkeeping.
+   *
+   * This is the row a device reconciles against, so a device state persisted
+   * here would come straight back down the wire as one — and the device is
+   * required to impose `synced` rather than adopt whatever it is sent. Asserting
+   * it at the source as well means neither side is relying on the other to have
+   * been careful.
+   */
+  it("stores every record an accepted command wrote as authority-accepted state", async () => {
+    requireAccepted(
+      await createBand(service(), "op-state-band", "State Band", "band-state", "member-state"),
+    );
+
+    for (const [objectName, recordId] of [
+      ["Band", "band-state"],
+      ["BandMember", "member-state"],
+    ] as const) {
+      const stored = await storedRecord(replayApp, objectName, recordId);
+      expect(stored?.meta.syncStatus).toBe("synced");
+      // Device-local bookkeeping about a refusal has no business on an accepted
+      // authority row.
+      expect(stored?.meta.syncRejectedCreate).toBeUndefined();
+    }
+  });
+
+  /**
+   * Phase 58. A record's sync state is not part of the intent contract in either
+   * direction, and the authority is where that is enforced rather than assumed:
+   * a client that names it is refused, for both intent kinds that carry values.
+   */
+  it("refuses an intent that tries to assert a record's sync state", async () => {
+    const authority = service();
+    const before = await projectionCounts(replayApp);
+
+    const created = await authority.replay(founderToken, {
+      operationId: "op-asserted-state-create",
+      kind: "create",
+      objectName: "Band",
+      recordId: "band-asserted-state",
+      values: { Name: "Asserted", CreatedBy: founderId, _syncStatus: "synced" },
+    });
+    expect(created).toMatchObject({ status: "rejected" });
+    expect(await storedRecord(replayApp, "Band", "band-asserted-state")).toBeNull();
+
+    const commanded = await authority.replay(founderToken, {
+      operationId: "op-asserted-state-command",
+      kind: "command",
+      commandName: "CreateBand",
+      input: { Name: "Asserted Band", _syncStatus: "synced" },
+      recordIds: createBandManifest("band-asserted-cmd", "member-asserted-cmd"),
+    });
+    expect(commanded).toMatchObject({ status: "rejected" });
+    expect(await storedRecord(replayApp, "Band", "band-asserted-cmd")).toBeNull();
+    expect(await storedRecord(replayApp, "BandMember", "member-asserted-cmd")).toBeNull();
+
+    const after = await projectionCounts(replayApp);
+    expect(after.records).toBe(before.records);
+    expect(after.audit).toBe(before.audit);
+  });
 });
 
 describe("command intents over the real HTTP edge", () => {

@@ -368,8 +368,11 @@ SELECTED`.
 
 `CONTROL` entries support optional `LABEL`, semantic `ICON`, `PLACEMENT`, and
 `VISIBLE` metadata. Implemented control kinds are `contextSelector`,
-`syncStatus`, `themeSwitch`, `logout`, and `pwaInstall`; unsupported runtime
-capabilities degrade as unavailable controls. `TOP_BAR` declares context
+`syncStatus`, `connectivity`, `themeSwitch`, `logout`, and `pwaInstall`;
+unsupported runtime capabilities degrade as unavailable controls. `SYNC_STATUS`
+and `CONNECTIVITY` answer different questions and are separate controls:
+`SYNC_STATUS` reports the sync state of the device's own records, and
+`CONNECTIVITY` reports whether the authority is reachable. `TOP_BAR` declares context
 selector placement, mobile context selector behavior (`dropdown` or `sheet`),
 and the ordered top-bar control list. `NAV_DRAWER` declares the drawer's `TITLE`
 and its ordered `CONTROLS` list.

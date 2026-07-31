@@ -3,6 +3,7 @@ import type {
   JsonValue,
   ResolvedApplicationModel,
   StoredObjectRecord,
+  SyncStatus,
 } from "../model/resolved-model.js";
 import { AuditService } from "./audit-service.js";
 import { CommandService } from "./command-service.js";
@@ -32,7 +33,11 @@ import { OfflineDatasetService } from "./offline-dataset-service.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import { ObjectStore } from "./object-store.js";
-import type { ObjectStoreCreateOptions } from "./object-store.js";
+import type {
+  ObjectStoreCreateOptions,
+  RecordSyncStateSummary,
+  RefusedLocalRecord,
+} from "./object-store.js";
 import { OperationLog } from "./operation-log.js";
 import { PolicyEngine } from "./policy-engine.js";
 import { PresentationRuntime } from "./presentation-runtime.js";
@@ -374,6 +379,47 @@ export class ApplicationRuntime {
   async reconcileRemoteRecord(objectName: string, record: StoredObjectRecord): Promise<void> {
     await this.whenReady();
     await this.objectStore.reconcileRemoteRecord(objectName, record);
+  }
+
+  /**
+   * Records the authority's answer about one record on the record itself. Called
+   * by the sync client once the authority has spoken, and by nothing else: it is
+   * how a verdict outlives the queue entry that carried it.
+   */
+  async setRecordSyncState(
+    objectName: string,
+    recordId: string,
+    status: SyncStatus,
+    options: { rejectedCreate?: boolean } = {},
+  ): Promise<void> {
+    await this.whenReady();
+    await this.objectStore.setRecordSyncState(objectName, recordId, status, options);
+  }
+
+  /** Every refused record still on this device, as metadata only. */
+  async listRefusedRecords(): Promise<RefusedLocalRecord[]> {
+    await this.whenReady();
+    return this.objectStore.listRefusedRecords();
+  }
+
+  /** How many live records are in each sync state. */
+  async summariseRecordSyncState(): Promise<RecordSyncStateSummary> {
+    await this.whenReady();
+    return this.objectStore.summariseRecordSyncState();
+  }
+
+  /**
+   * Throws away a record whose own create the authority refused. A local action
+   * the user asks for, not a recovery primitive: nothing is sent, nothing is
+   * settled, and no other record may be discarded this way.
+   */
+  async discardRefusedRecord(
+    objectName: string,
+    recordId: string,
+    context: RuntimeContext,
+  ): Promise<void> {
+    await this.whenReady();
+    await this.objectStore.discardRefusedRecord(objectName, recordId, context);
   }
 
   async update(

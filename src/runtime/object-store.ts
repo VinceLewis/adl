@@ -3,11 +3,13 @@ import type {
   JsonValue,
   LocalCommandRecordId,
   LocalOperationKind,
+  PlatformRecordMetadata,
   ResolvedApplicationModel,
   ResolvedObject,
   ResolvedOrderedObjectConstraint,
   StoredObjectRecord,
   SyncMode,
+  SyncStatus,
 } from "../model/resolved-model.js";
 import {
   recordMatchesObjectScope,
@@ -27,6 +29,7 @@ import {
   StorageError,
   RecordIdInvalidError,
   RecordIdUnavailableError,
+  RecordNotDiscardableError,
   RuntimeValidationError,
   cloneJson,
   getContextNowIso,
@@ -41,6 +44,7 @@ import type {
   RuntimeSearchQuery,
   RuntimeValidationIssue,
 } from "./runtime-types.js";
+import { isQueueableSyncMode } from "./sync-policy-service.js";
 import type { SyncPolicyService } from "./sync-policy-service.js";
 import type { SyncQueue } from "./sync-queue.js";
 import type { ValidationEngine } from "./validation-engine.js";
@@ -95,6 +99,20 @@ export interface PlannedDeleteObjectWrite {
   /** The tombstone that will be persisted. Deletes carry no patch. */
   record: StoredObjectRecord;
 }
+
+/**
+ * A record the authority refused that is still on the device, as metadata only.
+ * `discardable` says whether the refused write was this record's own create, and
+ * so whether removing it locally is safe; see `ObjectStore.discardRefusedRecord`.
+ */
+export interface RefusedLocalRecord {
+  objectName: string;
+  recordId: string;
+  discardable: boolean;
+}
+
+/** How many live records are in each sync state. Tombstones are not counted. */
+export type RecordSyncStateSummary = Record<SyncStatus, number>;
 
 export interface PlannedTransactionCommitOptions {
   command?: {
@@ -273,9 +291,31 @@ export class ObjectStore {
     await this.startupGuard();
     this.index.getObject(objectName);
     const existing = await this.storage.read(objectName, record.meta.guid);
+    /*
+     * The status is imposed here, never adopted: whatever the authority's own
+     * copy of this field said, a record reconciled onto this device is synced
+     * *on this device*.
+     *
+     * Unless a verdict against it is still outstanding. `synchronize` is
+     * reconcile → bootstrap → automatic recovery, so without this a conflict the
+     * user must decide about would be marked on the record by the reconcile and
+     * wiped by the bootstrap moments later, leaving `conflict` as unobservable
+     * on a record as it was before it had a producer at all. The queue is asked
+     * rather than the record remembering, because the queue is what knows
+     * whether the question is still open.
+     */
+    const outstanding = this.syncQueue.getUnresolvedVerdict(objectName, record.meta.guid);
+    const status: SyncStatus =
+      outstanding === "rejected" ? "rejected" : outstanding === undefined ? "synced" : "conflict";
+    // The discard licence is spent here and only here. It means "the authority
+    // holds no copy of this record", and a record arriving *from* the authority
+    // is that claim being disproved — including in the collision case, where the
+    // create was refused precisely because the id already named a record the
+    // authority does hold. Discarding that row would delete the authority's
+    // record, not the user's refused work.
     const synced = cloneJson({
       ...record,
-      meta: { ...record.meta, syncStatus: "synced" as const },
+      meta: withoutRejectedCreate({ ...record.meta, syncStatus: status }),
     });
     if (existing === null) {
       await this.storage.create(objectName, synced);
@@ -697,6 +737,172 @@ export class ObjectStore {
     return best;
   }
 
+  /**
+   * Records the authority's answer about a record on the record itself.
+   *
+   * This is reporting, not resolving: no value changes, no revision is minted,
+   * nothing is audited and nothing is queued. It exists because the queue entry
+   * carrying the verdict is discarded the moment the user dismisses it, and a
+   * refused write whose only trace was that entry became indistinguishable from
+   * a write nobody had sent yet.
+   *
+   * It reads and writes through tombstones deliberately. A refused delete leaves
+   * a tombstone behind, and that tombstone is exactly the record the verdict is
+   * about.
+   */
+  async setRecordSyncState(
+    objectName: string,
+    recordId: string,
+    status: SyncStatus,
+    options: { rejectedCreate?: boolean } = {},
+  ): Promise<void> {
+    await this.startupGuard();
+    this.index.getObject(objectName);
+    const existing = await this.storage.read(objectName, recordId);
+    if (existing === null) {
+      return;
+    }
+
+    /*
+     * The licence is set here and never cleared here. A record whose create was
+     * refused is one the authority holds no copy of, and no later verdict about
+     * it disproves that — the refused *update* that follows an edit of such a
+     * row is refused precisely because the authority does not have it. Only
+     * `reconcileRemoteRecord`, where the authority produces a copy, spends it.
+     */
+    const licensed = existing.meta.syncRejectedCreate === true || options.rejectedCreate === true;
+    const meta = { ...existing.meta, syncStatus: status };
+    const record = cloneJson({
+      ...existing,
+      meta:
+        // `synced` is the authority saying it accepted the operation, so it now
+        // holds the record and the licence is spent even when no record came
+        // back with the outcome to reconcile.
+        status === "synced"
+          ? withoutRejectedCreate(meta)
+          : licensed
+            ? { ...meta, syncRejectedCreate: true }
+            : meta,
+    });
+    // Straight to storage rather than through `update`: this is not a write of
+    // the record, it is a note about what happened to one, and routing it
+    // through the write path would audit it, queue it and mint a revision the
+    // authority never issued.
+    if (record.meta.deletedAt === undefined) await this.storage.update(objectName, record);
+    else await this.storage.delete(objectName, record);
+  }
+
+  /**
+   * Every record the device is holding that the authority refused, as metadata
+   * only.
+   *
+   * No values are returned and no read policy is applied, for the same reason
+   * `SyncRecoveryItem` carries none: this is a queue-and-verdict surface shown
+   * without a runtime read behind it, so it may say *that* a record was refused
+   * and never what is in it.
+   */
+  async listRefusedRecords(): Promise<RefusedLocalRecord[]> {
+    await this.startupGuard();
+    return (
+      (await this.storage.listRecords())
+        // Tombstones are excluded. A refused *delete* leaves one, and the record
+        // the authority still holds comes back on the next bootstrap, which
+        // restores the row and clears the mark; a discarded row leaves one too.
+        // Neither is something the user can act on, and listing them would report
+        // rows that are not there.
+        .filter(
+          (persisted) =>
+            persisted.record.meta.syncStatus === "rejected" &&
+            persisted.record.meta.deletedAt === undefined,
+        )
+        .map((persisted) => ({
+          objectName: persisted.objectName,
+          recordId: persisted.record.meta.guid,
+          discardable: persisted.record.meta.syncRejectedCreate === true,
+        }))
+        .sort(
+          (left, right) =>
+            left.objectName.localeCompare(right.objectName) ||
+            left.recordId.localeCompare(right.recordId),
+        )
+    );
+  }
+
+  /** How many records are in each sync state, for a surface that reports the whole device. */
+  async summariseRecordSyncState(): Promise<RecordSyncStateSummary> {
+    await this.startupGuard();
+    const summary: RecordSyncStateSummary = {
+      local: 0,
+      pending: 0,
+      synced: 0,
+      conflict: 0,
+      rejected: 0,
+    };
+    for (const persisted of await this.storage.listRecords()) {
+      if (persisted.record.meta.deletedAt !== undefined) continue;
+      summary[persisted.record.meta.syncStatus] += 1;
+    }
+    return summary;
+  }
+
+  /**
+   * Removes a refused record the authority never accepted.
+   *
+   * Deliberately not a recovery primitive: it settles nothing with the authority
+   * and sends nothing to it. It is the user saying "throw away the row my
+   * refused change left here", and it is permitted only for a record whose own
+   * create was refused, because that is the only case in which the authority has
+   * no copy to contradict the removal.
+   *
+   * A tombstone is written rather than the row being erased, so a later create
+   * cannot silently resurrect the id, and the tombstone is *not* queued: the
+   * authority never had the record, so telling it to delete one would be a
+   * request about a record that does not exist there.
+   */
+  async discardRefusedRecord(
+    objectName: string,
+    recordId: string,
+    context: RuntimeContext,
+  ): Promise<void> {
+    await this.startupGuard();
+    this.index.getObject(objectName);
+    const existing = await this.storage.read(objectName, recordId);
+    if (existing === null || existing.meta.deletedAt !== undefined) {
+      return;
+    }
+    if (existing.meta.syncStatus !== "rejected" || existing.meta.syncRejectedCreate !== true) {
+      throw new RecordNotDiscardableError(
+        `Record '${recordId}' on object '${objectName}' is not a refused local create and cannot be discarded.`,
+        { objectName, recordId, syncStatus: existing.meta.syncStatus },
+      );
+    }
+
+    const now = getContextNowIso(context);
+    const tombstone = cloneJson({
+      ...existing,
+      meta: withoutRejectedCreate({
+        ...existing.meta,
+        updatedAt: now,
+        updatedBy: context.userId,
+        deletedAt: now,
+        deletedBy: context.userId,
+        // Not `local`: the record has no delivery path *and* never will, which
+        // is what `local` means for a row nothing is waiting on.
+        syncStatus: "local" as const,
+      }),
+    });
+    await this.storage.delete(objectName, tombstone);
+    // Audited as local history — the device did remove a row — but never queued.
+    this.auditService.record(
+      "delete",
+      objectName,
+      tombstone,
+      context,
+      existing.values,
+      tombstone.values,
+    );
+  }
+
   async getRecordForRuntime(objectName: string, id: string): Promise<StoredObjectRecord | null> {
     await this.startupGuard();
     const record = await this.getActiveRecord(objectName, id);
@@ -797,7 +1003,7 @@ export class ObjectStore {
         createdBy: context.userId,
         updatedAt: now,
         updatedBy: context.userId,
-        syncStatus: "local",
+        syncStatus: this.writtenSyncStatus(object.name, context),
       },
       values: cloneJson(values),
     };
@@ -810,13 +1016,23 @@ export class ObjectStore {
     state: string | undefined,
   ): StoredObjectRecord {
     return {
+      /*
+       * The discard licence is deliberately carried through a local write.
+       *
+       * It records that the authority holds no copy of this record, and editing
+       * the row here does not change that. Clearing it on every write stranded
+       * the record one edit after its create was refused: the edit was queued,
+       * refused in turn as an update to a record the authority does not have,
+       * and the row was then marked `rejected` with nothing left saying it could
+       * be thrown away. Only the authority producing a copy spends it.
+       */
       meta: {
         ...existing.meta,
         revision: this.nextRevision(),
         ...(state === undefined ? {} : { state }),
         updatedAt: getContextNowIso(context),
         updatedBy: context.userId,
-        syncStatus: "local",
+        syncStatus: this.writtenSyncStatus(existing.meta.object, context),
       },
       values: cloneJson(values),
     };
@@ -826,6 +1042,7 @@ export class ObjectStore {
     const now = getContextNowIso(context);
 
     return {
+      // The licence is carried through, for the reason `updatedRecord` gives.
       meta: {
         ...existing.meta,
         revision: this.nextRevision(),
@@ -833,10 +1050,40 @@ export class ObjectStore {
         updatedBy: context.userId,
         deletedAt: now,
         deletedBy: context.userId,
-        syncStatus: "local",
+        syncStatus: this.writtenSyncStatus(existing.meta.object, context),
       },
       values: cloneJson(existing.values),
     };
+  }
+
+  /**
+   * The sync state a write leaves the record in.
+   *
+   * Three cases, and every one of them has to be stated or the field goes back
+   * to meaning nothing:
+   *
+   * - On the `sync` channel the writer *is* the authority. Its own state is
+   *   accepted state by definition, and it is waiting for nobody. This is the
+   *   same signal `SyncPolicyService` already uses to recognise a write arriving
+   *   through the authority rather than from a device.
+   * - A device write on a queueable object is queued by the same commit, so it
+   *   is `pending` until the authority answers it. This is true whether or not
+   *   an authority is reachable, or configured at all: the write is queued and
+   *   unanswered either way, and reporting it as settled would be a lie about
+   *   work the device is still holding.
+   * - A device write on any other object has no delivery path by design, so it
+   *   is `local` — not waiting, not late.
+   *
+   * A command's steps are not queued individually but the command entry is, so
+   * every record a queueable command wrote is `pending` too. Model validation
+   * refuses a command whose steps disagree about queueability, so the step's own
+   * object always answers for the transaction.
+   */
+  private writtenSyncStatus(objectName: string, context: RuntimeContext): SyncStatus {
+    if (context.channel === "sync") {
+      return "synced";
+    }
+    return isQueueableSyncMode(this.index.getObject(objectName).sync.mode) ? "pending" : "local";
   }
 
   private requireFieldPolicy(
@@ -1472,6 +1719,22 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
   }
 
   existing.push(value);
+}
+
+/**
+ * Drops the discard licence a refusal left on a record.
+ *
+ * The key is removed rather than set to `undefined`: it is an optional field
+ * under `exactOptionalPropertyTypes`, and a persisted `syncRejectedCreate:
+ * undefined` would be a third state between "refused create" and "not one".
+ */
+function withoutRejectedCreate<T extends PlatformRecordMetadata>(meta: T): T {
+  if (meta.syncRejectedCreate === undefined) {
+    return meta;
+  }
+
+  const { syncRejectedCreate: _spent, ...rest } = meta;
+  return rest as T;
 }
 
 function stateProperty(currentState: string | undefined): { currentState: string } | {} {

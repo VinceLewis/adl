@@ -185,13 +185,16 @@ has steps.
 
 ## Gaps this phase leaves open
 
-- **A refused command's local rows have no convergence path.** A rejected create
-  already left its local row behind and a later bootstrap cannot remove a record
-  the server never had; a rejected command multiplies that by its step count. The
-  user is told the change was refused and is not told that the rows it wrote are
-  still here. Before writing code that deletes local rows to repair this, apply
-  the Phase 48 rule: establish that the defective state exists somewhere that
-  survives.
+- ~~**A refused command's local rows have no convergence path.**~~ **Closed in
+  Phase 58.** The rows still stay — a compensating local rollback would be the
+  third recovery primitive Phase 47 rules out — but the user is now told. The
+  verdict is applied to **every** record the command wrote, using the
+  `command.records` list this phase put on the entry precisely so it could be
+  (`command.recordIds` says which of them the command created). Each such record
+  reports `syncStatus: "rejected"`, keeps reporting it after the verdict is
+  dismissed and after a reload, and a record the command *created* can be thrown
+  away by the user, because a refused create is the only case in which the
+  authority has no copy to contradict the removal. See [[record-sync-state]].
 - **Only model-declared commands are transactional across the boundary.** An
   ad-hoc multi-record write, and a lifecycle transition with side effects, still
   replay as independent per-record intents and can still land partially.
@@ -212,13 +215,15 @@ Recorded so a later phase does not have to rediscover them.
   context carries no selection" has to name each context that is *not* there
   (`{"Crew": "$absent"}`), which does not scale. Wants an `"$empty"` sentinel;
   arrays already get exact length for free.
-- **Nothing joins the queue to the wire.** `syncWrite`/`syncCommand` observe the
-  queue a write left behind; `authorityReplay` observes the server. No operation
-  drains a queue against an authority, so the client-side claim — that
-  `AuthoritySyncClient` *emits* `kind: "command"` — is pinned at the queue-entry
-  shape only, and `attempts`, `recovery` and `delivery` are unreported. "One
-  verdict settles every step" and "each retry carries a fresh operation id" stay
-  TypeScript-only.
+- ~~**Nothing joins the queue to the wire.**~~ **Closed in Phase 58** by the
+  `syncReconcile` conformance operation, which drives the real
+  `AuthoritySyncClient` against a real `AuthorityService` over an in-process
+  transport: a case states what the device wrote locally, what the authority held,
+  and what the drain left in the queue *and* on every record. "One verdict settles
+  every step" is now corpus-stated rather than TypeScript-only. Its successors are
+  recorded in [[conformance-suite]]: one reconcile round per case, one resolution
+  applied to every settled entry, no delivery-failure state, and no operation for
+  `discardRefusedRecord`.
 - **The operation log is not observable.** "A command's steps are logged but not
   queued" is half-provable: the corpus shows they are not queued, never that they
   are logged. Wants a `readOperationLog` operation.

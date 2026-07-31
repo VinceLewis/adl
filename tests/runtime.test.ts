@@ -353,7 +353,8 @@ describe("ApplicationRuntime", () => {
       object: "User",
       schemaVersion: 1,
       createdBy: "admin-1",
-      syncStatus: "local",
+      // Queued by this same write and unanswered, which is what `pending` means.
+      syncStatus: "pending",
     });
 
     const read = await runtime.read("User", created.meta.guid, adminContext);

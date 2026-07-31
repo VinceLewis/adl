@@ -211,6 +211,29 @@ field verbatim would have passed the whole suite. An expected value of
 `localPrivate` queue exclusion, `ADL_MIGRATION_FAILED` and atomic rollback, the
 `delete` setup step, direct storage seeding, and computed-value non-persistence.
 
+**Closed in Phase 58:** nothing joined the queue to the wire. The `syncReconcile`
+operation now drives the real `AuthoritySyncClient` against a real
+`AuthorityService` over an in-process transport, so a case can state what the
+device wrote locally, what the authority held, and what the drain left in the
+queue *and* on every record. `readPersistedRecords` reports `syncStatus` and
+`syncRejectedCreate`, and `RuntimeConformanceStep` gained `executeCommand`, so a
+refused command's whole record set is corpus-stated. Its own successors:
+
+- **One reconcile round per case.** Sequences like accept → diverge → reconcile
+  again need a second drain phase.
+- **One resolution, applied to every settled entry.** `resolve` cannot name an
+  entry, because the queue id is generated, so two entries cannot be resolved
+  differently in one case.
+- **No delivery state.** The in-process authority always answers, so
+  `undelivered`, `attempts` and retry-id behaviour stay unreported.
+- **No operation for `discardRefusedRecord`.** The corpus can state the discard
+  *licence* (`syncRejectedCreate`) but not the discard, its tombstone, or that it
+  queues nothing.
+- **Sync state crossing the wire cannot be observed.** Nothing distinguishes "the
+  authority's copy was ignored" from "it happened to agree", because the
+  authority's own writes are on the `sync` channel and are `synced` anyway. It
+  stays a TypeScript and real-PostgreSQL proof.
+
 Still open:
 
 - **`metadata.modelFingerprint` cannot be asserted.** The only runtime-neutral

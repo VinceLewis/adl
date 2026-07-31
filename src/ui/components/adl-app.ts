@@ -1,4 +1,5 @@
 import { ApplicationRuntime } from "../../runtime/application-runtime.js";
+import type { RecordSyncStateSummary, RefusedLocalRecord } from "../../runtime/object-store.js";
 import { RuntimeValidationError } from "../../runtime/runtime-types.js";
 import { requiresImmediateDelivery } from "../../runtime/sync-policy-service.js";
 import type {
@@ -52,9 +53,10 @@ import type { AdlContextSelectorElement, ContextSelectionDetail } from "./adl-co
 import type { AdlReportRunnerElement } from "./adl-report-runner.js";
 import type { AdlSessionDevicesElement } from "./adl-session-devices.js";
 import type { AdlSessionPanelElement } from "./adl-session-panel.js";
-import type { AdlSyncRecoveryElement } from "./adl-sync-recovery.js";
+import type { AdlSyncRecoveryElement, DiscardRefusedRecordDetail } from "./adl-sync-recovery.js";
 import {
   ADL_CLAIM_INVITE_EVENT,
+  ADL_DISCARD_REFUSED_RECORD_EVENT,
   ADL_EXPORT_REPORT_EVENT,
   ADL_LOAD_ADMINISTRATION_EVENT,
   ADL_LOAD_MORE_ADMINISTRATION_EVENT,
@@ -139,6 +141,15 @@ export class AdlAppElement extends HTMLElement {
   private authorityBusy = false;
   private deliveringWrites = false;
   private installPrompt: InstallPromptEvent | undefined;
+  /**
+   * The device's record sync state, read once per refresh and cached here.
+   *
+   * `renderShellControl` and the refused-record surface are render methods, so
+   * they must not await the runtime; the read happens in the refresh path that
+   * already precedes every render.
+   */
+  private recordSyncSummary: RecordSyncStateSummary | undefined;
+  private refusedRecords: RefusedLocalRecord[] = [];
 
   private readonly handleSignIn = (event: Event): void => {
     const detail = (event as CustomEvent<SignInDetail>).detail;
@@ -225,6 +236,29 @@ export class AdlAppElement extends HTMLElement {
     }
 
     void this.runAuthorityAction(() => bridge.retryDelivery(detail.queueId));
+  };
+
+  /**
+   * Throws away a local row whose own create the authority refused.
+   *
+   * Deliberately not routed through the bridge: this settles nothing with the
+   * authority and sends it nothing. It is a local delete the user asked for, so
+   * it goes straight to the runtime like any other local write and never
+   * appears alongside `keepServer` and `resubmitMine` as a third way to resolve
+   * a verdict.
+   */
+  private readonly handleDiscardRefusedRecord = (event: Event): void => {
+    const detail = (event as CustomEvent<DiscardRefusedRecordDetail>).detail;
+    if (detail === undefined) {
+      return;
+    }
+
+    void this.runCommand(async () => {
+      await this.runtime.discardRefusedRecord(detail.objectName, detail.recordId, this.context);
+      this.messages = [successMessage(`Discarded the refused local ${detail.objectName} record.`)];
+      await this.refreshRecords();
+      this.render();
+    });
   };
 
   /*
@@ -971,6 +1005,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.addEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
     this.addEventListener(ADL_RETRY_DELIVERY_EVENT, this.handleRetryDelivery);
+    this.addEventListener(ADL_DISCARD_REFUSED_RECORD_EVENT, this.handleDiscardRefusedRecord);
     this.addEventListener(ADL_LOAD_ADMINISTRATION_EVENT, this.handleLoadAdministration);
     this.addEventListener(ADL_LOAD_MORE_ADMINISTRATION_EVENT, this.handleLoadMoreAdministration);
     this.addEventListener(ADL_RUN_REPORT_EVENT, this.handleRunReport);
@@ -1013,6 +1048,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.removeEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
     this.removeEventListener(ADL_RETRY_DELIVERY_EVENT, this.handleRetryDelivery);
+    this.removeEventListener(ADL_DISCARD_REFUSED_RECORD_EVENT, this.handleDiscardRefusedRecord);
     this.removeEventListener(ADL_LOAD_ADMINISTRATION_EVENT, this.handleLoadAdministration);
     this.removeEventListener(ADL_LOAD_MORE_ADMINISTRATION_EVENT, this.handleLoadMoreAdministration);
     this.removeEventListener(ADL_RUN_REPORT_EVENT, this.handleRunReport);
@@ -1056,6 +1092,7 @@ export class AdlAppElement extends HTMLElement {
     }
 
     await this.runCommand(async () => {
+      await this.refreshRecordSyncState();
       await this.refreshAvailableContexts();
       if (this.activeView.presentation === undefined) {
         await this.refreshRecords();
@@ -1087,7 +1124,19 @@ export class AdlAppElement extends HTMLElement {
     }
   }
 
+  /**
+   * Re-reads the device's record sync state. Every mutating path already goes
+   * through `refreshRecords`, and `refreshFromRuntime` covers the presentation
+   * views that do not, so the shell's sync control and the refused-record
+   * surface are never a render behind the records they describe.
+   */
+  private async refreshRecordSyncState(): Promise<void> {
+    this.recordSyncSummary = await this.runtime.summariseRecordSyncState();
+    this.refusedRecords = await this.runtime.listRefusedRecords();
+  }
+
   private async refreshRecords(preferredRecordId?: string): Promise<void> {
+    await this.refreshRecordSyncState();
     const object = this.activeObject;
     const view = this.activeView;
     const readModel = this.activeReadModel;
@@ -1429,6 +1478,11 @@ export class AdlAppElement extends HTMLElement {
     if (syncRecovery !== null && bridge !== undefined) {
       syncRecovery.items = bridge.recovery;
       syncRecovery.undelivered = bridge.undelivered;
+      // Refused records come from the runtime, not the bridge: the verdict that
+      // produced them lives on the record and outlives the queue entry, so this
+      // list is still there after the entry has been dismissed and after a
+      // reload.
+      syncRecovery.refused = this.refusedRecords;
       syncRecovery.busy = this.authorityBusy;
     }
 
@@ -1614,14 +1668,34 @@ export class AdlAppElement extends HTMLElement {
       return this.renderContextSelectors();
     }
 
-    if (control.kind === "syncStatus") {
+    /*
+     * Connectivity is what `syncStatus` used to render, and it keeps a control
+     * of its own because it answers a question no other surface does: whether
+     * this device can reach the authority at all. It is deliberately the same
+     * markup and the same classes, so the indicator a person already knows is
+     * unchanged — only its name now matches what it says.
+     */
+    if (control.kind === "connectivity") {
       const online = this._context.online ?? true;
       return `
         <span
           class="adl-shell-status ${online ? "adl-shell-status-online" : "adl-shell-status-offline"}"
           data-shell-control="${escapeHtml(control.name)}"
-          data-shell-control-kind="syncStatus"
+          data-shell-control-kind="connectivity"
         >${escapeHtml(online ? "Online" : "Offline")}</span>
+      `;
+    }
+
+    if (control.kind === "syncStatus") {
+      const state = this.recordSyncState();
+      return `
+        <span
+          class="adl-shell-status"
+          data-shell-control="${escapeHtml(control.name)}"
+          data-shell-control-kind="syncStatus"
+          data-sync-state="${escapeHtml(state.status)}"
+          title="${escapeHtml(state.title)}"
+        >${escapeHtml(state.label)}</span>
       `;
     }
 
@@ -1657,6 +1731,50 @@ export class AdlAppElement extends HTMLElement {
         <span>${escapeHtml(label)}</span>
       </button>
     `;
+  }
+
+  /**
+   * What the `syncStatus` control says about this device's records.
+   *
+   * Ordered by what needs a person soonest: a refusal is terminal and its rows
+   * are stranded here, a conflict is waiting on a decision, and pending work is
+   * merely unsent. Only the most urgent is named, because the control is one
+   * badge and a person reading it needs the worst thing first.
+   *
+   * A summary that has not been read yet reads the same as an empty device,
+   * which is what "Synced" means here: nothing outstanding.
+   */
+  private recordSyncState(): { status: string; label: string; title: string } {
+    const summary = this.recordSyncSummary;
+    if (summary !== undefined && summary.rejected > 0) {
+      return {
+        status: "rejected",
+        label: `${summary.rejected} refused`,
+        title: "The server refused these records. They are still saved on this device.",
+      };
+    }
+
+    if (summary !== undefined && summary.conflict > 0) {
+      return {
+        status: "conflict",
+        label: `${summary.conflict} in conflict`,
+        title: "These records conflict with the server and need a decision.",
+      };
+    }
+
+    if (summary !== undefined && summary.pending > 0) {
+      return {
+        status: "pending",
+        label: `${summary.pending} pending`,
+        title: "These records are saved here and have not been accepted by the server yet.",
+      };
+    }
+
+    return {
+      status: "synced",
+      label: "Synced",
+      title: "No records on this device are waiting on the server.",
+    };
   }
 
   private renderCrudWorkspace(view: ResolvedView): string {

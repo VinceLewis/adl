@@ -87,12 +87,19 @@ export type EditChildOperationKind =
   | "unlink"
   | "remove"
   | "reorder";
+/**
+ * `syncStatus` reports the sync state of the device's *records*; `connectivity`
+ * reports whether the device can reach the authority. They were one control
+ * until Phase 58, which is why a control named for record state rendered
+ * "Online"/"Offline" and no surface answered the question it was named after.
+ */
 export type ShellControlKind =
   | "contextSelector"
   | "themeSwitch"
   | "logout"
   | "pwaInstall"
-  | "syncStatus";
+  | "syncStatus"
+  | "connectivity";
 export type ShellControlPlacement = "topBar" | "navDrawer";
 export type ShellContextSelectorPlacement = "topBar" | "navDrawer" | "hidden";
 export type ShellMobileContextSelectorMode = "dropdown" | "sheet";
@@ -135,6 +142,23 @@ export type SyncScope =
   | "recent"
   | "custom";
 export type ConflictStrategy = "serverWins" | "clientWins" | "stateTransitionWins" | "manual";
+/**
+ * A record's device-local synchronisation state. Every value has a producer:
+ *
+ * - `local` — the record has no delivery path at all, because its object's sync
+ *   mode is not queueable. It is not waiting for anything.
+ * - `pending` — a local write was accepted and queued, and the authority has not
+ *   answered it yet.
+ * - `synced` — the authority's accepted state, either written by the authority
+ *   itself or reconciled onto the device from it.
+ * - `conflict` — the authority answered the operation covering this record with
+ *   a conflict, and no strategy or person has resolved it yet.
+ * - `rejected` — the authority refused the operation covering this record. The
+ *   record is still here, and this is what says so.
+ *
+ * It is device-local in both directions: a client never asserts it to the
+ * authority, and never adopts one the authority sent.
+ */
 export type SyncStatus = "local" | "pending" | "synced" | "conflict" | "rejected";
 /**
  * `command` is the whole of a model-declared command, not one of its writes. A
@@ -1299,6 +1323,26 @@ export interface PlatformRecordMetadata {
   deletedAt?: string;
   deletedBy?: string;
   syncStatus: SyncStatus;
+  /**
+   * Set when the write the authority refused was this record's own create, so
+   * the authority never accepted this record and holds nothing the device would
+   * be destroying by throwing the row away. That is what licenses a local
+   * discard; removing a row whose *update* was refused would instead delete
+   * something the authority still has and the next bootstrap would restore.
+   *
+   * Only the authority spends it — by accepting the operation, or by producing a
+   * record under that id. The second case matters: a collision is refused
+   * *because* the id already names a record the authority holds, and the
+   * reconciliation that discloses that record ends the licence, because
+   * discarding the row would then remove the authority's record rather than the
+   * user's refused work. A local write does not spend it: editing a refused
+   * create does not give the authority a copy.
+   *
+   * Device-local bookkeeping. It is deliberately not a declared `_`-metadata
+   * field: a model has no business addressing it, and unlike `_syncStatus` it
+   * describes the last verdict rather than the record's state.
+   */
+  syncRejectedCreate?: boolean;
 }
 
 export interface StoredObjectRecord {

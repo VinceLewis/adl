@@ -140,7 +140,9 @@ describe("create under a supplied record id", () => {
     expect(created.meta.object).toBe("Gig");
     expect(created.meta.createdBy).toBe("user-admin");
     expect(created.meta.updatedBy).toBe("user-admin");
-    expect(created.meta.syncStatus).toBe("local");
+    // `pending`, not `local`: `Gig` is a queueable object, so this create was
+    // queued by the same commit and the authority has not answered it yet.
+    expect(created.meta.syncStatus).toBe("pending");
     expect(created.meta.revision).toBe("rev-1");
     await expect(
       runtime.objectStore.getRecordForRuntime("Gig", "gig-supplied-1"),

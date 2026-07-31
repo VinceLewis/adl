@@ -295,6 +295,45 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  /**
+   * A sync window is a span of days measured against a moment, so the field it
+   * names has to hold one. Before this was checked, a model could declare a
+   * window over any field that existed — `_syncStatus`, say, which is a text
+   * metadata field — and the runtime would parse its value as a date, fail, and
+   * exclude the record. The dataset came back empty and nothing said why.
+   */
+  it("refuses a sync window measured over a field that is not a date or datetime", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: { mode: "localFirst", scope: "recent", window: { field: "_syncStatus", days: 7 } },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL,
+    );
+  });
+
+  it("accepts a sync window measured over a datetime metadata field", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: { mode: "localFirst", scope: "recent", window: { field: "_updatedAt", days: 7 } },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL,
+    );
+  });
+
   it("reports expression diagnostics for policy conditions and predicate validators", () => {
     const resolved = resolveApplicationModel({
       app: { name: "ExpressionDiagnostics" },

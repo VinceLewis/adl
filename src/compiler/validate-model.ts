@@ -276,6 +276,7 @@ export const MODEL_VALIDATION_CODES = {
   OBJECT_SYNC_MODE_INVALID: "ADL_OBJECT_SYNC_MODE_INVALID",
   OBJECT_SYNC_SCOPE_INVALID: "ADL_OBJECT_SYNC_SCOPE_INVALID",
   OBJECT_SYNC_WINDOW_DAYS_INVALID: "ADL_OBJECT_SYNC_WINDOW_DAYS_INVALID",
+  OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL: "ADL_OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL",
   OBJECT_SYNC_WINDOW_FIELD_UNKNOWN: "ADL_OBJECT_SYNC_WINDOW_FIELD_UNKNOWN",
   OBJECT_SYNC_WINDOW_LIMIT_INVALID: "ADL_OBJECT_SYNC_WINDOW_LIMIT_INVALID",
   POLICY_ACTION_INVALID: "ADL_POLICY_ACTION_INVALID",
@@ -431,6 +432,7 @@ export const MODEL_VALIDATION_CODES = {
   SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
   SYNC_SCOPE_INVALID: "ADL_SYNC_SCOPE_INVALID",
   SYNC_WINDOW_DAYS_INVALID: "ADL_SYNC_WINDOW_DAYS_INVALID",
+  SYNC_WINDOW_FIELD_NOT_TEMPORAL: "ADL_SYNC_WINDOW_FIELD_NOT_TEMPORAL",
   SYNC_WINDOW_FIELD_UNKNOWN: "ADL_SYNC_WINDOW_FIELD_UNKNOWN",
   SYNC_WINDOW_LIMIT_INVALID: "ADL_SYNC_WINDOW_LIMIT_INVALID",
   THEME_BASE_SELF_REFERENCE: "ADL_THEME_BASE_SELF_REFERENCE",
@@ -584,6 +586,7 @@ const SHELL_CONTROL_KINDS = new Set<ShellControlKind>([
   "logout",
   "pwaInstall",
   "syncStatus",
+  "connectivity",
 ]);
 const SHELL_CONTROL_PLACEMENTS = new Set<ShellControlPlacement>(["topBar", "navDrawer"]);
 const SHELL_CONTEXT_SELECTOR_PLACEMENTS = new Set<ShellContextSelectorPlacement>([
@@ -2660,6 +2663,7 @@ function validateObjectSyncPolicy(
   if (object.sync.window !== undefined) {
     validateSyncWindow(object.sync.window, object, `${objectPath}.sync.window`, diagnostics, {
       field: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_FIELD_UNKNOWN,
+      fieldType: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL,
       days: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_DAYS_INVALID,
       limit: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_LIMIT_INVALID,
     });
@@ -7382,6 +7386,7 @@ function validateSyncPolicy(
   if (sync.window !== undefined && object !== undefined) {
     validateSyncWindow(sync.window, object, `${syncPath}.window`, diagnostics, {
       field: MODEL_VALIDATION_CODES.SYNC_WINDOW_FIELD_UNKNOWN,
+      fieldType: MODEL_VALIDATION_CODES.SYNC_WINDOW_FIELD_NOT_TEMPORAL,
       days: MODEL_VALIDATION_CODES.SYNC_WINDOW_DAYS_INVALID,
       limit: MODEL_VALIDATION_CODES.SYNC_WINDOW_LIMIT_INVALID,
     });
@@ -7395,20 +7400,35 @@ function validateSyncWindow(
   diagnostics: Diagnostic[],
   codes: {
     field: ModelValidationCode;
+    fieldType: ModelValidationCode;
     days: ModelValidationCode;
     limit: ModelValidationCode;
   },
 ): void {
-  const knownFields = new Set([
-    ...object.fields.map((field) => field.name),
-    ...object.metadataFields.map((field) => field.name),
+  const fieldTypes = new Map<string, FieldType>([
+    ...object.fields.map((field) => [field.name, field.type] as const),
+    ...object.metadataFields.map((field) => [field.name, field.type] as const),
   ]);
+  const fieldType = fieldTypes.get(window.field);
 
-  if (!knownFields.has(window.field)) {
+  if (fieldType === undefined) {
     diagnostics.push(
       diagnostic(
         codes.field,
         `Sync window field '${window.field}' does not exist on object '${object.name}'.`,
+        `${windowPath}.field`,
+      ),
+    );
+  } else if (fieldType !== "date" && fieldType !== "datetime") {
+    // A window is a span of days measured against a moment, so the field it
+    // names has to hold one. Without this a model could declare a window over
+    // any field it liked — `_syncStatus`, say — and get a silently empty
+    // dataset, because the runtime parses the value as a date and a value that
+    // is not one excludes the record.
+    diagnostics.push(
+      diagnostic(
+        codes.fieldType,
+        `Sync window field '${window.field}' on object '${object.name}' is '${fieldType}'; a window must be measured over a date or datetime field.`,
         `${windowPath}.field`,
       ),
     );

@@ -203,6 +203,13 @@ export const ADL_SIGN_OUT_EVENT = "adl-sign-out";
 export const ADL_CLAIM_INVITE_EVENT = "adl-claim-invite";
 export const ADL_RESOLVE_RECOVERY_EVENT = "adl-resolve-recovery";
 export const ADL_RETRY_DELIVERY_EVENT = "adl-retry-delivery";
+/**
+ * Throwing away a local row the authority refused. Named alongside the recovery
+ * events because it is raised by the same surface, but it is not one of them:
+ * it reaches the runtime rather than the bridge, and `keepServer` and
+ * `resubmitMine` remain the only two ways a verdict is resolved.
+ */
+export const ADL_DISCARD_REFUSED_RECORD_EVENT = "adl-discard-refused-record";
 export const ADL_REGISTER_PASSKEY_EVENT = "adl-register-passkey";
 export const ADL_PASSKEY_SIGN_IN_EVENT = "adl-passkey-sign-in";
 export const ADL_REFRESH_DEVICES_EVENT = "adl-refresh-devices";

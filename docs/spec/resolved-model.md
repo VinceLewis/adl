@@ -74,6 +74,13 @@ Business fields are author-defined. Metadata fields are platform-managed and
 include `_guid`, `_object`, `_schemaVersion`, `_revision`, `_state`,
 creation/update/delete metadata, and `_syncStatus`.
 
+`_syncStatus` holds the record's device-local synchronisation state, one of
+`local`, `pending`, `synced`, `conflict` and `rejected`. Every value has a
+producer; see
+[runtime-semantics#record-sync-state](runtime-semantics.md) for what produces
+and clears each one. The state is device-local in both directions: a client
+never asserts it to the authority and never adopts one the authority sent.
+
 Computed fields are separate from stored fields. They include a structured
 expression, dependencies, read-time strategy, deterministic evaluation order,
 and system-managed readonly flags.

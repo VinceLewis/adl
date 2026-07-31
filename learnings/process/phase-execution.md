@@ -78,6 +78,14 @@ in one working tree rather than in worktrees:
   runtime-context change in one pass first turned the remaining work into five
   genuinely independent files.
 
+A NUL byte can also be *introduced*, not only inherited. Phase 58 wrote a
+composite key as `` `${object} ${id}` `` and the separator landed as a raw NUL,
+which silently turned `src/server/sync-client.ts` into a file `grep` reported
+nothing from — the same trap, in a file that had never had it. After writing a
+file, `grep -c` disagreeing with `grep -ac` on it is the cheap check. Where a
+composite key genuinely wants a NUL separator, write the escape `\0` in a
+template literal, as `offline-dataset-service.ts` already does; never the byte.
+
 Treat an agent's negative findings with the same scepticism as its positive ones.
 Two Phase 56 reconnaissance agents independently reported that
 `src/compiler/validate-model.ts` "contains no validation" for their area; both

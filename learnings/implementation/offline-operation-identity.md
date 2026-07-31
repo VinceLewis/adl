@@ -137,8 +137,17 @@ survives.** A developer's own browser profile can be cleared per origin.
   collision the following bootstrap overwrites that row with the authority's record
   under the same id. The user's local values for it are then gone while only verdict
   metadata remains in the recovery panel. Consistent with every `keepServer`
-  resolution, but a real loss of local work that is not yet surfaced as such.
-  Phase 57 multiplied this rather than fixing it: a refused *command* strands
-  every row all of its steps wrote, not one. The decision was deliberate — a
-  local rollback would be a third recovery primitive that invents a winner —
-  but the residue is now large enough to be worth a phase of its own.
+  resolution, but a real loss of local work. Phase 57 multiplied this rather than
+  fixing it: a refused *command* strands every row all of its steps wrote, not
+  one. The decision was deliberate — a local rollback would be a third recovery
+  primitive that invents a winner — and it stands.
+
+  **Phase 58 made the residue visible rather than automatic.** The row still
+  stays, but it now reports `syncStatus: "rejected"`, carries
+  `syncRejectedCreate` when the refused write was its own create, survives both
+  the dismissal of the verdict and a reload, and can be thrown away by the user
+  through `ApplicationRuntime.discardRefusedRecord` — a local action, not a third
+  recovery primitive. A refused *update* is deliberately not discardable: the
+  authority still holds that record, so the next bootstrap restores it, and
+  removing it locally would be a no-op dressed up as a repair. See
+  [[record-sync-state]].

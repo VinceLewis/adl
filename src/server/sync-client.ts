@@ -6,6 +6,7 @@ import type {
   SyncRecoveryStrategy,
 } from "../runtime/sync-queue.js";
 import { requiresImmediateDelivery } from "../runtime/sync-policy-service.js";
+import { coveredQueueRecords } from "../runtime/sync-queue.js";
 import type { LocalOperationKind } from "../model/resolved-model.js";
 import type {
   AuthorityBootstrapRecord,
@@ -260,6 +261,24 @@ export class AuthoritySyncClient {
     const permitted = toRecoveryItem(entry).choices;
     if (choice === "keepServer" || !permitted.includes(choice)) {
       this.runtime.syncQueue.remove(entry.queueId);
+      /*
+       * Keeping the server's version settles a *conflict*: the local operation
+       * is abandoned, the authority's state stands, and the bootstrap this
+       * resolution is always followed by has already written it locally. The
+       * records must therefore stop reporting a conflict nobody is deciding any
+       * more — without this the automatic path leaves them marked for ever,
+       * because `applyAutomaticRecovery` runs after the bootstrap and no later
+       * reconciliation has anything to say about them.
+       *
+       * A rejection is the opposite case and is deliberately left alone. Its
+       * records stay `rejected`: the refused work is still sitting here, which
+       * is exactly what dismissing the verdict must not hide.
+       */
+      if (entry.recovery?.status !== "rejected") {
+        for (const covered of coveredQueueRecords(entry.operation)) {
+          await this.runtime.setRecordSyncState(covered.objectName, covered.recordId, "synced");
+        }
+      }
       return null;
     }
 
@@ -268,6 +287,11 @@ export class AuthoritySyncClient {
       return null;
     }
 
+    // The verdict is spent: the operation is queued and unanswered again, so its
+    // records must say so rather than keeping the state the last answer left.
+    for (const covered of coveredQueueRecords(retry.operation)) {
+      await this.runtime.setRecordSyncState(covered.objectName, covered.recordId, "pending");
+    }
     this.runtime.operationLog.setStatus(retry.operation.opId, "sent");
     // Rebase: the base revision comes from the record as it now stands locally,
     // which a bootstrap has already reconciled to the authority's version.
@@ -345,15 +369,35 @@ export class AuthoritySyncClient {
       throw error;
     }
     if (outcome.status === "accepted") {
+      const reconciled = new Set<string>();
       for (const accepted of outcome.records) {
         await this.runtime.reconcileRemoteRecord(accepted.meta.object, accepted);
+        reconciled.add(`${accepted.meta.object}\0${accepted.meta.guid}`);
+      }
+      // A record the operation covered that the outcome did not return is
+      // accepted all the same — an accepted delete returns a tombstone the
+      // caller may not read back, and a command may write more than it reports.
+      // Leaving those at `pending` would show settled work as still in flight.
+      for (const covered of coveredQueueRecords(operation)) {
+        if (!reconciled.has(`${covered.objectName}\0${covered.recordId}`)) {
+          await this.runtime.setRecordSyncState(covered.objectName, covered.recordId, "synced");
+        }
       }
       this.setOperationStatus(operation, "accepted");
       this.runtime.syncQueue.remove(entry.queueId);
       return outcome;
     }
 
-    this.setOperationStatus(operation, outcome.status === "rejected" ? "rejected" : "conflict");
+    // The verdict is recorded on every record the operation wrote, not only on
+    // the one the entry is filed under. A command's entry names a representative
+    // record; its refusal is about all of them.
+    const recordStatus = outcome.status === "rejected" ? "rejected" : "conflict";
+    for (const covered of coveredQueueRecords(operation)) {
+      await this.runtime.setRecordSyncState(covered.objectName, covered.recordId, recordStatus, {
+        rejectedCreate: recordStatus === "rejected" && covered.created,
+      });
+    }
+    this.setOperationStatus(operation, recordStatus);
     // The entry survives its verdict. It is discarded only once the declared
     // strategy or the user has resolved it.
     this.runtime.syncQueue.setRecovery(entry.queueId, {

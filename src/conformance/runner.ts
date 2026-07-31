@@ -28,6 +28,8 @@ import type { ConformanceStorageBehaviour } from "./storage-behaviours.js";
 export type { ConformanceStorageBehaviour } from "./storage-behaviours.js";
 import { AuthorityService } from "../server/authority-service.js";
 import { StaticSessionAdapter } from "../server/session-adapter.js";
+import { AuthoritySyncClient } from "../server/sync-client.js";
+import type { AuthorityTransport, SyncRecoveryChoice } from "../server/sync-client.js";
 import type { AuthorityOperationIntent, AuthorityOutcome } from "../server/authority-types.js";
 import type {
   PolicyRequest,
@@ -52,7 +54,8 @@ export type ConformanceCase =
   | ModelFingerprintConformanceCase
   | ModelMigrationConformanceCase
   | AuthorityConformanceCase
-  | AuthorityBootstrapConformanceCase;
+  | AuthorityBootstrapConformanceCase
+  | SyncReconcileConformanceCase;
 
 export interface ConformanceCaseBase {
   id: string;
@@ -200,6 +203,64 @@ export interface AuthorityBootstrapConformanceCase extends ConformanceCaseBase {
   };
 }
 
+/**
+ * A device's queue drained against a real authority.
+ *
+ * Every other operation observes one side of the sync boundary: `syncWrite` and
+ * `syncCommand` state what a local write left in the queue, `authorityReplay`
+ * and `authorityBootstrap` state what the server does with an intent a case
+ * spells out by hand. Nothing joined the two, so what a *verdict* does to the
+ * device that provoked it — which records it settles, which it refuses, and what
+ * a resubmission clears — was unsayable, and a record's sync state is precisely
+ * that.
+ *
+ * The runner therefore builds both halves and runs the real
+ * `AuthoritySyncClient` between them over an in-process transport. Nothing here
+ * is a stand-in: the device writes through `ApplicationRuntime`, the authority
+ * answers through `AuthorityService.replay`, and the intents that cross between
+ * them are the ones the client itself emits from the queue.
+ *
+ * The phases run in the order they are declared below. `resolve` is applied
+ * after a bootstrap, which is the order the recovery primitives are defined in:
+ * `keepServer` relies on the authority's state having already replaced the local
+ * record, and `resubmitMine` rebases on the revision that bootstrap wrote.
+ */
+export interface SyncReconcileConformanceCase extends ConformanceCaseBase {
+  operation: "syncReconcile";
+  model?: PartialApplicationModel;
+  modelRef?: string;
+  input: {
+    sessions?: Record<string, { userId: string }>;
+    /** Which seeded session the device holds; defaults to the first declared. */
+    session?: string;
+    /** State the authority already holds, seeded through the same replay path. */
+    authoritySetup?: AuthorityConformanceIntent[];
+    /**
+     * Whether the device pulls the authority's state before it writes. A device
+     * can only conflict over a record it already holds, and the honest way to
+     * hold one is to have been given it.
+     */
+    deviceBootstrap?: boolean;
+    /** What the device did locally, through the real runtime. */
+    device: RuntimeConformanceStep[];
+    /**
+     * Intents another client lands after the device wrote and before the queue
+     * drains. This is what moves the authority on underneath a queued operation,
+     * and it is the only honest way to reach a conflict: seeding a stale
+     * revision into the device's storage would prove the device was never told.
+     */
+    concurrent?: AuthorityConformanceIntent[];
+    /** The context the device drains its queue under. */
+    context: JsonRuntimeContext;
+    /**
+     * A resolution applied to every entry the reconcile left holding a verdict.
+     * `keepServer` abandons the local operation; `resubmitMine` sends it again
+     * for the authority to judge afresh. Neither invents a winner.
+     */
+    resolve?: SyncRecoveryChoice;
+  };
+}
+
 export interface AuthorityConformanceIntent {
   session?: string;
   intent: AuthorityOperationIntent;
@@ -256,13 +317,24 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
 }
 
 export interface RuntimeConformanceStep {
-  operation: "create" | "update" | "delete" | "transition";
+  operation: "create" | "update" | "delete" | "transition" | "executeCommand";
   alias?: string;
-  objectName: string;
+  /** Required by every operation except `executeCommand`, which names a command instead. */
+  objectName?: string;
   values?: Record<string, JsonValue>;
   id?: JsonValue;
   patch?: Record<string, JsonValue>;
   actionName?: string;
+  /**
+   * `executeCommand` only. A command is the one write a device makes that covers
+   * several records at once, so it is also the only one whose refusal is about
+   * more than the record its queue entry is filed under — which is exactly what
+   * a case about a refused command has to be able to say. Every record the
+   * command creates is registered under `<step>` (or `<step>.<itemIndex>`) in
+   * the alias table, so no case ever spells out an id the runtime minted.
+   */
+  commandName?: string;
+  input?: Record<string, JsonValue>;
   context: JsonRuntimeContext;
 }
 
@@ -450,6 +522,8 @@ async function runCaseActual(
         return await runAuthorityReplayCase(conformanceCase, models, state);
       case "authorityBootstrap":
         return await runAuthorityBootstrapCase(conformanceCase, models, state);
+      case "syncReconcile":
+        return await runSyncReconcileCase(conformanceCase, models, state);
       default:
         return await runRuntimeCase(conformanceCase, models, state);
     }
@@ -699,23 +773,32 @@ async function runMigratePersistedStateCase(
 interface AuthorityFixture {
   authority: AuthorityService;
   tokenFor(sessionName: string | undefined): string | undefined;
+  /**
+   * Applies further intents to the same authority through the same replay path.
+   * A reconcile case needs this after the device has written, to move the
+   * authority on underneath a queued operation the way a second client would.
+   */
+  apply(steps: AuthorityConformanceIntent[] | undefined, label: string): Promise<void>;
+}
+
+/** The parts of a case that describe an authority, whatever else the case does. */
+interface AuthorityFixtureInput {
+  sessions?: Record<string, { userId: string }>;
+  setup?: AuthorityConformanceIntent[];
 }
 
 /**
  * Builds the authority and its sessions, and applies every seeded intent through
- * the real replay path. Shared by the replay and bootstrap operations so a
- * bootstrap case reads state that was accepted exactly as any other client's
- * would be, rather than state written past the authority.
+ * the real replay path. Shared by the replay, bootstrap and reconcile operations
+ * so a case reads state that was accepted exactly as any other client's would
+ * be, rather than state written past the authority.
  */
 async function seedAuthority(
-  conformanceCase: AuthorityConformanceCase | AuthorityBootstrapConformanceCase,
-  models: Record<string, PartialApplicationModel>,
+  model: ResolvedApplicationModel,
+  input: AuthorityFixtureInput,
   state: RunState,
 ): Promise<AuthorityFixture> {
-  const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
-  const declaredSessions = Object.entries(
-    conformanceCase.input.sessions ?? { primary: { userId: "user-1" } },
-  );
+  const declaredSessions = Object.entries(input.sessions ?? { primary: { userId: "user-1" } });
   const tokensByName = new Map(
     declaredSessions.map(([name], index) => [name, `${name}-${"t".repeat(48)}${index}`]),
   );
@@ -730,33 +813,41 @@ async function seedAuthority(
   const firstSessionName = declaredSessions[0]?.[0] ?? "primary";
   const authority = new AuthorityService(model, new InMemoryObjectStorageBackend(), sessions);
 
-  for (const [index, step] of (conformanceCase.input.setup ?? []).entries()) {
-    // Resolved one step at a time, so a seed can be expressed in terms of what
-    // the seed before it produced.
-    const intent = resolveRefs(step.intent, state) as AuthorityOperationIntent;
-    const outcome = await authority.replay(
-      tokensByName.get(step.session ?? firstSessionName),
-      intent,
-    );
-
-    const expected = step.expect ?? "accepted";
-    if (outcome.status !== expected) {
-      // Left as a thrown error rather than a status in the result, because a
-      // failed seed means the case never ran the scenario it describes — and a
-      // rejection-expecting case would otherwise pass on an empty store.
-      throw new Error(
-        `Authority setup step ${index} ('${step.intent.operationId}') was '${outcome.status}', expected '${expected}'.`,
+  const apply = async (
+    steps: AuthorityConformanceIntent[] | undefined,
+    label: string,
+  ): Promise<void> => {
+    for (const [index, step] of (steps ?? []).entries()) {
+      // Resolved one step at a time, so a seed can be expressed in terms of what
+      // the seed before it produced.
+      const intent = resolveRefs(step.intent, state) as AuthorityOperationIntent;
+      const outcome = await authority.replay(
+        tokensByName.get(step.session ?? firstSessionName),
+        intent,
       );
-    }
 
-    if (step.alias !== undefined) {
-      state.aliases[step.alias] = outcome;
+      const expected = step.expect ?? "accepted";
+      if (outcome.status !== expected) {
+        // Left as a thrown error rather than a status in the result, because a
+        // failed seed means the case never ran the scenario it describes — and a
+        // rejection-expecting case would otherwise pass on an empty store.
+        throw new Error(
+          `Authority ${label} step ${index} ('${step.intent.operationId}') was '${outcome.status}', expected '${expected}'.`,
+        );
+      }
+
+      if (step.alias !== undefined) {
+        state.aliases[step.alias] = outcome;
+      }
     }
-  }
+  };
+
+  await apply(input.setup, "setup");
 
   return {
     authority,
     tokenFor: (sessionName) => tokensByName.get(sessionName ?? firstSessionName),
+    apply,
   };
 }
 
@@ -765,7 +856,11 @@ async function runAuthorityReplayCase(
   models: Record<string, PartialApplicationModel>,
   state: RunState,
 ): Promise<ConformanceActual> {
-  const fixture = await seedAuthority(conformanceCase, models, state);
+  const fixture = await seedAuthority(
+    resolveApplicationModel(getPartialModel(conformanceCase, models)),
+    conformanceCase.input,
+    state,
+  );
   const outcome = await fixture.authority.replay(
     fixture.tokenFor(conformanceCase.input.session),
     resolveRefs(conformanceCase.input.intent, state) as AuthorityOperationIntent,
@@ -784,7 +879,11 @@ async function runAuthorityBootstrapCase(
   models: Record<string, PartialApplicationModel>,
   state: RunState,
 ): Promise<ConformanceActual> {
-  const fixture = await seedAuthority(conformanceCase, models, state);
+  const fixture = await seedAuthority(
+    resolveApplicationModel(getPartialModel(conformanceCase, models)),
+    conformanceCase.input,
+    state,
+  );
   const token = fixture.tokenFor(conformanceCase.input.session);
   // Resolved like an intent's, so a case can name a context a setup step
   // created. Without this a `{"$ref": ...}` reached `withSelectedContext`
@@ -862,6 +961,104 @@ function normaliseAuthorityOutcome(outcome: AuthorityOutcome): JsonValue {
   } as unknown as JsonValue;
 }
 
+/**
+ * A device's queue drained against a real authority, and what the verdicts left
+ * on the device.
+ *
+ * The result is deliberately three observations rather than one. The outcomes
+ * say what the authority decided; the queue says which entries survived that
+ * decision; the persisted records say what the device is now holding and in what
+ * sync state. Any one of them alone is satisfiable by a runtime that reports the
+ * verdict faithfully and records nothing against the rows it covered — which is
+ * the exact defect this phase exists to close.
+ */
+async function runSyncReconcileCase(
+  conformanceCase: SyncReconcileConformanceCase,
+  models: Record<string, PartialApplicationModel>,
+  state: RunState,
+): Promise<ConformanceActual> {
+  const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
+  const input = conformanceCase.input;
+  const fixture = await seedAuthority(
+    model,
+    {
+      ...(input.sessions === undefined ? {} : { sessions: input.sessions }),
+      ...(input.authoritySetup === undefined ? {} : { setup: input.authoritySetup }),
+    },
+    state,
+  );
+  const token = fixture.tokenFor(input.session);
+
+  // In-process rather than over a socket: what is under test is the client's
+  // use of the authority's own interface, and a transport that pattern-matched
+  // intents would be a second implementation of the server.
+  const transport: AuthorityTransport = {
+    replay: (sessionToken, intent) => fixture.authority.replay(sessionToken, intent),
+    bootstrap: (sessionToken, request) => fixture.authority.bootstrap(sessionToken, request),
+  };
+
+  const storage = new InMemoryObjectStorageBackend();
+  const device = new ApplicationRuntime(model, { storage });
+  const client = new AuthoritySyncClient(device, transport);
+  const context = parseContext(input.context);
+
+  if (input.deviceBootstrap === true) {
+    await client.bootstrap(token, context);
+  }
+
+  for (const step of input.device) {
+    const value = await runRuntimeStep(
+      device,
+      resolveRefs(step, state) as RuntimeConformanceStep,
+      state,
+    );
+    if (step.alias !== undefined) {
+      state.aliases[step.alias] = value;
+      registerRecordAlias(step.alias, value, state);
+    }
+  }
+
+  await fixture.apply(input.concurrent, "concurrent");
+
+  const outcomes = await client.reconcile(token, context);
+
+  if (input.resolve !== undefined) {
+    // Bootstrapped first, because that is the order both primitives are defined
+    // in: `keepServer` leaves the authority's state standing, and `resubmitMine`
+    // rebases on the revision the bootstrap wrote.
+    await client.bootstrap(token, context);
+    for (const entry of device.syncQueue.getAwaitingRecovery()) {
+      const outcome = await client.resolveRecovery(token, context, entry.queueId, input.resolve);
+      if (outcome !== null) outcomes.push(outcome);
+    }
+  }
+
+  const persisted = (await reportPersistedRecords(device, storage, state)) as {
+    records: JsonValue;
+  };
+
+  return {
+    ok: true,
+    result: {
+      outcomes: outcomes.map((outcome) => normaliseReconcileOutcome(outcome)),
+      queue: device.syncQueue.getEntries().map((entry) => normaliseSyncQueueEntry(entry, state)),
+      records: persisted.records,
+    } as unknown as JsonValue,
+  };
+}
+
+/**
+ * A verdict reduced to what the device acted on. The operation id is minted by
+ * the client, the records an accepted outcome carries are already observable as
+ * persisted state, and a revision or timestamp would make every case a snapshot.
+ */
+function normaliseReconcileOutcome(outcome: AuthorityOutcome): JsonValue {
+  return {
+    status: outcome.status,
+    ...(outcome.status === "accepted" ? {} : { code: outcome.code }),
+  };
+}
+
 async function runRuntimeCase(
   conformanceCase: RuntimeConformanceCase,
   models: Record<string, PartialApplicationModel>,
@@ -879,6 +1076,7 @@ async function runRuntimeCase(
     const value = await runRuntimeStep(
       runtime,
       resolveRefs(setup, state) as RuntimeConformanceStep,
+      state,
     );
     if (setup.alias !== undefined) {
       state.aliases[setup.alias] = value;
@@ -928,15 +1126,19 @@ async function runSyncWrite(
   const write = input.write;
   const attempt = async (): Promise<{ status: string; recordId?: string; code?: string }> => {
     try {
-      const record = await runRuntimeStep(runtime, {
-        operation: write,
-        objectName: input.objectName,
-        context: input.context,
-        ...(input.values === undefined ? {} : { values: input.values }),
-        ...(input.id === undefined ? {} : { id: input.id }),
-        ...(input.patch === undefined ? {} : { patch: input.patch }),
-        ...(input.actionName === undefined ? {} : { actionName: input.actionName }),
-      });
+      const record = await runRuntimeStep(
+        runtime,
+        {
+          operation: write,
+          objectName: input.objectName,
+          context: input.context,
+          ...(input.values === undefined ? {} : { values: input.values }),
+          ...(input.id === undefined ? {} : { id: input.id }),
+          ...(input.patch === undefined ? {} : { patch: input.patch }),
+          ...(input.actionName === undefined ? {} : { actionName: input.actionName }),
+        },
+        state,
+      );
       return {
         status: "written",
         ...(isRecord(record) ? { recordId: aliasForRecordId(record.meta.guid, state) } : {}),
@@ -1061,6 +1263,19 @@ function normaliseSyncQueueEntry(entry: SyncQueueEntry, state: RunState): JsonVa
     recordId: aliasForRecordId(operation.recordId, state),
     mode: entry.objectSync.mode,
     status: operation.status,
+    // Present only once the authority has answered. The message and the moment
+    // it was recorded are deliberately omitted: one is prose and the other is a
+    // clock, and neither is contractual. That an entry *survives* its verdict,
+    // carrying which verdict it was, is.
+    ...(entry.recovery === undefined
+      ? {}
+      : {
+          recovery: {
+            status: entry.recovery.status,
+            code: entry.recovery.code,
+            ...(entry.recovery.strategy === undefined ? {} : { strategy: entry.recovery.strategy }),
+          },
+        }),
     ...(operation.selectedContexts === undefined
       ? {}
       : { selectedContexts: normaliseRecordIds(operation.selectedContexts, state) }),
@@ -1116,6 +1331,15 @@ async function reportPersistedRecords(
         recordId: aliasForRecordId(persisted.record.meta.guid, state),
         schemaVersion: persisted.record.meta.schemaVersion,
         deleted: persisted.record.meta.deletedAt !== undefined,
+        // Device-local state, and reported here because storage is where it
+        // lives: it survives a reload precisely because it is on the record
+        // rather than derived from a queue entry the user can dismiss.
+        syncStatus: persisted.record.meta.syncStatus,
+        // Reported only when set, so a case can assert with `$absent` that a
+        // refusal which was *not* about a record's own create left no licence to
+        // discard it. Stating the licence without being able to state its
+        // absence would make the rule unfalsifiable.
+        ...(persisted.record.meta.syncRejectedCreate === true ? { syncRejectedCreate: true } : {}),
         values: persisted.record.values,
       }))
       .sort(
@@ -1129,30 +1353,48 @@ async function reportPersistedRecords(
 async function runRuntimeStep(
   runtime: ApplicationRuntime,
   step: RuntimeConformanceStep,
+  state: RunState,
 ): Promise<unknown> {
+  const objectName = (): string => requireText(step.objectName, "step objectName");
   switch (step.operation) {
     case "create":
-      return runtime.create(step.objectName, step.values ?? {}, parseContext(step.context));
+      return runtime.create(objectName(), step.values ?? {}, parseContext(step.context));
     case "update":
       return runtime.update(
-        step.objectName,
+        objectName(),
         requireText(step.id, "setup update id"),
         step.patch ?? {},
         parseContext(step.context),
       );
     case "delete":
       return runtime.delete(
-        step.objectName,
+        objectName(),
         requireText(step.id, "setup delete id"),
         parseContext(step.context),
       );
     case "transition":
       return runtime.transition(
-        step.objectName,
+        objectName(),
         requireText(step.id, "setup transition id"),
         step.actionName ?? "",
         parseContext(step.context),
       );
+    case "executeCommand": {
+      const result = await runtime.executeCommand(
+        requireText(step.commandName, "step commandName"),
+        step.input ?? {},
+        parseContext(step.context),
+      );
+      // Named exactly as `runSyncCommand` names them, so a command's records are
+      // referable by the step that wrote them however the command was executed.
+      for (const written of result.steps) {
+        state.recordAliases.set(
+          written.recordId,
+          commandStepAlias(written.step, written.itemIndex),
+        );
+      }
+      return result;
+    }
   }
 }
 

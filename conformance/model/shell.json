@@ -154,17 +154,19 @@
           "shell.navDrawer.controls",
           "shell.navDrawer.title",
           "shell.controls.0.placement",
-          "shell.controls.1.placement"
+          "shell.controls.1.placement",
+          "shell.controls.2.placement"
         ]
       },
       "expected": {
         "ok": true,
         "result": {
-          "shell.topBar.controls": ["contextSelector", "syncStatus"],
+          "shell.topBar.controls": ["contextSelector", "connectivity", "syncStatus"],
           "shell.navDrawer.controls": [],
           "shell.navDrawer.title": "$absent",
           "shell.controls.0.placement": "topBar",
-          "shell.controls.1.placement": "topBar"
+          "shell.controls.1.placement": "topBar",
+          "shell.controls.2.placement": "topBar"
         }
       }
     }

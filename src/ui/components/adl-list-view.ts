@@ -183,6 +183,9 @@ export class AdlListViewElement extends HTMLElement {
         <table class="adl-table">
           <thead>
             <tr>
+              <th class="adl-list-sync-heading" scope="col">
+                <span class="adl-visually-hidden">Sync state</span>
+              </th>
               ${fields.map((field) => `<th>${escapeHtml(titleCaseIdentifier(field.name))}</th>`).join("")}
             </tr>
           </thead>
@@ -198,13 +201,50 @@ export class AdlListViewElement extends HTMLElement {
     return `
       <tr
         data-record-id="${escapeHtml(record.meta.guid)}"
+        data-sync-status="${escapeHtml(record.meta.syncStatus)}"
         tabindex="0"
         aria-label="Open ${escapeHtml(this.recordLabel(record, fields))}"
         aria-selected="${record.meta.guid === this._selectedRecordId ? "true" : "false"}"
       >
+        ${this.renderSyncCell(record)}
         ${fields.map((field) => this.renderCell(record, field)).join("")}
       </tr>
     `;
+  }
+
+  /**
+   * The row's sync state, in a gutter cell of its own so it cannot be confused
+   * with a field of the record.
+   *
+   * A refusal and a conflict are named in words, because they are states a
+   * person has to act on and a colour alone would not say which. `pending` gets
+   * a marker with an accessible label and no visible word: with no authority
+   * configured every local record is legitimately pending, so a word on every
+   * row would drown the two states that actually need attention. `synced` and
+   * `local` are the unremarkable cases and are marked not at all.
+   */
+  private renderSyncCell(record: StoredObjectRecord): string {
+    const status = record.meta.syncStatus;
+
+    if (status === "rejected" || status === "conflict") {
+      const label = status === "rejected" ? "Refused" : "Conflict";
+      return `<td class="adl-list-sync-cell"><span
+          class="adl-sync-badge adl-sync-badge-${status}"
+          data-sync-badge="${status}"
+        >${label}</span></td>`;
+    }
+
+    if (status === "pending") {
+      return `<td class="adl-list-sync-cell"><span
+          class="adl-sync-dot"
+          data-sync-badge="pending"
+          role="img"
+          aria-label="Saved here, not yet accepted by the server"
+          title="Saved here, not yet accepted by the server"
+        ></span></td>`;
+    }
+
+    return `<td class="adl-list-sync-cell"></td>`;
   }
 
   private renderCell(record: StoredObjectRecord, field: ResolvedField): string {

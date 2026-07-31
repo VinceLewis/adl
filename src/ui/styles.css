@@ -486,6 +486,20 @@ button:disabled {
   color: var(--adl-color-danger);
 }
 
+/* Record sync state, as reported by the `syncStatus` control. It is a different
+   question from connectivity above, so it is coloured by what it is telling
+   you: pending is work in hand, refused and conflicted need a person. */
+.adl-shell-status[data-sync-state="pending"] {
+  border-color: var(--adl-color-status-busy-elsewhere);
+  color: var(--adl-color-status-busy-elsewhere);
+}
+
+.adl-shell-status[data-sync-state="rejected"],
+.adl-shell-status[data-sync-state="conflict"] {
+  border-color: var(--adl-color-danger);
+  color: var(--adl-color-danger);
+}
+
 .adl-shell-control {
   align-items: center;
   display: inline-flex;
@@ -514,6 +528,23 @@ button:disabled {
 .adl-topbar-app .adl-shell-status {
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.34);
+  color: var(--adl-color-text-inverted);
+}
+
+/* The app top bar paints on the primary colour, where coloured text reads
+   poorly. Pending keeps the bar's own treatment because it is not an alarm;
+   the two states that need a person get a solid fill so they stand out
+   against it. */
+.adl-topbar-app .adl-shell-status[data-sync-state="pending"] {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.34);
+  color: var(--adl-color-text-inverted);
+}
+
+.adl-topbar-app .adl-shell-status[data-sync-state="rejected"],
+.adl-topbar-app .adl-shell-status[data-sync-state="conflict"] {
+  background: var(--adl-color-danger);
+  border-color: var(--adl-color-danger);
   color: var(--adl-color-text-inverted);
 }
 
@@ -695,6 +726,59 @@ button:disabled {
 .adl-empty {
   color: var(--adl-color-text-muted);
   padding: var(--adl-space-lg);
+}
+
+/* Off-screen but still announced. Used for the sync gutter's column heading,
+   which needs a name for assistive technology and no width on screen. */
+.adl-visually-hidden {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* A record's sync state sits in a gutter of its own, ahead of the record's own
+   fields, so it can never be read as one of them. */
+.adl-list-sync-heading,
+.adl-list-sync-cell {
+  width: 72px;
+}
+
+.adl-sync-badge {
+  border: 1px solid currentcolor;
+  white-space: nowrap;
+  border-radius: var(--adl-radius);
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 6px;
+}
+
+.adl-sync-badge-rejected {
+  color: var(--adl-color-danger);
+}
+
+.adl-sync-badge-conflict {
+  color: var(--adl-color-status-conflict);
+}
+
+/* Deliberately a mark and not a word. Every record on a device with no
+   authority configured is legitimately pending, so naming it on each row would
+   bury the refusals and conflicts that need attention. */
+/* Muted, not a warning colour. A queued write is the platform working, and
+   painting every row amber would say something is wrong on a device that is
+   simply offline. The two states that need attention keep the loud colours. */
+.adl-sync-dot {
+  background: var(--adl-color-text-muted);
+  border-radius: 50%;
+  display: inline-block;
+  height: 8px;
+  width: 8px;
 }
 
 .adl-edit-scrim {
@@ -1987,6 +2071,60 @@ textarea.adl-field-control {
   padding-top: var(--adl-space-xs);
 }
 
+/* Rows a refused write left behind. Separated from the verdict list above it
+   because it is reporting residue, not offering a resolution: discarding one
+   is a local delete and never a third recovery primitive. */
+.adl-sync-refused {
+  border-top: 1px solid var(--adl-color-border);
+  display: grid;
+  gap: var(--adl-space-xs);
+  padding-top: var(--adl-space-sm);
+}
+
+.adl-sync-refused-heading {
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.adl-sync-refused-note,
+.adl-sync-refused-retained {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.adl-sync-refused-list {
+  display: grid;
+  gap: var(--adl-space-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.adl-sync-refused-item {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+}
+
+.adl-sync-refused-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.adl-sync-refused-id {
+  color: var(--adl-color-text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.adl-sync-refused-discard {
+  border-color: var(--adl-color-danger);
+  color: var(--adl-color-danger);
+}
+
 .adl-state-pill {
   background: var(--adl-color-surface-alt);
   border: 1px solid var(--adl-color-border);
@@ -2226,6 +2364,18 @@ textarea.adl-field-control {
     content: attr(data-label);
     font-size: 12px;
     font-weight: 650;
+  }
+
+  /* The sync gutter carries no field label, so on a card it is just the marker.
+     A row with nothing to report has an empty cell and disappears above. */
+  .adl-table td.adl-list-sync-cell {
+    display: block;
+    padding-bottom: 0;
+    width: auto;
+  }
+
+  .adl-table td.adl-list-sync-cell::before {
+    content: none;
   }
 }
 

@@ -673,6 +673,95 @@ describe("browser UI runtime", () => {
     expect(app.textContent).not.toContain("Beta Hall");
   });
 
+  /*
+   * Phase 58. The `syncStatus` control used to render
+   * `context.online ? "Online" : "Offline"`, so the platform's only shipped
+   * sync-state surface answered a different question from the one it was named
+   * after and no surface answered the record one. It now reports the device's
+   * records, and connectivity keeps a control of its own.
+   */
+  it("reports record sync state in the syncStatus control, worst state first", async () => {
+    const seeded = await createSeededBandUiRuntime();
+    const app = await mountApp(seeded.model, seeded.runtime, seeded.musicianContext);
+
+    const connectivity = requireElement<HTMLElement>(
+      app,
+      "[data-shell-control-kind='connectivity']",
+    );
+    expect(connectivity.textContent?.trim()).toBe("Online");
+    expect(connectivity.classList.contains("adl-shell-status-online")).toBe(true);
+
+    // Seeded records are `localFirst` writes with no authority behind them, so
+    // they are genuinely queued and unanswered rather than merely local.
+    const pending = requireElement<HTMLElement>(app, "[data-shell-control-kind='syncStatus']");
+    expect(pending.dataset.syncState).toBe("pending");
+    expect(pending.textContent?.trim()).toMatch(/^\d+ pending$/);
+
+    await seeded.runtime.setRecordSyncState("Band", seeded.secondBand.meta.guid, "conflict");
+    await app.refreshFromRuntime();
+    const conflicted = requireElement<HTMLElement>(app, "[data-shell-control-kind='syncStatus']");
+    expect(conflicted.dataset.syncState).toBe("conflict");
+    expect(conflicted.textContent?.trim()).toBe("1 in conflict");
+
+    // A refusal outranks both: it is terminal, and its rows are stranded here.
+    await seeded.runtime.setRecordSyncState("Band", seeded.firstBand.meta.guid, "rejected", {
+      rejectedCreate: true,
+    });
+    await app.refreshFromRuntime();
+    const refused = requireElement<HTMLElement>(app, "[data-shell-control-kind='syncStatus']");
+    expect(refused.dataset.syncState).toBe("rejected");
+    expect(refused.textContent?.trim()).toBe("1 refused");
+  });
+
+  it("keeps connectivity a control of its own, answering a different question", async () => {
+    const seeded = await createSeededBandUiRuntime();
+    const app = await mountApp(seeded.model, seeded.runtime, {
+      ...seeded.musicianContext,
+      online: false,
+    });
+
+    const connectivity = requireElement<HTMLElement>(
+      app,
+      "[data-shell-control-kind='connectivity']",
+    );
+    expect(connectivity.textContent?.trim()).toBe("Offline");
+    expect(connectivity.classList.contains("adl-shell-status-offline")).toBe(true);
+    // Being unreachable says nothing about whether a record was refused.
+    expect(
+      requireElement<HTMLElement>(app, "[data-shell-control-kind='syncStatus']").dataset.syncState,
+    ).toBe("pending");
+  });
+
+  it("distinguishes a refused record from an unsynced one in a list", async () => {
+    const seeded = await createSeededBandUiRuntime();
+    const app = await mountApp(seeded.model, seeded.runtime, seeded.musicianContext);
+
+    const selector = requireElement<HTMLSelectElement>(app, "select[data-context-select='Band']");
+    selector.value = seeded.firstBand.meta.guid;
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+
+    const rows = [...app.querySelectorAll<HTMLTableRowElement>("tr[data-record-id]")];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.dataset.syncStatus === "pending")).toBe(true);
+    // Pending is a marker and never a word: with no authority configured every
+    // record here is legitimately pending, so naming it on each row would bury
+    // the two states that actually need attention.
+    expect(app.querySelector("[data-sync-badge='pending']")).not.toBeNull();
+    expect(app.textContent).not.toContain("Refused");
+
+    const gigId = rows[0]?.dataset.recordId ?? "";
+    await seeded.runtime.setRecordSyncState("Gig", gigId, "rejected", { rejectedCreate: true });
+    await app.refreshFromRuntime();
+
+    const refusedRow = requireElement<HTMLTableRowElement>(app, `tr[data-record-id='${gigId}']`);
+    expect(refusedRow.dataset.syncStatus).toBe("rejected");
+    expect(
+      requireElement<HTMLElement>(refusedRow, "[data-sync-badge='rejected']").textContent?.trim(),
+    ).toBe("Refused");
+    expect(refusedRow.querySelector("[data-sync-badge='pending']")).toBeNull();
+  });
+
   it("opens Giggle calendar availability rows as Availability records", async () => {
     const seeded = await createSeededGiggleRuntime();
     const app = await mountApp(seeded.model, seeded.runtime, {

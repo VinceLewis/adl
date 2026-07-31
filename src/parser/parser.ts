@@ -3413,9 +3413,11 @@ class AdlParser {
       case "syncstatus":
       case "sync_status":
         return "syncStatus";
+      case "connectivity":
+        return "connectivity";
       default:
         this.failExpected(
-          "shell control kind CONTEXT_SELECTOR, THEME_SWITCH, LOGOUT, PWA_INSTALL, or SYNC_STATUS",
+          "shell control kind CONTEXT_SELECTOR, THEME_SWITCH, LOGOUT, PWA_INSTALL, SYNC_STATUS, or CONNECTIVITY",
           token,
         );
     }

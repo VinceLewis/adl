@@ -401,15 +401,75 @@ describe("browser authority chrome", () => {
     expect(recovery.querySelector("[data-recovery-choice='resubmitMine']")).toBeNull();
     expect(recovery.querySelector("[data-recovery-choice='keepServer']")).not.toBeNull();
   });
+
+  /*
+   * Phase 58. A refused write leaves its rows on the device, and dismissing the
+   * verdict removed the only thing that said so. The rows are now listed from
+   * the record's own state, which outlives the queue entry, and the way out is
+   * a local delete the user asks for: it reaches the runtime rather than the
+   * bridge, so `keepServer` and `resubmitMine` remain the only two ways a
+   * verdict is resolved.
+   */
+  it("lists refused local records and discards a refused create without a recovery primitive", async () => {
+    const runtime = createRuntime();
+    const mine = await runtime.create("Gig", { Title: "Refused create" }, adminContext);
+    const theirs = await runtime.create("Gig", { Title: "Refused update" }, adminContext);
+    await runtime.setRecordSyncState("Gig", mine.meta.guid, "rejected", { rejectedCreate: true });
+    await runtime.setRecordSyncState("Gig", theirs.meta.guid, "rejected");
+
+    const bridge = new FakeAuthorityBridge();
+    bridge.session = signedInState();
+    const app = await mountApp(bridge, adminContext, runtime);
+
+    const recovery = requireElement<HTMLElement>(app, "adl-sync-recovery");
+    expect(
+      [...recovery.querySelectorAll<HTMLElement>("[data-refused-record]")].map(
+        (entry) => entry.dataset.refusedRecordId,
+      ),
+    ).toEqual([mine.meta.guid, theirs.meta.guid].sort());
+    // Metadata only, as with every other item on this surface: there is no read
+    // policy behind it, so no record value may reach it.
+    expect(recovery.textContent).not.toContain("Refused create");
+    expect(recovery.textContent).not.toContain("Refused update");
+    // The refused list reports; it does not resolve, so it offers neither
+    // primitive alongside the discard.
+    expect(recovery.querySelector("[data-refused-record] [data-recovery-choice]")).toBeNull();
+
+    const retained = requireElement<HTMLElement>(
+      recovery,
+      `li[data-refused-record-id='${theirs.meta.guid}']`,
+    );
+    expect(retained.dataset.refusedDiscardable).toBe("false");
+    expect(retained.querySelector("[data-discard-refused-record]")).toBeNull();
+    expect(retained.textContent).toContain("The next sync will restore it.");
+
+    const discardable = requireElement<HTMLElement>(
+      recovery,
+      `li[data-refused-record-id='${mine.meta.guid}']`,
+    );
+    requireElement<HTMLButtonElement>(discardable, "[data-discard-refused-record]").click();
+    await flushUi();
+
+    // Local only. Nothing was sent, and the bridge was never asked anything.
+    expect(bridge.calls).toEqual([]);
+    expect(await runtime.read("Gig", mine.meta.guid, adminContext)).toBeNull();
+    const remaining = requireElement<HTMLElement>(app, "adl-sync-recovery");
+    expect(
+      [...remaining.querySelectorAll<HTMLElement>("[data-refused-record]")].map(
+        (entry) => entry.dataset.refusedRecordId,
+      ),
+    ).toEqual([theirs.meta.guid]);
+  });
 });
 
 async function mountApp(
   authority?: AdlAuthorityBridge,
   context: RuntimeContext = adminContext,
+  runtime: ApplicationRuntime = createRuntime(),
 ): Promise<AdlAppElement> {
   const app = document.createElement("adl-app") as AdlAppElement;
   app.model = model;
-  app.runtime = new ApplicationRuntime(model, { storage: new InMemoryObjectStorageBackend() });
+  app.runtime = runtime;
   app.context = context;
   if (authority !== undefined) {
     app.authority = authority;
@@ -418,6 +478,10 @@ async function mountApp(
   await app.whenReady();
   await flushUi();
   return app;
+}
+
+function createRuntime(): ApplicationRuntime {
+  return new ApplicationRuntime(model, { storage: new InMemoryObjectStorageBackend() });
 }
 
 async function flushUi(): Promise<void> {

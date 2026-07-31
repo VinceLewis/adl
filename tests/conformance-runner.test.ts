@@ -6,6 +6,7 @@ import type {
   ModelMigrationConformanceCase,
   PartialApplicationModel,
   RuntimeConformanceCase,
+  SyncReconcileConformanceCase,
 } from "../src/index.js";
 
 /**
@@ -700,5 +701,296 @@ describe("migration storage selection", () => {
     expect(result.pass).toBe(false);
     expect(result.actual.ok).toBe(false);
     expect(JSON.stringify(result.actual)).toContain("ADL_MIGRATION_FAILED");
+  });
+});
+
+/**
+ * The Phase 58 runner extension, shown to discriminate on each claim it exists
+ * to make.
+ *
+ * `syncReconcile` is the first operation that joins the queue to the wire, so
+ * everything it reports is new to the corpus: which records a verdict settles,
+ * whether an entry survives it, and what a resubmission clears. Each is
+ * exercised once where it must pass and once where it must fail — an assertion
+ * about a record's sync state that cannot fail would read as coverage for
+ * exactly the field this phase exists because nothing was writing.
+ */
+const recordSyncModel: PartialApplicationModel = {
+  app: { name: "RunnerRecordSync" },
+  objects: [
+    {
+      name: "Note",
+      displayField: "Title",
+      fields: [{ name: "Title", type: "text", required: true }],
+      constraints: [{ name: "UniqueNoteTitle", kind: "unique" as const, fields: ["Title"] }],
+      sync: { mode: "localFirst", scope: "all", conflict: "serverWins" },
+    },
+    {
+      name: "Tag",
+      displayField: "Label",
+      fields: [
+        {
+          name: "Note",
+          type: "text",
+          required: true,
+          lookup: { targetObject: "Note", displayField: "Title" },
+        },
+        { name: "Label", type: "text", required: true },
+      ],
+      sync: { mode: "localFirst", scope: "all" },
+    },
+    {
+      name: "Draft",
+      displayField: "Title",
+      fields: [{ name: "Title", type: "text", required: true }],
+      sync: { mode: "localPrivate", scope: "all" },
+    },
+  ],
+  commands: [
+    {
+      name: "FileNote",
+      label: "File a note",
+      inputs: [{ name: "Title", type: "text", required: true }],
+      steps: [
+        {
+          name: "createNote",
+          action: "create",
+          object: "Note",
+          values: { Title: { kind: "input", name: "Title" } },
+        },
+        {
+          name: "createTag",
+          action: "create",
+          object: "Tag",
+          values: {
+            Note: { kind: "stepMeta", step: "createNote", property: "guid" },
+            Label: { kind: "literal", value: "filed" },
+          },
+        },
+      ],
+    },
+  ],
+  policies: ["Note", "Tag", "Draft"].map((objectName) => ({
+    name: `${objectName}Policy`,
+    object: objectName,
+    rules: [
+      {
+        name: `allowAuthenticated${objectName}`,
+        effect: "allow" as const,
+        principal: { match: "authenticated" as const },
+        action: "*" as const,
+      },
+    ],
+  })),
+};
+
+const deviceContext = { userId: "user-1", roles: [], channel: "ui" as const, online: true };
+
+describe("syncReconcile", () => {
+  const refusedCommand = (result: JsonValue): SyncReconcileConformanceCase => ({
+    id: "runner.syncreconcile.refused-command",
+    title: "A command the authority refuses, and what it left on the device",
+    specRef: "runtime-semantics#what-a-verdict-covers",
+    operation: "syncReconcile",
+    model: recordSyncModel,
+    input: {
+      authoritySetup: [
+        {
+          intent: {
+            operationId: "op-seed-note",
+            kind: "create",
+            objectName: "Note",
+            recordId: "note-existing",
+            values: { Title: "Set list" },
+          },
+        },
+      ],
+      device: [
+        {
+          operation: "executeCommand",
+          commandName: "FileNote",
+          input: { Title: "Set list" },
+          context: deviceContext,
+        },
+      ],
+      context: deviceContext,
+    },
+    expected: { ok: true, result },
+  });
+
+  const bothRejected = {
+    outcomes: [{ status: "rejected", code: "ADL_RUNTIME_VALIDATION_FAILED" }],
+    records: [
+      { objectName: "Note", recordId: "$createNote", syncStatus: "rejected" },
+      { objectName: "Tag", recordId: "$createTag", syncStatus: "rejected" },
+    ],
+  };
+
+  it("settles every record a refused command wrote", async () => {
+    const result = await runConformanceCase(refusedCommand(bothRejected as unknown as JsonValue));
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same refusal asserted to have settled only the record its entry names", async () => {
+    // The discrimination the phase turns on: a runtime that marked only the
+    // record its queue entry is filed under — the shape that leaves a refused
+    // command's other rows indistinguishable from unsent work — fails here.
+    const result = await runConformanceCase(
+      refusedCommand({
+        records: [
+          { objectName: "Note", recordId: "$createNote", syncStatus: "rejected" },
+          { objectName: "Tag", recordId: "$createTag", syncStatus: "pending" },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  it("fails a refused entry asserted to have left the queue", async () => {
+    const result = await runConformanceCase(refusedCommand({ queue: [] } as unknown as JsonValue));
+
+    expect(result.pass).toBe(false);
+  });
+
+  const conflicted = (
+    resolve: SyncReconcileConformanceCase["input"]["resolve"],
+    result: JsonValue,
+  ): SyncReconcileConformanceCase => ({
+    id: "runner.syncreconcile.conflict",
+    title: "A queued update the authority answers with a conflict",
+    specRef: "runtime-semantics#record-sync-state",
+    operation: "syncReconcile",
+    model: recordSyncModel,
+    input: {
+      authoritySetup: [
+        {
+          alias: "seeded",
+          intent: {
+            operationId: "op-seed-note",
+            kind: "create",
+            objectName: "Note",
+            recordId: "note-1",
+            values: { Title: "Original" },
+          },
+        },
+      ],
+      deviceBootstrap: true,
+      device: [
+        {
+          operation: "update",
+          objectName: "Note",
+          id: "note-1",
+          patch: { Title: "Device edit" },
+          context: deviceContext,
+        },
+      ],
+      concurrent: [
+        {
+          intent: {
+            operationId: "op-other-client",
+            kind: "update",
+            objectName: "Note",
+            recordId: "note-1",
+            patch: { Title: "Server edit" },
+            // A `$ref` stands in for the revision the seed produced; the runner
+            // resolves it before the intent reaches the authority.
+            baseRevision: { $ref: "seeded.records.0.meta.revision" },
+          } as unknown as AuthorityConformanceCase["input"]["intent"],
+        },
+      ],
+      ...(resolve === undefined ? {} : { resolve }),
+      context: deviceContext,
+    },
+    expected: { ok: true, result },
+  });
+
+  it("leaves a conflicted record in conflict, with the entry holding the verdict", async () => {
+    const result = await runConformanceCase(
+      conflicted(undefined, {
+        outcomes: [{ status: "conflict", code: "ADL_SYNC_CONFLICT" }],
+        queue: [{ recovery: { status: "conflict", strategy: "serverWins" } }],
+        records: [{ recordId: "note-1", syncStatus: "conflict" }],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same conflict asserted to have left the record pending", async () => {
+    // Without this, "the record is in conflict" would be satisfied by a runtime
+    // that recorded nothing at all and left the write looking unsent.
+    const result = await runConformanceCase(
+      conflicted(undefined, {
+        records: [{ recordId: "note-1", syncStatus: "pending" }],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  it("clears the verdict when the resubmission is accepted", async () => {
+    const result = await runConformanceCase(
+      conflicted("resubmitMine", {
+        outcomes: [{ status: "conflict" }, { status: "accepted" }],
+        queue: [],
+        records: [{ recordId: "note-1", syncStatus: "synced", values: { Title: "Device edit" } }],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails that resubmission asserted to leave the earlier verdict behind", async () => {
+    const result = await runConformanceCase(
+      conflicted("resubmitMine", {
+        records: [{ recordId: "note-1", syncStatus: "conflict" }],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+});
+
+describe("persisted sync state", () => {
+  const persisted = (objectName: string, syncStatus: string): RuntimeConformanceCase => ({
+    id: `runner.persisted.${objectName}`,
+    title: "The sync state a local write leaves on the record in storage",
+    specRef: "runtime-semantics#record-sync-state",
+    operation: "readPersistedRecords",
+    model: recordSyncModel,
+    setup: [
+      {
+        operation: "create",
+        alias: "written",
+        objectName,
+        values: { Title: "Set list" },
+        context: deviceContext,
+      },
+    ],
+    input: { context: deviceContext },
+    expected: { ok: true, result: { records: [{ objectName, syncStatus }] } },
+  });
+
+  it("reports a queued write as pending", async () => {
+    const result = await runConformanceCase(persisted("Note", "pending"));
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("reports a write with no delivery path as local", async () => {
+    const result = await runConformanceCase(persisted("Draft", "local"));
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails a queued write asserted to be local", async () => {
+    // The two states differ in exactly one observable way, and it is this one: a
+    // runtime that wrote `local` for everything — the behaviour before this
+    // phase — passes the second case above and fails here.
+    const result = await runConformanceCase(persisted("Note", "local"));
+
+    expect(result.pass).toBe(false);
   });
 });

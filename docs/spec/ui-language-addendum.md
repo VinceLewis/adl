@@ -410,10 +410,31 @@ online state or business-context availability/selection. Visibility is not
 authorization; runtime policy and context services still enforce access when an
 operation runs.
 
-Shell controls support `contextSelector`, `syncStatus`, `themeSwitch`,
-`logout`, and `pwaInstall`. The current browser implements context selection
-and sync/online status. Controls whose host capability is unavailable render as
-unavailable controls rather than breaking the shell.
+Shell controls support `contextSelector`, `syncStatus`, `connectivity`,
+`themeSwitch`, `logout`, and `pwaInstall`. Controls whose host capability is
+unavailable render as unavailable controls rather than breaking the shell.
+
+`syncStatus` and `connectivity` answer two different questions and are declared
+separately:
+
+- `SYNC_STATUS` reports **record state**: how many of the device's records are
+  waiting to be sent, and whether any were refused or are in conflict. It reads
+  the records, not the network.
+- `CONNECTIVITY` reports **reachability**: whether the device can currently reach
+  the authority.
+
+They are not interchangeable. A device that is online can still be holding
+refused records, and a device that is offline is not thereby in conflict with
+anything. A shell that shows only one of them leaves the other question
+unanswered.
+
+```adl
+  CONTROL syncStatus KIND syncStatus PLACEMENT topBar
+  CONTROL connectivity KIND connectivity PLACEMENT topBar
+```
+
+A model that declares no shell gets both by default, in the order
+`contextSelector`, `connectivity`, `syncStatus`.
 
 Per-view `presentation.shell.regions` remains available in JSON/TypeScript
 partial models for view-local presentation-control placement, but source syntax

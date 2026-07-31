@@ -459,6 +459,90 @@ that has not been delivered is holding, not failing: queueing until the device
 reconnects is that mode's contract, and reporting it as undelivered would
 present normal offline operation as an error.
 
+## Record Sync State
+
+Every stored record carries a sync state, exposed to models as the platform
+metadata field `_syncStatus`. It has exactly five values, and every one of them
+has a producer — a state nothing writes is a state no model can rely on:
+
+| State      | Written when                                                                                                 | Cleared by                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `pending`  | a device write on a queueable object commits, because the same commit queued it                              | the authority answering the queued operation                       |
+| `local`    | a device write on an object with no delivery path commits (`localPrivate`, and any other non-queueable mode) | nothing: the record is not waiting, and is not late                |
+| `synced`   | a record is reconciled from the authority, **or** a write commits on the `sync` channel                      | the next device write, which makes the record `pending` or `local` |
+| `rejected` | the authority refuses the operation that wrote the record                                                    | resubmitting the operation, or any later write to the record       |
+| `conflict` | the authority answers the operation that wrote the record with a conflict or a manual resolution             | resubmitting the operation, or any later write to the record       |
+
+A write on the `sync` channel is the authority writing its own state: it is
+accepted state by definition and is waiting for nobody, which is why it is
+`synced` rather than `pending`. A device write is `pending` whether or not an
+authority is reachable, or configured at all — the write is queued and
+unanswered either way, and reporting it as settled would misdescribe work the
+device is still holding.
+
+Recording a verdict against a record is **reporting, not resolving**. No value
+changes, no revision is minted, nothing is audited and nothing is queued. It is
+written on the record rather than derived from the queue entry because the entry
+is discarded the moment the user dismisses the verdict, and a refused write whose
+only trace was that entry is indistinguishable from a write nobody has sent yet.
+For the same reason the state lives in storage and survives a reload.
+
+The state is **device-local and crosses the wire in neither direction**. No
+intent carries it, no client may assert it, and a record arriving from the
+authority is `synced` on the receiving device whatever the authority's own copy
+of the field said. It describes one device's relationship to the authority, so a
+value from anywhere else would be a claim about a device that did not make it.
+
+### What a verdict covers
+
+A verdict is recorded against **every record the operation wrote**, not only the
+one its queue entry names. For an ordinary create, update, delete or transition
+that is the same record. For a command it is every record all of its steps wrote:
+the authority answered the command as one transaction, so its answer is equally
+true of every row that transaction produced, and a command's queue entry names a
+representative record rather than the subject of the change.
+
+An accepted operation leaves every record it covered `synced`, including records
+the outcome did not return — an accepted delete returns a tombstone the caller
+may not read back, and leaving such a record `pending` would show settled work as
+still in flight.
+
+`resubmitMine` returns every record the operation covered to `pending` before
+resending it: the verdict is spent, the operation is queued and unanswered again,
+and the records must say so. An accepted resubmission therefore leaves them
+`synced` with no residue of the earlier verdict.
+
+### Discarding a refused record
+
+A refused write leaves its local records in place. Neither recovery primitive
+removes them: `keepServer` abandons the operation and `resubmitMine` sends it
+again, and a compensating local rollback would be a third primitive that invents
+a winner.
+
+A record may be discarded locally only when the refused write was **the record's
+own create**. That is the single case in which the refusal proves the authority
+has no copy, so removing the row loses nothing: a record whose _update_ was
+refused still exists on the authority, and deleting it locally would destroy a
+row the next bootstrap would restore anyway. The runtime therefore records, per
+record, whether the refused write created it, and refuses to discard any other
+refused record.
+
+That record is a claim about the authority — that it holds no copy — so only the
+authority can settle it. It survives later local writes to the row: editing a
+refused create does not give the authority a copy, and the edit is refused in its
+turn as an update to a record the authority does not have. It is spent when the
+authority produces a copy under that id: an accepted operation, or a
+reconciliation, including the collision case where the create was refused
+*because* the id already named a record the authority holds. A runtime that
+cleared it on any local write strands the record one edit after the refusal, with
+nothing left saying it can be thrown away.
+
+A discard is a local delete the user asks for. It is not a recovery primitive, it
+settles nothing with the authority, and it is not queued — the authority never
+had the record, so asking it to delete one would be a request about a row that
+does not exist there. It writes a tombstone rather than erasing the row, so a
+later create cannot silently reuse the id.
+
 ## Offline Datasets
 
 Offline dataset membership is separate from authorization. Dataset evaluation

@@ -304,6 +304,21 @@ export class CommandRecordIdsMismatchError extends RuntimeError {
   }
 }
 
+/**
+ * A discard asked for on a record the device is not free to throw away.
+ *
+ * Discarding is permitted only for a record whose own create the authority
+ * refused, because that is the only case in which no authority copy exists. A
+ * record whose *update* was refused is still held by the authority, so removing
+ * it locally would delete something the next bootstrap restores — a silent
+ * no-op dressed up as a repair.
+ */
+export class RecordNotDiscardableError extends RuntimeError {
+  constructor(message: string, details?: unknown) {
+    super("ADL_RUNTIME_RECORD_NOT_DISCARDABLE", message, details);
+  }
+}
+
 export class HookError extends RuntimeError {
   constructor(message: string, details?: unknown) {
     super("ADL_HOOK_ERROR", message, details);

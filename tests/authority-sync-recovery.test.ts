@@ -231,6 +231,15 @@ class ScriptedTransport implements AuthorityTransport {
   }
 }
 
+async function syncStatusOf(
+  runtime: ApplicationRuntime,
+  objectName: string,
+  recordId: string,
+): Promise<string | undefined> {
+  const record = await runtime.objectStore.getRecordForSync(objectName, recordId);
+  return record?.meta.syncStatus;
+}
+
 async function queueUpdate(
   runtime: ApplicationRuntime,
   objectName: string,
@@ -372,6 +381,56 @@ describe("client conflict and rejection recovery", () => {
     }
     expect(client.listRecovery()).toEqual([]);
     expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
+  /**
+   * The record's own view of a conflict, from the verdict to its clearing.
+   *
+   * Regression guard: `conflict` had no producer at all before this phase, so a
+   * record the user still has to decide about looked exactly like one nobody had
+   * sent yet. And it must survive the bootstrap that `synchronize` runs between
+   * the verdict and the recovery pass — a state written by the reconcile and
+   * wiped moments later is as unobservable as never having been written. Once
+   * the resubmission is accepted the record must be left plainly `synced`, with
+   * no residue of the verdict for a later surface to keep reporting.
+   */
+  it("reports a conflicted record as conflict, and leaves it synced with no residue once a resubmission is accepted", async () => {
+    const runtime = newRuntime();
+    const created = await queueUpdate(runtime, "ClientGig");
+    const recordId = created.meta.guid;
+    const transport = new ScriptedTransport((intent, attempt) =>
+      attempt <= 2
+        ? conflictOutcome(intent, "clientWins")
+        : {
+            status: "accepted",
+            operationId: intent.operationId,
+            records: [serverRecord("ClientGig", recordId, "Local edit")],
+          },
+    );
+    transport.bootstrapRecords = [
+      { objectName: "ClientGig", record: serverRecord("ClientGig", recordId, "Server") },
+    ];
+    const client = new AuthoritySyncClient(runtime, transport);
+
+    await client.reconcile(undefined, adminContext);
+    expect(await syncStatusOf(runtime, "ClientGig", recordId)).toBe("conflict");
+    expect(await runtime.summariseRecordSyncState()).toMatchObject({ conflict: 1 });
+
+    // The bootstrap replaces the record's values with the authority's, and must
+    // still leave the open question visible on it.
+    await client.bootstrap(undefined, adminContext);
+    expect(await syncStatusOf(runtime, "ClientGig", recordId)).toBe("conflict");
+
+    await client.applyAutomaticRecovery(undefined, adminContext);
+
+    expect(client.listRecovery()).toEqual([]);
+    const settled = await runtime.objectStore.getRecordForSync("ClientGig", recordId);
+    expect(settled?.meta.syncStatus).toBe("synced");
+    // No residue: nothing left on the record for a surface to keep reporting,
+    // and no discard licence a conflict never granted in the first place.
+    expect(settled?.meta.syncRejectedCreate).toBeUndefined();
+    expect(await runtime.listRefusedRecords()).toEqual([]);
+    expect(await runtime.summariseRecordSyncState()).toMatchObject({ conflict: 0, rejected: 0 });
   });
 
   it("resolves stateTransitionWins by resubmitting a transition and abandoning a plain update", async () => {
@@ -566,6 +625,54 @@ describe("recovery for a command", () => {
     expect(client.listRecovery()).toEqual([]);
     expect(runtime.syncQueue.getEntries()).toEqual([]);
     expect(await localRows()).toEqual({ plans: 1, stops: 2 });
+  });
+
+  /**
+   * The other half of "one verdict settles the whole transaction": the entry is
+   * one change, and so is the mark it leaves on the rows.
+   *
+   * Regression guard: the entry names one *representative* record, chosen by
+   * sync mode rather than by subject. Applying the verdict to that record alone
+   * would leave every other row the command wrote — two of the three here —
+   * indistinguishable from ordinary unsent work, which is precisely the residue
+   * this phase exists to make visible.
+   */
+  it("marks every record a refused command wrote rejected, and dismissing the verdict does not clear them", async () => {
+    const runtime = newRuntime();
+    await plannedTour(runtime);
+    const covered = runtime.syncQueue.getEntries()[0]?.operation.command?.records ?? [];
+    expect(covered).toHaveLength(3);
+    const client = new AuthoritySyncClient(runtime, refusingTransport());
+
+    await client.reconcile(undefined, adminContext);
+
+    for (const record of covered) {
+      expect(await syncStatusOf(runtime, record.objectName, record.recordId)).toBe("rejected");
+    }
+    // Every one of them is discardable: the command was refused as a whole, so
+    // the authority holds no copy of any record it created.
+    const refused = await runtime.listRefusedRecords();
+    expect(refused).toHaveLength(3);
+    expect(refused.every((item) => item.discardable)).toBe(true);
+    expect(refused.map((item) => item.objectName).sort()).toEqual([
+      "TourPlan",
+      "TourPlanStop",
+      "TourPlanStop",
+    ]);
+
+    await client.resolveRecovery(
+      undefined,
+      adminContext,
+      client.listRecovery()[0]?.queueId ?? "",
+      "keepServer",
+    );
+
+    // Dismissing discards the queue entry that carried the verdict. If the state
+    // lived only there, this is the moment three refused rows would silently
+    // become indistinguishable from unsent ones.
+    expect(client.listRecovery()).toEqual([]);
+    expect(await runtime.listRefusedRecords()).toHaveLength(3);
+    expect(await runtime.summariseRecordSyncState()).toMatchObject({ rejected: 3, pending: 0 });
   });
 
   it("resubmits a conflicted command whole, under a fresh operation id", async () => {

@@ -1,0 +1,923 @@
+{
+  "version": 1,
+  "models": {
+    "recordSync": {
+      "app": {
+        "name": "RecordSync"
+      },
+      "objects": [
+        {
+          "name": "Note",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "constraints": [
+            {
+              "name": "UniqueNoteTitle",
+              "kind": "unique",
+              "fields": ["Title"]
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all",
+            "conflict": "serverWins"
+          }
+        },
+        {
+          "name": "Tag",
+          "displayField": "Label",
+          "fields": [
+            {
+              "name": "Note",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Note",
+                "displayField": "Title"
+              }
+            },
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "Draft",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localPrivate",
+            "scope": "all"
+          }
+        }
+      ],
+      "commands": [
+        {
+          "name": "FileNote",
+          "label": "File a note",
+          "inputs": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createNote",
+              "action": "create",
+              "object": "Note",
+              "values": {
+                "Title": {
+                  "kind": "input",
+                  "name": "Title"
+                }
+              }
+            },
+            {
+              "name": "createTag",
+              "action": "create",
+              "object": "Tag",
+              "values": {
+                "Note": {
+                  "kind": "stepMeta",
+                  "step": "createNote",
+                  "property": "guid"
+                },
+                "Label": {
+                  "kind": "literal",
+                  "value": "filed"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TagPolicy",
+          "object": "Tag",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllTag",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "DraftPolicy",
+          "object": "Draft",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllDraft",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "recordsyncstate.local.a-queued-write-leaves-the-record-pending.001",
+      "title": "A device write on a queueable object is pending: the same commit queued it, and nothing has answered it yet",
+      "specRef": "runtime-semantics#record-sync-state",
+      "operation": "readPersistedRecords",
+      "modelRef": "recordSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Set list"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$note",
+              "deleted": false,
+              "syncStatus": "pending",
+              "syncRejectedCreate": "$absent"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.local.a-write-with-no-delivery-path-leaves-the-record-local.002",
+      "title": "The baseline for the case above: an identical write on an object that is never queued is local, not pending — it is not waiting for anyone",
+      "specRef": "runtime-semantics#record-sync-state",
+      "operation": "readPersistedRecords",
+      "modelRef": "recordSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "draft",
+          "objectName": "Draft",
+          "values": {
+            "Title": "Set list"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Draft",
+              "recordId": "$draft",
+              "deleted": false,
+              "syncStatus": "local"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.local.a-write-on-the-sync-channel-is-already-authority-state.003",
+      "title": "A write arriving on the sync channel is the authority writing its own state, so it is synced rather than queued and pending",
+      "specRef": "runtime-semantics#record-sync-state",
+      "operation": "readPersistedRecords",
+      "modelRef": "recordSync",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Set list"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "sync",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$note",
+              "deleted": false,
+              "syncStatus": "synced"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.an-accepted-replay-leaves-the-record-synced.004",
+      "title": "A queued write the authority accepts leaves the record synced and the queue empty",
+      "specRef": "runtime-semantics#record-sync-state",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "device": [
+          {
+            "operation": "create",
+            "alias": "note",
+            "objectName": "Note",
+            "values": {
+              "Title": "Set list"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "accepted"
+            }
+          ],
+          "queue": [],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$note",
+              "deleted": false,
+              "syncStatus": "synced",
+              "syncRejectedCreate": "$absent",
+              "values": {
+                "Title": "Set list"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.a-refused-replay-leaves-the-record-rejected.005",
+      "title": "A queued create the authority refuses leaves the record behind as rejected, licensed for discard because the refusal was of its own create",
+      "specRef": "runtime-semantics#record-sync-state",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "authoritySetup": [
+          {
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-existing",
+              "values": {
+                "Title": "Set list"
+              }
+            }
+          }
+        ],
+        "device": [
+          {
+            "operation": "create",
+            "alias": "note",
+            "objectName": "Note",
+            "values": {
+              "Title": "Set list"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "rejected",
+              "code": "ADL_RUNTIME_VALIDATION_FAILED"
+            }
+          ],
+          "queue": [
+            {
+              "objectName": "Note",
+              "operation": "create",
+              "recordId": "$note",
+              "recovery": {
+                "status": "rejected",
+                "code": "ADL_RUNTIME_VALIDATION_FAILED",
+                "strategy": "$absent"
+              }
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$note",
+              "deleted": false,
+              "syncStatus": "rejected",
+              "syncRejectedCreate": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.a-dismissed-verdict-leaves-the-record-rejected.006",
+      "title": "Dismissing the verdict above discards the queue entry and nothing else: the row it wrote is still here, still says it was refused, and sits beside the authority's own record that refused it",
+      "specRef": "runtime-semantics#record-sync-state",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "authoritySetup": [
+          {
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-existing",
+              "values": {
+                "Title": "Set list"
+              }
+            }
+          }
+        ],
+        "device": [
+          {
+            "operation": "create",
+            "alias": "note",
+            "objectName": "Note",
+            "values": {
+              "Title": "Set list"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "resolve": "keepServer",
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "rejected",
+              "code": "ADL_RUNTIME_VALIDATION_FAILED"
+            }
+          ],
+          "queue": [],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$note",
+              "deleted": false,
+              "syncStatus": "rejected",
+              "syncRejectedCreate": true
+            },
+            {
+              "objectName": "Note",
+              "recordId": "note-existing",
+              "deleted": false,
+              "syncStatus": "synced",
+              "syncRejectedCreate": "$absent"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.a-refused-command-marks-every-record-it-wrote.007",
+      "title": "One verdict over a command settles every record all of its steps wrote, not only the one its queue entry is filed under",
+      "specRef": "runtime-semantics#what-a-verdict-covers",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "authoritySetup": [
+          {
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-existing",
+              "values": {
+                "Title": "Set list"
+              }
+            }
+          }
+        ],
+        "device": [
+          {
+            "operation": "executeCommand",
+            "commandName": "FileNote",
+            "input": {
+              "Title": "Set list"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "rejected",
+              "code": "ADL_RUNTIME_VALIDATION_FAILED"
+            }
+          ],
+          "queue": [
+            {
+              "objectName": "Note",
+              "operation": "command",
+              "recordId": "$createNote",
+              "recovery": {
+                "status": "rejected",
+                "code": "ADL_RUNTIME_VALIDATION_FAILED"
+              },
+              "command": {
+                "name": "FileNote",
+                "records": [
+                  {
+                    "objectName": "Note",
+                    "recordId": "$createNote"
+                  },
+                  {
+                    "objectName": "Tag",
+                    "recordId": "$createTag"
+                  }
+                ]
+              }
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$createNote",
+              "deleted": false,
+              "syncStatus": "rejected",
+              "syncRejectedCreate": true
+            },
+            {
+              "objectName": "Tag",
+              "recordId": "$createTag",
+              "deleted": false,
+              "syncStatus": "rejected",
+              "syncRejectedCreate": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.an-accepted-command-leaves-every-record-it-wrote-synced.008",
+      "title": "The baseline for the case above: the identical command with nothing to collide with leaves both of its records synced and the queue empty",
+      "specRef": "runtime-semantics#what-a-verdict-covers",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "device": [
+          {
+            "operation": "executeCommand",
+            "commandName": "FileNote",
+            "input": {
+              "Title": "Set list"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "accepted"
+            }
+          ],
+          "queue": [],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "$createNote",
+              "deleted": false,
+              "syncStatus": "synced",
+              "values": {
+                "Title": "Set list"
+              }
+            },
+            {
+              "objectName": "Tag",
+              "recordId": "$createTag",
+              "deleted": false,
+              "syncStatus": "synced",
+              "values": {
+                "Label": "filed"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.a-stale-write-leaves-the-record-in-conflict.009",
+      "title": "A queued update the authority answers with a conflict leaves the record in conflict, distinct from both a refusal and an unsent write",
+      "specRef": "runtime-semantics#record-sync-state",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "authoritySetup": [
+          {
+            "alias": "seeded",
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-1",
+              "values": {
+                "Title": "Original"
+              }
+            }
+          }
+        ],
+        "deviceBootstrap": true,
+        "device": [
+          {
+            "operation": "update",
+            "objectName": "Note",
+            "id": "note-1",
+            "patch": {
+              "Title": "Device edit"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "concurrent": [
+          {
+            "intent": {
+              "operationId": "op-other-client",
+              "kind": "update",
+              "objectName": "Note",
+              "recordId": "note-1",
+              "patch": {
+                "Title": "Server edit"
+              },
+              "baseRevision": {
+                "$ref": "seeded.records.0.meta.revision"
+              }
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "conflict",
+              "code": "ADL_SYNC_CONFLICT"
+            }
+          ],
+          "queue": [
+            {
+              "objectName": "Note",
+              "operation": "update",
+              "recordId": "note-1",
+              "recovery": {
+                "status": "conflict",
+                "code": "ADL_SYNC_CONFLICT",
+                "strategy": "serverWins"
+              }
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "note-1",
+              "deleted": false,
+              "syncStatus": "conflict",
+              "syncRejectedCreate": "$absent"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.a-resubmission-the-authority-accepts-leaves-no-residue.010",
+      "title": "Resubmitting the conflicted operation above and having it accepted leaves the record synced, the queue empty, and no trace of the earlier verdict",
+      "specRef": "runtime-semantics#what-a-verdict-covers",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "authoritySetup": [
+          {
+            "alias": "seeded",
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-1",
+              "values": {
+                "Title": "Original"
+              }
+            }
+          }
+        ],
+        "deviceBootstrap": true,
+        "device": [
+          {
+            "operation": "update",
+            "objectName": "Note",
+            "id": "note-1",
+            "patch": {
+              "Title": "Device edit"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "concurrent": [
+          {
+            "intent": {
+              "operationId": "op-other-client",
+              "kind": "update",
+              "objectName": "Note",
+              "recordId": "note-1",
+              "patch": {
+                "Title": "Server edit"
+              },
+              "baseRevision": {
+                "$ref": "seeded.records.0.meta.revision"
+              }
+            }
+          }
+        ],
+        "resolve": "resubmitMine",
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "conflict",
+              "code": "ADL_SYNC_CONFLICT"
+            },
+            {
+              "status": "accepted"
+            }
+          ],
+          "queue": [],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "note-1",
+              "deleted": false,
+              "syncStatus": "synced",
+              "syncRejectedCreate": "$absent",
+              "values": {
+                "Title": "Device edit"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recordsyncstate.reconcile.a-refused-update-carries-no-licence-to-discard.011",
+      "title": "A refused update leaves the record rejected but not discardable: the authority still holds the row, so removing it locally would destroy state that survives",
+      "specRef": "runtime-semantics#discarding-a-refused-record",
+      "operation": "syncReconcile",
+      "modelRef": "recordSync",
+      "input": {
+        "authoritySetup": [
+          {
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-1",
+              "values": {
+                "Title": "Original"
+              }
+            }
+          }
+        ],
+        "deviceBootstrap": true,
+        "device": [
+          {
+            "operation": "update",
+            "objectName": "Note",
+            "id": "note-1",
+            "patch": {
+              "Title": "Taken"
+            },
+            "context": {
+              "userId": "user-1",
+              "roles": [],
+              "channel": "ui",
+              "now": "2026-07-31T09:00:00.000Z"
+            }
+          }
+        ],
+        "concurrent": [
+          {
+            "intent": {
+              "operationId": "op-other-client",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-2",
+              "values": {
+                "Title": "Taken"
+              }
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "outcomes": [
+            {
+              "status": "rejected",
+              "code": "ADL_RUNTIME_VALIDATION_FAILED"
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Note",
+              "recordId": "note-1",
+              "deleted": false,
+              "syncStatus": "rejected",
+              "syncRejectedCreate": "$absent"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

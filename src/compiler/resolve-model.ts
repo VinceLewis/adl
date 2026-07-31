@@ -350,6 +350,16 @@ function createDefaultShellControls(): PartialShellControlModel[] {
       kind: "contextSelector",
       placement: "topBar",
     },
+    // Both, because they answer different questions and the default shell must
+    // keep answering the one it always did. Before Phase 58 the `syncStatus`
+    // control rendered connectivity, so dropping `connectivity` here would take
+    // the online/offline indicator away from every model that declares no shell.
+    {
+      name: "connectivity",
+      kind: "connectivity",
+      label: "Connection",
+      placement: "topBar",
+    },
     {
       name: "syncStatus",
       kind: "syncStatus",

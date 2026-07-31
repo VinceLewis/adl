@@ -56,6 +56,49 @@ export interface SyncQueueEntry {
   attempts?: number;
 }
 
+/** A record one queued operation wrote, and whether that operation created it. */
+export interface CoveredQueueRecord {
+  objectName: string;
+  recordId: string;
+  /**
+   * True when this operation is what brought the record into existence. Only
+   * such a record may later be discarded locally, because only for such a record
+   * is a refusal proof that the authority holds no copy of it.
+   */
+  created: boolean;
+}
+
+/**
+ * Every record a queued operation's verdict is about.
+ *
+ * For an ordinary operation that is the one record it names. For a command it is
+ * every record all of its steps wrote — the list Phase 57 put on the entry for
+ * exactly this purpose — because the authority answered the command as one
+ * transaction and its answer is equally true of every row it produced. The
+ * created subset is the manifest, which names creates and only creates.
+ */
+export function coveredQueueRecords(operation: LocalOperation): CoveredQueueRecord[] {
+  const command = operation.command;
+  if (operation.operation !== "command" || command === undefined) {
+    return [
+      {
+        objectName: operation.object,
+        recordId: operation.recordId,
+        created: operation.operation === "create",
+      },
+    ];
+  }
+
+  const created = new Set(
+    command.recordIds.map((supplied) => `${supplied.objectName}\0${supplied.recordId}`),
+  );
+  return command.records.map((record) => ({
+    objectName: record.objectName,
+    recordId: record.recordId,
+    created: created.has(`${record.objectName}\0${record.recordId}`),
+  }));
+}
+
 export class SyncQueue {
   private readonly entries: SyncQueueEntry[] = [];
 
@@ -109,6 +152,26 @@ export class SyncQueue {
   /** Entries holding a server verdict that no strategy or user has resolved yet. */
   getAwaitingRecovery(): SyncQueueEntry[] {
     return cloneJson(this.entries.filter((entry) => entry.recovery !== undefined));
+  }
+
+  /**
+   * The verdict still outstanding against one record, if any.
+   *
+   * Asked by reconciliation, so that reading the authority's copy of a record
+   * does not quietly settle a question the user has not answered. A record with
+   * an unresolved conflict against it is not `synced` merely because a bootstrap
+   * has run: the queue still holds an operation the user may yet resubmit.
+   */
+  getUnresolvedVerdict(objectName: string, recordId: string): SyncRecoveryStatus | undefined {
+    for (const entry of this.entries) {
+      const recovery = entry.recovery;
+      if (recovery === undefined) continue;
+      const covers = coveredQueueRecords(entry.operation).some(
+        (record) => record.objectName === objectName && record.recordId === recordId,
+      );
+      if (covers) return recovery.status;
+    }
+    return undefined;
   }
 
   /**

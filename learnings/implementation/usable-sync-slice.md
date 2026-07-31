@@ -143,33 +143,44 @@ collision rules, and why a collision is a rejection rather than a conflict.
 Still true: acknowledging a *rejected* create leaves the local row in place, and a
 later bootstrap cannot remove a record the server never had.
 
-## Known defect: three declared record sync states have no producer
+## Closed in Phase 58: three declared record sync states had no producer
 
-Found while planning Phase 58, and stated here because it is easy to assume the
-opposite from the type alone.
+Found while planning Phase 58 and closed by it. Kept here because it is easy to
+assume the opposite from the type alone, and because the shape of the defect is
+worth recognising again. See [[record-sync-state]] for what replaced it: every
+value now has a stated producer, a verdict is recorded on the record rather than
+only on the queue entry, and a refused create can be discarded locally.
 
-`SyncStatus` is `"local" | "pending" | "synced" | "conflict" | "rejected"`, and
-across the whole of `src/` the only writers are `"local"` when a record is built
-(`ObjectStore`) and `"synced"` when a remote record is reconciled
-(`ObjectStore.reconcileRemoteRecord`, `access-lifecycle.ts`). Nothing ever writes
-`"pending"`, `"conflict"` or `"rejected"`. So a record that was refused, one in
-conflict, one queued and waiting, and one that was never going anywhere are all
-`"local"` and all look identical.
+**Also closed:** the "still true" note above — that acknowledging a rejected
+create leaves the local row in place with nothing saying so. The row still
+stays, deliberately, but it now reports `rejected`, survives dismissal and
+reload, and can be discarded by the user.
 
-Two consequences that make it reachable rather than theoretical:
+What it looked like: `SyncStatus` was `"local" | "pending" | "synced" |
+"conflict" | "rejected"`, and across the whole of `src/` the only writers were
+`"local"` when a record was built (`ObjectStore`) and `"synced"` when a remote
+record was reconciled (`ObjectStore.reconcileRemoteRecord`,
+`access-lifecycle.ts`). Nothing ever wrote `"pending"`, `"conflict"` or
+`"rejected"`. So a record that was refused, one in conflict, one queued and
+waiting, and one that was never going anywhere were all `"local"` and all looked
+identical.
+
+Two consequences made it reachable rather than theoretical:
 
 - `_syncStatus` is a **required** platform metadata field
   (`src/model/defaults.ts`) and an offline-dataset expression input
-  (`OfflineDatasetService`), so a model filtering or displaying on it is reading a
-  vocabulary the runtime does not honour.
+  (`OfflineDatasetService`), so a model filtering or displaying on it was reading
+  a vocabulary the runtime did not honour.
 - The `syncStatus` shell control — which the Giggle Band app ships in its top bar
-  — renders `context.online ? "Online" : "Offline"`
-  (`AdlAppElement.renderShellControl`). It never reads a record. The platform's
-  only shipped sync-state surface answers a different question from the one it is
-  named after.
+  — rendered `context.online ? "Online" : "Offline"`
+  (`AdlAppElement.renderShellControl`). It never read a record. The platform's
+  only shipped sync-state surface answered a different question from the one it
+  was named after.
 
 This is the same class of defect Phase 56 named for `import`: a declared
-capability with no call site. Audit both directions when adding one.
+capability with no call site. Audit both directions when adding one — a
+capability nothing calls, and a caller that answers a different question from the
+one it is named for.
 
 ## Practical guidance
 

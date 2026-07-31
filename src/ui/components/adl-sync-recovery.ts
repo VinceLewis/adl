@@ -1,9 +1,11 @@
+import type { RefusedLocalRecord } from "../../runtime/object-store.js";
 import type {
   SyncDeliveryItem,
   SyncRecoveryChoice,
   SyncRecoveryItem,
 } from "../../server/sync-client.js";
 import {
+  ADL_DISCARD_REFUSED_RECORD_EVENT,
   ADL_RESOLVE_RECOVERY_EVENT,
   ADL_RETRY_DELIVERY_EVENT,
   DELIVERY_RETRY_LABEL,
@@ -15,7 +17,32 @@ import {
   type ResolveRecoveryDetail,
   type RetryDeliveryDetail,
 } from "../authority-bridge.js";
-import { escapeHtml } from "./html.js";
+import { escapeHtml, titleCaseIdentifier } from "./html.js";
+
+/**
+ * Which local row the user asked to throw away. Object and id only, because
+ * that is all this surface is ever given about a refused record.
+ */
+export interface DiscardRefusedRecordDetail {
+  objectName: string;
+  recordId: string;
+}
+
+/**
+ * Wording for the local discard.
+ *
+ * It says what happens on this device and claims nothing about the server. A
+ * verdict is resolved with `keepServer` or `resubmitMine` and with nothing
+ * else, so this must never read as a third way to settle one — "Discard" is a
+ * local delete of a row the authority already refused.
+ */
+export const REFUSED_RECORDS_HEADING = "Refused changes still saved on this device";
+export const REFUSED_RECORDS_NOTE =
+  "The server refused these changes and never stored them. The rows below are still here. " +
+  "Discarding one deletes it from this device only; it settles nothing with the server.";
+export const REFUSED_DISCARD_LABEL = "Discard";
+export const REFUSED_NOT_DISCARDABLE_NOTE =
+  "The server still holds this record, so it cannot be discarded here. The next sync will restore it.";
 
 /**
  * How each server verdict reads to a person. `manualResolution` is the model
@@ -46,11 +73,28 @@ export const RECOVERY_STATUS_LABELS: Record<string, string> = {
 export class AdlSyncRecoveryElement extends HTMLElement {
   private _items: SyncRecoveryItem[] = [];
   private _undelivered: SyncDeliveryItem[] = [];
+  private _refused: RefusedLocalRecord[] = [];
   private _busy = false;
 
   private readonly handleClick = (event: Event): void => {
     const target = event.target;
     if (!(target instanceof Element) || this._busy) {
+      return;
+    }
+
+    const discard = target.closest<HTMLButtonElement>("[data-discard-refused-record]");
+    if (discard !== null) {
+      const objectName = discard.dataset.refusedObject;
+      const recordId = discard.dataset.refusedRecordId;
+      if (objectName !== undefined && recordId !== undefined) {
+        this.dispatchEvent(
+          new CustomEvent<DiscardRefusedRecordDetail>(ADL_DISCARD_REFUSED_RECORD_EVENT, {
+            bubbles: true,
+            composed: true,
+            detail: { objectName, recordId },
+          }),
+        );
+      }
       return;
     }
 
@@ -107,6 +151,21 @@ export class AdlSyncRecoveryElement extends HTMLElement {
     return [...this._undelivered];
   }
 
+  /**
+   * Records the authority refused that are still on this device. Metadata only,
+   * for the same reason `SyncRecoveryItem` is: there is no runtime read behind
+   * this surface, so it may say *that* a record was refused and never what is
+   * in it.
+   */
+  set refused(refused: RefusedLocalRecord[]) {
+    this._refused = [...refused];
+    this.render();
+  }
+
+  get refused(): RefusedLocalRecord[] {
+    return [...this._refused];
+  }
+
   set busy(busy: boolean) {
     this._busy = busy;
     this.render();
@@ -127,7 +186,7 @@ export class AdlSyncRecoveryElement extends HTMLElement {
 
   private render(): void {
     // Nothing outstanding means no chrome at all, not an empty panel.
-    if (this._items.length === 0 && this._undelivered.length === 0) {
+    if (this._items.length === 0 && this._undelivered.length === 0 && this._refused.length === 0) {
       this.innerHTML = "";
       return;
     }
@@ -143,7 +202,63 @@ export class AdlSyncRecoveryElement extends HTMLElement {
         <h2 class="adl-sync-recovery-heading">Changes that need your attention</h2>
         ${this._undelivered.map((item) => this.renderUndelivered(item)).join("")}
         ${this._items.map((item) => this.renderItem(item)).join("")}
+        ${this.renderRefused()}
       </section>
+    `;
+  }
+
+  /**
+   * What a refused write left behind.
+   *
+   * Kept apart from the verdict list above it because it is a different kind of
+   * thing: those entries are asking what to do about an operation the authority
+   * has settled, and these are rows that are simply still here after it refused
+   * one. A record whose own create was refused can be thrown away, because the
+   * authority has no copy to contradict the removal. Anything else is listed
+   * without a control and says why.
+   */
+  private renderRefused(): string {
+    if (this._refused.length === 0) {
+      return "";
+    }
+
+    return `
+      <div class="adl-sync-refused" data-sync-refused="true">
+        <h3 class="adl-sync-refused-heading">${escapeHtml(REFUSED_RECORDS_HEADING)}</h3>
+        <p class="adl-sync-refused-note">${escapeHtml(REFUSED_RECORDS_NOTE)}</p>
+        <ul class="adl-sync-refused-list">
+          ${this._refused.map((record) => this.renderRefusedRecord(record)).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
+  private renderRefusedRecord(record: RefusedLocalRecord): string {
+    const action = record.discardable
+      ? `<button
+            class="adl-sync-recovery-choice adl-sync-refused-discard"
+            type="button"
+            data-discard-refused-record="true"
+            data-refused-object="${escapeHtml(record.objectName)}"
+            data-refused-record-id="${escapeHtml(record.recordId)}"
+            ${this._busy ? "disabled" : ""}
+          >${escapeHtml(REFUSED_DISCARD_LABEL)}</button>`
+      : `<p class="adl-sync-refused-retained">${escapeHtml(REFUSED_NOT_DISCARDABLE_NOTE)}</p>`;
+
+    return `
+      <li
+        class="adl-sync-refused-item"
+        data-refused-record="true"
+        data-refused-object="${escapeHtml(record.objectName)}"
+        data-refused-record-id="${escapeHtml(record.recordId)}"
+        data-refused-discardable="${record.discardable ? "true" : "false"}"
+      >
+        <span class="adl-sync-refused-title">${escapeHtml(
+          titleCaseIdentifier(record.objectName),
+        )}</span>
+        <span class="adl-sync-refused-id">${escapeHtml(record.recordId)}</span>
+        ${action}
+      </li>
     `;
   }
 

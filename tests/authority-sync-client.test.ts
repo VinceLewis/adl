@@ -388,9 +388,14 @@ describe("AuthoritySyncClient reconcile", () => {
     const [createIntent, updateIntent] = transport.replayCalls;
     expect(statuses.get(createIntent?.operationId ?? "")).toBe("accepted");
     expect(statuses.get(updateIntent?.operationId ?? "")).toBe("rejected");
-    // An accepted outcome's records are reconciled into local storage.
+    // An accepted outcome's records are reconciled into local storage. The row
+    // then reports `rejected` rather than `synced`, because the *second*
+    // operation against it — the update — was refused, and the record is where
+    // that verdict now lives once the queue entry is dismissed. A later
+    // bootstrap re-reconciles the record the authority still holds and clears
+    // it; a refused create, which no bootstrap can return, is what stays marked.
     await expect(runtime.objectStore.getRecordForRuntime("Gig", gigId)).resolves.toMatchObject({
-      meta: { revision: `server-rev-${gigId}`, syncStatus: "synced" },
+      meta: { revision: `server-rev-${gigId}`, syncStatus: "rejected" },
       values: { Title: "Server title" },
     });
 
@@ -801,6 +806,66 @@ describe("AuthoritySyncClient command replay", () => {
       "accepted",
       "accepted",
       "accepted",
+    ]);
+  });
+
+  /**
+   * An authority is free to accept a command without echoing what it wrote, and
+   * an accepted delete returns a tombstone the caller may not read back. The
+   * records the outcome did not return are accepted all the same.
+   *
+   * Regression guard: reconciling only the records that came back leaves every
+   * other record the operation covered at `pending` for ever — settled work
+   * shown as still in flight, with no later event that would ever clear it.
+   */
+  it("marks every record a command wrote synced even when the accepted outcome returns none of them", async () => {
+    const runtime = newRuntime();
+    const [tourId, ...stopIds] = await plannedTour(runtime);
+    for (const row of await runtime.objectStore.search("TourStop", {}, adminContext)) {
+      expect(row.meta.syncStatus).toBe("pending");
+    }
+
+    // The default fake accepts with an empty record list.
+    await new AuthoritySyncClient(runtime, new FakeAuthorityTransport()).reconcile(
+      "session-token",
+      adminContext,
+    );
+
+    for (const [objectName, recordId] of [
+      ["Tour", tourId],
+      ...stopIds.map((id) => ["TourStop", id] as const),
+    ] as const) {
+      const stored = await runtime.objectStore.getRecordForSync(objectName, recordId ?? "");
+      expect(stored?.meta.syncStatus).toBe("synced");
+    }
+    expect(await runtime.summariseRecordSyncState()).toMatchObject({ pending: 0, synced: 4 });
+  });
+
+  /**
+   * A record's sync state is device-local and is not part of the intent
+   * contract. Regression guard: a command intent is the widest thing this client
+   * sends — a name, an input and a manifest of every record it created — so it
+   * is where a record field would most easily be smuggled onto the wire.
+   */
+  it("puts no record sync state on the wire in a command intent", async () => {
+    const runtime = newRuntime();
+    await plannedTour(runtime);
+    const transport = new AuthorityBackedTransport();
+
+    await new AuthoritySyncClient(runtime, transport).reconcile(SERVER_SESSION_TOKEN, adminContext);
+
+    const wire = JSON.stringify(transport.replayCalls);
+    expect(wire).not.toContain("syncStatus");
+    expect(wire).not.toContain("syncRejectedCreate");
+    // Stated exhaustively rather than by absence: the intent's whole shape, so a
+    // new field cannot arrive unremarked.
+    expect(Object.keys(transport.replayCalls[0] ?? {}).sort()).toEqual([
+      "commandName",
+      "input",
+      "kind",
+      "operationId",
+      "recordIds",
+      "selectedContexts",
     ]);
   });
 

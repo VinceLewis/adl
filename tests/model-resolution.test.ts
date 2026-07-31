@@ -144,7 +144,10 @@ describe("resolveApplicationModel", () => {
     expect(resolved.shell.topBar).toEqual({
       contextSelector: "topBar",
       mobileContextSelector: "sheet",
-      controls: ["contextSelector", "syncStatus"],
+      // `connectivity` and `syncStatus` both, because they answer different
+      // questions: whether the device can reach the authority, and what state
+      // the device's own records are in.
+      controls: ["contextSelector", "connectivity", "syncStatus"],
     });
     expect(resolved.themes.map((theme) => theme.name)).toEqual([...BUILT_IN_THEME_NAMES]);
     expect(resolved.sync).toEqual([

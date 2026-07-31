@@ -88,6 +88,19 @@ Before tasks that change client conflict/rejection recovery, the browser authori
 - `implementation/sync-mode-delivery.md`
 - `implementation/remote-bootstrap-and-sync-state.md`
 - `implementation/model-versioning-guard.md`
+- `implementation/record-sync-state.md`
+
+Before tasks that change how a record's `syncStatus` is produced or cleared, that
+add a surface reporting what a device is holding, that touch
+`ObjectStore.setRecordSyncState`, `listRefusedRecords`,
+`summariseRecordSyncState` or `discardRefusedRecord`, or that add any local
+removal of a row the authority refused, also read:
+
+- `implementation/record-sync-state.md`
+- `implementation/usable-sync-slice.md`
+- `implementation/offline-operation-identity.md`
+- `implementation/command-intent-replay.md`
+- `implementation/sync-mode-delivery.md`
 
 Before tasks that change authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, access-lifecycle audit atomicity, authority restore/integrity verification, runtime-audit context scoping, or audit/outcome retention, also read:
 
@@ -262,4 +275,5 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
 - `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read.
 - `implementation/context-grants-and-relationship-access.md`: read before changing business-context availability, the object-scope gate, policy principals, read-model joins, command-established contexts, or anything that decides whether one user may see another user's records.
+- `implementation/record-sync-state.md`: read before changing how a record's sync state is produced or cleared, before adding a surface that reports what a device is holding, or before adding any local removal of a row the authority refused.
 - `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.

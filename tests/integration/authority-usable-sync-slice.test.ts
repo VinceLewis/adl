@@ -757,6 +757,124 @@ describe("Phase 47 usable sync slice over a real socket and real PostgreSQL", ()
     expect(outcomes.rows[0]?.count).toBe(0);
   });
 
+  /**
+   * Phase 58 over the same real stack. A write that is queued and unanswered
+   * says so on the record, and only the authority's answer settles it. Until
+   * this phase such a record was `local` — indistinguishable from a record with
+   * no delivery path at all, and from one the authority had already refused.
+   */
+  it("reports a queued offline write as pending and settles it only on the authority's answer", async () => {
+    const browser = await browserBridge({ userId: "unknown", roles: [], channel: "ui" });
+    await browser.connection.signIn(adminProof);
+    const adminUserId = browser.connection.session.userId ?? "";
+    const bandId = await seedBand(adminUserId);
+    const context: RuntimeContext = {
+      userId: adminUserId,
+      roles: ["BandAdmin"],
+      channel: "ui",
+      selectedContexts: { Band: bandId },
+    };
+    browser.setContext(context);
+
+    const note = await browser.runtime.create(
+      "Note",
+      { Band: bandId, Body: "Queued offline" },
+      { ...context, online: false },
+    );
+    const noteId = note.meta.guid;
+
+    expect(
+      (await browser.runtime.objectStore.getRecordForSync("Note", noteId))?.meta.syncStatus,
+    ).toBe("pending");
+    // Pending because it is queued and unanswered, which is true whether or not
+    // the authority is reachable: the authority genuinely has nothing yet.
+    const beforeAnswer = await pool.query<{ count: number }>(
+      "select count(*)::int as count from adl_authority_records where application_id = $1 and record_id = $2",
+      [applicationId, noteId],
+    );
+    expect(beforeAnswer.rows[0]?.count).toBe(0);
+
+    await browser.connection.synchronize(context);
+
+    expect(browser.connection.recovery).toEqual([]);
+    expect(
+      (await browser.runtime.objectStore.getRecordForSync("Note", noteId))?.meta.syncStatus,
+    ).toBe("synced");
+    const afterAnswer = await pool.query<{ count: number }>(
+      "select count(*)::int as count from adl_authority_records where application_id = $1 and record_id = $2",
+      [applicationId, noteId],
+    );
+    expect(afterAnswer.rows[0]?.count).toBe(1);
+  });
+
+  /**
+   * Phase 58, on the automatic path. A real revision mismatch reports `conflict`
+   * on the record, and the model's declared `serverWins` strategy clears it —
+   * with no residue, because the record the device ends up holding is the
+   * authority's own and nothing is outstanding against it any more.
+   *
+   * The automatic path is the one that has to clear it by itself. A user's
+   * `keepServer` is followed by a bootstrap in the browser bridge, and it is
+   * that bootstrap — finding no unresolved verdict on the queue — which restores
+   * `synced`. `AuthoritySyncClient.applyAutomaticRecovery` removes the entry
+   * with no bootstrap behind it, so a record resolved by the model's own
+   * declared strategy must be settled by the resolution itself.
+   */
+  it("reports a real conflict on the record and clears it through the declared strategy", async () => {
+    const browser = await browserBridge({ userId: "unknown", roles: [], channel: "ui" });
+    await browser.connection.signIn(adminProof);
+    const adminUserId = browser.connection.session.userId ?? "";
+    const bandId = await seedBand(adminUserId);
+    const context: RuntimeContext = {
+      userId: adminUserId,
+      roles: ["BandAdmin"],
+      channel: "ui",
+      selectedContexts: { Band: bandId },
+    };
+    browser.setContext(context);
+    await browser.connection.bootstrap(context);
+
+    const gigs = await browser.runtime.search("Gig", {}, context);
+    const gigId = gigs[0]?.meta.guid ?? "";
+    expect(
+      (await browser.runtime.objectStore.getRecordForSync("Gig", gigId))?.meta.syncStatus,
+    ).toBe("synced");
+
+    const serverRuntime = new ApplicationRuntime(model, {
+      storage: new PostgresObjectStorageBackend(authorityPool(pool), applicationId, model),
+    });
+    await serverRuntime.update(
+      "Gig",
+      gigId,
+      { Title: "Alpha opening night (server)" },
+      { ...systemContext, selectedContexts: { Band: bandId } },
+    );
+    await browser.runtime.update("Gig", gigId, { Title: "Local edit" }, context);
+
+    // Replay alone, so the verdict is observable before any strategy runs.
+    await browser.connection.reconcile(context);
+    expect(
+      (await browser.runtime.objectStore.getRecordForSync("Gig", gigId))?.meta.syncStatus,
+    ).toBe("conflict");
+
+    await browser.connection.synchronize(context);
+
+    expect(browser.connection.recovery).toEqual([]);
+    const settled = await browser.runtime.objectStore.getRecordForSync("Gig", gigId);
+    // The local row *is* the authority's, and nothing is awaiting recovery: any
+    // remaining conflict badge is a state the user cannot act on and did not
+    // earn.
+    expect(settled?.values).toMatchObject({ Title: "Alpha opening night (server)" });
+    expect(browser.runtime.syncQueue.getAwaitingRecovery()).toEqual([]);
+    expect(settled?.meta.syncStatus).toBe("synced");
+    expect(settled?.meta.syncRejectedCreate).toBeUndefined();
+    expect(await browser.runtime.summariseRecordSyncState()).toMatchObject({
+      conflict: 0,
+      rejected: 0,
+      pending: 0,
+    });
+  });
+
   it("refuses to let the service worker cache a real authority response", async () => {
     const browser = await browserBridge({ userId: "unknown", roles: [], channel: "ui" });
     await browser.connection.signIn(adminProof);
