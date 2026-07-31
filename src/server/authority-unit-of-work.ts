@@ -1,5 +1,6 @@
 import type { AuditEvent, JsonValue, ResolvedApplicationModel } from "../model/resolved-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
+import { PostgresContextMembershipIndex } from "./authority-membership-projection.js";
 import type { AuthorityOutcome } from "./authority-types.js";
 import type { PostgresQueryable } from "./postgres-authority-store.js";
 import { PostgresObjectStorageBackend } from "./postgres-object-storage.js";
@@ -50,7 +51,13 @@ export class AuthorityTransaction {
     this.storageBackend = new PostgresObjectStorageBackend(client, applicationId, model, {
       ambientTransaction: true,
     });
-    this.runtime = new ApplicationRuntime(model, { storage: this.storageBackend });
+    this.runtime = new ApplicationRuntime(model, {
+      storage: this.storageBackend,
+      // Read the membership projection on the transaction's own client, so a
+      // replay resolves contexts against the state this transaction can see
+      // rather than against a separately committed snapshot.
+      membershipIndex: new PostgresContextMembershipIndex(client, applicationId),
+    });
     this.objectScopes = new Map(
       model.objects
         .filter((object) => object.scope !== undefined)

@@ -5,6 +5,7 @@ import type {
   ResolvedContextMembership,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import type { ContextMembershipIndex } from "./context-membership-index.js";
 import { getSelectedContextId } from "./context-scope.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
@@ -29,6 +30,14 @@ export class RuntimeContextService {
     private readonly storage: ObjectStorageBackend = new InMemoryObjectStorageBackend(),
     private readonly logger: RuntimeLogger = noopRuntimeLogger,
     private readonly startupGuard: () => Promise<void> = async () => undefined,
+    /**
+     * Optional scope-indexed read model over membership records. When present it
+     * names which membership records to read for this user instead of the whole
+     * accepted-record set being scanned; the records themselves are still read
+     * through storage and filtered here, so it changes cost, never semantics.
+     * Absent on a device, where the local dataset is already device-sized.
+     */
+    private readonly membershipIndex: ContextMembershipIndex | undefined = undefined,
   ) {}
 
   async listAvailableContexts(
@@ -140,7 +149,7 @@ export class RuntimeContextService {
     membership: ResolvedContextMembership,
     context: RuntimeContext,
   ): Promise<RuntimeAvailableContext[]> {
-    const memberships = await this.getActiveRecords(membership.object);
+    const memberships = await this.getMembershipRecords(businessContext, membership, context);
     const entriesByContext = new Map<string, RuntimeContextRole[]>();
 
     for (const record of memberships) {
@@ -187,6 +196,35 @@ export class RuntimeContextService {
     }
 
     return available.sort(compareAvailableContexts);
+  }
+
+  /**
+   * The live membership records this user could hold in one business context.
+   *
+   * With an index, the projection names the candidates and each one is read
+   * back through storage; the record's own values are then filtered by the same
+   * rules as the scan below, so the record — not the index — remains the
+   * semantic authority. An index that returned a stale or extra candidate would
+   * cost an extra read, never grant a membership. Without an index the whole
+   * accepted-record set is scanned, which is what a device does.
+   */
+  private async getMembershipRecords(
+    businessContext: ResolvedBusinessContext,
+    membership: ResolvedContextMembership,
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord[]> {
+    if (this.membershipIndex === undefined) return this.getActiveRecords(membership.object);
+    const candidates = await this.membershipIndex.listForUser({
+      contextName: businessContext.name,
+      userId: context.userId,
+    });
+    const records: StoredObjectRecord[] = [];
+    for (const candidate of candidates) {
+      const record = await this.storage.read(membership.object, candidate.membershipRecordId);
+      if (record === null || record.meta.deletedAt !== undefined) continue;
+      records.push(cloneJson(record));
+    }
+    return records;
   }
 
   private async getActiveRecords(objectName: string): Promise<StoredObjectRecord[]> {

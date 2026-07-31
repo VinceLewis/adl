@@ -248,7 +248,7 @@ beforeAll(async () => {
       model,
       storage,
       sessions,
-      new PostgresAuthorityAccessStore(authorityPool(pool), applicationId),
+      new PostgresAuthorityAccessStore(authorityPool(pool), applicationId, model),
     ),
     identityVerifier: selectUpstreamIdentityVerifier(config),
     readiness: async () => {

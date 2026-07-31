@@ -67,12 +67,15 @@ phase or still explicitly outstanding:
 - Offline operation identity and accepted-state convergence — Phase 48, below.
 - Passkey identity and provider-independent identity keying — Phase 49, below.
 
-Still outstanding after Phase 49, in sequence order: offline session lifetime and
-sync grace (Phase 50) — the **second half of the deployment gate**, since Phase 49
-makes signing in real and Phase 50 makes staying signed in survive being offline;
-then conformance depth and model migrations (Phase 51), conformance
-expressiveness (Phase 52), sync-mode delivery and authority coherence (Phase 53),
-membership-projection scoping (Phase 54), retention scheduling and its
+- Offline session lifetime and sync grace — Phase 50, the **second half of the
+  deployment gate**, since Phase 49 makes signing in real and Phase 50 makes
+  staying signed in survive being offline.
+- Conformance depth and model migrations — Phase 51.
+- Conformance expressiveness — Phase 52.
+- Sync-mode delivery and authority coherence — Phase 53.
+- Membership projection and scoped access — Phase 54, below.
+
+Still outstanding, in sequence order: retention scheduling and its
 administration UI (Phase 55), and reference-app gaps (Phase 56). Outside the
 phase plan: TLS termination, secret
 management, CI/CD, and a hosting provider decision. The identity method itself is
@@ -223,6 +226,64 @@ never removed; it refuses under `legalHold`, throws on a non-positive minimum
 window, and never touches accepted records, sessions, invites, or identities.
 Its result is metadata-only (counts and the effective cutoff). Operational
 detail is in `docs/operations/authority-production-runbook.md`.
+
+## Membership projection and scoped access
+
+Phase 54 gives `adl_authority_context_memberships` a writer and makes the four
+membership reads scope-indexed. `0008_membership_projection.sql` re-creates the
+table keyed on `(application_id, membership_record_id)` with `object_name`, a
+`revoked_at` mirror of the record's tombstone, and both a user-scoped and a
+context-scoped index; apply it with `adl_migrator`. It had held no row in any
+deployment, so re-creating it loses nothing.
+
+**It is derived, and the record stays authoritative.** A projection row is a
+pointer to an accepted membership record, carrying only the three fields the
+model already declares as that membership's user, context and role. Every caller
+reads the record it names through storage and applies the runtime's read policy,
+which remains the disclosure boundary. The index narrows the candidate set; it
+never authorises, never re-derives a role, and never becomes an ADL construct —
+the same division Phase 45 established for runtime-audit context scope. An index
+that returned a stale or extra candidate costs an extra read; it cannot grant a
+membership.
+
+**It is written inside the boundary that changed the record.**
+`PostgresObjectStorageBackend` maintains it on every accepted record write, so it
+joins the authority unit-of-work's transaction under an ambient transaction and
+covers ordinary replay, commands, and migration rewrites without any caller
+having to remember. `PostgresAuthorityAccessStore` writes `adl_authority_records`
+with its own SQL, so it also syncs the projection inside its own store
+transaction: an invite claim's grant, its access-audit event and its projection
+row commit or roll back together, and so do a revocation's tombstone, audit event
+and row. A membership record whose declared user/context/role fields are not all
+present as non-empty strings is not indexable and gets no row — it is exactly the
+record membership resolution already skips.
+
+**Four reads are now scoped.** `ContextMembershipIndex` is an optional runtime
+port: the authority supplies `PostgresContextMembershipIndex`, and a device
+supplies nothing and keeps its existing scan, which is correct for a device-sized
+dataset.
+
+| Read | Before | After |
+| --- | --- | --- |
+| Membership resolution (`RuntimeContextService`, on every bootstrap and replay) | scan all accepted records | rows for one user in one business context |
+| Membership review (`AuthorityAdministrationService.memberships`) | scan all accepted records, filter in memory | bounded page for one context instance |
+| Membership-manager check (`AuthorityAccessLifecycleService`) | scan all accepted records | rows for one user in one business context |
+| Target-access check (`revokeUserSessions`) | scan all accepted records | rows for one user in one business context |
+
+Review keeps revoked rows so a revoked membership is still reported as `revoked`
+rather than silently omitted; resolution and access checks read only rows whose
+`revoked_at` is null, and then confirm against the record itself.
+
+**Startup rebuilds it, under an advisory lock.** The process holds
+`pg_advisory_lock(hashtext('adl_authority_startup:<applicationId>'))` while it
+applies any model migration and then rebuilds the membership projection from the
+accepted records. The rebuild is idempotent and derives everything from accepted
+records, so it can neither invent nor drop a membership; it brings up a
+projection that predates its writer, one left behind by an out-of-band restore,
+and one whose records a migration hop just rewrote. The lock means two processes
+starting at once cannot both plan and apply the same hop or rebuild over each
+other. `AuthorityProjectionIntegrity` reports
+`membershipProjectionMissing`/`Orphaned`/`Stale` as metadata-only counts.
 
 ## First deployment slice
 

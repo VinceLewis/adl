@@ -9,6 +9,7 @@ import { CommandService } from "./command-service.js";
 import type { RuntimeCommandResult } from "./command-service.js";
 import { HookRegistry } from "./hook-registry.js";
 import type { RuntimeHook } from "./hook-registry.js";
+import type { ContextMembershipIndex } from "./context-membership-index.js";
 import { RuntimeContextService } from "./context-service.js";
 import { DecisionTableService } from "./decision-table-service.js";
 import type { DecisionTableEvaluationResult } from "./decision-table-service.js";
@@ -66,6 +67,13 @@ export interface ApplicationRuntimeOptions {
   logger?: RuntimeLogger;
   storage?: ObjectStorageBackend;
   syncStateStorage?: SyncStateStorage;
+  /**
+   * Optional scope-indexed read model over context membership records, used to
+   * narrow membership resolution instead of scanning every stored record. The
+   * authority supplies its PostgreSQL projection; a device supplies nothing and
+   * keeps the scan. It never authorises — see `ContextMembershipIndex`.
+   */
+  membershipIndex?: ContextMembershipIndex;
 }
 
 export class ApplicationRuntime {
@@ -112,8 +120,13 @@ export class ApplicationRuntime {
     const storage = options.storage ?? new InMemoryObjectStorageBackend();
     this.startupPromise = this.runStartupCompatibilityChecks(storage, options.syncStateStorage);
     void this.startupPromise.catch(() => undefined);
-    this.contextService = new RuntimeContextService(model, this.index, storage, this.logger, () =>
-      this.whenReady(),
+    this.contextService = new RuntimeContextService(
+      model,
+      this.index,
+      storage,
+      this.logger,
+      () => this.whenReady(),
+      options.membershipIndex,
     );
     this.decisionTableService = new DecisionTableService(model, this.index, this.logger);
     this.offlineDatasetService = new OfflineDatasetService(

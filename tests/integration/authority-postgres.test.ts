@@ -390,7 +390,7 @@ describe("authority replay against real PostgreSQL", () => {
       recordId: "note-kept",
       values: { Title: "Kept" },
     });
-    const integrity = new AuthorityProjectionIntegrity(authorityPool(pool), noteApp);
+    const integrity = new AuthorityProjectionIntegrity(authorityPool(pool), noteApp, noteModel);
     const healthy = await integrity.verify();
     expect(healthy.consistent).toBe(true);
     expect(healthy.counts.records).toBe(1);
@@ -486,7 +486,7 @@ describe("access lifecycle against real PostgreSQL", () => {
           [claimantToken, { userId: "claimant-1" }],
         ]),
       ),
-      new PostgresAuthorityAccessStore(unitPool, bandApp),
+      new PostgresAuthorityAccessStore(unitPool, bandApp, bandModel),
       {
         now: () => new Date("2026-07-21T00:00:00.000Z"),
         newId: () => `id${(idCounter += 1)}`,

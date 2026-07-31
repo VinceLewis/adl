@@ -12,6 +12,7 @@ export const MIGRATION_FILES = [
   "0005_authority_audit_scope_and_retention.sql",
   "0006_passkey_identity.sql",
   "0007_model_fingerprint.sql",
+  "0008_membership_projection.sql",
 ];
 
 /** Every projection table the integration tests read, write, or reset. */
@@ -42,7 +43,7 @@ export const AUTHORITY_TABLES = [
  */
 export async function applyMigrations(client: Client): Promise<void> {
   const already = await client.query(
-    "select 1 from information_schema.columns where table_name = 'adl_authority_models' and column_name = 'model_fingerprint'",
+    "select 1 from information_schema.columns where table_name = 'adl_authority_context_memberships' and column_name = 'object_name'",
   );
   if ((already.rowCount ?? 0) > 0) return;
   for (const file of MIGRATION_FILES) {

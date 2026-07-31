@@ -10,6 +10,10 @@ import type {
   PersistedObjectRecord,
 } from "../runtime/object-storage-backend.js";
 import { StorageError, cloneJson } from "../runtime/runtime-types.js";
+import {
+  ContextMembershipDescriptors,
+  ContextMembershipProjectionWriter,
+} from "./authority-membership-projection.js";
 import type { PostgresQueryable } from "./postgres-authority-store.js";
 
 export interface PostgresObjectStorageOptions {
@@ -27,6 +31,15 @@ export interface PostgresObjectStorageOptions {
 export class PostgresObjectStorageBackend implements ObjectStorageBackend {
   readonly supportsTransactions = true;
   private readonly ambientTransaction: boolean;
+  /**
+   * Keeps the derived context-membership projection in step with every accepted
+   * record this backend writes. It runs on the same `database` handle, so under
+   * an ambient transaction it joins that transaction: a membership record and
+   * its projection row can never commit apart. Owning it here rather than in a
+   * caller means every record path — replay, command, migration rewrite — is
+   * covered without each one having to remember.
+   */
+  private readonly memberships: ContextMembershipProjectionWriter;
   constructor(
     private readonly database: PostgresQueryable,
     private readonly applicationId: string,
@@ -34,6 +47,11 @@ export class PostgresObjectStorageBackend implements ObjectStorageBackend {
     options: PostgresObjectStorageOptions = {},
   ) {
     this.ambientTransaction = options.ambientTransaction === true;
+    this.memberships = new ContextMembershipProjectionWriter(
+      database,
+      applicationId,
+      new ContextMembershipDescriptors(model),
+    );
   }
   async create(objectName: string, record: StoredObjectRecord): Promise<void> {
     await this.write("create", objectName, record);
@@ -141,6 +159,7 @@ export class PostgresObjectStorageBackend implements ObjectStorageBackend {
           JSON.stringify(record),
         ],
       );
+      await this.memberships.sync(objectName, record);
       return;
     }
     const result = await this.database.query<{ record_id: string }>(
@@ -156,5 +175,6 @@ export class PostgresObjectStorageBackend implements ObjectStorageBackend {
     );
     if (result.rows.length === 0)
       throw new StorageError(`Record '${record.meta.guid}' for object '${objectName}' is missing.`);
+    await this.memberships.sync(objectName, record);
   }
 }

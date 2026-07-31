@@ -6,6 +6,55 @@
 > administration surface consumes those scoped membership reads. Evidence and
 > scope are unchanged; only its position in the sequence moved.
 
+> **Phase 54 handoff (kept in sequence; accepted).** Phase 54 gave
+> `adl_authority_context_memberships` a writer and made the four membership reads
+> scope-indexed: membership resolution (on every bootstrap and replay), the
+> administration membership review, and the two access-lifecycle checks now read
+> a user- or context-scoped projection instead of scanning every accepted record.
+> The projection is written inside the same transaction as the record change it
+> derives from, is rebuilt from accepted records at startup under a new advisory
+> lock, and is covered by three integrity counters. The advisory lock also closes
+> the unguarded `migrateAcceptedState` race Phase 51 left behind.
+>
+> **This phase remains the highest-value remaining gap repository-wide.** Only
+> two phase documents remain. Phase 56 is reference-app modelling and
+> documentation hygiene; this phase closes an operational growth risk and gives a
+> real deployment's operator a usable surface at all. By the standard this
+> repository has applied since Phase 46 — a user-visible or operational effect
+> outranks work with neither — this outranks Phase 56, and nothing Phase 54 found
+> outranks either. No new user-visible defect was discovered.
+>
+> Four adjustments this phase's results make to the work below:
+>
+> - **The membership projection needs no pruning, and must not be pruned.** It
+>   holds exactly one row per accepted membership record, live or tombstoned, so
+>   it is bounded by the record set rather than growing with time. It is also
+>   derived from accepted records, and Phase 45's rule that retention never
+>   touches accepted state extends to it: deleting a projection row would remove
+>   a live membership from resolution without removing the membership. The count
+>   of unbounded projections this phase must address stays **four**.
+> - **The advisory lock is the mechanism for overlap safety.** This phase's
+>   acceptance criterion "overlapping or repeated retention runs are safe" now
+>   has a precedent in the repository rather than needing an invention:
+>   `pg_advisory_lock(hashtext(...))` keyed per application, taken for the
+>   duration and released in a `finally`. Reuse it, and reuse Phase 54's
+>   deterministic proof technique — holding the lock on a separate client and
+>   asserting the contender does **not** settle until it is released. Asserting
+>   only that two concurrent runs produce a correct result proves nothing when
+>   the operation is idempotent.
+> - **The membership review surface is now ordered and genuinely bounded.**
+>   `AuthorityAdministrationService.memberships` pages from
+>   `PostgresContextMembershipIndex.listForContext`, ordered by membership record
+>   id and limited in SQL, and reports revoked memberships as `revoked` rather
+>   than omitting them. The UI can rely on a stable page rather than an
+>   arbitrary slice of a whole-application scan.
+> - **`AuthorityProjectionIntegrity` now takes the resolved model** as a third
+>   constructor argument, and its report carries three more counters
+>   (`membershipProjectionMissing`, `membershipProjectionOrphaned`,
+>   `membershipProjectionStale`). The recovery-status surface this phase puts in
+>   the browser consumes that report; it stays metadata-only, so the UI must keep
+>   showing status rather than counts of anything protected.
+
 ## Objective
 
 Turn the two administration capabilities that exist only as services into
@@ -71,6 +120,9 @@ consistent with.
 - Retention must never delete an accepted record, in-retention audit, or
   in-retention outcome, and must honour legal hold. A scheduled run must be
   idempotent and safe to overlap or retry.
+- Retention must never touch `adl_authority_context_memberships`. It is a
+  derived projection bounded by the accepted-record set, and deleting a row there
+  removes a live membership from resolution without removing the membership.
 - Retention status, logs and metrics stay metadata-only: no accepted records, no
   audit payloads, no tokens or verifiers, no outcome bodies.
 - Administration UI must add no authority: every read and action goes through the
@@ -102,6 +154,9 @@ consistent with.
   mode prints protected data.
 - Overlapping or repeated retention runs are safe and produce no double-deletion
   or partial-state failure; a failure mid-run leaves the projections consistent.
+  Prove mutual exclusion deterministically — hold the lock elsewhere and assert
+  the contender does not proceed until it is released — not by observing that two
+  idempotent runs happened to agree.
 - Retention runs, deletions by projection, hold skips and failures appear in
   metrics and the structured log with no protected payloads.
 - An authorised operator executes a report, exports it as CSV, reviews access and

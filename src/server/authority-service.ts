@@ -1,5 +1,6 @@
 import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/resolved-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
+import type { ContextMembershipIndex } from "../runtime/context-membership-index.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
 import { RuntimeError } from "../runtime/runtime-types.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
@@ -26,6 +27,13 @@ export interface AuthorityServiceOptions {
    * the service uses the in-process backend, which is test/development wiring.
    */
   unitOfWork?: PostgresAuthorityUnitOfWork;
+  /**
+   * Scope-indexed read model over membership records. Every bootstrap and every
+   * replay resolves the caller's contexts first, and that resolution is the one
+   * membership read on the reconnect hot path; with an index it reads only this
+   * user's memberships instead of the whole accepted-record set.
+   */
+  membershipIndex?: ContextMembershipIndex;
 }
 
 export class InMemoryAuthorityOutcomeStore implements AuthorityOutcomeStore {
@@ -54,7 +62,12 @@ export class AuthorityService {
     private readonly sessions: AuthoritySessionAdapter,
     options: AuthorityServiceOptions = {},
   ) {
-    this.runtime = new ApplicationRuntime(model, { storage });
+    this.runtime = new ApplicationRuntime(model, {
+      storage,
+      ...(options.membershipIndex === undefined
+        ? {}
+        : { membershipIndex: options.membershipIndex }),
+    });
     this.storage = storage;
     this.outcomes = options.outcomes ?? new InMemoryAuthorityOutcomeStore();
     this.unitOfWork = options.unitOfWork;

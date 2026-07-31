@@ -91,6 +91,9 @@ Phase 45 builds on the same boundary; migration
   `(operation_id, actor_id)`; `application_id` is only a scoping/retention column.
   `AuthorityProjectionIntegrity.countOutcomes` and `acceptedOutcomeRecordsMissing`
   are now application-scoped; legacy rows with a null `application_id` are excluded.
+- Phase 54 extends the same boundary to context memberships and adds a startup
+  advisory lock; see [[membership-projection]] for what is derived, where it is
+  written, and why the table was re-created.
 - `AuthorityRetentionService.prune` (`authority-retention.ts`) is the only
   retention path. It clamps the effective cutoff to no later than
   `now - minimumRetentionMs` (never deletes in-retention rows), refuses under

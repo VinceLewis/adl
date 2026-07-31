@@ -1,9 +1,18 @@
-import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/resolved-model.js";
+import type {
+  ResolvedApplicationModel,
+  ResolvedContextMembership,
+  StoredObjectRecord,
+} from "../model/resolved-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
+import type { ContextMembershipIndex } from "../runtime/context-membership-index.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
 import { RuntimeContextError, cloneJson } from "../runtime/runtime-types.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import type { AuthoritySessionAdapter } from "./authority-types.js";
+import {
+  ContextMembershipDescriptors,
+  ContextMembershipProjectionWriter,
+} from "./authority-membership-projection.js";
 import { hashSecret } from "./opaque-session-adapter.js";
 import type { PostgresQueryable } from "./postgres-authority-store.js";
 
@@ -137,6 +146,13 @@ export interface AuthorityAccessLifecycleOptions {
   now?: () => Date;
   newId?: () => string;
   newToken?: () => string;
+  /**
+   * Scope-indexed read model over membership records. Given one, the two
+   * membership lookups below read only this user's memberships in the named
+   * context instead of scanning every accepted record; the record they name is
+   * still read and matched against its own values, so it stays authoritative.
+   */
+  membershipIndex?: ContextMembershipIndex;
 }
 
 /**
@@ -148,6 +164,7 @@ export class AuthorityAccessLifecycleService {
   private readonly now: () => Date;
   private readonly newId: () => string;
   private readonly newToken: () => string;
+  private readonly membershipIndex: ContextMembershipIndex | undefined;
 
   constructor(
     model: ResolvedApplicationModel,
@@ -156,7 +173,14 @@ export class AuthorityAccessLifecycleService {
     private readonly store: AuthorityAccessStore,
     options: AuthorityAccessLifecycleOptions = {},
   ) {
-    this.runtime = new ApplicationRuntime(model, { storage });
+    this.membershipIndex = options.membershipIndex;
+    this.runtime = new ApplicationRuntime(model, {
+      storage,
+      // The manager check below resolves a context through this runtime, so the
+      // index must reach it too, otherwise every invite and revocation still
+      // pays for a full scan inside `requireMembershipManager`.
+      ...(this.membershipIndex === undefined ? {} : { membershipIndex: this.membershipIndex }),
+    });
     this.now = options.now ?? (() => new Date());
     this.newId = options.newId ?? secureId;
     this.newToken = options.newToken ?? secureToken;
@@ -299,15 +323,12 @@ export class AuthorityAccessLifecycleService {
       input.contextName,
       input.contextId,
     );
-    const record = (await this.storage.listRecords()).find(
-      (entry) =>
-        entry.objectName === membership.object &&
-        entry.record.meta.deletedAt === undefined &&
-        entry.record.values[membership.userField] === input.userId &&
-        entry.record.values[membership.contextField] === input.contextId &&
-        entry.record.values[membership.roleField] === input.role,
-    )?.record;
-    if (record === undefined) return false;
+    const record = await this.findMembershipRecord(membership, input.contextName, {
+      userId: input.userId,
+      contextId: input.contextId,
+      role: input.role,
+    });
+    if (record === null) return false;
     const now = this.now();
     const tombstone: StoredObjectRecord = {
       meta: {
@@ -356,14 +377,11 @@ export class AuthorityAccessLifecycleService {
       input.contextName,
       input.contextId,
     );
-    const targetHasContextAccess = (await this.storage.listRecords()).some(
-      (entry) =>
-        entry.objectName === membership.object &&
-        entry.record.meta.deletedAt === undefined &&
-        entry.record.values[membership.userField] === input.userId &&
-        entry.record.values[membership.contextField] === input.contextId,
-    );
-    if (!targetHasContextAccess) return false;
+    const target = await this.findMembershipRecord(membership, input.contextName, {
+      userId: input.userId,
+      contextId: input.contextId,
+    });
+    if (target === null) return false;
     if (!isRevocableSessionAdapter(this.sessions)) return false;
     await this.sessions.revokeUserSessions(input.userId);
     await this.store.recordAudit({
@@ -392,6 +410,41 @@ export class AuthorityAccessLifecycleService {
     const session = await this.sessions.verify(sessionToken);
     if (session === null) throw new RuntimeContextError("A valid server session is required.");
     return session;
+  }
+
+  /**
+   * The live membership record a user holds in one context, optionally for one
+   * role. With an index the candidates come from the projection and each is read
+   * back and matched against its own values; without one the accepted-record set
+   * is scanned. Both paths apply exactly the same match, so the record — never
+   * the index — decides.
+   */
+  private async findMembershipRecord(
+    membership: ResolvedContextMembership,
+    contextName: string,
+    target: { userId: string; contextId: string; role?: string },
+  ): Promise<StoredObjectRecord | null> {
+    const matches = (record: StoredObjectRecord): boolean =>
+      record.meta.deletedAt === undefined &&
+      record.values[membership.userField] === target.userId &&
+      record.values[membership.contextField] === target.contextId &&
+      (target.role === undefined || record.values[membership.roleField] === target.role);
+    if (this.membershipIndex === undefined) {
+      return (
+        (await this.storage.listRecords()).find(
+          (entry) => entry.objectName === membership.object && matches(entry.record),
+        )?.record ?? null
+      );
+    }
+    const candidates = await this.membershipIndex.listForUser({
+      contextName,
+      userId: target.userId,
+    });
+    for (const candidate of candidates) {
+      const record = await this.storage.read(membership.object, candidate.membershipRecordId);
+      if (record !== null && matches(record)) return record;
+    }
+    return null;
   }
 
   private async requireMembershipManager(userId: string, contextName: string, contextId: string) {
@@ -581,10 +634,25 @@ export class InMemoryAuthorityAccessStore implements AuthorityAccessStore {
 
 /** PostgreSQL store; `claimInvite` holds the invite row while inserting membership and audit. */
 export class PostgresAuthorityAccessStore implements AuthorityAccessStore {
+  /**
+   * This store writes `adl_authority_records` with its own SQL rather than
+   * through the object-storage backend, so it also has to keep the derived
+   * membership projection in step itself. It runs on the same `database` handle
+   * inside the same store transaction, so the grant or tombstone, its access
+   * audit event, and the projection row commit or roll back together.
+   */
+  private readonly memberships: ContextMembershipProjectionWriter;
   constructor(
     private readonly database: PostgresQueryable,
     private readonly applicationId: string,
-  ) {}
+    model: ResolvedApplicationModel,
+  ) {
+    this.memberships = new ContextMembershipProjectionWriter(
+      database,
+      applicationId,
+      new ContextMembershipDescriptors(model),
+    );
+  }
   async createInvite(invite: AuthorityInvite, audit: AuthorityAccessAuditEvent): Promise<void> {
     await this.database.query("begin");
     try {
@@ -713,6 +781,7 @@ export class PostgresAuthorityAccessStore implements AuthorityAccessStore {
       );
       if (result.rows.length === 0)
         throw new Error(`Membership record '${input.tombstone.meta.guid}' is missing.`);
+      await this.memberships.sync(input.objectName, input.tombstone);
       await this.writeAudit(input.audit);
       await this.database.query("commit");
     } catch (error) {
@@ -766,6 +835,7 @@ export class PostgresAuthorityAccessStore implements AuthorityAccessStore {
           JSON.stringify(grant.membership),
         ],
       );
+      await this.memberships.sync(grant.membershipObjectName, grant.membership);
       await this.database.query(
         "update adl_authority_invites set claimed_by = $3, claimed_at = $4, membership_record_id = $5 where invite_id = $1 and application_id = $2",
         [invite.invite_id, this.applicationId, input.userId, input.now, grant.membership.meta.guid],

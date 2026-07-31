@@ -23,6 +23,11 @@ import {
   resolveSessionLifetime,
   type AuthorityConfiguration,
 } from "./authority-config.js";
+import {
+  ContextMembershipDescriptors,
+  ContextMembershipProjectionWriter,
+  PostgresContextMembershipIndex,
+} from "./authority-membership-projection.js";
 import { createAuthorityNodeServer } from "./authority-node.js";
 import { AuthorityProjectionIntegrity } from "./authority-projection-integrity.js";
 import { AuthorityService } from "./authority-service.js";
@@ -141,18 +146,24 @@ export async function createAuthorityProcess(
   // Non-ambient: these accepted-state reads run outside the unit-of-work, which
   // opens its own pinned client and owns the begin/commit boundary itself.
   const storage = new PostgresObjectStorageBackend(database, applicationId, model);
+  // One scope-indexed read model over membership records, shared by everything
+  // that resolves a context or reviews memberships. It narrows candidates; the
+  // runtime read and policy remain the disclosure boundary at every call site.
+  const membershipIndex = new PostgresContextMembershipIndex(database, applicationId);
   const authority = new AuthorityService(model, storage, sessions, {
     unitOfWork: new PostgresAuthorityUnitOfWork(database, applicationId, model),
+    membershipIndex,
   });
   const accessLifecycle = new AuthorityAccessLifecycleService(
     model,
     storage,
     sessions,
-    new PostgresAuthorityAccessStore(database, applicationId),
+    new PostgresAuthorityAccessStore(database, applicationId, model),
+    { membershipIndex },
   );
   const administrationStore = new PostgresAuthorityAdministrationStore(database, applicationId);
   const reporting = new AuthorityReportingService(model, storage, sessions, administrationStore);
-  const integrity = new AuthorityProjectionIntegrity(database, applicationId);
+  const integrity = new AuthorityProjectionIntegrity(database, applicationId, model);
   const administration = new AuthorityAdministrationService(
     model,
     storage,
@@ -162,6 +173,8 @@ export async function createAuthorityProcess(
     // Without this the recovery view would answer from a stub rather than the
     // real restore-verification counts.
     () => integrity.recoveryStatus(),
+    () => new Date(),
+    membershipIndex,
   );
   const identityVerifier = selectUpstreamIdentityVerifier(
     configuration,
@@ -297,6 +310,13 @@ export async function startAuthorityProcess(
  * The work runs on one pinned client, not the pool: `commitTransaction` issues
  * its own `begin`/`commit`, and on an unpinned pool those could land on
  * different connections and lose atomicity entirely.
+ *
+ * It also holds a session-level advisory lock for the whole of startup, so two
+ * authority processes starting at once against one projection cannot both plan
+ * and apply the same hop, and cannot rebuild the membership projection over each
+ * other. Each individual commit was already atomic, so this closes a robustness
+ * gap rather than a demonstrated corruption; the second process simply waits and
+ * then finds the work already done.
  */
 async function migrateAcceptedState(
   pool: Pool,
@@ -304,18 +324,28 @@ async function migrateAcceptedState(
   model: ResolvedApplicationModel,
 ): Promise<void> {
   const client = await pool.connect();
+  let locked = false;
   try {
-    const storage = new PostgresObjectStorageBackend(
-      client as unknown as PostgresQueryable,
-      applicationId,
-      model,
-    );
+    // hashtext gives a stable per-application key, so unrelated applications
+    // sharing one database never serialise against each other.
+    await client.query("select pg_advisory_lock(hashtext($1))", [
+      `adl_authority_startup:${applicationId}`,
+    ]);
+    locked = true;
+    const queryable = client as unknown as PostgresQueryable;
+    const storage = new PostgresObjectStorageBackend(queryable, applicationId, model);
     const diagnostics = await runRuntimeStartupCompatibilityChecks(
       model,
       storage,
       noopRuntimeLogger,
       { applyMigrations: true },
     );
+    // Rebuild the derived membership projection from the accepted records this
+    // process is about to serve. It brings up a projection written before it had
+    // a writer, one left behind by an out-of-band restore, and one whose records
+    // a migration hop just rewrote. It is idempotent and derives everything from
+    // accepted records, so it can neither invent nor drop a membership.
+    await rebuildMembershipProjection(queryable, applicationId, model);
     for (const diagnostic of diagnostics) {
       // Metadata only: a code, a message about versions, and counts. No
       // accepted record, audit payload, token or outcome body is ever in here.
@@ -340,7 +370,35 @@ async function migrateAcceptedState(
     }
     throw error;
   } finally {
+    // Releasing an unlocked session-level lock logs a PostgreSQL warning, so
+    // only unlock what was actually taken. A crashed process releases it when
+    // its backend ends, so the lock can never be held by nobody.
+    if (locked)
+      await client
+        .query("select pg_advisory_unlock(hashtext($1))", [
+          `adl_authority_startup:${applicationId}`,
+        ])
+        .catch(() => undefined);
     client.release();
+  }
+}
+
+/** Rebuild the membership projection for one application in a single transaction. */
+async function rebuildMembershipProjection(
+  database: PostgresQueryable,
+  applicationId: string,
+  model: ResolvedApplicationModel,
+): Promise<void> {
+  const descriptors = new ContextMembershipDescriptors(model);
+  if (descriptors.empty) return;
+  const writer = new ContextMembershipProjectionWriter(database, applicationId, descriptors);
+  await database.query("begin");
+  try {
+    await writer.rebuild();
+    await database.query("commit");
+  } catch (error) {
+    await database.query("rollback").catch(() => undefined);
+    throw error;
   }
 }
 

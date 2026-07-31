@@ -147,11 +147,14 @@ function record(object: string, id: string, values: Record<string, string>): Sto
   };
 }
 
+/**
+ * Seed through the real accepted-record write path rather than raw SQL, so a
+ * seeded membership also lands in the derived membership projection that
+ * context resolution now reads. Raw inserts would leave the projection empty and
+ * the seeded administrator would hold no context at all.
+ */
 async function seedRecord(object: string, row: StoredObjectRecord): Promise<void> {
-  await pool.query(
-    "insert into adl_authority_records (application_id, object_name, record_id, revision, deleted_at, record) values ($1, $2, $3, $4, null, $5::jsonb)",
-    [app, object, row.meta.guid, row.meta.revision, JSON.stringify(row)],
-  );
+  await new PostgresObjectStorageBackend(authorityPool(pool), app, scopeModel).create(object, row);
 }
 
 function sessions(): StaticSessionAdapter {
@@ -247,7 +250,7 @@ describe("context-scoped runtime audit against real PostgreSQL", () => {
         scopeModel,
         storage,
         sessions(),
-        new PostgresAuthorityAccessStore(authorityPool(pool), app),
+        new PostgresAuthorityAccessStore(authorityPool(pool), app, scopeModel),
       ),
       store,
       store,
@@ -273,7 +276,7 @@ describe("context-scoped runtime audit against real PostgreSQL", () => {
       values: { Title: "A task", Project: "project-a" },
       selectedContexts: { Project: "project-a" },
     });
-    const integrity = new AuthorityProjectionIntegrity(authorityPool(pool), app);
+    const integrity = new AuthorityProjectionIntegrity(authorityPool(pool), app, scopeModel);
     const healthy = await integrity.verify();
     expect(healthy.consistent).toBe(true);
     expect(healthy.auditScopeInconsistent).toBe(0);

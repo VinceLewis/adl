@@ -126,6 +126,26 @@
 >   transaction. The long-lived `AuthorityService.runtime` is used only for reads
 >   and the model index. No growth, nothing to fix.
 
+> **Execution note (corrections to the evidence below, found on execution).**
+> Two line references had drifted, and one named the wrong site:
+>
+> - `access-lifecycle.ts:236` and `:293` are now `:302` (`revokeMembership`) and
+>   `:359` (`revokeUserSessions`). Same two checks.
+> - **`authority-service.ts:82` is not a membership scan.** It is `bootstrap`'s
+>   candidate scan over *all* accepted records, which a membership projection
+>   cannot replace, because bootstrap must return every visible record. The
+>   membership read on bootstrap's hot path — the one the Dependencies section
+>   below correctly describes as "membership resolution is on the hot path for
+>   every reconnect" — is `RuntimeContextService.getActiveRecords`
+>   (`context-service.ts:193`), reached through `resolveContext`. That is the
+>   site this phase scoped. Bootstrap's own record scan is a separate,
+>   non-membership paging concern and was left alone.
+>
+> The runtime site is shared with the browser, so it was scoped through an
+> **optional** `ContextMembershipIndex` port: the authority supplies the
+> PostgreSQL projection, a device supplies nothing and keeps its scan. See
+> `learnings/implementation/membership-projection.md`.
+
 ## Objective
 
 Populate and use the context-membership projection so authority membership

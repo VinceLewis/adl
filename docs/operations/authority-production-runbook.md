@@ -477,7 +477,8 @@ Use a database owner only to create roles. Run
 `0003_reporting_administration.sql`,
 `0004_authority_transaction_integrity.sql`,
 `0005_authority_audit_scope_and_retention.sql`,
-`0006_passkey_identity.sql`, and `0007_model_fingerprint.sql` as
+`0006_passkey_identity.sql`, `0007_model_fingerprint.sql`, and
+`0008_membership_projection.sql` as
 `adl_migrator`. Run the process as
 `adl_authority`; it has DML only and cannot create schema objects or run
 migrations. Use a pinned PostgreSQL client for any multi-statement transaction.
@@ -497,6 +498,15 @@ one transaction; an infrastructure failure at any stage rolls all three back and
 surfaces as a retryable error rather than a durable rejection. The in-process
 backend without a unit-of-work remains test/development wiring only.
 
+`0008_membership_projection.sql` **drops and re-creates**
+`adl_authority_context_memberships`. That is safe because the table has never
+had a writer and has never held a row in any deployment; Phase 54 gives it one.
+It is re-keyed on `(application_id, membership_record_id)` — one row per accepted
+membership record — and gains `object_name`, a `revoked_at` mirror of the
+record's tombstone, and a context-scoped index. Nothing needs backfilling by
+hand: the authority rebuilds the projection from the accepted records at every
+start (see below).
+
 `0007_model_fingerprint.sql` adds a nullable `model_fingerprint` column to
 `adl_authority_models`. It is additive and re-appliable, and it needs no
 backfill: an existing row keeps a null fingerprint, which the authority treats
@@ -506,6 +516,28 @@ than refusing.
 Before release: backup, apply migration, run readiness and HTTP smoke tests,
 then retain the previous application build until the restore point is verified.
 Never run DDL through the traffic connection string.
+
+### Startup is serialised by an advisory lock
+
+Since Phase 54 the startup work — applying any model migration to the accepted
+records, then rebuilding the membership projection — runs while the process
+holds a session-level PostgreSQL advisory lock keyed on the application id
+(`pg_advisory_lock(hashtext('adl_authority_startup:<applicationId>'))`). Rolling
+a deployment, or starting a replica set, therefore serialises: the second process
+waits, then finds the work already done. Each individual commit was already
+atomic, so this closes a robustness gap rather than a demonstrated corruption.
+
+Operationally this means one thing worth knowing: **a process that is slow to
+start blocks its peers from starting.** The lock is released when startup
+finishes, and also automatically if the backend dies, so it can never be held by
+nobody. If a start appears to hang, look for a blocked advisory lock:
+
+```sql
+select pid, granted from pg_locks where locktype = 'advisory';
+```
+
+Never release another process's advisory lock by hand while it is still running;
+terminate the stuck backend instead, which releases the lock as a side effect.
 
 ## Model versions and model migrations
 
@@ -620,6 +652,16 @@ payload.
 Restore it together with the accepted-record and outcome projections; a restore
 that recovers outcomes but loses their referenced records is inconsistent.
 
+`adl_authority_context_memberships` became a populated projection in Phase 54
+(Phase 39 defined it; it had no writer until then). It is **derived**: the
+accepted membership record stays authoritative and the projection only indexes
+it, so a restore that recovers the accepted records but loses this table is
+repaired automatically at the next start, which rebuilds it from those records
+under the startup advisory lock. Back it up with everything else anyway — the
+rebuild is a safety net, not a substitute for a complete backup — but never
+restore it *without* its accepted records: a projection row with no backing
+record is an inconsistency, not a membership.
+
 Phase 43 adds the metadata-only `adl_authority_administration_audit_events`
 projection. Include it in the same backup, restore-count, and legal retention
 process. It records report/export and operational-review metadata, not report
@@ -636,13 +678,23 @@ Quarterly restore drill:
    access-audit event without printing protected JSON.
 4. Run `AuthorityProjectionIntegrity.verify` against the restored database. It
    returns metadata-only counts plus `consistent`, `acceptedOutcomeRecordsMissing`,
-   `orphanRecords`, and `auditScopeInconsistent`, and must report
+   `orphanRecords`, `auditScopeInconsistent`, `membershipProjectionMissing`,
+   `membershipProjectionOrphaned`, and `membershipProjectionStale`, and must report
    `consistent: true`. A non-zero `acceptedOutcomeRecordsMissing`, `orphanRecords`,
    or `auditScopeInconsistent` (a half-populated runtime-audit context scope, e.g.
    from a bad migration or restore) means an inconsistent set; do not switch
-   traffic. Outcomes are application-scoped since Phase 45, so the outcome count is
-   per application. `AuthorityProjectionIntegrity.recoveryStatus` backs the
-   administration recovery view with the same result and prints no protected JSON.
+   traffic. The three membership counters mean, respectively: an accepted
+   membership record with no projection row (its holder would resolve no
+   context), a projection row with no accepted record behind it, and a row whose
+   revoked state disagrees with its record. Restarting the process rebuilds the
+   projection from the accepted records and clears all three — but treat an
+   **orphaned** row as a warning first: it means the restored record set is
+   missing a membership the projection still knew about, so the rebuild would
+   quietly delete the evidence. Restore the record set again before starting on
+   it. Outcomes are
+   application-scoped since Phase 45, so the outcome count is per application.
+   `AuthorityProjectionIntegrity.recoveryStatus` backs the administration recovery
+   view with the same result and prints no protected JSON.
 5. Run `/readyz`, an authenticated bootstrap, an idempotent replay retry, an
    invite claim fixture, and a revoked-session rejection against the restored
    instance. Record backup id, recovery point, elapsed time, and results.

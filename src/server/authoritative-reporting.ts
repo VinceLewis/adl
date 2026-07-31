@@ -1,5 +1,11 @@
-import type { JsonValue, ResolvedApplicationModel } from "../model/resolved-model.js";
+import type {
+  JsonValue,
+  ResolvedApplicationModel,
+  ResolvedContextMembership,
+  StoredObjectRecord,
+} from "../model/resolved-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
+import type { ContextMembershipIndex } from "../runtime/context-membership-index.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
 import type { RuntimeContext, RuntimeReadModelRow } from "../runtime/runtime-types.js";
 import type {
@@ -328,8 +334,20 @@ export class AuthorityAdministrationService {
       recoveryRequired: false,
     }),
     private readonly now: () => Date = () => new Date(),
+    /**
+     * Scope-indexed read model over membership records. With one, membership
+     * review reads a bounded page for exactly this context instead of scanning
+     * every accepted record and filtering in memory; without one it keeps the
+     * scan, which is the in-memory test wiring. Either way each candidate record
+     * is read and passed through the runtime's read policy below, which stays
+     * the disclosure boundary.
+     */
+    private readonly membershipIndex: ContextMembershipIndex | undefined = undefined,
   ) {
-    this.runtime = new ApplicationRuntime(model, { storage });
+    this.runtime = new ApplicationRuntime(model, {
+      storage,
+      ...(membershipIndex === undefined ? {} : { membershipIndex }),
+    });
   }
 
   async accessAudit(
@@ -382,11 +400,12 @@ export class AuthorityAdministrationService {
     if (membership === undefined) throw new ReportingAccessError("ADL_RUNTIME_CONTEXT_ERROR");
     let context: RuntimeContext = { userId: actor.userId, roles: [], channel: "api", online: true };
     context = await this.runtime.withSelectedContext(contextName, contextId, context);
-    const candidates = (await this.storage.listRecords())
-      .filter((entry) => entry.objectName === membership.object)
-      .map((entry) => entry.record)
-      .filter((record) => record.values[membership.contextField] === contextId)
-      .slice(0, queryLimit(request));
+    const candidates = await this.membershipCandidates(
+      membership,
+      contextName,
+      contextId,
+      queryLimit(request),
+    );
     const entries: Array<{
       membershipRecordId: string;
       userId?: string;
@@ -420,6 +439,35 @@ export class AuthorityAdministrationService {
     await this.record("membershipStatusReviewed", actor.userId, contextName, contextId);
     return this.page(actor.userId, "memberships", contextName, contextId, entries, request);
   }
+  /**
+   * Membership records to consider for one context's review page, revoked ones
+   * included so a revoked membership is reported rather than silently omitted.
+   * The projection bounds the page in SQL; the record is then read back so the
+   * values reviewed are the record's own.
+   */
+  private async membershipCandidates(
+    membership: ResolvedContextMembership,
+    contextName: string,
+    contextId: string,
+    limit: number,
+  ): Promise<StoredObjectRecord[]> {
+    if (this.membershipIndex === undefined) {
+      return (await this.storage.listRecords())
+        .filter((entry) => entry.objectName === membership.object)
+        .map((entry) => entry.record)
+        .filter((record) => record.values[membership.contextField] === contextId)
+        .slice(0, limit);
+    }
+    const rows = await this.membershipIndex.listForContext({ contextName, contextId, limit });
+    const records: StoredObjectRecord[] = [];
+    for (const row of rows) {
+      const record = await this.storage.read(membership.object, row.membershipRecordId);
+      if (record !== null && record.values[membership.contextField] === contextId)
+        records.push(record);
+    }
+    return records;
+  }
+
   async invites(
     token: string | undefined,
     contextName: string,
