@@ -1,0 +1,812 @@
+{
+  "version": 1,
+  "models": {
+    "batchCommands": {
+      "app": {
+        "name": "BatchCommands"
+      },
+      "objects": [
+        {
+          "name": "Song",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Composer",
+              "type": "text"
+            },
+            {
+              "name": "Position",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Tag",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Ordinal",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "ImportSongs",
+          "label": "Import songs",
+          "inputs": [
+            {
+              "name": "Songs",
+              "type": "text",
+              "required": true,
+              "repeated": true,
+              "itemFields": [
+                {
+                  "name": "Title",
+                  "type": "text",
+                  "required": true
+                },
+                {
+                  "name": "Composer",
+                  "type": "text",
+                  "required": false
+                }
+              ]
+            }
+          ],
+          "steps": [
+            {
+              "name": "importSongs",
+              "action": "create",
+              "object": "Song",
+              "forEach": "Songs",
+              "values": {
+                "Title": {
+                  "kind": "item",
+                  "field": "Title"
+                },
+                "Composer": {
+                  "kind": "item",
+                  "field": "Composer"
+                },
+                "Position": {
+                  "kind": "itemIndex"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "ImportTags",
+          "label": "Import tags",
+          "inputs": [
+            {
+              "name": "Tags",
+              "type": "text",
+              "required": true,
+              "repeated": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "importTags",
+              "action": "create",
+              "object": "Tag",
+              "forEach": "Tags",
+              "values": {
+                "Name": {
+                  "kind": "item"
+                },
+                "Ordinal": {
+                  "kind": "itemIndex"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SongPolicy",
+          "object": "Song",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllSong",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TagPolicy",
+          "object": "Tag",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllTag",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "batchCommandIteratingReference": {
+      "app": {
+        "name": "BatchCommandIteratingReference"
+      },
+      "objects": [
+        {
+          "name": "Song",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Composer",
+              "type": "text"
+            },
+            {
+              "name": "Position",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Tag",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Ordinal",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "ImportSongsAndTag",
+          "inputs": [
+            {
+              "name": "Songs",
+              "type": "text",
+              "required": true,
+              "repeated": true,
+              "itemFields": [
+                {
+                  "name": "Title",
+                  "type": "text",
+                  "required": true
+                },
+                {
+                  "name": "Composer",
+                  "type": "text",
+                  "required": false
+                }
+              ]
+            }
+          ],
+          "steps": [
+            {
+              "name": "importSongs",
+              "action": "create",
+              "object": "Song",
+              "forEach": "Songs",
+              "values": {
+                "Title": {
+                  "kind": "item",
+                  "field": "Title"
+                }
+              }
+            },
+            {
+              "name": "tagTheImport",
+              "action": "create",
+              "object": "Tag",
+              "values": {
+                "Name": {
+                  "kind": "stepMeta",
+                  "step": "importSongs",
+                  "property": "guid"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SongPolicy",
+          "object": "Song",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllSong",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TagPolicy",
+          "object": "Tag",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllTag",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "batchCommandItemOutsideForEach": {
+      "app": {
+        "name": "BatchCommandItemOutsideForEach"
+      },
+      "objects": [
+        {
+          "name": "Song",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Composer",
+              "type": "text"
+            },
+            {
+              "name": "Position",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "name": "Tag",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Ordinal",
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "TagOnce",
+          "inputs": [
+            {
+              "name": "Tags",
+              "type": "text",
+              "required": true,
+              "repeated": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "tagOnce",
+              "action": "create",
+              "object": "Tag",
+              "values": {
+                "Name": {
+                  "kind": "item"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SongPolicy",
+          "object": "Song",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllSong",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TagPolicy",
+          "object": "Tag",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllTag",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "command.batch.an-iterating-step-writes-one-record-per-item.001",
+      "title": "A step iterating a repeated input plans one write per item into the command's single transaction",
+      "specRef": "resolved-model#repeated-inputs-and-iterating-steps",
+      "operation": "executeCommand",
+      "modelRef": "batchCommands",
+      "input": {
+        "commandName": "ImportSongs",
+        "input": {
+          "Songs": [
+            {
+              "Title": "Neon Map",
+              "Composer": "Ada"
+            },
+            {
+              "Title": "Slow Harbour",
+              "Composer": "Grace"
+            },
+            {
+              "Title": "Third Rail"
+            }
+          ]
+        },
+        "context": {
+          "userId": "user-importer",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "importSongs",
+              "objectName": "Song",
+              "values": {
+                "Title": "Neon Map",
+                "Composer": "Ada",
+                "Position": 0
+              }
+            },
+            {
+              "step": "importSongs",
+              "objectName": "Song",
+              "values": {
+                "Title": "Slow Harbour",
+                "Composer": "Grace",
+                "Position": 1
+              }
+            },
+            {
+              "step": "importSongs",
+              "objectName": "Song",
+              "values": {
+                "Title": "Third Rail",
+                "Position": 2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.batch.a-list-of-scalars-iterates-as-well-as-a-list-of-records.002",
+      "title": "A repeated input declaring no item fields carries plain values, which the current item reads whole",
+      "specRef": "resolved-model#repeated-inputs-and-iterating-steps",
+      "operation": "executeCommand",
+      "modelRef": "batchCommands",
+      "input": {
+        "commandName": "ImportTags",
+        "input": {
+          "Tags": ["Rock", "Folk", "Jazz"]
+        },
+        "context": {
+          "userId": "user-importer",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "importTags",
+              "objectName": "Tag",
+              "values": {
+                "Name": "Rock",
+                "Ordinal": 0
+              }
+            },
+            {
+              "step": "importTags",
+              "objectName": "Tag",
+              "values": {
+                "Name": "Folk",
+                "Ordinal": 1
+              }
+            },
+            {
+              "step": "importTags",
+              "objectName": "Tag",
+              "values": {
+                "Name": "Jazz",
+                "Ordinal": 2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.batch.the-item-index-of-the-first-item-is-zero.003",
+      "title": "The current item's index is its zero-based position, so a single-item batch writes index zero",
+      "specRef": "resolved-model#repeated-inputs-and-iterating-steps",
+      "operation": "executeCommand",
+      "modelRef": "batchCommands",
+      "input": {
+        "commandName": "ImportTags",
+        "input": {
+          "Tags": ["Only"]
+        },
+        "context": {
+          "userId": "user-importer",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "importTags",
+              "objectName": "Tag",
+              "values": {
+                "Name": "Only",
+                "Ordinal": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.batch.an-invalid-item-refuses-the-whole-batch.004",
+      "title": "One item failing its declared shape refuses the entire batch rather than the item",
+      "specRef": "resolved-model#repeated-inputs-and-iterating-steps",
+      "operation": "executeCommand",
+      "modelRef": "batchCommands",
+      "input": {
+        "commandName": "ImportSongs",
+        "input": {
+          "Songs": [
+            {
+              "Title": "Good"
+            },
+            {
+              "Composer": "Missing a title"
+            }
+          ]
+        },
+        "context": {
+          "userId": "user-importer",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeValidationError",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_COMMAND_INPUT_ITEM_REQUIRED",
+              "path": "input.Songs[1].Title",
+              "field": "Title"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.batch.a-repeated-input-given-a-single-value-is-refused.005",
+      "title": "A repeated input handed something that is not a list is refused rather than wrapped in a list of one",
+      "specRef": "resolved-model#repeated-inputs-and-iterating-steps",
+      "operation": "executeCommand",
+      "modelRef": "batchCommands",
+      "input": {
+        "commandName": "ImportSongs",
+        "input": {
+          "Songs": "Neon Map"
+        },
+        "context": {
+          "userId": "user-importer",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeValidationError",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_COMMAND_INPUT_NOT_A_LIST",
+              "path": "input.Songs"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.batch.the-authority-accepts-a-batch-as-one-intent.006",
+      "title": "A batch command replays through the authority as one intent and returns every record it wrote",
+      "specRef": "runtime-semantics#commands",
+      "operation": "authorityReplay",
+      "modelRef": "batchCommands",
+      "input": {
+        "sessions": {
+          "importer": {
+            "userId": "user-importer"
+          }
+        },
+        "intent": {
+          "operationId": "op-import-good",
+          "kind": "command",
+          "commandName": "ImportSongs",
+          "input": {
+            "Songs": [
+              {
+                "Title": "Neon Map",
+                "Composer": "Ada"
+              },
+              {
+                "Title": "Slow Harbour",
+                "Composer": "Grace"
+              },
+              {
+                "Title": "Third Rail"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-import-good",
+          "records": [
+            {
+              "object": "Song",
+              "values": {
+                "Title": "Neon Map",
+                "Position": 0
+              },
+              "deleted": false
+            },
+            {
+              "object": "Song",
+              "values": {
+                "Title": "Slow Harbour",
+                "Position": 1
+              },
+              "deleted": false
+            },
+            {
+              "object": "Song",
+              "values": {
+                "Title": "Third Rail",
+                "Position": 2
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.batch.the-authority-refuses-a-batch-with-an-invalid-item.007",
+      "title": "The authority refuses the whole batch intent when one item fails validation",
+      "specRef": "runtime-semantics#commands",
+      "operation": "authorityReplay",
+      "modelRef": "batchCommands",
+      "input": {
+        "sessions": {
+          "importer": {
+            "userId": "user-importer"
+          }
+        },
+        "intent": {
+          "operationId": "op-import-bad",
+          "kind": "command",
+          "commandName": "ImportSongs",
+          "input": {
+            "Songs": [
+              {
+                "Title": "Good"
+              },
+              {
+                "Composer": "Missing a title"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-import-bad",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED"
+        }
+      }
+    },
+    {
+      "id": "command.batch.a-refused-batch-leaves-nothing-behind.008",
+      "title": "Nothing a refused batch would have written is readable afterwards, so the batch is atomic and not merely reported as failed",
+      "specRef": "runtime-semantics#commands",
+      "operation": "authorityBootstrap",
+      "modelRef": "batchCommands",
+      "input": {
+        "sessions": {
+          "importer": {
+            "userId": "user-importer"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-import-bad",
+              "kind": "command",
+              "commandName": "ImportSongs",
+              "input": {
+                "Songs": [
+                  {
+                    "Title": "Good"
+                  },
+                  {
+                    "Composer": "Missing a title"
+                  }
+                ]
+              }
+            },
+            "expect": "rejected"
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": []
+        }
+      }
+    },
+    {
+      "id": "command.batch.an-accepted-batch-does-leave-its-records-behind.009",
+      "title": "The same read after an accepted batch returns what it wrote, so the empty result above is the refusal and not the read",
+      "specRef": "runtime-semantics#commands",
+      "operation": "authorityBootstrap",
+      "modelRef": "batchCommands",
+      "input": {
+        "sessions": {
+          "importer": {
+            "userId": "user-importer"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-import-one",
+              "kind": "command",
+              "commandName": "ImportSongs",
+              "input": {
+                "Songs": [
+                  {
+                    "Title": "Only Song"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "object": "Song",
+              "values": {
+                "Title": "Only Song",
+                "Position": 0
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.batch.an-iterating-step-may-not-be-referenced-by-a-later-step.010",
+      "title": "A later step may not read an iterating step's record, because the step names many records rather than one",
+      "specRef": "resolved-model#repeated-inputs-and-iterating-steps",
+      "operation": "validateModel",
+      "modelRef": "batchCommandIteratingReference",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMMAND_STEP_ITERATING_REFERENCE"
+          }
+        ]
+      }
+    },
+    {
+      "id": "command.batch.the-current-item-is-meaningless-outside-an-iterating-step.011",
+      "title": "A step that does not iterate may not reference the current item",
+      "specRef": "resolved-model#repeated-inputs-and-iterating-steps",
+      "operation": "validateModel",
+      "modelRef": "batchCommandItemOutsideForEach",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMMAND_STEP_ITEM_OUTSIDE_FOR_EACH"
+          }
+        ]
+      }
+    }
+  ]
+}

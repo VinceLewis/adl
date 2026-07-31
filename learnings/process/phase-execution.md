@@ -28,6 +28,23 @@ Phases 44, 45 and the original Phase 46 were each planned as "the next demonstra
 
 From Phase 46 onward, a next-phase handoff must justify its phase as the highest-value remaining gap **repository-wide**, not merely the next gap in the subsystem the current phase touched. If a higher-value gap exists elsewhere, say so and re-sequence. Phase numbers must continue to equal execution order, so re-sequencing means renumbering the affected documents.
 
+## Verify A Phase's Evidence Before Executing It
+
+A phase document is written before the work it describes and read after several
+phases have landed since. Phase 56 found three of its own evidence points stale:
+a heading it called empty had content, a sentence it quoted did not exist
+anywhere in the repository, and a capability it listed as "still future work"
+(`SHELL`/`TOP_BAR` source syntax) had shipped in Phase 31 and was already used by
+the reference app.
+
+None of this made the phase wrong — the remaining gaps were real and worth
+closing — but two of the three would have produced busywork, and the third would
+have produced a duplicate implementation of something that already existed.
+
+Check the evidence against the code first, say plainly which points no longer
+hold, and adjust that phase's scope before executing it. Recording the drift is
+part of the work, not an aside.
+
 ## Parallel Execution Plan
 
 Each phase document carries a `## Parallel Execution Plan` section so a phase can compress wall-clock time without racing on shared state. Write it as three parts:
@@ -45,3 +62,25 @@ Barriers to plan for deliberately:
 - Run `npm run verify:push` exactly once, at the end. Its Playwright desktop and mobile screenshot pass is the slowest step in the repository and its screenshot inspection is manual, so it cannot be parallelised.
 
 Do not fan out sequential code edits on one file, migrations, or anything where one agent's output is another agent's input.
+
+Two practical findings from Phase 56's fan-out, which ran five agents concurrently
+in one working tree rather than in worktrees:
+
+- **Disjoint file ownership can replace worktree isolation, if it is stated
+  explicitly and the verification command is scoped too.** Each agent was given
+  the exact files it owned and told to run only its own test files — never
+  `npm test`, `npm run typecheck` or `npm run build`, because those would show it
+  other agents' half-finished work. All five merged with no conflicts. Worktrees
+  remain the answer when two streams genuinely need the same file.
+- **Do the serial spine properly and the fan-out gets much wider.** Phase 56's
+  plan predicted six capability agents contending over `resolved-model.ts`,
+  `resolve-model.ts` and `validate-model.ts`. Landing every type, default and
+  runtime-context change in one pass first turned the remaining work into five
+  genuinely independent files.
+
+Treat an agent's negative findings with the same scepticism as its positive ones.
+Two Phase 56 reconnaissance agents independently reported that
+`src/compiler/validate-model.ts` "contains no validation" for their area; both
+were wrong, defeated by a NUL byte that makes `grep` treat the file as binary and
+return nothing silently. A claim that a 6,878-line validator validates nothing
+should not survive first contact with judgement.

@@ -155,10 +155,11 @@ export class AuthorityService {
         session.userId,
         intent.selectedContexts,
       );
+      const applied = await this.apply(this.runtime, intent, context);
       const records = await this.shapeAcceptedRecords(
         this.runtime,
-        await this.apply(this.runtime, intent, context),
-        context,
+        applied,
+        await this.shapingContext(this.runtime, session.userId, intent, applied, context),
       );
       return this.persist(
         { status: "accepted", operationId: intent.operationId, records },
@@ -194,7 +195,11 @@ export class AuthorityService {
           intent.selectedContexts,
         );
         const applied = await this.apply(transaction.runtime, intent, context);
-        const records = await this.shapeAcceptedRecords(transaction.runtime, applied, context);
+        const records = await this.shapeAcceptedRecords(
+          transaction.runtime,
+          applied,
+          await this.shapingContext(transaction.runtime, actorId, intent, applied, context),
+        );
         const outcome: AuthorityOutcome = {
           status: "accepted",
           operationId: intent.operationId,
@@ -364,15 +369,68 @@ export class AuthorityService {
     const context = await this.resolveContext(runtime, userId, selectedContexts);
     const selected = new Set(Object.keys(selectedContexts ?? {}));
     const contextRoles = [...(context.contextRoles ?? [])];
+    const contextGrants = [...(context.contextGrants ?? [])];
     for (const declared of runtime.model.contexts ?? []) {
-      if (declared.membership === undefined || selected.has(declared.name)) continue;
-      contextRoles.push(
-        ...(await runtime.contextService.resolveContextRoles(declared.name, context)),
-      );
+      if (selected.has(declared.name)) continue;
+      if (declared.membership !== undefined) {
+        contextRoles.push(
+          ...(await runtime.contextService.resolveContextRoles(declared.name, context)),
+        );
+      }
+      // Grants are widened for the same reason roles are, and it matters more:
+      // a grant exists precisely to reach a context the caller is not a member
+      // of, and a device that has just signed in has selected nothing. Resolving
+      // only roles here left the invitation that would let somebody join a band
+      // invisible to the one person it was addressed to — the chicken-and-egg
+      // the grant exists to break, reintroduced one layer up.
+      if (declared.grants.length > 0) {
+        contextGrants.push(
+          ...(await runtime.contextService.resolveContextGrants(declared.name, context)),
+        );
+      }
     }
-    return contextRoles.length === (context.contextRoles?.length ?? 0)
-      ? context
-      : { ...context, contextRoles };
+    const unchanged =
+      contextRoles.length === (context.contextRoles?.length ?? 0) &&
+      contextGrants.length === (context.contextGrants?.length ?? 0);
+    return unchanged ? context : { ...context, contextRoles, contextGrants };
+  }
+
+  /**
+   * The context an accepted write's response is shaped for, which is not always
+   * the context that authorised it.
+   *
+   * A write that creates a membership record changes who the caller is. A
+   * command that creates a business context and its first membership in one
+   * transaction is the sharpest case: both records commit, and then shaping them
+   * against the caller's pre-write access refuses to return either, because at
+   * the moment the context was resolved the caller was not yet a member of a
+   * context that did not yet exist. The write succeeded and the caller was told
+   * it was denied.
+   *
+   * So when the applied records include a membership record, the response is
+   * shaped against a freshly resolved context — the same widened resolution
+   * `bootstrap` already uses, and for the same reason: this is a read, and a
+   * caller may read the contexts they are a member of. **Replay itself keeps its
+   * narrow resolution**; a write must still land in a context the client named.
+   * Only the description of what was written is re-derived.
+   */
+  private async shapingContext(
+    runtime: ApplicationRuntime,
+    userId: string,
+    intent: AuthorityOperationIntent,
+    applied: StoredObjectRecord[],
+    context: RuntimeContext,
+  ): Promise<RuntimeContext> {
+    const membershipObjects = new Set(
+      (runtime.model.contexts ?? [])
+        .map((declared) => declared.membership?.object)
+        .filter((object): object is string => object !== undefined),
+    );
+    if (!applied.some((record) => membershipObjects.has(record.meta.object))) {
+      return context;
+    }
+
+    return this.resolveBootstrapContext(runtime, userId, intent.selectedContexts);
   }
 
   private async shapeAcceptedRecords(

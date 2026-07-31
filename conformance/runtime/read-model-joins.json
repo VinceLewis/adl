@@ -1,0 +1,6741 @@
+{
+  "version": 1,
+  "models": {
+    "readModelJoins": {
+      "app": {
+        "name": "ReadModelJoins"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandMember"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "displayField": "Label",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "displayField": "Date",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Date",
+              "type": "date",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "MemberRoles",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberNames",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberAvailability",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            },
+            {
+              "name": "availability",
+              "object": "Availability",
+              "scope": "all",
+              "join": {
+                "source": "user",
+                "localField": "User",
+                "sourceField": "id",
+                "cardinality": "many"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            },
+            {
+              "name": "Date",
+              "source": "availability",
+              "field": "Date"
+            },
+            {
+              "name": "Status",
+              "source": "availability",
+              "field": "Status"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            },
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberBands",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "band",
+              "object": "Band",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "BandName",
+              "source": "band",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadPublicAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Public"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "readModelJoinsPermissiveAvailability": {
+      "app": {
+        "name": "ReadModelJoinsPermissiveAvailability"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandMember"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "displayField": "Label",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "displayField": "Date",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Date",
+              "type": "date",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "MemberRoles",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberNames",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberAvailability",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            },
+            {
+              "name": "availability",
+              "object": "Availability",
+              "scope": "all",
+              "join": {
+                "source": "user",
+                "localField": "User",
+                "sourceField": "id",
+                "cardinality": "many"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            },
+            {
+              "name": "Date",
+              "source": "availability",
+              "field": "Date"
+            },
+            {
+              "name": "Status",
+              "source": "availability",
+              "field": "Status"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            },
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberBands",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "band",
+              "object": "Band",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "BandName",
+              "source": "band",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "readModelJoinsUnsearchableAvailability": {
+      "app": {
+        "name": "ReadModelJoinsUnsearchableAvailability"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandMember"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "displayField": "Label",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "displayField": "Date",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Date",
+              "type": "date",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "MemberRoles",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberNames",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberAvailability",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            },
+            {
+              "name": "availability",
+              "object": "Availability",
+              "scope": "all",
+              "join": {
+                "source": "user",
+                "localField": "User",
+                "sourceField": "id",
+                "cardinality": "many"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            },
+            {
+              "name": "Date",
+              "source": "availability",
+              "field": "Date"
+            },
+            {
+              "name": "Status",
+              "source": "availability",
+              "field": "Status"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            },
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberBands",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "band",
+              "object": "Band",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "BandName",
+              "source": "band",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadPublicAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Public"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "readModelJoinsUnsearchableUser": {
+      "app": {
+        "name": "ReadModelJoinsUnsearchableUser"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandMember"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "displayField": "Label",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "displayField": "Date",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Date",
+              "type": "date",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "MemberRoles",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberNames",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberAvailability",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            },
+            {
+              "name": "availability",
+              "object": "Availability",
+              "scope": "all",
+              "join": {
+                "source": "user",
+                "localField": "User",
+                "sourceField": "id",
+                "cardinality": "many"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            },
+            {
+              "name": "Date",
+              "source": "availability",
+              "field": "Date"
+            },
+            {
+              "name": "Status",
+              "source": "availability",
+              "field": "Status"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            },
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberBands",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "band",
+              "object": "Band",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "BandName",
+              "source": "band",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadPublicAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Public"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "readModelJoinsUnsearchableBand": {
+      "app": {
+        "name": "ReadModelJoinsUnsearchableBand"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandMember"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "displayField": "Label",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "displayField": "Date",
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Date",
+              "type": "date",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "MemberRoles",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberNames",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberAvailability",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "user",
+              "object": "User",
+              "scope": "all",
+              "join": {
+                "source": "member",
+                "localField": "id",
+                "sourceField": "User",
+                "cardinality": "one"
+              }
+            },
+            {
+              "name": "availability",
+              "object": "Availability",
+              "scope": "all",
+              "join": {
+                "source": "user",
+                "localField": "User",
+                "sourceField": "id",
+                "cardinality": "many"
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "Name",
+              "source": "user",
+              "field": "Name"
+            },
+            {
+              "name": "Date",
+              "source": "availability",
+              "field": "Date"
+            },
+            {
+              "name": "Status",
+              "source": "availability",
+              "field": "Status"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Name",
+              "direction": "asc"
+            },
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "MemberBands",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "BandMember",
+              "scope": "currentContext"
+            },
+            {
+              "name": "band",
+              "object": "Band",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "member",
+              "field": "Label"
+            },
+            {
+              "name": "BandName",
+              "source": "band",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadPublicAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Public"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "read-model.join.many-cardinality-fans-out.001",
+      "title": "A many join turns one upstream row into one row per matching record, each carrying its own source records",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoins",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "BandMemberAvailability",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-01",
+                "Status": "Public"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$caseyAlpha"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$casey"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$caseyFirst"
+                }
+              }
+            },
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-02",
+                "Status": "Public"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$caseyAlpha"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$casey"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$caseySecond"
+                }
+              }
+            },
+            {
+              "values": {
+                "Name": "Robin Fox",
+                "Date": "2026-08-01",
+                "Status": "Public"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$robinAlpha"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$robin"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$robinFirst"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.many-cardinality-drops-a-row-with-no-match.002",
+      "title": "A many join drops an upstream row that matches nothing rather than projecting it half empty",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoins",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "BandMemberAvailability",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "beta.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-01",
+                "Status": "Public"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$caseyBeta"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$casey"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$caseyFirst"
+                }
+              }
+            },
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-02",
+                "Status": "Public"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$caseyBeta"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$casey"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$caseySecond"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.no-join-declared-counts-every-source-row.003",
+      "title": "Four members are in the selected band, which is the row count a join has to be measured against",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoins",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "MemberRoles",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Label": "Casey Alpha",
+                "Role": "BandMember"
+              }
+            },
+            {
+              "values": {
+                "Label": "Ghost Alpha",
+                "Role": "BandMember"
+              }
+            },
+            {
+              "values": {
+                "Label": "Robin Alpha",
+                "Role": "BandMember"
+              }
+            },
+            {
+              "values": {
+                "Label": "Sam Alpha",
+                "Role": "BandMember"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.one-cardinality-is-row-count-neutral-and-drops-non-matches.004",
+      "title": "A one join contributes at most one record per upstream row and drops the row that matches nothing",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoins",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "MemberNames",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Label": "Casey Alpha",
+                "Name": "Casey Morgan"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$caseyAlpha"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$casey"
+                }
+              }
+            },
+            {
+              "values": {
+                "Label": "Robin Alpha",
+                "Name": "Robin Fox"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$robinAlpha"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$robin"
+                }
+              }
+            },
+            {
+              "values": {
+                "Label": "Sam Alpha",
+                "Name": "Sam Blake"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$samAlpha"
+                },
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$sam"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.record-id-join-field-means-the-record-own-id.005",
+      "title": "The join field 'id' means the record's own id on whichever side declares it, so a junction needs no copy of it",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoins",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "BandMemberAvailability",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-01"
+              },
+              "sources": {
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$casey"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$caseyFirst"
+                }
+              }
+            },
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-02"
+              },
+              "sources": {
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$casey"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$caseySecond"
+                }
+              }
+            },
+            {
+              "values": {
+                "Name": "Robin Fox",
+                "Date": "2026-08-01"
+              },
+              "sources": {
+                "user": {
+                  "objectName": "User",
+                  "recordId": "$robin"
+                },
+                "availability": {
+                  "objectName": "Availability",
+                  "recordId": "$robinFirst"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.a-joined-record-the-caller-may-not-read-looks-like-no-match.006",
+      "title": "A joined record the caller may not read is dropped exactly as an absent one is, disclosing nothing",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoins",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "BandMemberAvailability",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-01",
+                "Status": "Public"
+              }
+            },
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-02",
+                "Status": "Public"
+              }
+            },
+            {
+              "values": {
+                "Name": "Robin Fox",
+                "Date": "2026-08-01",
+                "Status": "Public"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.the-same-records-project-when-read-policy-allows-them.007",
+      "title": "The same record set projects the withheld row once read policy allows it, so the omission was policy and not absence",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoinsPermissiveAvailability",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "BandMemberAvailability",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-01",
+                "Status": "Public"
+              }
+            },
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-02",
+                "Status": "Public"
+              }
+            },
+            {
+              "values": {
+                "Name": "Casey Morgan",
+                "Date": "2026-08-03",
+                "Status": "Private"
+              }
+            },
+            {
+              "values": {
+                "Name": "Robin Fox",
+                "Date": "2026-08-01",
+                "Status": "Public"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.many-cardinality-requires-search-on-the-joined-object.008",
+      "title": "A many join is refused when the caller may not search the joined object, because the join enumerates it",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoinsUnsearchableAvailability",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "BandMemberAvailability",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "read-model.join.one-cardinality-requires-search-on-the-joined-object.009",
+      "title": "A one join is refused on the same grounds, because the predicate enumerates the joined object either way",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoinsUnsearchableUser",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "MemberNames",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "read-model.join.an-undeclared-source-keeps-the-lookup-join.010",
+      "title": "A source declaring no join still follows a loaded record's lookup field and reads one record by id",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoins",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "MemberBands",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Label": "Casey Alpha",
+                "BandName": "The Alphas"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$caseyAlpha"
+                },
+                "band": {
+                  "objectName": "Band",
+                  "recordId": "$alpha"
+                }
+              }
+            },
+            {
+              "values": {
+                "Label": "Ghost Alpha",
+                "BandName": "The Alphas"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$ghostAlpha"
+                },
+                "band": {
+                  "objectName": "Band",
+                  "recordId": "$alpha"
+                }
+              }
+            },
+            {
+              "values": {
+                "Label": "Robin Alpha",
+                "BandName": "The Alphas"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$robinAlpha"
+                },
+                "band": {
+                  "objectName": "Band",
+                  "recordId": "$alpha"
+                }
+              }
+            },
+            {
+              "values": {
+                "Label": "Sam Alpha",
+                "BandName": "The Alphas"
+              },
+              "sources": {
+                "member": {
+                  "objectName": "BandMember",
+                  "recordId": "$samAlpha"
+                },
+                "band": {
+                  "objectName": "Band",
+                  "recordId": "$alpha"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.an-undeclared-source-needs-only-read.011",
+      "title": "An undeclared lookup source still projects for a caller who may not search that object, because it reads one known id",
+      "specRef": "resolved-model#read-models",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoinsUnsearchableBand",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "sam",
+          "objectName": "User",
+          "values": {
+            "Name": "Sam Blake"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghost",
+          "objectName": "User",
+          "values": {
+            "Name": "Ghost Grey"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylor",
+          "objectName": "User",
+          "values": {
+            "Name": "Taylor Reed"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Alpha",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Ghost Alpha",
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Robin Alpha",
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "samAlpha",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Sam Alpha",
+            "User": {
+              "$ref": "sam.meta.guid"
+            },
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Casey Beta",
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "taylorBeta",
+          "objectName": "BandMember",
+          "values": {
+            "Label": "Taylor Beta",
+            "User": {
+              "$ref": "taylor.meta.guid"
+            },
+            "Band": {
+              "$ref": "beta.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "beta.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseySecond",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-02",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyPrivate",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Date": "2026-08-03",
+            "Status": "Private"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robinFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "robin.meta.guid"
+            },
+            "Date": "2026-08-01",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ghostFirst",
+          "objectName": "Availability",
+          "values": {
+            "User": {
+              "$ref": "ghost.meta.guid"
+            },
+            "Date": "2026-08-04",
+            "Status": "Public"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "User",
+          "id": {
+            "$ref": "ghost.meta.guid"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "MemberBands",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Band": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Label": "Casey Alpha",
+                "BandName": "The Alphas"
+              }
+            },
+            {
+              "values": {
+                "Label": "Ghost Alpha",
+                "BandName": "The Alphas"
+              }
+            },
+            {
+              "values": {
+                "Label": "Robin Alpha",
+                "BandName": "The Alphas"
+              }
+            },
+            {
+              "values": {
+                "Label": "Sam Alpha",
+                "BandName": "The Alphas"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

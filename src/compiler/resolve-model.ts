@@ -35,6 +35,7 @@ import type {
   PartialCommandModel,
   PartialCommandPreconditionModel,
   PartialCommandStepModel,
+  PartialContextGrantModel,
   PartialContextMembershipModel,
   PartialContextSelectionPolicyModel,
   PartialDecisionTableInputModel,
@@ -103,6 +104,7 @@ import type {
   ResolvedCommandPrecondition,
   ResolvedCommandStep,
   ResolvedComputedField,
+  ResolvedContextGrant,
   ResolvedContextMembership,
   ResolvedContextSelectionPolicy,
   ResolvedDecisionTable,
@@ -310,7 +312,19 @@ function resolveShell(
     topBar: {
       contextSelector: input?.topBar?.contextSelector ?? "topBar",
       mobileContextSelector: input?.topBar?.mobileContextSelector ?? "sheet",
-      controls: [...(input?.topBar?.controls ?? controls.map((control) => control.name))],
+      controls: [
+        ...(input?.topBar?.controls ??
+          controls.filter((control) => control.placement === "topBar").map((c) => c.name)),
+      ],
+    },
+    navDrawer: {
+      ...(input?.navDrawer?.title === undefined ? {} : { title: input.navDrawer.title }),
+      // Defaulting to the controls that asked for the drawer keeps a declared
+      // placement meaningful without a second declaration repeating it.
+      controls: [
+        ...(input?.navDrawer?.controls ??
+          controls.filter((control) => control.placement === "navDrawer").map((c) => c.name)),
+      ],
     },
     controls,
   };
@@ -388,6 +402,17 @@ function resolveBusinessContext(input: PartialBusinessContextModel): ResolvedBus
     ...(input.membership === undefined
       ? {}
       : { membership: resolveContextMembership(input.membership) }),
+    grants: (input.grants ?? []).map(resolveContextGrant),
+  };
+}
+
+function resolveContextGrant(input: PartialContextGrantModel): ResolvedContextGrant {
+  return {
+    name: input.name,
+    object: input.object,
+    userField: input.userField,
+    contextField: input.contextField,
+    ...(input.condition === undefined ? {} : { condition: resolveExpression(input.condition) }),
   };
 }
 
@@ -539,6 +564,10 @@ function resolveObjectConstraint(input: PartialObjectConstraintModel): ResolvedO
       positionField: input.positionField,
       scopeFields: [...(input.scopeFields ?? [])],
       minPosition: input.minPosition ?? 1,
+      // Both default to the behaviour that already shipped, so an existing
+      // ordered collection keeps refusing duplicates and keeps its gaps.
+      reorder: input.reorder ?? "strict",
+      compaction: input.compaction ?? "none",
     };
   }
 
@@ -1337,6 +1366,18 @@ function resolveReadModelSource(
     name: input.name ?? input.object,
     object: input.object,
     scope: input.scope ?? defaultScope,
+    ...(input.join === undefined
+      ? {}
+      : {
+          join: {
+            source: input.join.source,
+            localField: input.join.localField,
+            sourceField: input.join.sourceField,
+            // `one` keeps a declared join row-count-neutral, matching what the
+            // implicit lookup join always did; fanning out is opt-in.
+            cardinality: input.join.cardinality ?? "one",
+          },
+        }),
   };
 }
 
@@ -1460,6 +1501,12 @@ function resolveCommandInput(input: PartialCommandInputModel): ResolvedCommandIn
     type: input.type ?? "text",
     required: input.required ?? true,
     ...(input.defaultValue === undefined ? {} : { defaultValue: input.defaultValue }),
+    repeated: input.repeated ?? false,
+    itemFields: (input.itemFields ?? []).map((field) => ({
+      name: field.name,
+      type: field.type ?? "text",
+      required: field.required ?? true,
+    })),
   };
 }
 
@@ -1473,6 +1520,7 @@ function resolveCommandStep(input: PartialCommandStepModel): ResolvedCommandStep
       recordId: cloneCommandValueExpression(input.recordId),
       patch: cloneCommandValueExpressionMap(input.patch ?? {}),
       preconditions: (input.preconditions ?? []).map(resolveExpression),
+      ...(input.forEach === undefined ? {} : { forEach: input.forEach }),
     };
   }
 
@@ -1483,6 +1531,10 @@ function resolveCommandStep(input: PartialCommandStepModel): ResolvedCommandStep
     authority: input.authority ?? "caller",
     values: cloneCommandValueExpressionMap(input.values ?? {}),
     preconditions: (input.preconditions ?? []).map(resolveExpression),
+    ...(input.forEach === undefined ? {} : { forEach: input.forEach }),
+    ...(input.establishesContext === undefined
+      ? {}
+      : { establishesContext: input.establishesContext }),
   };
 }
 
@@ -1681,6 +1733,14 @@ function resolvePrincipal(
     groupRoles: [...(input?.groupRoles ?? defaults.groupRoles)],
     users: [...(input?.users ?? defaults.users)],
     owner: input?.owner ?? defaults.owner,
+    ...(input?.contextMember === undefined
+      ? {}
+      : {
+          contextMember: {
+            context: input.contextMember.context,
+            field: input.contextMember.field,
+          },
+        }),
   };
 }
 

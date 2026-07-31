@@ -2,6 +2,7 @@ import type {
   JsonValue,
   PolicyEffect,
   ResolvedApplicationModel,
+  ResolvedContextMemberPrincipal,
   ResolvedPolicy,
   ResolvedPolicyRule,
   StoredObjectRecord,
@@ -244,7 +245,37 @@ export class PolicyEngine {
           principal.groupRoles.some((role) => this.contextHasGroupRole(context, role)) ||
           (principal.owner && isOwner(record, context.userId))
         );
+      case "contextMember":
+        return this.recordBelongsToContextMember(principal.contextMember, record, context);
     }
+  }
+
+  /**
+   * Matches when the record's named field holds a user the caller shares a
+   * context instance with.
+   *
+   * Everything it needs is already resolved onto the context; nothing is looked
+   * up here, so the decision stays synchronous like every other principal. A
+   * missing roster is treated as "no co-members" rather than "unknown", so a
+   * caller whose membership could not be resolved is denied instead of
+   * admitted.
+   */
+  private recordBelongsToContextMember(
+    principal: ResolvedContextMemberPrincipal | undefined,
+    record: StoredObjectRecord | undefined,
+    context: RuntimeContext,
+  ): boolean {
+    if (principal === undefined || record === undefined) {
+      return false;
+    }
+
+    const members = context.contextMembers?.[principal.context];
+    if (members === undefined || members.length === 0) {
+      return false;
+    }
+
+    const owner = record.values[principal.field];
+    return typeof owner === "string" && owner.length > 0 && members.includes(owner);
   }
 
   private contextHasGlobalRole(context: RuntimeContext, role: string): boolean {

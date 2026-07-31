@@ -63,60 +63,52 @@ export class CommandService {
     const values = this.prepareInput(command, input);
     this.requireCommandPreconditions(command, values, context);
     const plannedWrites: PlannedObjectWrite[] = [];
+    // Parallel to `plannedWrites`: an iterating step contributes several writes,
+    // so the committed records can no longer be matched to steps by index.
+    const writeSteps: string[] = [];
     const stepRecords = new Map<string, StoredObjectRecord>();
+    // Grows as steps establish contexts, so a later step writing into a context
+    // an earlier step just created passes the scope gate. It is discarded with
+    // this call; nothing outside the transaction ever sees it.
+    let stepContext = context;
 
     for (const step of command.steps) {
-      if (step.action === "update") {
-        const recordId = this.evaluateRecordIdExpression(
-          step.recordId,
-          values,
-          stepRecords,
-          context,
-        );
-        const existing = await this.objectStore.getRecordForRuntime(step.object, recordId);
-        if (existing === null) {
-          throw new StorageError(
-            `Command '${command.name}' step '${step.name}' could not find '${step.object}' record '${recordId}'.`,
-            { commandName: command.name, step: step.name, objectName: step.object, recordId },
+      for (const frame of this.iterationFrames(command, step, values)) {
+        const write = await this.planStepWrite(command, step, values, frame, stepRecords, {
+          callerContext: context,
+          stepContext,
+        });
+        plannedWrites.push(write);
+        writeSteps.push(step.name);
+        // An iterating step produces many records, so binding its name to the
+        // last one would silently mislead a later `STEP x FIELD y` reference.
+        // Validation refuses those references; not recording the binding is
+        // what makes that refusal true at runtime rather than merely declared.
+        if (frame === undefined) {
+          stepRecords.set(step.name, cloneJson(write.record));
+        }
+
+        if (step.action === "create" && step.establishesContext !== undefined) {
+          stepContext = withEstablishedContext(
+            stepContext,
+            step.establishesContext,
+            write.record.meta.guid,
           );
         }
-        this.requireStepPreconditions(command, step, existing.values, context);
-        const patch = this.evaluateExpressionMap(step.patch, values, stepRecords, context);
-        const write = await this.objectStore.planUpdateForTransaction(
-          step.object,
-          recordId,
-          patch,
-          context,
-          step.authority,
-        );
-        plannedWrites.push(write);
-        stepRecords.set(step.name, cloneJson(write.record));
-        continue;
       }
-
-      const recordValues = this.evaluateExpressionMap(step.values, values, stepRecords, context);
-      this.requireStepPreconditions(command, step, recordValues, context);
-      const write = await this.objectStore.planCreateForTransaction(
-        step.object,
-        recordValues,
-        context,
-        step.authority,
-      );
-      plannedWrites.push(write);
-      stepRecords.set(step.name, cloneJson(write.record));
     }
 
     const committed = await this.objectStore.commitPlannedTransaction(plannedWrites, context, {
       command: {
         name: command.name,
         ...(command.label === undefined ? {} : { label: command.label }),
-        steps: command.steps.map((step) => step.name),
+        steps: [...writeSteps],
       },
     });
     const result: RuntimeCommandResult = {
       command,
       steps: committed.map((record, index) => ({
-        step: command.steps[index]?.name ?? `step${index + 1}`,
+        step: writeSteps[index] ?? `step${index + 1}`,
         objectName: record.meta.object,
         recordId: record.meta.guid,
         record,
@@ -127,6 +119,98 @@ export class CommandService {
       count: result.steps.length,
     });
     return result;
+  }
+
+  /**
+   * One frame per write the step will plan.
+   *
+   * A non-iterating step yields a single `undefined` frame, which keeps the
+   * ordinary path free of any list concept rather than making every step
+   * pretend to be a list of one.
+   */
+  private iterationFrames(
+    command: ResolvedCommand,
+    step: ResolvedCommandStep,
+    values: Record<string, JsonValue>,
+  ): (CommandIterationFrame | undefined)[] {
+    if (step.forEach === undefined) {
+      return [undefined];
+    }
+
+    const list = values[step.forEach];
+    if (!Array.isArray(list)) {
+      throw new RuntimeValidationError(
+        `Command '${command.name}' step '${step.name}' expects input '${step.forEach}' to be a list.`,
+        [
+          {
+            code: "ADL_RUNTIME_COMMAND_INPUT_NOT_A_LIST",
+            message: `Command '${command.name}' input '${step.forEach}' must be a list to iterate.`,
+            path: `input.${step.forEach}`,
+            field: step.forEach,
+          },
+        ],
+      );
+    }
+
+    return list.map((item, index) => ({ item, index }));
+  }
+
+  private async planStepWrite(
+    command: ResolvedCommand,
+    step: ResolvedCommandStep,
+    values: Record<string, JsonValue>,
+    frame: CommandIterationFrame | undefined,
+    stepRecords: Map<string, StoredObjectRecord>,
+    contexts: { callerContext: RuntimeContext; stepContext: RuntimeContext },
+  ): Promise<PlannedObjectWrite> {
+    const { callerContext, stepContext } = contexts;
+
+    if (step.action === "update") {
+      const recordId = this.evaluateRecordIdExpression(
+        step.recordId,
+        values,
+        stepRecords,
+        callerContext,
+        frame,
+      );
+      const existing = await this.objectStore.getRecordForRuntime(step.object, recordId);
+      if (existing === null) {
+        throw new StorageError(
+          `Command '${command.name}' step '${step.name}' could not find '${step.object}' record '${recordId}'.`,
+          { commandName: command.name, step: step.name, objectName: step.object, recordId },
+        );
+      }
+      this.requireStepPreconditions(command, step, existing.values, callerContext);
+      const patch = this.evaluateExpressionMap(
+        step.patch,
+        values,
+        stepRecords,
+        callerContext,
+        frame,
+      );
+      return this.objectStore.planUpdateForTransaction(
+        step.object,
+        recordId,
+        patch,
+        stepContext,
+        step.authority,
+      );
+    }
+
+    const recordValues = this.evaluateExpressionMap(
+      step.values,
+      values,
+      stepRecords,
+      callerContext,
+      frame,
+    );
+    this.requireStepPreconditions(command, step, recordValues, callerContext);
+    return this.objectStore.planCreateForTransaction(
+      step.object,
+      recordValues,
+      stepContext,
+      step.authority,
+    );
   }
 
   private prepareInput(
@@ -151,7 +235,9 @@ export class CommandService {
         continue;
       }
 
-      if (!isValueCompatible(commandInput.type, value)) {
+      if (commandInput.repeated) {
+        issues.push(...repeatedInputIssues(command, commandInput, value));
+      } else if (!isValueCompatible(commandInput.type, value)) {
         issues.push(commandInputTypeIssue(command, commandInput, value));
         continue;
       }
@@ -237,11 +323,12 @@ export class CommandService {
     input: Record<string, JsonValue>,
     stepRecords: Map<string, StoredObjectRecord>,
     context: RuntimeContext,
+    frame: CommandIterationFrame | undefined,
   ): Record<string, JsonValue> {
     return Object.fromEntries(
       Object.entries(expressions).map(([field, expression]) => [
         field,
-        this.evaluateExpression(expression, input, stepRecords, context),
+        this.evaluateExpression(expression, input, stepRecords, context, frame),
       ]),
     );
   }
@@ -251,8 +338,9 @@ export class CommandService {
     input: Record<string, JsonValue>,
     stepRecords: Map<string, StoredObjectRecord>,
     context: RuntimeContext,
+    frame: CommandIterationFrame | undefined,
   ): string {
-    const value = this.evaluateExpression(expression, input, stepRecords, context);
+    const value = this.evaluateExpression(expression, input, stepRecords, context, frame);
     if (typeof value !== "string" || value.length === 0) {
       throw new RuntimeValidationError("Command record id expression did not resolve to text.", [
         {
@@ -270,6 +358,7 @@ export class CommandService {
     input: Record<string, JsonValue>,
     stepRecords: Map<string, StoredObjectRecord>,
     context: RuntimeContext,
+    frame: CommandIterationFrame | undefined,
   ): JsonValue {
     switch (expression.kind) {
       case "literal":
@@ -300,8 +389,42 @@ export class CommandService {
         }
         return null;
       }
+      case "item": {
+        if (frame === undefined) {
+          return null;
+        }
+        if (expression.field === undefined) {
+          return cloneJson(frame.item);
+        }
+        return isJsonObject(frame.item) ? cloneJson(frame.item[expression.field] ?? null) : null;
+      }
+      case "itemIndex":
+        return frame?.index ?? null;
     }
   }
+}
+
+/** The item an iterating step is currently planning a write for. */
+interface CommandIterationFrame {
+  item: JsonValue;
+  index: number;
+}
+
+/**
+ * Puts a just-created context instance in reach for the remainder of a command
+ * transaction. It adds a grant, never a role, so the steps that follow still
+ * face every policy rule; what changes is only that the object-scope gate stops
+ * refusing a context that did not exist when the transaction opened.
+ */
+function withEstablishedContext(
+  context: RuntimeContext,
+  contextName: string,
+  contextId: string,
+): RuntimeContext {
+  return {
+    ...context,
+    contextGrants: [...(context.contextGrants ?? []), { context: contextName, contextId }],
+  };
 }
 
 function commandInputTypeIssue(
@@ -332,6 +455,83 @@ function commandPreconditionDecision(
       },
     ],
   };
+}
+
+/**
+ * Checks a repeated input item by item.
+ *
+ * Every item is reported rather than only the first, because a fifty-song
+ * import that fails one row at a time is fifty round trips to discover what a
+ * single reply could have said.
+ */
+function repeatedInputIssues(
+  command: ResolvedCommand,
+  input: ResolvedCommandInput,
+  value: JsonValue,
+): RuntimeValidationIssue[] {
+  if (!Array.isArray(value)) {
+    return [
+      {
+        code: "ADL_RUNTIME_COMMAND_INPUT_NOT_A_LIST",
+        message: `Command '${command.name}' input '${input.name}' expects a list.`,
+        path: `input.${input.name}`,
+        field: input.name,
+      },
+    ];
+  }
+
+  const issues: RuntimeValidationIssue[] = [];
+  value.forEach((item, index) => {
+    const path = `input.${input.name}[${index}]`;
+
+    if (input.itemFields.length === 0) {
+      if (!isValueCompatible(input.type, item)) {
+        issues.push({
+          code: "ADL_RUNTIME_COMMAND_INPUT_TYPE",
+          message: `Command '${command.name}' input '${input.name}' expects ${input.type} items.`,
+          path,
+          field: input.name,
+        });
+      }
+      return;
+    }
+
+    if (!isJsonObject(item)) {
+      issues.push({
+        code: "ADL_RUNTIME_COMMAND_INPUT_ITEM_INVALID",
+        message: `Command '${command.name}' input '${input.name}' expects record items.`,
+        path,
+        field: input.name,
+      });
+      return;
+    }
+
+    for (const itemField of input.itemFields) {
+      const fieldValue = item[itemField.name];
+      if (fieldValue === undefined || fieldValue === null) {
+        if (itemField.required) {
+          issues.push({
+            code: "ADL_RUNTIME_COMMAND_INPUT_ITEM_REQUIRED",
+            message: `Command '${command.name}' input '${input.name}' requires item field '${itemField.name}'.`,
+            path: `${path}.${itemField.name}`,
+            field: itemField.name,
+          });
+        }
+        continue;
+      }
+
+      if (!isValueCompatible(itemField.type, fieldValue)) {
+        issues.push({
+          code: "ADL_RUNTIME_COMMAND_INPUT_ITEM_TYPE",
+          message: `Command '${command.name}' input '${input.name}' item field '${itemField.name}' expects a ${itemField.type} value.`,
+          path: `${path}.${itemField.name}`,
+          field: itemField.name,
+        });
+      }
+    }
+  });
+
+  return issues;
 }
 
 function isMissingRequiredValue(value: JsonValue | undefined): boolean {

@@ -765,10 +765,20 @@ async function runAuthorityBootstrapCase(
 ): Promise<ConformanceActual> {
   const fixture = await seedAuthority(conformanceCase, models, state);
   const token = fixture.tokenFor(conformanceCase.input.session);
+  // Resolved like an intent's, so a case can name a context a setup step
+  // created. Without this a `{"$ref": ...}` reached `withSelectedContext`
+  // verbatim, which threw, which the authority's catch-all turned into an empty
+  // page — so a disclosure case would have "passed" by returning nothing for
+  // entirely the wrong reason.
   const selected =
     conformanceCase.input.selectedContexts === undefined
       ? {}
-      : { selectedContexts: conformanceCase.input.selectedContexts };
+      : {
+          selectedContexts: resolveRefs(conformanceCase.input.selectedContexts, state) as Record<
+            string,
+            string
+          >,
+        };
   const records: Array<{ objectName: string; record: StoredObjectRecord }> = [];
   const usedCursors = new Set<string>();
   let cursor: string | undefined;

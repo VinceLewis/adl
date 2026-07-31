@@ -12,6 +12,8 @@ ROLE BandAdmin INHERITS BandMember
 CONTEXT User OBJECT User SELECTION REQUIRED
 CONTEXT Band OBJECT Band SELECTION OPTIONAL AUTO_SELECT false PERSISTENCE local MEMBERSHIP BandMember USER User CONTEXT_FIELD Band ROLE_FIELD Role ROLES BandAdmin BandMember
 
+CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee CONTEXT_FIELD Band WHEN Status == 'Pending'
+
 OBJECT User
   KEY Email
   DISPLAY Name
@@ -32,6 +34,7 @@ OBJECT Band
   FIELD Name TEXT REQUIRED
   FIELD Description TEXT
   FIELD Biography TEXT
+  FIELD CreatedBy TEXT LOOKUP User DISPLAY Name
   SYNC LOCAL_FIRST SCOPE allAvailableContexts
 
   VIEW BandDirectory LIST
@@ -131,6 +134,14 @@ OBJECT Availability
     SORT Date ASC
     ACTIONS create read update delete
   END.VIEW
+
+  VIEW BandMemberAvailabilityBoard DASHBOARD
+    CONTEXT REQUIRED Band
+    READ_MODEL BandMemberAvailability
+    FIELDS Member Role Date Status
+    SORT Date ASC
+    ACTIONS read search
+  END.VIEW
 END.OBJECT
 
 OBJECT Song
@@ -172,7 +183,7 @@ END.OBJECT
 
 OBJECT SetListItem
   SCOPE Band FIELD Band
-  CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position
+  CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position REORDER shift COMPACT onDelete
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
   FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name
   FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
@@ -204,13 +215,13 @@ OBJECT StreamingLink
   FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
   FIELD Platform TEXT REQUIRED IN ('YouTube', 'Spotify', 'Apple Music', 'SoundCloud', 'Bandcamp', 'Other')
   FIELD Url TEXT REQUIRED REGEXP '^https?://'
-  SYNC CACHE_READONLY SCOPE currentContext
+  SYNC LOCAL_FIRST SCOPE currentContext
 
   VIEW StreamingLinkList LIST
     CONTEXT REQUIRED Band
     FIELDS Song Platform Url
     SEARCH Platform Url
-    ACTIONS read search
+    ACTIONS create read update delete
   END.VIEW
 END.OBJECT
 
@@ -290,6 +301,17 @@ READ_MODEL CalendarPlanningItems
   SORT Date ASC StartTime ASC
 END.READ_MODEL
 
+READ_MODEL BandMemberAvailability
+  CONTEXT REQUIRED Band
+  SOURCE member OBJECT BandMember SCOPE currentContext
+  SOURCE availability OBJECT Availability SCOPE all JOIN member ON User == member.User CARDINALITY many
+  FIELD Member FROM member.User
+  FIELD Role FROM member.Role
+  FIELD Date FROM availability.Date
+  FIELD Status FROM availability.Status
+  SORT Date ASC
+END.READ_MODEL
+
 READ_MODEL PendingInvitations
   CONTEXT REQUIRED Band
   SOURCE invitation OBJECT BandInvitation SCOPE currentContext
@@ -314,6 +336,63 @@ COMMAND AcceptBandInvitation LABEL 'Accept invitation'
     VALUE Band STEP acceptInvitation FIELD Band
     VALUE Role STEP acceptInvitation FIELD Role
     VALUE JoinedAt RUNTIME today
+  END.STEP
+END.COMMAND
+
+COMMAND CreateBand LABEL 'Create band'
+  INPUT Name TEXT REQUIRED
+  INPUT Description TEXT OPTIONAL
+  STEP createBand CREATE Band ESTABLISHES CONTEXT Band
+    VALUE Name INPUT Name
+    VALUE Description INPUT Description
+    VALUE CreatedBy RUNTIME userId
+  END.STEP
+
+  STEP createFounderMembership CREATE BandMember AUTHORITY command
+    VALUE User RUNTIME userId
+    VALUE Band STEP createBand META guid
+    VALUE Role LITERAL BandAdmin
+    VALUE JoinedAt RUNTIME today
+  END.STEP
+END.COMMAND
+
+COMMAND ImportSongs LABEL 'Import songs'
+  INPUT Band TEXT REQUIRED
+  INPUT Songs LIST REQUIRED
+    FIELD Title TEXT REQUIRED
+    FIELD Composer TEXT
+    FIELD DurationSeconds NUMBER
+  END.INPUT
+  STEP importSongs CREATE Song FOR EACH Songs
+    VALUE Band INPUT Band
+    VALUE Title ITEM Title
+    VALUE Composer ITEM Composer
+    VALUE DurationSeconds ITEM DurationSeconds
+  END.STEP
+END.COMMAND
+
+COMMAND AddSongsToSetList LABEL 'Add songs to set list'
+  INPUT Band TEXT REQUIRED
+  INPUT SetList TEXT REQUIRED
+  INPUT Items LIST REQUIRED
+    FIELD Song TEXT REQUIRED
+    FIELD Position NUMBER REQUIRED
+  END.INPUT
+  STEP addSetListItems CREATE SetListItem FOR EACH Items
+    VALUE Band INPUT Band
+    VALUE SetList INPUT SetList
+    VALUE Song ITEM Song
+    VALUE Position ITEM Position
+  END.STEP
+END.COMMAND
+
+COMMAND ReorderSetList LABEL 'Reorder set list'
+  INPUT Items LIST REQUIRED
+    FIELD Item TEXT REQUIRED
+    FIELD Position NUMBER REQUIRED
+  END.INPUT
+  STEP moveSetListItems UPDATE SetListItem ID ITEM Item FOR EACH Items
+    VALUE Position ITEM Position
   END.STEP
 END.COMMAND
 
@@ -369,6 +448,8 @@ END.POLICY
 POLICY BandPolicy ON Band
   RULE allowBandMemberSearchBands ALLOW SEARCH ROLE BandMember
   RULE allowBandMemberReadBand ALLOW READ ROLE BandMember
+  RULE allowAuthenticatedCreateOwnBand ALLOW CREATE AUTHENTICATED WHEN CreatedBy == runtime.userId
+  RULE allowBandCreatorReadOwnBand ALLOW READ AUTHENTICATED WHEN CreatedBy == runtime.userId
   RULE allowBandAdminUpdateBand ALLOW UPDATE ROLE BandAdmin
   RULE allowBandAdminDeleteBand ALLOW DELETE ROLE BandAdmin
 END.POLICY
@@ -409,6 +490,7 @@ POLICY AvailabilityPolicy ON Availability
   RULE allowAvailabilityOwnerUpdate ALLOW UPDATE AUTHENTICATED WHEN User == runtime.userId
   RULE allowAvailabilityOwnerDelete ALLOW DELETE AUTHENTICATED WHEN User == runtime.userId
   RULE allowAvailabilityOwnerExport ALLOW EXPORT AUTHENTICATED WHEN User == runtime.userId
+  RULE allowBandMemberReadSharedAvailability ALLOW READ CONTEXT_MEMBER Band FIELD User
 END.POLICY
 
 POLICY SongPolicy ON Song
@@ -438,6 +520,9 @@ END.POLICY
 POLICY StreamingLinkPolicy ON StreamingLink
   RULE allowBandMemberSearchStreamingLinks ALLOW SEARCH ROLE BandMember
   RULE allowBandMemberReadStreamingLinks ALLOW READ ROLE BandMember
+  RULE allowBandAdminCreateStreamingLinks ALLOW CREATE ROLE BandAdmin
+  RULE allowBandAdminUpdateStreamingLinks ALLOW UPDATE ROLE BandAdmin
+  RULE allowBandAdminDeleteStreamingLinks ALLOW DELETE ROLE BandAdmin
 END.POLICY
 
 POLICY DevicePreferencePolicy ON DevicePreference

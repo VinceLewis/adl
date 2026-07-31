@@ -491,6 +491,7 @@ describe("validateApplicationModel", () => {
         roleField: "Role",
         roles: [],
       },
+      grants: [],
     });
 
     gig.scope = { context: "Band", field: "Venue" };
@@ -811,6 +812,382 @@ describe("validateApplicationModel", () => {
         MODEL_VALIDATION_CODES.SHELL_NAV_VIEW_UNKNOWN,
         MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_UNKNOWN,
         MODEL_VALIDATION_CODES.SHELL_VISIBILITY_KIND_INVALID,
+      ]),
+    );
+  });
+
+  it("accepts context grants, ordered reorder, joins, batch commands, and drawer chrome", () => {
+    const resolved = resolveApplicationModel(createPhase56PartialModel());
+
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
+  it("reports invalid business context grant declarations", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const band = invalid.contexts?.find((context) => context.name === "Band");
+    if (band === undefined) {
+      throw new Error("Expected Band context fixture.");
+    }
+
+    band.grants = [
+      {
+        name: "pendingInvitation",
+        object: "BandInvitation",
+        userField: "MissingInvitedUser",
+        contextField: "Status",
+      },
+      {
+        name: "pendingInvitation",
+        object: "BandInvitation",
+        userField: "InvitedUser",
+        contextField: "Band",
+        condition: { kind: "field", field: "Status" },
+      },
+      {
+        name: "missingObject",
+        object: "MissingInvitation",
+        userField: "InvitedUser",
+        contextField: "Band",
+      },
+      {
+        name: "unknownConditionField",
+        object: "BandInvitation",
+        userField: "InvitedUser",
+        contextField: "Band",
+        condition: {
+          kind: "binary",
+          operator: "==",
+          left: { kind: "field", field: "MissingStatus" },
+          right: { kind: "literal", value: "Pending" },
+        },
+      },
+      {
+        name: "unsupportedConditionRuntime",
+        object: "BandInvitation",
+        userField: "InvitedUser",
+        contextField: "Band",
+        condition: { kind: "runtime", property: "roles" as "userId" },
+      },
+      {
+        name: "unsupportedConditionOperator",
+        object: "BandInvitation",
+        userField: "InvitedUser",
+        contextField: "Band",
+        condition: {
+          kind: "unary",
+          operator: "invert" as "not",
+          operand: { kind: "literal", value: true },
+        },
+      },
+    ];
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_RUNTIME_PROPERTY_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_TYPE,
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONTEXT_FIELD_INVALID,
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_DUPLICATE,
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_OBJECT_UNKNOWN,
+      ]),
+    );
+  });
+
+  /*
+   * An unknown context object is already reported against the context. Repeating
+   * it once per grant would blame the grant for a mistake made elsewhere, and
+   * there is no context object to check the grant's context field against.
+   */
+  it("does not cascade a grant context-field diagnostic from an unknown context object", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const band = invalid.contexts?.find((context) => context.name === "Band");
+    if (band === undefined) {
+      throw new Error("Expected Band context fixture.");
+    }
+
+    band.object = "MissingContextObject";
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toContain(MODEL_VALIDATION_CODES.CONTEXT_OBJECT_UNKNOWN);
+    expect(codes).not.toContain(MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONTEXT_FIELD_INVALID);
+  });
+
+  it("reports invalid ordered constraint reorder and compaction behaviour", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const constraint = invalid.objects.find((object) => object.name === "SetListItem")
+      ?.constraints[0];
+    if (constraint === undefined || constraint.kind !== "ordered") {
+      throw new Error("Expected ordered constraint fixture.");
+    }
+
+    (constraint as unknown as { reorder: string }).reorder = "swap";
+    (constraint as unknown as { compaction: string }).compaction = "always";
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_COMPACTION_INVALID,
+        MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_REORDER_INVALID,
+      ]),
+    );
+  });
+
+  it("reports invalid read model source join declarations", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const readModel = invalid.readModels?.find(
+      (candidate) => candidate.name === "BandMemberDirectory",
+    );
+    const member = readModel?.sources[0];
+    const user = readModel?.sources[1];
+    if (readModel === undefined || member === undefined || user === undefined) {
+      throw new Error("Expected read model join fixture.");
+    }
+
+    // The first source has nothing to join onto, and naming a later source asks
+    // the runtime to key on rows it has not read yet.
+    member.join = { source: "user", localField: "id", sourceField: "id", cardinality: "one" };
+    user.join = {
+      source: "user",
+      localField: "MissingLocalField",
+      sourceField: "MissingSourceField",
+      cardinality: "either" as "one",
+    };
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_CARDINALITY_INVALID,
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_PRIMARY_SOURCE_INVALID,
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_SOURCE_UNKNOWN,
+      ]),
+    );
+
+    // A union interleaves independent feeds, so no row exists to join onto.
+    const union = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const unionReadModel = union.readModels?.find(
+      (candidate) => candidate.name === "BandMemberDirectory",
+    );
+    if (unionReadModel === undefined) {
+      throw new Error("Expected read model join fixture.");
+    }
+    unionReadModel.strategy = "union";
+
+    expect(validateApplicationModel(union).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.READ_MODEL_JOIN_STRATEGY_INVALID,
+    );
+  });
+
+  it("reports invalid repeated command input declarations", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const importSongs = invalid.commands?.find((command) => command.name === "ImportSongs");
+    const songs = importSongs?.inputs.find((input) => input.name === "songs");
+    const setList = importSongs?.inputs.find((input) => input.name === "setList");
+    if (songs === undefined || setList === undefined) {
+      throw new Error("Expected batch command fixture.");
+    }
+
+    songs.defaultValue = "Untitled";
+    songs.itemFields.push({ name: "Title", type: "text", required: false });
+    songs.itemFields.push({
+      name: "Duration",
+      type: "duration" as "number",
+      required: false,
+    });
+    setList.itemFields = [{ name: "Title", type: "text", required: false }];
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_ITEM_FIELDS_INVALID,
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_ITEM_FIELD_DUPLICATE,
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_ITEM_FIELD_TYPE_INVALID,
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_REPEATED_DEFAULT_INVALID,
+      ]),
+    );
+  });
+
+  it("reports invalid iterating command step declarations", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const importSongs = invalid.commands?.find((command) => command.name === "ImportSongs");
+    const createItems = importSongs?.steps[0];
+    if (importSongs === undefined || createItems === undefined || createItems.action !== "create") {
+      throw new Error("Expected batch command fixture.");
+    }
+
+    createItems.values.Title = { kind: "item", field: "MissingItemField" };
+    importSongs.steps.push(
+      {
+        name: "iteratesUnknownInput",
+        action: "create",
+        object: "SetListItem",
+        authority: "caller",
+        forEach: "missingInput",
+        values: { Title: { kind: "item", field: "Title" } },
+        preconditions: [],
+      },
+      {
+        name: "iteratesSingleInput",
+        action: "create",
+        object: "SetListItem",
+        authority: "caller",
+        forEach: "setList",
+        values: { SetList: { kind: "input", name: "setList" } },
+        preconditions: [],
+      },
+      {
+        // No forEach, so there is no current item for these to name.
+        name: "readsItemWithoutIterating",
+        action: "create",
+        object: "SetListItem",
+        authority: "caller",
+        values: { Title: { kind: "item" }, Position: { kind: "itemIndex" } },
+        preconditions: [],
+      },
+      {
+        // createItems writes one record per song, so "its guid" names a set.
+        name: "referencesIteratingStep",
+        action: "create",
+        object: "SetListItem",
+        authority: "caller",
+        values: {
+          SetList: { kind: "stepMeta", step: "createItems", property: "guid" },
+          Title: { kind: "stepField", step: "createItems", field: "Title" },
+        },
+        preconditions: [],
+      },
+    );
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.COMMAND_STEP_FOR_EACH_NOT_REPEATED,
+        MODEL_VALIDATION_CODES.COMMAND_STEP_FOR_EACH_UNKNOWN,
+        MODEL_VALIDATION_CODES.COMMAND_STEP_ITEM_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.COMMAND_STEP_ITEM_OUTSIDE_FOR_EACH,
+        MODEL_VALIDATION_CODES.COMMAND_STEP_ITERATING_REFERENCE,
+      ]),
+    );
+  });
+
+  it("reports an item field read against a list of scalars", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const importSongs = invalid.commands?.find((command) => command.name === "ImportSongs");
+    const songs = importSongs?.inputs.find((input) => input.name === "songs");
+    const createItems = importSongs?.steps[0];
+    if (songs === undefined || createItems === undefined || createItems.action !== "create") {
+      throw new Error("Expected batch command fixture.");
+    }
+
+    songs.itemFields = [];
+
+    expect(validateApplicationModel(invalid).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_ITEM_FIELD_UNKNOWN,
+    );
+    expect(createItems.values.Title).toEqual({ kind: "item", field: "Title" });
+  });
+
+  it("reports invalid established-context command step declarations", () => {
+    const unknown = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const unknownStep = unknown.commands?.find((command) => command.name === "CreateBand")
+      ?.steps[0];
+    if (unknownStep === undefined || unknownStep.action !== "create") {
+      throw new Error("Expected create-band fixture.");
+    }
+    unknownStep.establishesContext = "MissingContext";
+
+    expect(validateApplicationModel(unknown).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_CONTEXT_UNKNOWN,
+    );
+
+    const mismatched = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const mismatchedStep = mismatched.commands?.find((command) => command.name === "CreateBand")
+      ?.steps[0];
+    if (mismatchedStep === undefined || mismatchedStep.action !== "create") {
+      throw new Error("Expected create-band fixture.");
+    }
+    mismatchedStep.object = "Song";
+    mismatchedStep.values = { Title: { kind: "input", name: "name" } };
+
+    expect(validateApplicationModel(mismatched).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_CONTEXT_OBJECT_MISMATCH,
+    );
+  });
+
+  it("reports invalid context member policy principals", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const visibility = invalid.policies.find((policy) => policy.name === "BandMemberVisibility");
+    const rule = visibility?.rules[0];
+    const ownerRule = invalid.policies
+      .find((policy) => policy.name === "SongVisibility")
+      ?.rules.find((candidate) => candidate.name === "allowEveryoneRead");
+    if (visibility === undefined || rule === undefined || ownerRule === undefined) {
+      throw new Error("Expected context member policy fixture.");
+    }
+
+    rule.principal.contextMember = { context: "MissingContext", field: "MissingUserField" };
+    visibility.rules.push(
+      {
+        ...cloneResolved(rule),
+        name: "allowMembersOfContextWithoutRoster",
+        principal: {
+          match: "contextMember",
+          roles: [],
+          groupRoles: [],
+          users: [],
+          owner: false,
+          contextMember: { context: "Solo", field: "User" },
+        },
+      },
+      {
+        ...cloneResolved(rule),
+        name: "matchesContextMembersWithoutSelector",
+        principal: {
+          match: "contextMember",
+          roles: [],
+          groupRoles: [],
+          users: [],
+          owner: false,
+        },
+      },
+    );
+    ownerRule.principal.contextMember = { context: "Band", field: "Title" };
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBERSHIP_MISSING,
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBER_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING,
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED,
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_UNKNOWN,
+      ]),
+    );
+  });
+
+  it("reports shell controls listed in a region they are not placed in", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+
+    invalid.shell.navDrawer.controls.push("contextSelector", "missingDrawerControl");
+    invalid.shell.topBar.controls.push("themeSwitch");
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.SHELL_NAV_DRAWER_CONTROL_PLACEMENT_MISMATCH,
+        MODEL_VALIDATION_CODES.SHELL_NAV_DRAWER_CONTROL_UNKNOWN,
+        MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_PLACEMENT_MISMATCH,
       ]),
     );
   });
@@ -1183,6 +1560,242 @@ function createPresentationMatrixPartialModel(): PartialApplicationModel {
           { name: "User", type: "text" },
           { name: "Date", type: "date" },
           { name: "Status", type: "text" },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * One model that declares every Phase 56 addition at once: a context grant that
+ * is not membership, an ordered collection that reorders and compacts, a
+ * read-model source joined explicitly through a junction object, a batch command
+ * that iterates a repeated input, a command that establishes the context it
+ * creates, a co-member principal, and a navigation drawer with its own controls.
+ */
+function createPhase56PartialModel(): PartialApplicationModel {
+  return {
+    app: { name: "GrantOps", startView: "GigList" },
+    roles: [{ name: "BandAdmin" }, { name: "BandMember" }],
+    shell: {
+      controls: [
+        { name: "contextSelector", kind: "contextSelector", placement: "topBar" },
+        { name: "themeSwitch", kind: "themeSwitch", placement: "navDrawer" },
+      ],
+      topBar: { controls: ["contextSelector"] },
+      navDrawer: { title: "Menu", controls: ["themeSwitch"] },
+    },
+    contexts: [
+      {
+        name: "Band",
+        object: "Band",
+        selection: { mode: "optional" },
+        membership: {
+          object: "BandMember",
+          userField: "User",
+          contextField: "Band",
+          roleField: "Role",
+          roles: ["BandAdmin", "BandMember"],
+        },
+        grants: [
+          {
+            name: "pendingInvitation",
+            object: "BandInvitation",
+            userField: "InvitedUser",
+            contextField: "Band",
+            condition: {
+              kind: "binary",
+              operator: "==",
+              left: { kind: "field", field: "Status" },
+              right: { kind: "literal", value: "Pending" },
+            },
+          },
+        ],
+      },
+      { name: "Solo", object: "User", selection: { mode: "optional" } },
+    ],
+    objects: [
+      {
+        name: "User",
+        displayField: "Name",
+        fields: [{ name: "Name", type: "text", required: true }],
+      },
+      {
+        name: "Band",
+        displayField: "Name",
+        fields: [{ name: "Name", type: "text", required: true }],
+      },
+      {
+        name: "BandMember",
+        scope: { context: "Band", field: "Band" },
+        fields: [
+          {
+            name: "User",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "User", displayField: "Name" },
+          },
+          {
+            name: "Band",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "Band", displayField: "Name" },
+          },
+          { name: "Role", type: "text", required: true },
+        ],
+      },
+      {
+        name: "BandInvitation",
+        scope: { context: "Band", field: "Band" },
+        fields: [
+          {
+            name: "InvitedUser",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "User", displayField: "Name" },
+          },
+          {
+            name: "Band",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "Band", displayField: "Name" },
+          },
+          { name: "Status", type: "text", required: true },
+        ],
+      },
+      {
+        name: "Song",
+        displayField: "Title",
+        fields: [{ name: "Title", type: "text", required: true }],
+      },
+      {
+        name: "SetListItem",
+        displayField: "Title",
+        constraints: [
+          {
+            name: "SetListOrder",
+            kind: "ordered",
+            parentField: "SetList",
+            positionField: "Position",
+            reorder: "shift",
+            compaction: "onDelete",
+          },
+        ],
+        fields: [
+          { name: "SetList", type: "text", required: true },
+          { name: "Position", type: "number", required: true },
+          { name: "Title", type: "text", required: true },
+        ],
+      },
+      {
+        name: "Gig",
+        displayField: "Venue",
+        scope: { context: "Band", field: "Band" },
+        fields: [
+          {
+            name: "Band",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "Band", displayField: "Name" },
+          },
+          { name: "Venue", type: "text", required: true },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "BandMemberVisibility",
+        object: "BandMember",
+        rules: [
+          {
+            name: "allowCoMemberRead",
+            effect: "allow",
+            action: "read",
+            principal: {
+              match: "contextMember",
+              contextMember: { context: "Band", field: "User" },
+            },
+          },
+        ],
+      },
+      {
+        name: "SongVisibility",
+        object: "Song",
+        rules: [{ name: "allowEveryoneRead", effect: "allow", action: "read" }],
+      },
+    ],
+    readModels: [
+      {
+        name: "BandMemberDirectory",
+        context: { mode: "required", context: "Band" },
+        strategy: "join",
+        sources: [
+          { name: "member", object: "BandMember", scope: "currentContext" },
+          {
+            name: "user",
+            object: "User",
+            scope: "all",
+            // The junction record points at the user, so the hop keys the user's
+            // own id against the field naming it.
+            join: { source: "member", localField: "id", sourceField: "User", cardinality: "one" },
+          },
+        ],
+        fields: [
+          { name: "MemberRole", source: "member", field: "Role", type: "text" },
+          { name: "UserName", source: "user", field: "Name", type: "text" },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "ImportSongs",
+        inputs: [
+          {
+            name: "songs",
+            type: "text",
+            repeated: true,
+            itemFields: [
+              { name: "Title", type: "text" },
+              { name: "Artist", type: "text" },
+            ],
+          },
+          { name: "setList", type: "text", required: true },
+        ],
+        steps: [
+          {
+            name: "createItems",
+            action: "create",
+            object: "SetListItem",
+            forEach: "songs",
+            values: {
+              SetList: { kind: "input", name: "setList" },
+              Title: { kind: "item", field: "Title" },
+              Position: { kind: "itemIndex" },
+            },
+          },
+        ],
+      },
+      {
+        name: "CreateBand",
+        inputs: [{ name: "name", type: "text", required: true }],
+        steps: [
+          {
+            name: "createBand",
+            action: "create",
+            object: "Band",
+            establishesContext: "Band",
+            values: { Name: { kind: "input", name: "name" } },
+          },
+          {
+            name: "createMembership",
+            action: "create",
+            object: "BandMember",
+            values: {
+              Band: { kind: "stepMeta", step: "createBand", property: "guid" },
+              User: { kind: "runtime", property: "userId" },
+              Role: { kind: "literal", value: "BandAdmin" },
+            },
+          },
         ],
       },
     ],

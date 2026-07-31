@@ -172,6 +172,41 @@ test.describe("Giggle Band visual smoke", () => {
   });
 });
 
+/**
+ * The drawer with its declared chrome open.
+ *
+ * Every other spec opens the drawer only to click through it and asserts it has
+ * closed again, so the region itself was never captured. `ui.adl` now declares a
+ * `NAV_DRAWER` title and a drawer-placed control, and a control placed there
+ * used to parse, resolve and validate and then render nowhere at all — exactly
+ * the kind of thing a screenshot catches and a unit test does not.
+ */
+test("captures the navigation drawer and its declared chrome", async ({ page }, testInfo) => {
+  await openGiggleApp(page);
+  await selectBandContext(page);
+
+  const menuButton = page.locator("button[data-shell-menu='true']");
+  await expect(menuButton).toBeVisible();
+  await menuButton.click();
+
+  const drawer = page.locator(".adl-nav-drawer");
+  await expect(drawer).toHaveClass(/active/);
+  // The declared title, not the application name it falls back to.
+  await expect(drawer.locator("[data-shell-drawer-title]")).toHaveText("Giggle Band");
+  await expect(drawer.locator("[data-shell-drawer-tools]")).toBeVisible();
+  // Declared in `ui.adl` with `PLACEMENT navDrawer`, so it belongs here and
+  // nowhere else.
+  await expect(page.locator(".adl-topbar-tools")).not.toContainText("Sign out");
+  await expect(drawer.locator("[data-nav-item='BandMemberAvailabilityBoard']")).toBeVisible();
+
+  await page.screenshot({
+    path: testInfo.outputPath(`giggle-${testInfo.project.name}-nav-drawer.png`),
+    fullPage: false,
+  });
+
+  await expectNoDocumentHorizontalOverflow(page);
+});
+
 async function openGiggleApp(page: Page): Promise<void> {
   await page.goto("/?demo=giggle-band");
   await page.locator("adl-app").waitFor({ state: "attached" });

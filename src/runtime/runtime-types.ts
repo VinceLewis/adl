@@ -20,6 +20,21 @@ export interface RuntimeContext {
   roles: string[];
   selectedContexts?: Record<string, string>;
   contextRoles?: RuntimeContextRole[];
+  /**
+   * Context instances this caller can reach without being a member of them,
+   * from a declared `ResolvedContextGrant` or from a context a command just
+   * created. They widen the object-scope gate and nothing else: role matching
+   * never reads this, so a grant-holder meets only the rules written for a
+   * non-member.
+   */
+  contextGrants?: RuntimeContextGrant[];
+  /**
+   * Co-members of the caller's reachable context instances, keyed by context
+   * name, resolved from accepted membership records. Only populated when the
+   * model declares a `contextMember` principal that needs it; absent means such
+   * a principal cannot match, which is the fail-closed direction.
+   */
+  contextMembers?: Record<string, string[]>;
   groups?: Record<string, string[]>;
   now?: Date;
   channel: RuntimeChannel;
@@ -34,12 +49,26 @@ export interface RuntimeContextRole {
   membershipRecordId?: string;
 }
 
+export interface RuntimeContextGrant {
+  context: string;
+  contextId: string;
+  /** The declared grant that produced this, or `undefined` for one a command established. */
+  grant?: string;
+  grantRecordId?: string;
+}
+
 export interface RuntimeAvailableContext {
   context: string;
   id: string;
   label: string;
   roles: string[];
   roleEntries: RuntimeContextRole[];
+  /**
+   * Grants that made this instance reachable. A context available only through
+   * a grant has empty `roles`, which is how a caller and a renderer can tell
+   * "invited" apart from "joined".
+   */
+  grantEntries: RuntimeContextGrant[];
 }
 
 export interface RuntimeLogger {
@@ -308,6 +337,15 @@ export function safeContextLog(context: RuntimeContext): Record<string, unknown>
             context: role.context,
             contextId: role.contextId,
             role: role.role,
+          })),
+        }),
+    ...(context.contextGrants === undefined
+      ? {}
+      : {
+          contextGrants: context.contextGrants.map((grant) => ({
+            context: grant.context,
+            contextId: grant.contextId,
+            ...(grant.grant === undefined ? {} : { grant: grant.grant }),
           })),
         }),
     channel: context.channel,

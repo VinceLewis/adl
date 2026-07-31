@@ -10,7 +10,7 @@ import {
   seedBandReferenceRuntimeIfEmpty,
 } from "./demo-fixture.js";
 import { readBrowserAuthorityConfiguration } from "./authority-sync.js";
-import { IndexedDbSessionIdentityStorage } from "./offline-session.js";
+import { IndexedDbSessionIdentityStorage, SIGNED_OUT_IDENTITY } from "./offline-session.js";
 import { connectAuthority } from "./session-startup.js";
 import type { BrowserAuthorityConfiguration } from "./authority-sync.js";
 import { registerAdlServiceWorker } from "./register-service-worker.js";
@@ -37,12 +37,11 @@ async function mountDemo(): Promise<void> {
     const runtime = createDemoRuntime(model, GIGGLE_BAND_EXAMPLE_DATABASE_NAME, authority, () =>
       createPersistentGiggleBandExampleRuntime(model),
     );
-    const seeded = await seedBandReferenceRuntimeIfEmpty(runtime);
 
     document.title = model.app.name;
     app.model = model;
     app.runtime = runtime;
-    app.context = seeded.musicianContext;
+    app.context = await startingContext(runtime, authority);
     await connectAuthority(
       app,
       runtime,
@@ -54,12 +53,11 @@ async function mountDemo(): Promise<void> {
     const runtime = createDemoRuntime(model, BAND_REFERENCE_DATABASE_NAME, authority, () =>
       createPersistentBandReferenceRuntime(model),
     );
-    const seeded = await seedBandReferenceRuntimeIfEmpty(runtime);
 
     document.title = model.app.name;
     app.model = model;
     app.runtime = runtime;
-    app.context = seeded.musicianContext;
+    app.context = await startingContext(runtime, authority);
     await connectAuthority(
       app,
       runtime,
@@ -69,6 +67,35 @@ async function mountDemo(): Promise<void> {
   }
 
   document.body.append(app);
+}
+
+/**
+ * Where the demo starts, and — for a deployment with a real source of truth —
+ * what it deliberately does not do.
+ *
+ * With no authority the fixture seeds itself, because a purely local demo has
+ * nowhere else to get data and nothing to disagree with.
+ *
+ * With an authority configured it seeds nothing. Seeding there wrote demo
+ * records into a deployment that already has an owner: the writes entered the
+ * sync queue, the authority refused them — the seeded identity may not create a
+ * `User` or a `Band` — and the operator was met with a panel full of
+ * `ADL_POLICY_DENIED` changes "needing their attention" before they had made a
+ * single change. Nothing was wrong with the recovery surface; it was reporting
+ * the verdicts it was given. What was wrong was manufacturing the verdicts. The
+ * app now starts empty and signed out, and its data arrives from bootstrap,
+ * which is what a real deployment does.
+ */
+async function startingContext(
+  runtime: ApplicationRuntime,
+  authority: BrowserAuthorityConfiguration | null,
+): Promise<RuntimeContext> {
+  if (authority !== null) {
+    return { userId: SIGNED_OUT_IDENTITY, roles: [], channel: "ui" };
+  }
+
+  const seeded = await seedBandReferenceRuntimeIfEmpty(runtime);
+  return seeded.musicianContext;
 }
 
 /**

@@ -224,6 +224,68 @@ button:disabled {
   padding: 0 var(--adl-space-lg);
 }
 
+/*
+ * Shell controls placed in the navigation drawer.
+ *
+ * The drawer paints on --adl-color-primary with inverted text, so controls sit
+ * on the same translucent-white treatment the app top bar uses rather than the
+ * surface colours they carry on a light background. They stack full width so
+ * the region reads the same at the desktop and mobile viewports; the mobile
+ * rules further down already swap a context selector's select for its compact
+ * trigger, and that applies here too.
+ */
+.adl-nav-drawer-tools {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  display: flex;
+  flex-direction: column;
+  /* The drawer is the scroll container, so the control region must keep its
+     height and let the nav list below it scroll on a short viewport. */
+  flex-shrink: 0;
+  gap: var(--adl-space-sm);
+  padding: var(--adl-space-md);
+}
+
+.adl-nav-drawer-tools .adl-context-selector {
+  align-items: stretch;
+  color: var(--adl-color-text-inverted);
+  flex-direction: column;
+  gap: var(--adl-space-xs);
+}
+
+.adl-nav-drawer-tools .adl-context-selector > span {
+  font-size: 12px;
+}
+
+.adl-nav-drawer-tools .adl-context-selector select,
+.adl-nav-drawer-tools .adl-context-empty,
+.adl-nav-drawer-tools .adl-context-single,
+.adl-nav-drawer-tools .adl-context-compact,
+.adl-nav-drawer-tools .adl-shell-status,
+.adl-nav-drawer-tools .adl-shell-control {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text-inverted);
+  justify-content: flex-start;
+  min-width: 0;
+  width: 100%;
+}
+
+.adl-nav-drawer-tools .adl-context-selector option {
+  color: var(--adl-color-text);
+}
+
+.adl-nav-drawer-tools .adl-shell-control {
+  min-height: var(--adl-control-height);
+  padding: 0 12px;
+}
+
+.adl-nav-drawer-tools .adl-shell-control:hover:not(:disabled),
+.adl-nav-drawer-tools .adl-shell-control:focus {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
 .adl-nav-list {
   display: grid;
   gap: var(--adl-space-sm);

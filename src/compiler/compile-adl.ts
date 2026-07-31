@@ -7,7 +7,9 @@ import type {
   AdlDocumentAst,
   BusinessContextDeclarationAst,
   CommandDeclarationAst,
+  CommandInputDeclarationAst,
   CommandStepDeclarationAst,
+  ContextGrantDeclarationAst,
   DecisionTableDeclarationAst,
   FieldDeclarationAst,
   MigrationDeclarationAst,
@@ -35,6 +37,7 @@ import type {
   ReadModelDeclarationAst,
   ShellControlDeclarationAst,
   ShellDeclarationAst,
+  ShellNavDrawerDeclarationAst,
   ShellNavItemDeclarationAst,
   ShellTopBarDeclarationAst,
   ShellVisibilityDeclarationAst,
@@ -45,8 +48,10 @@ import type {
 import type {
   PartialApplicationModel,
   PartialBusinessContextModel,
+  PartialCommandInputModel,
   PartialCommandModel,
   PartialCommandStepModel,
+  PartialContextGrantModel,
   PartialDecisionTableModel,
   PartialFieldModel,
   PartialLifecycleModel,
@@ -73,6 +78,7 @@ import type {
   PartialReadModelModel,
   PartialShellControlModel,
   PartialShellModel,
+  PartialShellNavDrawerModel,
   PartialShellNavItemModel,
   PartialShellTopBarModel,
   PartialShellVisibilityModel,
@@ -128,7 +134,7 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       ...(role.description === undefined ? {} : { description: role.description }),
       inherits: [...role.inherits],
     })),
-    contexts: ast.contexts.map(contextToPartial),
+    contexts: ast.contexts.map((context) => contextToPartial(context, ast.contextGrants)),
     objects,
     readModels: ast.readModels.map(readModelToPartial),
     decisionTables: ast.decisionTables.map(decisionTableToPartial),
@@ -170,7 +176,20 @@ function shellToPartial(shell: ShellDeclarationAst): PartialShellModel {
       items: shell.navItems.map(shellNavItemToPartial),
     },
     ...(shell.topBar === undefined ? {} : { topBar: shellTopBarToPartial(shell.topBar) }),
+    ...(shell.navDrawer === undefined
+      ? {}
+      : { navDrawer: shellNavDrawerToPartial(shell.navDrawer) }),
     controls: shell.controls.map(shellControlToPartial),
+  };
+}
+
+function shellNavDrawerToPartial(
+  navDrawer: ShellNavDrawerDeclarationAst,
+): PartialShellNavDrawerModel {
+  return {
+    ...(navDrawer.title === undefined ? {} : { title: navDrawer.title }),
+    // Only a declared CONTROLS clause overrides the placement-derived default.
+    ...(navDrawer.controls === undefined ? {} : { controls: [...navDrawer.controls] }),
   };
 }
 
@@ -209,7 +228,9 @@ function shellTopBarToPartial(topBar: ShellTopBarDeclarationAst): PartialShellTo
     ...(topBar.mobileContextSelector === undefined
       ? {}
       : { mobileContextSelector: topBar.mobileContextSelector }),
-    controls: [...topBar.controls],
+    // Only a declared CONTROLS clause overrides the placement-derived default,
+    // symmetrically with NAV_DRAWER above.
+    ...(topBar.controls === undefined ? {} : { controls: [...topBar.controls] }),
   };
 }
 
@@ -291,7 +312,12 @@ function objectToPartial(
   };
 }
 
-function contextToPartial(context: BusinessContextDeclarationAst): PartialBusinessContextModel {
+function contextToPartial(
+  context: BusinessContextDeclarationAst,
+  grants: ContextGrantDeclarationAst[],
+): PartialBusinessContextModel {
+  const ownGrants = grants.filter((grant) => grant.context === context.name);
+
   return {
     name: context.name,
     ...(context.object === undefined ? {} : { object: context.object }),
@@ -323,6 +349,17 @@ function contextToPartial(context: BusinessContextDeclarationAst): PartialBusine
             roles: [...context.membership.roles],
           },
         }),
+    ...(ownGrants.length === 0 ? {} : { grants: ownGrants.map(contextGrantToPartial) }),
+  };
+}
+
+function contextGrantToPartial(grant: ContextGrantDeclarationAst): PartialContextGrantModel {
+  return {
+    name: grant.name,
+    object: grant.object,
+    userField: grant.userField,
+    contextField: grant.contextField,
+    ...(grant.condition === undefined ? {} : { condition: grant.condition }),
   };
 }
 
@@ -345,6 +382,8 @@ function objectConstraintToPartial(
     positionField: constraint.positionField,
     scopeFields: [...constraint.scopeFields],
     ...(constraint.minPosition === undefined ? {} : { minPosition: constraint.minPosition }),
+    ...(constraint.reorder === undefined ? {} : { reorder: constraint.reorder }),
+    ...(constraint.compaction === undefined ? {} : { compaction: constraint.compaction }),
   };
 }
 
@@ -404,6 +443,18 @@ function readModelToPartial(readModel: ReadModelDeclarationAst): PartialReadMode
       name: source.name,
       object: source.object,
       ...(source.scope === undefined ? {} : { scope: source.scope }),
+      ...(source.join === undefined
+        ? {}
+        : {
+            join: {
+              source: source.join.source,
+              localField: source.join.localField,
+              sourceField: source.join.sourceField,
+              ...(source.join.cardinality === undefined
+                ? {}
+                : { cardinality: source.join.cardinality }),
+            },
+          }),
     })),
     fields: readModel.fields.map((field) => ({
       name: field.name,
@@ -524,18 +575,34 @@ function commandToPartial(command: CommandDeclarationAst): PartialCommandModel {
   return {
     name: command.name,
     ...(command.label === undefined ? {} : { label: command.label }),
-    inputs: command.inputs.map((input) => ({
-      name: input.name,
-      type: input.type,
-      required: input.required,
-      ...(input.defaultValue === undefined ? {} : { defaultValue: input.defaultValue }),
-    })),
+    inputs: command.inputs.map(commandInputToPartial),
     preconditions: command.preconditions.map((precondition) => ({
       name: precondition.name,
       expression: precondition.expression,
       ...(precondition.message === undefined ? {} : { message: precondition.message }),
     })),
     steps: command.steps.map(commandStepToPartial),
+  };
+}
+
+function commandInputToPartial(input: CommandInputDeclarationAst): PartialCommandInputModel {
+  return {
+    name: input.name,
+    type: input.type,
+    required: input.required,
+    ...(input.defaultValue === undefined ? {} : { defaultValue: input.defaultValue }),
+    ...(input.repeated ? { repeated: true } : {}),
+    ...(input.itemFields.length === 0
+      ? {}
+      : {
+          itemFields: input.itemFields.map((field) => ({
+            name: field.name,
+            type: field.type,
+            // Always explicit: an omitted `required` would resolve to required,
+            // and an item FIELD line without a modifier means optional.
+            required: field.required,
+          })),
+        }),
   };
 }
 
@@ -549,6 +616,7 @@ function commandStepToPartial(step: CommandStepDeclarationAst): PartialCommandSt
       recordId: step.recordId ?? { kind: "literal", value: null },
       patch: { ...step.values },
       preconditions: [...step.preconditions],
+      ...(step.forEach === undefined ? {} : { forEach: step.forEach }),
     };
   }
 
@@ -559,6 +627,10 @@ function commandStepToPartial(step: CommandStepDeclarationAst): PartialCommandSt
     ...(step.authority === undefined ? {} : { authority: step.authority }),
     values: { ...step.values },
     preconditions: [...step.preconditions],
+    ...(step.forEach === undefined ? {} : { forEach: step.forEach }),
+    ...(step.establishesContext === undefined
+      ? {}
+      : { establishesContext: step.establishesContext }),
   };
 }
 
@@ -884,6 +956,14 @@ function principalToPartial(principal: PrincipalSelectorAst): PartialPrincipalSe
     groupRoles: [...principal.groupRoles],
     users: [...principal.users],
     owner: principal.owner,
+    ...(principal.contextMember === undefined
+      ? {}
+      : {
+          contextMember: {
+            context: principal.contextMember.context,
+            field: principal.contextMember.field,
+          },
+        }),
   };
 }
 

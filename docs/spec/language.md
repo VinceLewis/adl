@@ -18,6 +18,8 @@ uppercase keywords and explicit `END.*` block terminators.
 - `ROLE Name` declares an application role.
 - `CONTEXT Name` declares a business context, optional selection behavior, and
   optional membership object mapping.
+- `CONTEXT_GRANT Name ON Context` declares a route into a context that is not
+  membership.
 - `OBJECT Name` declares fields, computed fields, object validations,
   scopes, constraints, lifecycles, and views.
 - `POLICY Name ON Object` declares policy rules for one object.
@@ -93,11 +95,55 @@ Objects can declare business context scope and backend-neutral constraints:
 ```adl
 SCOPE Band FIELD Band
 CONSTRAINT uniqueSongTitleInBand UNIQUE SCOPE Band FIELDS Title
-CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position
+CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position REORDER shift COMPACT onDelete
 ```
 
 The compiler maps these declarations to the resolved model; runtime services
 enforce scope and constraints.
+
+An `ORDERED` constraint accepts `MIN <n>`, `REORDER strict|shift`, and
+`COMPACT none|onDelete`. Both modes default to the behaviour that shipped before
+they existed — refuse a duplicate position, keep the gap a removal leaves — so
+adding them changes nothing an existing model does.
+
+`REORDER shift` makes a collection reorderable: a write landing on an occupied
+position moves the intervening siblings in the same transaction instead of being
+refused, in whichever direction the move requires, stopping at the first free
+slot so an existing gap absorbs the shift rather than being pushed ahead of it.
+`COMPACT onDelete` renumbers later siblings down when an item is removed.
+
+Neither introduces a new operation: a reorder is ordinary updates and a
+compacting delete is a delete plus updates, so both replay through the authority
+unchanged. Every generated sibling write faces the same policy, validation, scope
+and sync checks as an authored one — a sibling the caller may not write fails the
+whole transaction rather than moving silently. Because more than one write is
+involved, a model that opts into either mode requires a storage backend that
+supports transactions; a backend that does not refuses before anything persists.
+
+## Context Grants
+
+A business context is normally reached through its `MEMBERSHIP` declaration.
+`CONTEXT_GRANT` declares a second route, for the case where somebody must reach a
+context *in order to* join it:
+
+```adl
+CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee CONTEXT_FIELD Band WHEN Status == 'Pending'
+```
+
+`ON` names the business context, `OBJECT` the records that carry the grant,
+`USER` the field naming the granted user, and `CONTEXT_FIELD` (or `CONTEXT`) the
+field naming the context instance. The optional `WHEN` clause is an expression
+over the grant record and consumes the rest of the line.
+
+A grant **confers no roles**. It only makes records of that context instance
+eligible for a policy decision; the object's own policy still decides. Without
+it, an invitation scoped to the very context it invites somebody into is refused
+upstream of policy entirely, so a rule granting an invitee access to their own
+invitation can be written and can never fire.
+
+Because a grant is not membership, a grant-holder is not a co-member of anyone —
+they do not match the `CONTEXT_MEMBER` principal below and do not appear in
+anyone else's roster.
 
 Computed fields are declared inside objects:
 
@@ -125,7 +171,29 @@ model stores expressions as structured trees.
 Policy rules are declared for a single object. Rules can allow, deny, readonly,
 mask, or hide an action for principals. Principals can match everyone,
 authenticated users, anonymous users, owners, specific users, roles, group
-roles, or owner-as-specific.
+roles, owner-as-specific, or **context members**:
+
+```adl
+RULE allowBandMemberReadSharedAvailability ALLOW READ CONTEXT_MEMBER Band FIELD User
+```
+
+`CONTEXT_MEMBER <Context> FIELD <field>` matches when the named field on the
+target record holds a user the caller shares an instance of that context with, by
+membership. It says the thing neither `OWNER` nor a role can: `OWNER` covers the
+caller's own records and a role covers everything of an object inside a context,
+but a shared roster needs "this record belongs to somebody I am in a context
+with". Writing that as a role would grant it over every record of the object,
+including those belonging to people the caller shares nothing with.
+
+Two properties are part of the contract:
+
+- It **fails closed.** Membership resolution reads storage and policy evaluation
+  does not, so the roster is resolved onto the runtime context beforehand. A
+  missing roster never matches.
+- It **cannot gate `search`.** The object-level search check is evaluated with no
+  record, so there is nothing for the field to be read from. Grant `SEARCH` to a
+  wider principal and let the per-record read filter do the work; that is where
+  the roster is consulted.
 
 Lifecycle transition policy can name an action and state. Field rules restrict
 specific fields. Conditions compile to resolved expressions.
@@ -157,6 +225,36 @@ READ_MODEL HomeUpcomingEvents
   SOURCE event OBJECT Event SCOPE allAvailableContexts
 END.READ_MODEL
 ```
+
+A source after the first may declare an explicit join:
+
+```adl
+READ_MODEL BandMemberAvailability
+  CONTEXT REQUIRED Band
+  SOURCE member OBJECT BandMember SCOPE currentContext
+  SOURCE availability OBJECT Availability SCOPE all JOIN member ON User == member.User CARDINALITY many
+  FIELD Member FROM member.User
+  FIELD Date FROM availability.Date
+END.READ_MODEL
+```
+
+`JOIN <source> ON <localField> == <source>.<field>` names an earlier source and
+the field on each side; `id` on either side means the record's own id.
+`CARDINALITY one|many` may only follow a `JOIN` and defaults to `one`.
+
+Without a declared join a source is resolved the original way: follow whatever
+lookup field an already-loaded record declares toward this source's object and
+read one record by id. That walks a foreign key forwards only and cannot produce
+more than one record, so a projection through a junction object — two objects
+that share a third object's id rather than referencing each other, which is what
+the example above does through `BandMember` — cannot be expressed without one.
+
+`many` fans out: an upstream row with several matches becomes several rows. A
+declared join matches by field value rather than by known id, so it requires the
+`search` action on the joined object for both cardinalities, and every joined
+record still passes per-record read policy and object scope. A join may not
+appear on the primary source, may not name a later source, and may not appear in
+a `UNION` read model.
 
 Generic CRUD views also resolve an `editContainer` hint with values `modal`,
 `drawer`, `page`, or `splitPane`. This is currently supported in
@@ -256,7 +354,9 @@ SHELL
   NAV MyAvailabilityList LABEL 'Availability' ICON calendar GROUP Main ORDER 30 VISIBLE WHEN CONTEXT Band SELECTED
   CONTROL contextSelector KIND contextSelector PLACEMENT topBar
   CONTROL syncStatus KIND syncStatus PLACEMENT topBar VISIBLE ONLINE
+  CONTROL signOut KIND logout LABEL 'Sign out' PLACEMENT navDrawer
   TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector syncStatus
+  NAV_DRAWER TITLE 'Giggle Band' CONTROLS signOut
 END.SHELL
 ```
 
@@ -271,7 +371,17 @@ SELECTED`.
 `syncStatus`, `themeSwitch`, `logout`, and `pwaInstall`; unsupported runtime
 capabilities degrade as unavailable controls. `TOP_BAR` declares context
 selector placement, mobile context selector behavior (`dropdown` or `sheet`),
-and the ordered top-bar control list.
+and the ordered top-bar control list. `NAV_DRAWER` declares the drawer's `TITLE`
+and its ordered `CONTROLS` list.
+
+Each region's control list defaults to the declared controls whose `PLACEMENT`
+names that region, so a placement is meaningful without a second declaration
+repeating it; an explicit `CONTROLS` clause overrides that, and an empty list
+means "render none" rather than "fall back". A control may only be listed in the
+region its placement names — otherwise it would be listed somewhere it can never
+render, which is a model error rather than a silent no-op. An undeclared drawer
+title stays absent in the resolved model; the renderer falls back to the
+application name.
 
 ADL source syntax for view-local `SELECT`, `ACTION`, and `CONTEXT_SELECTOR`
 presentation controls is not implemented. Those control shapes exist in the
@@ -287,6 +397,80 @@ step fields or metadata such as generated record ids.
 Commands remain model data; runtime services execute them. They describe a
 business action and its affected records, not UI scripts, generated application
 code, SQL transactions, or browser-only orchestration.
+
+### Batch commands
+
+An input may carry a list, and a step may iterate one:
+
+```adl
+COMMAND ImportSongs LABEL 'Import songs'
+  INPUT Band TEXT REQUIRED
+  INPUT Songs LIST REQUIRED
+    FIELD Title TEXT REQUIRED
+    FIELD Composer TEXT
+  END.INPUT
+  STEP importSongs CREATE Song FOR EACH Songs
+    VALUE Band INPUT Band
+    VALUE Title ITEM Title
+    VALUE Composer ITEM Composer
+  END.STEP
+END.COMMAND
+```
+
+`INPUT <name> LIST [<type>]` declares a list of scalars; adding `FIELD` lines and
+an `END.INPUT` terminator declares a list of records instead. Item `FIELD` lines
+default to optional, matching the object `FIELD` line they are shaped like.
+
+`FOR EACH <input>` (or `FOR_EACH`) makes a step plan one write per item into the
+same transaction, so a batch either lands whole or not at all. Inside such a step
+`ITEM` is the whole item, `ITEM <field>` one of its fields, and `ITEM_INDEX` its
+zero-based position. `ITEM` and `ITEM_INDEX` are refused outside an iterating
+step.
+
+An iterating step produces many records, so no step may refer to one with
+`STEP x FIELD y` or `STEP x META y`: there is no single record for such a
+reference to mean. That is refused at validation.
+
+This exists because a command's steps are otherwise fixed at authoring time, and
+so is the number of records it can write — importing fifty songs as fifty
+independent transactions has no shared success or failure.
+
+### Commands that create a context
+
+A create step may declare that its new record becomes an instance of a business
+context:
+
+```adl
+STEP createBand CREATE Band ESTABLISHES CONTEXT Band
+  VALUE Name INPUT Name
+  VALUE CreatedBy RUNTIME userId
+END.STEP
+
+STEP createFounderMembership CREATE BandMember AUTHORITY command
+  VALUE User RUNTIME userId
+  VALUE Band STEP createBand META guid
+  VALUE Role LITERAL BandAdmin
+END.STEP
+```
+
+For the rest of that transaction the new instance is in reach of the object-scope
+gate, so the membership step can write a record scoped to a context that did not
+exist when the transaction opened — which is otherwise refused, leaving a
+context with no members and therefore no way in.
+
+It reaches only the instance the step just created and does not survive the
+command, so it cannot give a caller access to a context that already existed. It
+confers no roles either; the membership record the next step creates is what
+grants real access afterwards.
+
+**A caveat worth knowing before relying on it.** A locally executed command is
+replayed to the authority as one ordinary intent per step, not as a command, so
+these two steps arrive as two unrelated writes with no shared transaction — and
+the authority then refuses the membership, because the thing that would have made
+the caller a member is exactly what was split apart. The authority's `command`
+intent handles the whole command in one transaction and works correctly; what
+does not yet exist is a client that emits one. See
+`tests/command-authority-replay.test.ts`, which pins both halves.
 
 ## Model Versions And Migrations
 

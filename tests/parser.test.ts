@@ -332,6 +332,324 @@ END.OBJECT
     });
   });
 
+  it("parses top-level context grants, nav drawer chrome, and ordered constraint options", () => {
+    const ast = parseAdl(`APP Phase56
+END.APP
+
+SHELL
+  NAV Home LABEL 'Home'
+  CONTROL themeSwitch KIND THEME_SWITCH PLACEMENT navDrawer
+  CONTROL logout KIND LOGOUT PLACEMENT navDrawer
+  NAV_DRAWER TITLE 'Giggle Band' CONTROLS themeSwitch logout
+END.SHELL
+
+CONTEXT Band OBJECT Band
+CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee CONTEXT_FIELD Band WHEN Status == 'Pending'
+
+OBJECT SetListItem
+  FIELD Band TEXT REQUIRED
+  FIELD SetList TEXT REQUIRED
+  FIELD Position NUMBER REQUIRED
+  CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position REORDER shift COMPACT onDelete
+END.OBJECT
+`);
+
+    expect(ast.shell?.navDrawer).toEqual({
+      kind: "ShellNavDrawerDeclaration",
+      title: "Giggle Band",
+      controls: ["themeSwitch", "logout"],
+      range: expect.anything(),
+    });
+    expect(ast.contextGrants[0]).toMatchObject({
+      kind: "ContextGrantDeclaration",
+      name: "pendingBandInvitation",
+      context: "Band",
+      object: "BandInvitation",
+      userField: "Invitee",
+      contextField: "Band",
+      condition: { kind: "binary", operator: "==" },
+    });
+    expect(ast.objects[0]?.constraints[0]).toMatchObject({
+      kind: "OrderedObjectConstraintDeclaration",
+      name: "orderedSetListItems",
+      scopeFields: ["Band"],
+      parentField: "SetList",
+      positionField: "Position",
+      reorder: "shift",
+      compaction: "onDelete",
+    });
+  });
+
+  it("parses a nav drawer with no CONTROLS clause without inventing an empty list", () => {
+    const ast = parseAdl(`APP Phase56
+END.APP
+
+SHELL
+  NAV_DRAWER TITLE 'Giggle Band'
+END.SHELL
+`);
+
+    expect(ast.shell?.navDrawer).toMatchObject({ title: "Giggle Band" });
+    expect(ast.shell?.navDrawer?.controls).toBeUndefined();
+  });
+
+  it("parses read-model source joins and cardinality", () => {
+    const ast = parseAdl(`APP Phase56
+END.APP
+
+READ_MODEL BandAvailability
+  SOURCE member OBJECT BandMember SCOPE currentContext
+  SOURCE availability OBJECT Availability SCOPE all JOIN member ON User == member.User CARDINALITY many
+  SOURCE band OBJECT Band JOIN member ON id == member.Band
+  FIELD Note FROM availability.Note
+END.READ_MODEL
+`);
+
+    expect(ast.readModels[0]?.sources[0]?.join).toBeUndefined();
+    expect(ast.readModels[0]?.sources[1]?.join).toMatchObject({
+      kind: "ReadModelSourceJoinDeclaration",
+      source: "member",
+      localField: "User",
+      sourceField: "User",
+      cardinality: "many",
+    });
+    // `id` is the record's own identity on either side, and an undeclared
+    // cardinality stays undeclared so resolution supplies the default.
+    expect(ast.readModels[0]?.sources[2]?.join).toMatchObject({
+      source: "member",
+      localField: "id",
+      sourceField: "Band",
+    });
+    expect(ast.readModels[0]?.sources[2]?.join?.cardinality).toBeUndefined();
+  });
+
+  it("parses command list inputs, iterating steps, and item value expressions", () => {
+    const ast = parseAdl(`APP Phase56
+END.APP
+
+COMMAND ImportSongs
+  INPUT Ids LIST TEXT REQUIRED
+  INPUT Tags LIST
+  INPUT Songs LIST REQUIRED
+    FIELD Title TEXT REQUIRED
+    FIELD Composer TEXT
+  END.INPUT
+  STEP createSongs CREATE Song FOR EACH Songs
+    VALUE Title ITEM Title
+    VALUE Position ITEM_INDEX
+    VALUE Payload ITEM
+  END.STEP
+  STEP createBand CREATE Band ESTABLISHES CONTEXT Band
+    VALUE Name LITERAL 'New band'
+  END.STEP
+  STEP renumber UPDATE Song ID ITEM FOR_EACH Ids
+    PATCH Position ITEM_INDEX
+  END.STEP
+END.COMMAND
+`);
+
+    const command = ast.commands[0];
+
+    expect(command?.inputs[0]).toMatchObject({
+      name: "Ids",
+      type: "text",
+      required: true,
+      repeated: true,
+      itemFields: [],
+    });
+    // `LIST` with neither an item type nor a block carries text items.
+    expect(command?.inputs[1]).toMatchObject({ name: "Tags", type: "text", repeated: true });
+    expect(command?.inputs[2]).toMatchObject({
+      name: "Songs",
+      repeated: true,
+      required: true,
+      itemFields: [
+        expect.objectContaining({ name: "Title", type: "text", required: true }),
+        expect.objectContaining({ name: "Composer", type: "text", required: false }),
+      ],
+      end: expect.objectContaining({ name: "INPUT" }),
+    });
+    expect(command?.steps[0]).toMatchObject({
+      name: "createSongs",
+      action: "create",
+      forEach: "Songs",
+      values: {
+        Title: { kind: "item", field: "Title" },
+        Position: { kind: "itemIndex" },
+        Payload: { kind: "item" },
+      },
+    });
+    expect(command?.steps[1]).toMatchObject({
+      name: "createBand",
+      establishesContext: "Band",
+    });
+    // A bare `ITEM` before a further header clause is still the whole item.
+    expect(command?.steps[2]).toMatchObject({
+      name: "renumber",
+      action: "update",
+      forEach: "Ids",
+      recordId: { kind: "item" },
+    });
+  });
+
+  it("parses the contextMember policy principal and its trailing WHEN", () => {
+    const ast = parseAdl(`APP Phase56
+END.APP
+
+POLICY AvailabilityPolicy ON Availability
+  RULE allowBandMemberReadSharedAvailability ALLOW READ CONTEXT_MEMBER Band FIELD User
+  ALLOW UPDATE CONTEXT_MEMBER Band FIELD User WHEN Shared == TRUE
+END.POLICY
+`);
+
+    expect(ast.policies[0]?.rules[0]).toMatchObject({
+      name: "allowBandMemberReadSharedAvailability",
+      action: "read",
+      principal: {
+        match: "contextMember",
+        contextMember: { context: "Band", field: "User" },
+        roles: [],
+        groupRoles: [],
+        users: [],
+        owner: false,
+      },
+    });
+    expect(ast.policies[0]?.rules[1]).toMatchObject({
+      action: "update",
+      principal: { match: "contextMember", contextMember: { context: "Band", field: "User" } },
+      condition: { kind: "binary", operator: "==" },
+    });
+  });
+
+  it("reports malformed Phase 56 declarations with the options it accepts", () => {
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+CONTEXT Band OBJECT Band
+CONTEXT_GRANT pendingInvitation ON Rehearsal OBJECT Invitation USER Invitee CONTEXT_FIELD Rehearsal
+`,
+      "Expected CONTEXT_GRANT ON to name a declared CONTEXT (Band), but found 'Rehearsal'.",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+CONTEXT Band OBJECT Band
+CONTEXT_GRANT pendingInvitation ON Band OBJECT Invitation USER Invitee
+`,
+      "Expected CONTEXT_FIELD in CONTEXT_GRANT",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+WIDGET Broken
+`,
+      "Expected a top-level SHELL, ROLE, CONTEXT, CONTEXT_GRANT, OBJECT, READ_MODEL, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, MIGRATION, or end of file",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+SHELL
+  NAV_DRAWER HEADING 'Giggle Band'
+END.SHELL
+`,
+      "Expected SHELL NAV_DRAWER option TITLE, CONTROLS, or end of line",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+OBJECT SetListItem
+  FIELD SetList TEXT
+  FIELD Position NUMBER
+  CONSTRAINT ordered ORDERED PARENT SetList POSITION Position REORDER sideways
+END.OBJECT
+`,
+      "Expected ORDERED CONSTRAINT REORDER mode STRICT or SHIFT",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+READ_MODEL BandAvailability
+  SOURCE member OBJECT BandMember
+  SOURCE availability OBJECT Availability CARDINALITY many
+  FIELD Note FROM availability.Note
+END.READ_MODEL
+`,
+      "Expected JOIN before CARDINALITY in READ_MODEL SOURCE declaration",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+READ_MODEL BandAvailability
+  SOURCE member OBJECT BandMember
+  SOURCE availability OBJECT Availability JOIN member ON User == other.User
+  FIELD Note FROM availability.Note
+END.READ_MODEL
+`,
+      "Expected joined field qualified by the joined source 'member' in READ_MODEL SOURCE JOIN",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+COMMAND ImportSongs
+  INPUT Songs LIST REQUIRED
+    FIELD Title TEXT REQUIRED
+END.COMMAND
+`,
+      "Expected COMMAND INPUT item directive FIELD or END.INPUT",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+COMMAND ImportSongs
+  INPUT Songs LIST REQUIRED
+  STEP createSongs CREATE Song FOR Songs
+  END.STEP
+END.COMMAND
+`,
+      "Expected command step FOR EACH clause",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+COMMAND RenameBand
+  STEP renameBand UPDATE Band ID LITERAL 'band-1' ESTABLISHES CONTEXT Band
+  END.STEP
+END.COMMAND
+`,
+      "Expected COMMAND STEP header option AUTHORITY, ID, FOR EACH, or end of line",
+    );
+
+    expectParseFailure(
+      `APP Phase56
+END.APP
+
+POLICY AvailabilityPolicy ON Availability
+  ALLOW READ CONTEXT_MEMBER Band User
+END.POLICY
+`,
+      "Expected principal CONTEXT_MEMBER FIELD clause",
+    );
+  });
+
   it("reports missing block terminators with a source location", () => {
     expect(() =>
       parseAdl(`APP Broken
@@ -427,4 +745,19 @@ FETCH FILE(User)
 
 function readExample(name: string): string {
   return readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
+}
+
+function expectParseFailure(source: string, expectedMessage: string): void {
+  try {
+    parseAdl(source);
+  } catch (error) {
+    if (!(error instanceof ParseError)) {
+      throw error;
+    }
+
+    expect(error.diagnostic.message).toContain(expectedMessage);
+    return;
+  }
+
+  throw new Error(`Expected parsing to fail with: ${expectedMessage}`);
 }

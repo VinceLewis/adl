@@ -22,17 +22,29 @@ export function getSelectedContextId(
   return selected === undefined || selected.length === 0 ? undefined : selected;
 }
 
+/**
+ * The context instances a caller may touch records in.
+ *
+ * Grants are unioned with membership here and nowhere else. This function
+ * answers "may a record of this context instance be considered at all"; the
+ * object's own policy still answers "and may this caller do this to it". Role
+ * matching reads `contextRoles` directly and never this list, so widening it
+ * cannot turn a grant into a role.
+ */
 export function getAllowedContextIds(context: RuntimeContext, contextName: string): string[] {
   const selected = getSelectedContextId(context, contextName);
   if (selected !== undefined) {
     return [selected];
   }
 
-  return uniqueStrings(
-    (context.contextRoles ?? [])
+  return uniqueStrings([
+    ...(context.contextRoles ?? [])
       .filter((entry) => entry.context === contextName && entry.contextId.length > 0)
       .map((entry) => entry.contextId),
-  );
+    ...(context.contextGrants ?? [])
+      .filter((entry) => entry.context === contextName && entry.contextId.length > 0)
+      .map((entry) => entry.contextId),
+  ]);
 }
 
 export function contextWithoutSelectedBusinessContext(
@@ -46,6 +58,7 @@ export function contextWithoutSelectedBusinessContext(
     ...context,
     selectedContexts,
     contextRoles: (context.contextRoles ?? []).filter((role) => role.context !== contextName),
+    contextGrants: (context.contextGrants ?? []).filter((grant) => grant.context !== contextName),
   };
 }
 

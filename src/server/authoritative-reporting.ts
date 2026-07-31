@@ -237,11 +237,19 @@ export class AuthorityReportingService {
     const now = this.now().getTime();
     for (const [id, cursor] of this.cursors) if (cursor.expiresAt <= now) this.cursors.delete(id);
   }
+  /**
+   * The per-record export re-check goes to `policyEngine` directly rather than
+   * through a runtime entry point, so anything a policy decision needs on the
+   * context has to be resolved here. A `contextMember` principal would otherwise
+   * find no roster and deny — the safe direction, but still a false denial that
+   * would only appear in a deployment.
+   */
   private async requireExportAllowed(
     sources: Array<{ name: string; object: string }>,
     rows: RuntimeReadModelRow[],
-    context: RuntimeContext,
+    callerContext: RuntimeContext,
   ): Promise<void> {
+    const context = await this.runtime.withContextMembers(callerContext);
     for (const row of rows) {
       for (const source of sources) {
         const reference = row.sources[source.name];
@@ -452,6 +460,9 @@ export class AuthorityAdministrationService {
     if (membership === undefined) throw new ReportingAccessError("ADL_RUNTIME_CONTEXT_ERROR");
     let context: RuntimeContext = { userId: actor.userId, roles: [], channel: "api", online: true };
     context = await this.runtime.withSelectedContext(contextName, contextId, context);
+    // The read/mask checks below call `policyEngine` directly, so the roster a
+    // `contextMember` principal needs never arrives on its own.
+    context = await this.runtime.withContextMembers(context);
     const candidates = await this.membershipCandidates(
       membership,
       contextName,

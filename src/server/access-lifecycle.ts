@@ -454,12 +454,18 @@ export class AuthorityAccessLifecycleService {
     const membership = businessContext?.membership;
     if (membership === undefined)
       throw new RuntimeContextError(`Context '${contextName}' has no membership declaration.`);
-    const context: RuntimeContext = await this.runtime.withSelectedContext(contextName, contextId, {
-      userId,
-      roles: [],
-      channel: "api",
-      online: true,
-    });
+    // Through `policyEngine` directly rather than through a runtime entry point,
+    // so the co-member roster a `contextMember` principal needs has to be
+    // resolved here. Without it such a rule would deny rather than over-permit —
+    // safe, but a false denial, and one that would only surface in a deployment.
+    const context: RuntimeContext = await this.runtime.withContextMembers(
+      await this.runtime.withSelectedContext(contextName, contextId, {
+        userId,
+        roles: [],
+        channel: "api",
+        online: true,
+      }),
+    );
     this.runtime.policyEngine.requireAllowed(
       {
         objectName: membership.object,

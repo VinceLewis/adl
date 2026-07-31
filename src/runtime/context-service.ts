@@ -5,6 +5,7 @@ import type {
   ResolvedContextMembership,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import { evaluateRuntimeCondition } from "./condition-evaluator.js";
 import type { ContextMembershipIndex } from "./context-membership-index.js";
 import { getSelectedContextId } from "./context-scope.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
@@ -19,6 +20,7 @@ import {
 import type {
   RuntimeAvailableContext,
   RuntimeContext,
+  RuntimeContextGrant,
   RuntimeContextRole,
   RuntimeLogger,
 } from "./runtime-types.js";
@@ -51,10 +53,11 @@ export class RuntimeContextService {
     });
 
     const businessContext = this.index.getBusinessContext(contextName);
-    const available =
+    const member =
       businessContext.membership === undefined
         ? await this.listSelectedContextWithoutMembership(businessContext, context)
         : await this.listMembershipContexts(businessContext, businessContext.membership, context);
+    const available = await this.mergeGrantedContexts(businessContext, member, context);
 
     this.logger.debug("EXIT RuntimeContextService.listAvailableContexts", {
       contextName,
@@ -94,6 +97,72 @@ export class RuntimeContextService {
     return available.flatMap((candidate) => cloneJson(candidate.roleEntries));
   }
 
+  /**
+   * The grants this caller holds on a context, which are deliberately separate
+   * from {@link resolveContextRoles}: a grant puts an instance in reach of the
+   * object-scope gate and confers no role, so the two can never be conflated by
+   * a caller merging them into one list.
+   */
+  async resolveContextGrants(
+    contextName: string,
+    context: RuntimeContext,
+    contextId?: string,
+  ): Promise<RuntimeContextGrant[]> {
+    const available =
+      contextId === undefined
+        ? await this.listAvailableContexts(contextName, context)
+        : [await this.validateSelectedContext(contextName, contextId, context)];
+
+    return available.flatMap((candidate) => cloneJson(candidate.grantEntries));
+  }
+
+  /**
+   * The users this caller shares a context instance with, for the
+   * `contextMember` policy principal.
+   *
+   * Only membership counts. A grant reaches an instance without joining it, so
+   * a grant-holder is not a co-member of anyone and no one is a co-member of
+   * them — otherwise a pending invitation would quietly expose the roster it
+   * has not yet earned.
+   */
+  async resolveContextMembers(contextName: string, context: RuntimeContext): Promise<string[]> {
+    await this.startupGuard();
+    const businessContext = this.index.getBusinessContext(contextName);
+    const membership = businessContext.membership;
+    if (membership === undefined) {
+      return [];
+    }
+
+    const reachable = new Set(
+      (await this.listAvailableContexts(contextName, context))
+        .filter((candidate) => candidate.roleEntries.length > 0)
+        .map((candidate) => candidate.id),
+    );
+    if (reachable.size === 0) {
+      return [];
+    }
+
+    const selected = getSelectedContextId(context, contextName);
+    const members = new Set<string>();
+    for (const record of await this.getActiveRecords(membership.object)) {
+      const contextId = getStringValue(record.values[membership.contextField]);
+      const userId = getStringValue(record.values[membership.userField]);
+      if (contextId === undefined || userId === undefined) {
+        continue;
+      }
+      if (selected !== undefined ? contextId !== selected : !reachable.has(contextId)) {
+        continue;
+      }
+      const role = getStringValue(record.values[membership.roleField]);
+      if (role === undefined || (membership.roles.length > 0 && !membership.roles.includes(role))) {
+        continue;
+      }
+      members.add(userId);
+    }
+
+    return [...members].sort();
+  }
+
   async withSelectedContext(
     contextName: string,
     contextId: string,
@@ -112,6 +181,10 @@ export class RuntimeContextService {
       contextRoles: [
         ...(context.contextRoles ?? []).filter((entry) => entry.context !== contextName),
         ...cloneJson(selected.roleEntries),
+      ],
+      contextGrants: [
+        ...(context.contextGrants ?? []).filter((entry) => entry.context !== contextName),
+        ...cloneJson(selected.grantEntries),
       ],
     };
   }
@@ -140,8 +213,76 @@ export class RuntimeContextService {
         label: this.getContextLabel(businessContext, record),
         roles: [],
         roleEntries: [],
+        grantEntries: [],
       },
     ];
+  }
+
+  /**
+   * Folds declared grants into the contexts membership already produced.
+   *
+   * A context the caller is a member of stays a membership result and merely
+   * records the grant alongside it; one they only hold a grant on is added with
+   * no roles at all. Sorting happens here so both routes land in one order.
+   */
+  private async mergeGrantedContexts(
+    businessContext: ResolvedBusinessContext,
+    member: RuntimeAvailableContext[],
+    context: RuntimeContext,
+  ): Promise<RuntimeAvailableContext[]> {
+    if (businessContext.grants.length === 0 || context.userId.length === 0) {
+      return member;
+    }
+
+    const byId = new Map(member.map((candidate) => [candidate.id, candidate]));
+    for (const grant of businessContext.grants) {
+      for (const record of await this.getActiveRecords(grant.object)) {
+        if (getStringValue(record.values[grant.userField]) !== context.userId) {
+          continue;
+        }
+
+        const contextId = getStringValue(record.values[grant.contextField]);
+        if (contextId === undefined) {
+          continue;
+        }
+
+        if (
+          grant.condition !== undefined &&
+          !evaluateRuntimeCondition(grant.condition, { values: record.values, context })
+        ) {
+          continue;
+        }
+
+        const entry: RuntimeContextGrant = {
+          context: businessContext.name,
+          contextId,
+          grant: grant.name,
+          grantRecordId: record.meta.guid,
+        };
+
+        const existing = byId.get(contextId);
+        if (existing !== undefined) {
+          existing.grantEntries = [...existing.grantEntries, entry];
+          continue;
+        }
+
+        const contextRecord = await this.storage.read(businessContext.object, contextId);
+        if (contextRecord === null || contextRecord.meta.deletedAt !== undefined) {
+          continue;
+        }
+
+        byId.set(contextId, {
+          context: businessContext.name,
+          id: contextId,
+          label: this.getContextLabel(businessContext, contextRecord),
+          roles: [],
+          roleEntries: [],
+          grantEntries: [entry],
+        });
+      }
+    }
+
+    return [...byId.values()].sort(compareAvailableContexts);
   }
 
   private async listMembershipContexts(
@@ -192,6 +333,7 @@ export class RuntimeContextService {
         label: this.getContextLabel(businessContext, record),
         roles: uniqueStrings(uniqueRoleEntries.map((entry) => entry.role)),
         roleEntries: uniqueRoleEntries,
+        grantEntries: [],
       });
     }
 

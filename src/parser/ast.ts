@@ -17,10 +17,14 @@ import type {
   PresentationStatusThemeToken,
   PresentationStatePersistence,
   PresentationStateType,
+  OrderedCollectionCompaction,
+  OrderedCollectionReorder,
   PolicyAction,
   PolicyEffect,
+  ReadModelJoinCardinality,
   ReadModelSourceScope,
   ReadModelStrategy,
+  ResolvedContextMemberPrincipal,
   ResolvedExpression,
   ResolvedCommandValueExpression,
   RuntimeChannel,
@@ -64,6 +68,7 @@ export type BlockName =
   | "DECISION_TABLE"
   | "COMMAND"
   | "STEP"
+  | "INPUT"
   | "READ_MODEL"
   | "SECTION"
   | "TOGGLE"
@@ -87,6 +92,7 @@ export interface AdlDocumentAst {
   shell?: ShellDeclarationAst;
   roles: RoleDeclarationAst[];
   contexts: BusinessContextDeclarationAst[];
+  contextGrants: ContextGrantDeclarationAst[];
   objects: ObjectDeclarationAst[];
   readModels: ReadModelDeclarationAst[];
   decisionTables: DecisionTableDeclarationAst[];
@@ -139,6 +145,7 @@ export interface ShellDeclarationAst {
   navItems: ShellNavItemDeclarationAst[];
   controls: ShellControlDeclarationAst[];
   topBar?: ShellTopBarDeclarationAst;
+  navDrawer?: ShellNavDrawerDeclarationAst;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -177,7 +184,22 @@ export interface ShellTopBarDeclarationAst {
   kind: "ShellTopBarDeclaration";
   contextSelector?: ShellContextSelectorPlacement;
   mobileContextSelector?: ShellMobileContextSelectorMode;
-  controls: string[];
+  controls?: string[];
+  range: SourceRange;
+}
+
+/**
+ * `NAV_DRAWER TITLE 'Giggle Band' CONTROLS themeSwitch logout`, symmetrical with
+ * {@link ShellTopBarDeclarationAst}.
+ *
+ * `controls` stays optional rather than defaulting to an empty array: an absent
+ * `CONTROLS` clause must let resolution fall back to the controls that declared
+ * `PLACEMENT navDrawer`, whereas an empty list would mean "render none".
+ */
+export interface ShellNavDrawerDeclarationAst {
+  kind: "ShellNavDrawerDeclaration";
+  title?: string;
+  controls?: string[];
   range: SourceRange;
 }
 
@@ -204,6 +226,25 @@ export interface ContextSelectionDeclarationAst {
   persistence?: ContextSelectionPersistence;
   source?: ContextSelectionSource;
   routeParam?: string;
+}
+
+/**
+ * `CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee CONTEXT_FIELD Band WHEN Status == 'Pending'`
+ *
+ * Declared at top level rather than inside `CONTEXT` because a grant names an
+ * object the context declaration itself never mentions, and there may be several
+ * of them; `ON` says which context the grant attaches to.
+ */
+export interface ContextGrantDeclarationAst {
+  kind: "ContextGrantDeclaration";
+  name: string;
+  /** The business context this grant reaches, named by the `ON` clause. */
+  context: string;
+  object: string;
+  userField: string;
+  contextField: string;
+  condition?: ResolvedExpression;
+  range: SourceRange;
 }
 
 export interface ContextMembershipDeclarationAst {
@@ -260,6 +301,10 @@ export interface OrderedObjectConstraintDeclarationAst {
   positionField: string;
   scopeFields: string[];
   minPosition?: number;
+  /** `REORDER strict|shift`; absent leaves the resolved default (`strict`). */
+  reorder?: OrderedCollectionReorder;
+  /** `COMPACT none|onDelete`; absent leaves the resolved default (`none`). */
+  compaction?: OrderedCollectionCompaction;
   range: SourceRange;
 }
 
@@ -630,6 +675,24 @@ export interface ReadModelSourceDeclarationAst {
   name: string;
   object: string;
   scope?: ReadModelSourceScope;
+  join?: ReadModelSourceJoinDeclarationAst;
+  range: SourceRange;
+}
+
+/**
+ * `JOIN member ON User == member.User CARDINALITY many`.
+ *
+ * The local side is a bare field on this source's object; the joined side is
+ * qualified by the joined source's name so the hop reads the way it resolves.
+ * Either side may be `id`, meaning the record's own identity rather than a
+ * declared field.
+ */
+export interface ReadModelSourceJoinDeclarationAst {
+  kind: "ReadModelSourceJoinDeclaration";
+  source: string;
+  localField: string;
+  sourceField: string;
+  cardinality?: ReadModelJoinCardinality;
   range: SourceRange;
 }
 
@@ -667,11 +730,13 @@ export interface PolicyRuleDeclarationAst {
 }
 
 export interface PrincipalSelectorAst {
-  match?: "everyone" | "authenticated" | "anonymous" | "owner" | "specific";
+  match?: "everyone" | "authenticated" | "anonymous" | "owner" | "specific" | "contextMember";
   roles: string[];
   groupRoles: string[];
   users: string[];
   owner: boolean;
+  /** Declared by `CONTEXT_MEMBER <Context> FIELD <field>`. */
+  contextMember?: ResolvedContextMemberPrincipal;
 }
 
 export interface ThemeDeclarationAst {
@@ -766,9 +831,26 @@ export interface CommandDeclarationAst {
 export interface CommandInputDeclarationAst {
   kind: "CommandInputDeclaration";
   name: string;
+  /** For a repeated input this is the type of one *item*, not of the list. */
   type: FieldType;
   required: boolean;
   defaultValue?: JsonValue;
+  /** Declared by `LIST`; the input then carries many values rather than one. */
+  repeated: boolean;
+  /**
+   * The declared shape of one item, from the `LIST` block form. Empty means the
+   * items are plain {@link CommandInputDeclarationAst.type} scalars.
+   */
+  itemFields: CommandInputItemFieldDeclarationAst[];
+  end?: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface CommandInputItemFieldDeclarationAst {
+  kind: "CommandInputItemFieldDeclaration";
+  name: string;
+  type: FieldType;
+  required: boolean;
   range: SourceRange;
 }
 
@@ -787,6 +869,10 @@ export interface CommandStepDeclarationAst {
   object: string;
   authority?: "caller" | "command";
   recordId?: ResolvedCommandValueExpression;
+  /** Declared by `FOR EACH <inputName>`; names the repeated input to iterate. */
+  forEach?: string;
+  /** Declared by `ESTABLISHES CONTEXT <ContextName>`; create steps only. */
+  establishesContext?: string;
   values: Record<string, ResolvedCommandValueExpression>;
   preconditions: ResolvedExpression[];
   end: EndMarkerNode;

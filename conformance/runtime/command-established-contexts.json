@@ -1,0 +1,576 @@
+{
+  "version": 1,
+  "models": {
+    "establishedContexts": {
+      "app": {
+        "name": "EstablishedContexts"
+      },
+      "roles": [
+        {
+          "name": "Owner"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Workspace",
+          "object": "Workspace",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "WorkspaceMember",
+            "userField": "User",
+            "contextField": "Workspace",
+            "roleField": "Role",
+            "roles": ["Owner"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Workspace",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "WorkspaceMember",
+          "scope": {
+            "context": "Workspace",
+            "field": "Workspace"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Workspace",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Workspace",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Document",
+          "displayField": "Title",
+          "scope": {
+            "context": "Workspace",
+            "field": "Workspace"
+          },
+          "fields": [
+            {
+              "name": "Workspace",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Workspace",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "CreateWorkspace",
+          "label": "Create workspace",
+          "inputs": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createWorkspace",
+              "action": "create",
+              "object": "Workspace",
+              "values": {
+                "Name": {
+                  "kind": "input",
+                  "name": "Name"
+                }
+              },
+              "establishesContext": "Workspace"
+            },
+            {
+              "name": "createOwner",
+              "action": "create",
+              "object": "WorkspaceMember",
+              "values": {
+                "User": {
+                  "kind": "runtime",
+                  "property": "userId"
+                },
+                "Workspace": {
+                  "kind": "stepMeta",
+                  "step": "createWorkspace",
+                  "property": "guid"
+                },
+                "Role": {
+                  "kind": "literal",
+                  "value": "Owner"
+                }
+              },
+              "authority": "command"
+            }
+          ]
+        },
+        {
+          "name": "CreateEmptyWorkspace",
+          "label": "Create workspace without a membership",
+          "inputs": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createWorkspace",
+              "action": "create",
+              "object": "Workspace",
+              "values": {
+                "Name": {
+                  "kind": "input",
+                  "name": "Name"
+                }
+              },
+              "establishesContext": "Workspace"
+            }
+          ]
+        },
+        {
+          "name": "CreateWorkspaceAndDocument",
+          "label": "Create workspace and its first document",
+          "inputs": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createWorkspace",
+              "action": "create",
+              "object": "Workspace",
+              "values": {
+                "Name": {
+                  "kind": "input",
+                  "name": "Name"
+                }
+              },
+              "establishesContext": "Workspace"
+            },
+            {
+              "name": "createDocument",
+              "action": "create",
+              "object": "Document",
+              "values": {
+                "Workspace": {
+                  "kind": "stepMeta",
+                  "step": "createWorkspace",
+                  "property": "guid"
+                },
+                "Title": {
+                  "kind": "literal",
+                  "value": "First document"
+                }
+              },
+              "authority": "command"
+            }
+          ]
+        },
+        {
+          "name": "CreateWorkspaceAndReachAnother",
+          "label": "Create workspace and write into another",
+          "inputs": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Existing",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createWorkspace",
+              "action": "create",
+              "object": "Workspace",
+              "values": {
+                "Name": {
+                  "kind": "input",
+                  "name": "Name"
+                }
+              },
+              "establishesContext": "Workspace"
+            },
+            {
+              "name": "createDocument",
+              "action": "create",
+              "object": "Document",
+              "values": {
+                "Workspace": {
+                  "kind": "input",
+                  "name": "Existing"
+                },
+                "Title": {
+                  "kind": "literal",
+                  "value": "Reached elsewhere"
+                }
+              },
+              "authority": "command"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "WorkspacePolicy",
+          "object": "Workspace",
+          "rules": [
+            {
+              "name": "allowAuthenticatedCreateWorkspace",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "create"
+            },
+            {
+              "name": "allowAuthenticatedReadWorkspace",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchWorkspace",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "WorkspaceMemberPolicy",
+          "object": "WorkspaceMember",
+          "rules": [
+            {
+              "name": "allowWorkspaceOwnerRoleReadWorkspaceMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Owner"]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowRecordCreatorReadWorkspaceMember",
+              "effect": "allow",
+              "principal": {
+                "match": "owner"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "DocumentPolicy",
+          "object": "Document",
+          "rules": [
+            {
+              "name": "allowWorkspaceOwnerRoleAllDocument",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Owner"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowRecordCreatorReadDocument",
+              "effect": "allow",
+              "principal": {
+                "match": "owner"
+              },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "command.established-context.creates-a-context-and-a-record-scoped-to-it.001",
+      "title": "A create step establishing a context lets a later step write a record scoped to the instance it just created",
+      "specRef": "resolved-model#established-contexts",
+      "operation": "executeCommand",
+      "modelRef": "establishedContexts",
+      "input": {
+        "commandName": "CreateWorkspace",
+        "input": {
+          "Name": "Studio"
+        },
+        "context": {
+          "userId": "user-founder",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "createWorkspace",
+              "objectName": "Workspace",
+              "values": {
+                "Name": "Studio"
+              }
+            },
+            {
+              "step": "createOwner",
+              "objectName": "WorkspaceMember",
+              "values": {
+                "User": "user-founder",
+                "Role": "Owner"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.established-context.reaches-the-instance-the-step-created.002",
+      "title": "A later step writing into the established instance is accepted, which is the reach an establishing step confers",
+      "specRef": "resolved-model#established-contexts",
+      "operation": "executeCommand",
+      "modelRef": "establishedContexts",
+      "input": {
+        "commandName": "CreateWorkspaceAndDocument",
+        "input": {
+          "Name": "Studio"
+        },
+        "context": {
+          "userId": "user-founder",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "createWorkspace",
+              "objectName": "Workspace",
+              "values": {
+                "Name": "Studio"
+              }
+            },
+            {
+              "step": "createDocument",
+              "objectName": "Document",
+              "values": {
+                "Title": "First document"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.established-context.reaches-no-instance-that-already-existed.003",
+      "title": "The same step shape is refused when it writes into a context instance the command did not create",
+      "specRef": "resolved-model#established-contexts",
+      "operation": "executeCommand",
+      "modelRef": "establishedContexts",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "existing",
+          "objectName": "Workspace",
+          "values": {
+            "Name": "Somebody else's workspace"
+          },
+          "context": {
+            "userId": "user-stranger",
+            "roles": [],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "commandName": "CreateWorkspaceAndReachAnother",
+        "input": {
+          "Name": "Studio",
+          "Existing": {
+            "$ref": "existing.meta.guid"
+          }
+        },
+        "context": {
+          "userId": "user-founder",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "command.established-context.does-not-survive-the-command.004",
+      "title": "A separate write into the established context afterwards is still refused while no real membership exists",
+      "specRef": "resolved-model#established-contexts",
+      "operation": "authorityReplay",
+      "modelRef": "establishedContexts",
+      "input": {
+        "sessions": {
+          "founder": {
+            "userId": "user-founder"
+          }
+        },
+        "setup": [
+          {
+            "alias": "workspace",
+            "intent": {
+              "operationId": "op-create-empty-workspace",
+              "kind": "command",
+              "commandName": "CreateEmptyWorkspace",
+              "input": {
+                "Name": "Studio"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-later-document",
+          "kind": "create",
+          "objectName": "Document",
+          "recordId": "document-later-1",
+          "values": {
+            "Workspace": {
+              "$ref": "workspace.records.0.meta.guid"
+            },
+            "Title": "Written after the command"
+          },
+          "selectedContexts": {
+            "Workspace": {
+              "$ref": "workspace.records.0.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-later-document",
+          "code": "ADL_RUNTIME_CONTEXT_ERROR"
+        }
+      }
+    },
+    {
+      "id": "command.established-context.the-membership-it-created-does-survive.005",
+      "title": "The identical later write is accepted when the same command also created the caller's membership, so it is membership and not the establishment that persists",
+      "specRef": "resolved-model#established-contexts",
+      "operation": "authorityReplay",
+      "modelRef": "establishedContexts",
+      "input": {
+        "sessions": {
+          "founder": {
+            "userId": "user-founder"
+          }
+        },
+        "setup": [
+          {
+            "alias": "workspace",
+            "intent": {
+              "operationId": "op-create-workspace",
+              "kind": "command",
+              "commandName": "CreateWorkspace",
+              "input": {
+                "Name": "Studio"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-later-document",
+          "kind": "create",
+          "objectName": "Document",
+          "recordId": "document-later-1",
+          "values": {
+            "Workspace": {
+              "$ref": "workspace.records.0.meta.guid"
+            },
+            "Title": "Written after the command"
+          },
+          "selectedContexts": {
+            "Workspace": {
+              "$ref": "workspace.records.0.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-later-document",
+          "records": [
+            {
+              "object": "Document",
+              "recordId": "document-later-1",
+              "values": {
+                "Title": "Written after the command"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

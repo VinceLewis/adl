@@ -6,9 +6,13 @@ SHELL
   NAV SongLibrary LABEL 'Songs' ICON music GROUP Library ORDER 50
   NAV SetListList LABEL 'Set Lists' ICON list GROUP Library ORDER 60
   NAV BandDirectory LABEL 'Bands' ICON users GROUP Admin ORDER 70
+  NAV BandMemberAvailabilityBoard LABEL 'Who is free' ICON users GROUP Main ORDER 45 VISIBLE WHEN CONTEXT Band SELECTED
+  NAV StreamingLinkList LABEL 'Streaming' ICON music GROUP Library ORDER 65
   CONTROL contextSelector KIND contextSelector PLACEMENT topBar
   CONTROL syncStatus KIND syncStatus PLACEMENT topBar
+  CONTROL signOut KIND logout LABEL 'Sign out' ICON x PLACEMENT navDrawer
   TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector syncStatus
+  NAV_DRAWER TITLE 'Giggle Band' CONTROLS signOut
 END.SHELL
 
 OBJECT Event

@@ -1,0 +1,2321 @@
+{
+  "version": 1,
+  "models": {
+    "orderedStrict": {
+      "app": {
+        "name": "OrderedStrict"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Editor"
+        }
+      ],
+      "objects": [
+        {
+          "name": "SetList",
+          "businessKey": "Name",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "SetListItem",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "SetList",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "SetList",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Position",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "constraints": [
+            {
+              "name": "orderedSetListItems",
+              "kind": "ordered",
+              "parentField": "SetList",
+              "positionField": "Position",
+              "minPosition": 1
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SetListPolicy",
+          "object": "SetList",
+          "rules": [
+            {
+              "name": "allowAdminAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "SetListItemPolicy",
+          "object": "SetListItem",
+          "rules": [
+            {
+              "name": "allowAdminAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "denyEditorUpdateLockedSetListItem",
+              "effect": "deny",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "update",
+              "condition": {
+                "kind": "binary",
+                "operator": "==",
+                "left": {
+                  "kind": "field",
+                  "field": "Title"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Locked"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "orderedShift": {
+      "app": {
+        "name": "OrderedShift"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Editor"
+        }
+      ],
+      "objects": [
+        {
+          "name": "SetList",
+          "businessKey": "Name",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "SetListItem",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "SetList",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "SetList",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Position",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "constraints": [
+            {
+              "name": "orderedSetListItems",
+              "kind": "ordered",
+              "parentField": "SetList",
+              "positionField": "Position",
+              "minPosition": 1,
+              "reorder": "shift"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SetListPolicy",
+          "object": "SetList",
+          "rules": [
+            {
+              "name": "allowAdminAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "SetListItemPolicy",
+          "object": "SetListItem",
+          "rules": [
+            {
+              "name": "allowAdminAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "denyEditorUpdateLockedSetListItem",
+              "effect": "deny",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "update",
+              "condition": {
+                "kind": "binary",
+                "operator": "==",
+                "left": {
+                  "kind": "field",
+                  "field": "Title"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Locked"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "orderedCompact": {
+      "app": {
+        "name": "OrderedCompact"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Editor"
+        }
+      ],
+      "objects": [
+        {
+          "name": "SetList",
+          "businessKey": "Name",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "SetListItem",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "SetList",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "SetList",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Position",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "constraints": [
+            {
+              "name": "orderedSetListItems",
+              "kind": "ordered",
+              "parentField": "SetList",
+              "positionField": "Position",
+              "minPosition": 1,
+              "compaction": "onDelete"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SetListPolicy",
+          "object": "SetList",
+          "rules": [
+            {
+              "name": "allowAdminAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "SetListItemPolicy",
+          "object": "SetListItem",
+          "rules": [
+            {
+              "name": "allowAdminAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "denyEditorUpdateLockedSetListItem",
+              "effect": "deny",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "update",
+              "condition": {
+                "kind": "binary",
+                "operator": "==",
+                "left": {
+                  "kind": "field",
+                  "field": "Title"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Locked"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "orderedShiftPrivateParent": {
+      "app": {
+        "name": "OrderedShiftPrivateParent"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Editor"
+        }
+      ],
+      "objects": [
+        {
+          "name": "SetList",
+          "businessKey": "Name",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localPrivate",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "SetListItem",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "SetList",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "SetList",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Position",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "constraints": [
+            {
+              "name": "orderedSetListItems",
+              "kind": "ordered",
+              "parentField": "SetList",
+              "positionField": "Position",
+              "minPosition": 1,
+              "reorder": "shift"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "SetListPolicy",
+          "object": "SetList",
+          "rules": [
+            {
+              "name": "allowAdminAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetList",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "SetListItemPolicy",
+          "object": "SetListItem",
+          "rules": [
+            {
+              "name": "allowAdminAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowEditorAllSetListItem",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "denyEditorUpdateLockedSetListItem",
+              "effect": "deny",
+              "principal": {
+                "match": "specific",
+                "roles": ["Editor"]
+              },
+              "action": "update",
+              "condition": {
+                "kind": "binary",
+                "operator": "==",
+                "left": {
+                  "kind": "field",
+                  "field": "Title"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Locked"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "ordered.reorder.shift-moves-an-item-up.001",
+      "title": "Shift reordering moves an item up the list and pushes the siblings it passed down one place each",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "readPersistedRecords",
+      "modelRef": "orderedShift",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "other",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Other"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherOne",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "other.meta.guid"
+            },
+            "Title": "Other One",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "SetListItem",
+          "id": {
+            "$ref": "charlie.meta.guid"
+          },
+          "patch": {
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "SetList",
+              "recordId": "$main",
+              "deleted": false,
+              "values": {
+                "Name": "Main"
+              }
+            },
+            {
+              "objectName": "SetList",
+              "recordId": "$other",
+              "deleted": false,
+              "values": {
+                "Name": "Other"
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$alpha",
+              "deleted": false,
+              "values": {
+                "Title": "Alpha",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$bravo",
+              "deleted": false,
+              "values": {
+                "Title": "Bravo",
+                "Position": 3
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$charlie",
+              "deleted": false,
+              "values": {
+                "Title": "Charlie",
+                "Position": 1
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$delta",
+              "deleted": false,
+              "values": {
+                "Title": "Delta",
+                "Position": 4
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$otherOne",
+              "deleted": false,
+              "values": {
+                "Title": "Other One",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.reorder.shift-moves-an-item-down.002",
+      "title": "Shift reordering moves an item down the list and pulls the siblings it passed up one place each",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "readPersistedRecords",
+      "modelRef": "orderedShift",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "other",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Other"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherOne",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "other.meta.guid"
+            },
+            "Title": "Other One",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "SetListItem",
+          "id": {
+            "$ref": "alpha.meta.guid"
+          },
+          "patch": {
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "SetList",
+              "recordId": "$main",
+              "deleted": false,
+              "values": {
+                "Name": "Main"
+              }
+            },
+            {
+              "objectName": "SetList",
+              "recordId": "$other",
+              "deleted": false,
+              "values": {
+                "Name": "Other"
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$alpha",
+              "deleted": false,
+              "values": {
+                "Title": "Alpha",
+                "Position": 3
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$bravo",
+              "deleted": false,
+              "values": {
+                "Title": "Bravo",
+                "Position": 1
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$charlie",
+              "deleted": false,
+              "values": {
+                "Title": "Charlie",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$delta",
+              "deleted": false,
+              "values": {
+                "Title": "Delta",
+                "Position": 4
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$otherOne",
+              "deleted": false,
+              "values": {
+                "Title": "Other One",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.reorder.shift-inserts-on-an-occupied-position.003",
+      "title": "Shift reordering makes room for a create that lands on a position a sibling already holds",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "readPersistedRecords",
+      "modelRef": "orderedShift",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "other",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Other"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherOne",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "other.meta.guid"
+            },
+            "Title": "Other One",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "encore",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Encore",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "SetList",
+              "recordId": "$main",
+              "deleted": false,
+              "values": {
+                "Name": "Main"
+              }
+            },
+            {
+              "objectName": "SetList",
+              "recordId": "$other",
+              "deleted": false,
+              "values": {
+                "Name": "Other"
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$alpha",
+              "deleted": false,
+              "values": {
+                "Title": "Alpha",
+                "Position": 1
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$bravo",
+              "deleted": false,
+              "values": {
+                "Title": "Bravo",
+                "Position": 3
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$charlie",
+              "deleted": false,
+              "values": {
+                "Title": "Charlie",
+                "Position": 4
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$delta",
+              "deleted": false,
+              "values": {
+                "Title": "Delta",
+                "Position": 5
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$encore",
+              "deleted": false,
+              "values": {
+                "Title": "Encore",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$otherOne",
+              "deleted": false,
+              "values": {
+                "Title": "Other One",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.reorder.existing-gap-absorbs-the-shift.004",
+      "title": "A gap already in the collection absorbs a shift rather than being pushed along ahead of it",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "readPersistedRecords",
+      "modelRef": "orderedShift",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 5
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "encore",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Encore",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "SetList",
+              "recordId": "$main",
+              "deleted": false,
+              "values": {
+                "Name": "Main"
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$alpha",
+              "deleted": false,
+              "values": {
+                "Title": "Alpha",
+                "Position": 1
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$bravo",
+              "deleted": false,
+              "values": {
+                "Title": "Bravo",
+                "Position": 3
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$charlie",
+              "deleted": false,
+              "values": {
+                "Title": "Charlie",
+                "Position": 4
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$delta",
+              "deleted": false,
+              "values": {
+                "Title": "Delta",
+                "Position": 5
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$encore",
+              "deleted": false,
+              "values": {
+                "Title": "Encore",
+                "Position": 2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.reorder.strict-still-refuses-a-duplicate-position.005",
+      "title": "Strict reordering, the default, still refuses a write onto a position a sibling holds",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "create",
+      "modelRef": "orderedStrict",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetListItem",
+        "values": {
+          "SetList": {
+            "$ref": "main.meta.guid"
+          },
+          "Title": "Encore",
+          "Position": 2
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeValidationError",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_CONSTRAINT_ORDERED_DUPLICATE"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.reorder.shift-still-enforces-the-minimum-position.006",
+      "title": "Shift reordering refuses a position below the declared minimum instead of arranging around it",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "update",
+      "modelRef": "orderedShift",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetListItem",
+        "id": {
+          "$ref": "charlie.meta.guid"
+        },
+        "patch": {
+          "Position": 0
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeValidationError",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [
+            {
+              "code": "ADL_RUNTIME_CONSTRAINT_ORDERED_POSITION"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.reorder.a-sibling-the-caller-may-not-move-fails-the-whole-reorder.007",
+      "title": "A reorder that would displace a sibling the caller may not update is refused whole rather than applied in part",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "update",
+      "modelRef": "orderedShift",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "locked",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Locked",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetListItem",
+        "id": {
+          "$ref": "charlie.meta.guid"
+        },
+        "patch": {
+          "Position": 1
+        },
+        "context": {
+          "userId": "editor-1",
+          "roles": ["Editor"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "ordered.compaction.on-delete-closes-the-gap-a-removal-leaves.008",
+      "title": "Compaction on delete renumbers the later siblings down so the collection stays contiguous",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "readPersistedRecords",
+      "modelRef": "orderedCompact",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "other",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Other"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherOne",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "other.meta.guid"
+            },
+            "Title": "Other One",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "SetListItem",
+          "id": {
+            "$ref": "bravo.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "SetList",
+              "recordId": "$main",
+              "deleted": false,
+              "values": {
+                "Name": "Main"
+              }
+            },
+            {
+              "objectName": "SetList",
+              "recordId": "$other",
+              "deleted": false,
+              "values": {
+                "Name": "Other"
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$alpha",
+              "deleted": false,
+              "values": {
+                "Title": "Alpha",
+                "Position": 1
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$bravo",
+              "deleted": true,
+              "values": {
+                "Title": "Bravo",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$charlie",
+              "deleted": false,
+              "values": {
+                "Title": "Charlie",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$delta",
+              "deleted": false,
+              "values": {
+                "Title": "Delta",
+                "Position": 3
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$otherOne",
+              "deleted": false,
+              "values": {
+                "Title": "Other One",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.compaction.none-keeps-the-gap-a-removal-leaves.009",
+      "title": "Compaction none, the default, leaves the hole a removal creates and moves nothing",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "readPersistedRecords",
+      "modelRef": "orderedStrict",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "other",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Other"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "delta",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Delta",
+            "Position": 4
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherOne",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "other.meta.guid"
+            },
+            "Title": "Other One",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "SetListItem",
+          "id": {
+            "$ref": "bravo.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "SetList",
+              "recordId": "$main",
+              "deleted": false,
+              "values": {
+                "Name": "Main"
+              }
+            },
+            {
+              "objectName": "SetList",
+              "recordId": "$other",
+              "deleted": false,
+              "values": {
+                "Name": "Other"
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$alpha",
+              "deleted": false,
+              "values": {
+                "Title": "Alpha",
+                "Position": 1
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$bravo",
+              "deleted": true,
+              "values": {
+                "Title": "Bravo",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$charlie",
+              "deleted": false,
+              "values": {
+                "Title": "Charlie",
+                "Position": 3
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$delta",
+              "deleted": false,
+              "values": {
+                "Title": "Delta",
+                "Position": 4
+              }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$otherOne",
+              "deleted": false,
+              "values": {
+                "Title": "Other One",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ordered.reorder.derived-sibling-writes-are-ordinary-update-intents.010",
+      "title": "A shift reorder queues the siblings it moved as ordinary update operations, so it replays with no new intent kind",
+      "specRef": "resolved-model#ordered-collections",
+      "operation": "syncWrite",
+      "modelRef": "orderedShiftPrivateParent",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "main",
+          "objectName": "SetList",
+          "values": {
+            "Name": "Main"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Alpha",
+            "Position": 1
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bravo",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Bravo",
+            "Position": 2
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "charlie",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": {
+              "$ref": "main.meta.guid"
+            },
+            "Title": "Charlie",
+            "Position": 3
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetListItem",
+        "write": "update",
+        "id": {
+          "$ref": "charlie.meta.guid"
+        },
+        "patch": {
+          "Position": 1
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "SetListItem",
+            "operation": "update",
+            "mode": "localFirst",
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$charlie"
+          },
+          "queue": [
+            {
+              "objectName": "SetListItem",
+              "operation": "create",
+              "recordId": "$alpha",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "SetListItem",
+              "operation": "create",
+              "recordId": "$bravo",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "SetListItem",
+              "operation": "create",
+              "recordId": "$charlie",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "SetListItem",
+              "operation": "update",
+              "recordId": "$charlie",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "SetListItem",
+              "operation": "update",
+              "recordId": "$alpha",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "SetListItem",
+              "operation": "update",
+              "recordId": "$bravo",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

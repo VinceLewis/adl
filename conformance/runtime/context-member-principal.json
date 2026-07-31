@@ -1,0 +1,2908 @@
+{
+  "version": 1,
+  "models": {
+    "contextMemberPrincipal": {
+      "app": {
+        "name": "ContextMemberPrincipal"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandMember"]
+          },
+          "grants": [
+            {
+              "name": "pendingBandInvitation",
+              "object": "BandInvitation",
+              "userField": "Invitee",
+              "contextField": "Band",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Pending"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandInvitation",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Invitee",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "displayField": "Note",
+          "fields": [
+            {
+              "name": "OwnerId",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Note",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandInvitationPolicy",
+          "object": "BandInvitation",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAvailabilityOwnerAll",
+              "effect": "allow",
+              "principal": {
+                "match": "owner"
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandMemberReadAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "contextMember",
+                "contextMember": {
+                  "context": "Band",
+                  "field": "OwnerId"
+                }
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        }
+      ]
+    },
+    "contextMemberSearchGated": {
+      "app": {
+        "name": "ContextMemberSearchGated"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandMember"]
+          },
+          "grants": [
+            {
+              "name": "pendingBandInvitation",
+              "object": "BandInvitation",
+              "userField": "Invitee",
+              "contextField": "Band",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Pending"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandInvitation",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Invitee",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "displayField": "Note",
+          "fields": [
+            {
+              "name": "OwnerId",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Note",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "BandInvitationPolicy",
+          "object": "BandInvitation",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "AvailabilityPolicy",
+          "object": "Availability",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["SystemAdmin"]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAvailabilityOwnerAll",
+              "effect": "allow",
+              "principal": {
+                "match": "owner"
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandMemberReadAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "contextMember",
+                "contextMember": {
+                  "context": "Band",
+                  "field": "OwnerId"
+                }
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowBandMemberSearchAvailability",
+              "effect": "allow",
+              "principal": {
+                "match": "contextMember",
+                "contextMember": {
+                  "context": "Band",
+                  "field": "OwnerId"
+                }
+              },
+              "action": "search"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "policy.context-member.co-member-reads-another-members-record.001",
+      "title": "A context member principal admits a caller who shares a context instance with the record's named user",
+      "specRef": "resolved-model#policies",
+      "operation": "read",
+      "modelRef": "contextMemberPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "id": {
+          "$ref": "aliceAvailability.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "bob.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Availability",
+          "recordId": "$aliceAvailability",
+          "values": {
+            "Note": "Free on Fridays"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.context-member.a-caller-sharing-no-context-is-denied.002",
+      "title": "A caller who is in a context, but not the record owner's, is denied",
+      "specRef": "resolved-model#policies",
+      "operation": "read",
+      "modelRef": "contextMemberPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "id": {
+          "$ref": "aliceAvailability.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "carol.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.context-member.an-empty-roster-fails-closed.003",
+      "title": "A caller who belongs to no context at all resolves an empty roster and is denied rather than unrestricted",
+      "specRef": "resolved-model#policies",
+      "operation": "read",
+      "modelRef": "contextMemberPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "id": {
+          "$ref": "aliceAvailability.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "dave.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.context-member.the-records-own-owner-is-unaffected.004",
+      "title": "The record's own owner still reads it through the owner rule, with no membership anywhere",
+      "specRef": "resolved-model#policies",
+      "operation": "read",
+      "modelRef": "contextMemberPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "id": {
+          "$ref": "daveAvailability.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "dave.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "Availability",
+          "recordId": "$daveAvailability",
+          "values": {
+            "Note": "Free on Mondays"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.context-member.a-grant-holder-is-not-a-co-member.005",
+      "title": "A caller reaching a context only through a grant is not a member of it and is denied a member's record",
+      "specRef": "resolved-model#policies",
+      "operation": "read",
+      "modelRef": "contextMemberPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "id": {
+          "$ref": "aliceAvailability.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "erin.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.context-member.nobody-is-a-co-member-of-a-grant-holder.006",
+      "title": "A member is likewise denied a grant-holder's record, because a grant puts nobody on the roster",
+      "specRef": "resolved-model#policies",
+      "operation": "read",
+      "modelRef": "contextMemberPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "id": {
+          "$ref": "erinAvailability.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "bob.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.context-member.the-roster-shapes-a-search-record-by-record.007",
+      "title": "Search returns only the records the roster admits, because the principal is applied per record on read",
+      "specRef": "resolved-model#policies",
+      "operation": "search",
+      "modelRef": "contextMemberPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "query": {},
+        "context": {
+          "userId": {
+            "$ref": "bob.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "objectName": "Availability",
+            "recordId": "$aliceAvailability",
+            "values": {
+              "Note": "Free on Fridays"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "policy.context-member.cannot-gate-the-object-level-search-action.008",
+      "title": "A context member principal can never authorise the object-level search action, which is decided with no record",
+      "specRef": "resolved-model#policies",
+      "operation": "search",
+      "modelRef": "contextMemberSearchGated",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carol",
+          "objectName": "User",
+          "values": {
+            "Name": "Carol Chen"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "dave",
+          "objectName": "User",
+          "values": {
+            "Name": "Dave Doyle"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erin",
+          "objectName": "User",
+          "values": {
+            "Name": "Erin Ellis"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "betas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Betas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "alice.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bobMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "bob.meta.guid"
+            },
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolMember",
+          "objectName": "BandMember",
+          "values": {
+            "User": {
+              "$ref": "carol.meta.guid"
+            },
+            "Band": {
+              "$ref": "betas.meta.guid"
+            },
+            "Role": "BandMember"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "betas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": {
+              "$ref": "erin.meta.guid"
+            },
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "aliceAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "alice.meta.guid"
+            },
+            "Note": "Free on Fridays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "daveAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "dave.meta.guid"
+            },
+            "Note": "Free on Mondays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "carolAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "carol.meta.guid"
+            },
+            "Note": "Free on Tuesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "erinAvailability",
+          "objectName": "Availability",
+          "values": {
+            "OwnerId": {
+              "$ref": "erin.meta.guid"
+            },
+            "Note": "Free on Wednesdays"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": ["SystemAdmin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Availability",
+        "query": {},
+        "context": {
+          "userId": {
+            "$ref": "bob.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    }
+  ]
+}

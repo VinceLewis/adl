@@ -76,11 +76,16 @@ phase or still explicitly outstanding:
 - Membership projection and scoped access — Phase 54, below.
 - Retention scheduling and the administration UI — Phase 55, below.
 
-Still outstanding, in sequence order: reference-app gaps and documentation
-hygiene (Phase 56). Outside the
-phase plan: TLS termination, secret
-management, CI/CD, and a hosting provider decision. The identity method itself is
-no longer open — see
+- Reference-app gaps and documentation hygiene — Phase 56.
+
+Still outstanding, in sequence order: **command intent replay** (Phase 57). The
+`command` intent variant below has always existed and is exercised directly, but
+no client emits one: a locally executed command replays as one ordinary intent
+per step, so its atomicity is lost at the sync boundary. Phase 56 made that
+material by shipping batch commands and command-established contexts, both of
+which depend on the transaction the split destroys. Outside the phase plan: TLS
+termination, secret management, CI/CD, and a hosting provider decision. The
+identity method itself is no longer open — see
 [ADR 0008](adr/0008-passkey-identity-and-offline-session-grace.md).
 
 ## Remote bootstrap and browser reconciliation

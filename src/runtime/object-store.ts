@@ -4,6 +4,7 @@ import type {
   LocalOperationKind,
   ResolvedApplicationModel,
   ResolvedObject,
+  ResolvedOrderedObjectConstraint,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
 import {
@@ -57,11 +58,20 @@ export interface ObjectStoreCreateOptions {
   recordId?: string;
 }
 
-export type PlannedObjectWrite = PlannedCreateObjectWrite | PlannedUpdateObjectWrite;
+export type PlannedObjectWrite =
+  | PlannedCreateObjectWrite
+  | PlannedUpdateObjectWrite
+  | PlannedDeleteObjectWrite;
 
 export interface PlannedCreateObjectWrite {
   operation: "create";
   objectName: string;
+  /**
+   * The authority the write was planned under. It is retained so a write the
+   * platform derives from this one — an ordered-collection shift, say — can be
+   * planned under the same authority and never a wider one.
+   */
+  authority: ObjectStoreWriteAuthority;
   record: StoredObjectRecord;
   patch: Record<string, JsonValue>;
 }
@@ -69,9 +79,19 @@ export interface PlannedCreateObjectWrite {
 export interface PlannedUpdateObjectWrite {
   operation: "update";
   objectName: string;
+  authority: ObjectStoreWriteAuthority;
   existing: StoredObjectRecord;
   record: StoredObjectRecord;
   patch: Record<string, JsonValue>;
+}
+
+export interface PlannedDeleteObjectWrite {
+  operation: "delete";
+  objectName: string;
+  authority: ObjectStoreWriteAuthority;
+  existing: StoredObjectRecord;
+  /** The tombstone that will be persisted. Deletes carry no patch. */
+  record: StoredObjectRecord;
 }
 
 export interface PlannedTransactionCommitOptions {
@@ -191,6 +211,7 @@ export class ObjectStore {
     return {
       operation: "create",
       objectName,
+      authority,
       record,
       patch: preparedValues,
     };
@@ -317,6 +338,7 @@ export class ObjectStore {
     return {
       operation: "update",
       objectName,
+      authority,
       existing,
       record: updated,
       patch,
@@ -328,43 +350,62 @@ export class ObjectStore {
     id: string,
     context: RuntimeContext,
   ): Promise<StoredObjectRecord> {
-    await this.startupGuard();
     this.logger.debug("ENTER ObjectStore.delete", {
       objectName,
       recordId: id,
       context: safeContextLog(context),
     });
+    // A delete goes through the planned path so an ordered collection can
+    // renumber the records the removal leaves behind inside the same
+    // transaction. With nothing to compact this plans exactly one write, which
+    // is the single-write storage call it has always made.
+    const write = await this.planDeleteForTransaction(objectName, id, context);
+    const [deleted] = await this.commitPlannedTransaction([write], context);
+    if (deleted === undefined) {
+      throw new StorageError(
+        `Delete for record '${id}' on object '${objectName}' did not produce a record.`,
+        {
+          objectName,
+          id,
+        },
+      );
+    }
+    this.logger.debug("EXIT ObjectStore.delete", { objectName, recordId: id });
+
+    return deleted;
+  }
+
+  async planDeleteForTransaction(
+    objectName: string,
+    id: string,
+    context: RuntimeContext,
+    authority: ObjectStoreWriteAuthority = "caller",
+  ): Promise<PlannedDeleteObjectWrite> {
+    await this.startupGuard();
     const existing = await this.requireActiveRecord(objectName, id);
     requireObjectScopeForRecord(this.index, objectName, existing, context, "delete");
     const currentState = this.getState(objectName, existing);
 
-    this.policyEngine.requireAllowed(
-      {
-        objectName,
-        action: "delete",
-        record: existing,
-        ...(currentState === undefined ? {} : { currentState }),
-      },
-      context,
-    );
+    if (authority === "caller") {
+      this.policyEngine.requireAllowed(
+        {
+          objectName,
+          action: "delete",
+          record: existing,
+          ...(currentState === undefined ? {} : { currentState }),
+        },
+        context,
+      );
+    }
     this.syncPolicy.requireLocalWriteAllowed(objectName, "delete", context);
 
-    const deleted = this.deletedRecord(existing, context);
-    await this.storage.delete(objectName, deleted);
-    this.auditService.record(
-      "delete",
+    return {
+      operation: "delete",
       objectName,
-      deleted,
-      context,
-      existing.values,
-      deleted.values,
-    );
-    this.recordOperation("delete", objectName, deleted, context, {
-      baseRevision: existing.meta.revision,
-    });
-    this.logger.debug("EXIT ObjectStore.delete", { objectName, recordId: id });
-
-    return this.applyComputedReadPolicy(objectName, deleted, context);
+      authority,
+      existing,
+      record: this.deletedRecord(existing, context),
+    };
   }
 
   async search(
@@ -436,18 +477,25 @@ export class ObjectStore {
     options: PlannedTransactionCommitOptions = {},
   ): Promise<StoredObjectRecord[]> {
     await this.startupGuard();
-    await this.requireConstraintsForWrites(writes);
+    // Ordered-collection consequences are planned here rather than by each
+    // caller, so a reorder is one transaction and one storage commit however it
+    // was requested: direct CRUD, a command step, or a replayed intent.
+    const plan = await this.expandOrderedCollectionWrites(writes, context);
+    await this.requireConstraintsForWrites(plan.writes);
 
     const commandTransactionId =
       options.command === undefined ? undefined : this.nextCommandTransactionId();
-    await this.commitStorageWrites(writes);
+    await this.commitStorageWrites(plan.writes);
 
     const committed: StoredObjectRecord[] = [];
-    for (let index = 0; index < writes.length; index += 1) {
-      const write = writes[index];
+    for (let index = 0; index < plan.writes.length; index += 1) {
+      const write = plan.writes[index];
       if (write === undefined) {
         continue;
       }
+      // A derived write belongs to the step that caused it, so command metadata
+      // is taken from the originating write rather than from its own position.
+      const originIndex = plan.originIndexes[index] ?? index;
       const commandDetails =
         options.command === undefined
           ? {}
@@ -456,7 +504,7 @@ export class ObjectStore {
               ...(options.command.label === undefined
                 ? {}
                 : { commandLabel: options.command.label }),
-              commandStep: options.command.steps[index] ?? `step${index + 1}`,
+              commandStep: options.command.steps[originIndex] ?? `step${originIndex + 1}`,
               commandTransactionId,
             };
 
@@ -474,25 +522,43 @@ export class ObjectStore {
           patch: write.record.values,
           ...commandDetails,
         });
-        committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
-        continue;
+      } else if (write.operation === "delete") {
+        this.auditService.record(
+          "delete",
+          write.objectName,
+          write.record,
+          context,
+          write.existing.values,
+          write.record.values,
+          commandDetails,
+        );
+        this.recordOperation("delete", write.objectName, write.record, context, {
+          baseRevision: write.existing.meta.revision,
+          ...commandDetails,
+        });
+      } else {
+        this.auditService.record(
+          "update",
+          write.objectName,
+          write.record,
+          context,
+          write.existing.values,
+          write.record.values,
+          commandDetails,
+        );
+        this.recordOperation("update", write.objectName, write.record, context, {
+          baseRevision: write.existing.meta.revision,
+          patch: write.patch,
+          ...commandDetails,
+        });
       }
 
-      this.auditService.record(
-        "update",
-        write.objectName,
-        write.record,
-        context,
-        write.existing.values,
-        write.record.values,
-        commandDetails,
-      );
-      this.recordOperation("update", write.objectName, write.record, context, {
-        baseRevision: write.existing.meta.revision,
-        patch: write.patch,
-        ...commandDetails,
-      });
-      committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
+      // Only the requested writes are returned, positionally, so a caller still
+      // gets exactly the records it asked for. Derived writes are visible where
+      // side effects belong: audit, the operation log, and the sync queue.
+      if (index < writes.length) {
+        committed.push(this.applyComputedReadPolicy(write.objectName, write.record, context));
+      }
     }
 
     return committed;
@@ -681,6 +747,87 @@ export class ObjectStore {
     );
   }
 
+  /**
+   * Plans the sibling writes an ordered collection needs so the requested
+   * writes can stand: `reorder: "shift"` moves colliding siblings aside, and
+   * `compaction: "onDelete"` renumbers the survivors of a removal down.
+   *
+   * Derived writes are planned through {@link planUpdateForTransaction} under
+   * the authority of the write that caused them, never a wider one. A
+   * caller-authority reorder therefore re-runs the full object and field policy
+   * check, the context-scope check, the sync-policy check and validation
+   * against every sibling it moves: a sibling the caller may not update raises
+   * from here, before anything is persisted, so the whole reorder is refused
+   * rather than the record being moved silently. A command-authority write
+   * derives command-authority sibling writes because the command's own
+   * preconditions were already the authorisation boundary for landing a record
+   * on that position — refusing the consequence while permitting the cause
+   * would leave the collection incoherent, and it grants the caller nothing the
+   * command did not already grant. Everything else — validation, scope, sync
+   * policy, constraints, audit, operation log — runs for derived writes exactly
+   * as it does for requested ones.
+   */
+  private async expandOrderedCollectionWrites(
+    writes: PlannedObjectWrite[],
+    context: RuntimeContext,
+  ): Promise<{ writes: PlannedObjectWrite[]; originIndexes: number[] }> {
+    const expanded = [...writes];
+    const originIndexes = writes.map((_, index) => index);
+    if (writes.length === 0) {
+      return { writes: expanded, originIndexes };
+    }
+
+    for (const objectName of [...new Set(writes.map((write) => write.objectName))]) {
+      const object = this.index.getObject(objectName);
+      const constraints = object.constraints.filter(
+        (constraint): constraint is ResolvedOrderedObjectConstraint =>
+          constraint.kind === "ordered" &&
+          (constraint.reorder === "shift" || constraint.compaction === "onDelete"),
+      );
+      if (constraints.length === 0) {
+        continue;
+      }
+
+      const entries = writes
+        .map((write, index) => ({ write, index }))
+        .filter((entry) => entry.write.objectName === objectName);
+      const liveRecords = await this.storage.search({ object, fields: [] });
+
+      // Two ordered constraints on one object must not plan two writes for the
+      // same record: the second would be planned against the pre-transaction
+      // record and drop the first one's position.
+      const movesByRecord = new Map<string, OrderedCollectionMove>();
+      for (const constraint of constraints) {
+        for (const move of planOrderedCollectionMoves(constraint, liveRecords, entries)) {
+          const merged = movesByRecord.get(move.recordId);
+          if (merged === undefined) {
+            movesByRecord.set(move.recordId, move);
+            continue;
+          }
+          merged.patch = { ...merged.patch, ...move.patch };
+          merged.authority =
+            merged.authority === "caller" || move.authority === "caller" ? "caller" : "command";
+          merged.originIndex = Math.min(merged.originIndex, move.originIndex);
+        }
+      }
+
+      for (const move of movesByRecord.values()) {
+        expanded.push(
+          await this.planUpdateForTransaction(
+            objectName,
+            move.recordId,
+            move.patch,
+            context,
+            move.authority,
+          ),
+        );
+        originIndexes.push(move.originIndex);
+      }
+    }
+
+    return { writes: expanded, originIndexes };
+  }
+
   private async requireConstraintsForWrites(writes: PlannedObjectWrite[]): Promise<void> {
     const issues: RuntimeValidationIssue[] = [];
     const affectedObjectNames = [...new Set(writes.map((write) => write.objectName))];
@@ -694,6 +841,12 @@ export class ObjectStore {
 
       const finalRecords = await this.getFinalConstraintRecords(object, objectWrites);
       for (const write of objectWrites) {
+        // A deleted record leaves the collection, so it has nothing left to
+        // satisfy. It is already absent from `finalRecords`, which is what makes
+        // the position it held free for the writes around it.
+        if (write.operation === "delete") {
+          continue;
+        }
         for (const constraint of object.constraints) {
           if (constraint.kind === "unique") {
             const fields = [...constraint.scopeFields, ...constraint.fields];
@@ -778,6 +931,10 @@ export class ObjectStore {
     );
 
     for (const write of writes) {
+      if (write.operation === "delete") {
+        recordsById.delete(write.record.meta.guid);
+        continue;
+      }
       recordsById.set(write.record.meta.guid, cloneJson(write.record));
     }
 
@@ -877,8 +1034,308 @@ export class ObjectStore {
       return;
     }
 
+    if (write.operation === "delete") {
+      await this.storage.delete(write.objectName, write.record);
+      return;
+    }
+
     await this.storage.update(write.objectName, write.record);
   }
+}
+
+interface OrderedCollectionWriteEntry {
+  write: PlannedObjectWrite;
+  index: number;
+}
+
+interface OrderedCollectionMove {
+  recordId: string;
+  patch: Record<string, JsonValue>;
+  authority: ObjectStoreWriteAuthority;
+  /** Index of the requested write this move is a consequence of. */
+  originIndex: number;
+}
+
+interface OrderedCollectionAnchor {
+  recordId: string;
+  position: number;
+  /** The position the record held in this scope before the write, if it held one. */
+  previousPosition: number | undefined;
+  authority: ObjectStoreWriteAuthority;
+  originIndex: number;
+}
+
+interface OrderedCollectionRemoval {
+  position: number;
+  authority: ObjectStoreWriteAuthority;
+  originIndex: number;
+}
+
+/**
+ * Works out how the untouched siblings of an ordered collection have to move so
+ * that the requested writes hold their requested positions.
+ *
+ * It is deliberately pure and total: it decides positions and never decides
+ * authorisation, and when the request cannot be satisfied it returns no moves
+ * so the ordinary constraint check refuses the transaction. Fail closed —
+ * "cannot be arranged" must surface as `ADL_RUNTIME_CONSTRAINT_ORDERED_*`, not
+ * as a silently different arrangement.
+ */
+function planOrderedCollectionMoves(
+  constraint: ResolvedOrderedObjectConstraint,
+  liveRecords: StoredObjectRecord[],
+  entries: OrderedCollectionWriteEntry[],
+): OrderedCollectionMove[] {
+  const scopeFields = [...constraint.scopeFields, constraint.parentField];
+  const writtenIds = new Set(entries.map((entry) => entry.write.record.meta.guid));
+  const anchorsByScope = new Map<string, OrderedCollectionAnchor[]>();
+  const removalsByScope = new Map<string, OrderedCollectionRemoval[]>();
+
+  for (const entry of entries) {
+    const { write } = entry;
+    if (write.operation === "delete") {
+      if (constraint.compaction !== "onDelete") {
+        continue;
+      }
+      const scopeKey = orderedScopeKey(write.existing, scopeFields);
+      const position = orderedPosition(write.existing, constraint);
+      if (scopeKey === undefined || position === undefined) {
+        continue;
+      }
+      pushInto(removalsByScope, scopeKey, {
+        position,
+        authority: write.authority,
+        originIndex: entry.index,
+      });
+      continue;
+    }
+
+    if (constraint.reorder !== "shift") {
+      continue;
+    }
+    const scopeKey = orderedScopeKey(write.record, scopeFields);
+    const position = orderedPosition(write.record, constraint);
+    if (scopeKey === undefined || position === undefined) {
+      continue;
+    }
+    // A record arriving from another parent has no previous position here, so
+    // it is an insertion into this scope rather than a move within it.
+    const previousPosition =
+      write.operation === "update" && orderedScopeKey(write.existing, scopeFields) === scopeKey
+        ? orderedPosition(write.existing, constraint)
+        : undefined;
+    pushInto(anchorsByScope, scopeKey, {
+      recordId: write.record.meta.guid,
+      position,
+      previousPosition,
+      authority: write.authority,
+      originIndex: entry.index,
+    });
+  }
+
+  const moves: OrderedCollectionMove[] = [];
+  for (const scopeKey of new Set([...removalsByScope.keys(), ...anchorsByScope.keys()])) {
+    const anchors = anchorsByScope.get(scopeKey) ?? [];
+    const removals = removalsByScope.get(scopeKey) ?? [];
+    const siblings = liveRecords
+      .filter(
+        (record) =>
+          !writtenIds.has(record.meta.guid) &&
+          record.meta.deletedAt === undefined &&
+          orderedScopeKey(record, scopeFields) === scopeKey &&
+          orderedPosition(record, constraint) !== undefined,
+      )
+      .map((record) => ({
+        recordId: record.meta.guid,
+        position: orderedPosition(record, constraint) as number,
+      }))
+      .sort(
+        (left, right) =>
+          left.position - right.position || left.recordId.localeCompare(right.recordId),
+      );
+
+    const original = new Map(siblings.map((sibling) => [sibling.recordId, sibling.position]));
+    const working = new Map(original);
+    const causes = new Map<string, { authority: ObjectStoreWriteAuthority; originIndex: number }>();
+    // Every requested position is reserved before anything is arranged, so a
+    // sibling is never shifted onto a slot another write in this transaction
+    // asked for.
+    const claimed = new Map<number, string>();
+    for (const anchor of anchors) {
+      claimed.set(anchor.position, anchor.recordId);
+    }
+
+    compactOrderedScope(working, removals, causes);
+    for (const anchor of anchors) {
+      shiftOrderedScopeForAnchor(constraint, working, claimed, anchor, causes);
+    }
+
+    for (const [recordId, position] of working) {
+      if (original.get(recordId) === position) {
+        continue;
+      }
+      const cause = causes.get(recordId);
+      moves.push({
+        recordId,
+        patch: { [constraint.positionField]: position },
+        authority: cause?.authority ?? "caller",
+        originIndex: cause?.originIndex ?? 0,
+      });
+    }
+  }
+
+  return moves;
+}
+
+/**
+ * Closes the holes left by the records this transaction removes.
+ *
+ * A sibling moves down by the number of removed positions below it, which
+ * closes exactly the holes the removals made, keeps every pre-existing gap, and
+ * is order-independent for several removals at once.
+ */
+function compactOrderedScope(
+  working: Map<string, number>,
+  removals: OrderedCollectionRemoval[],
+  causes: Map<string, { authority: ObjectStoreWriteAuthority; originIndex: number }>,
+): void {
+  if (removals.length === 0) {
+    return;
+  }
+
+  for (const [recordId, position] of [...working]) {
+    const below = removals.filter((removal) => removal.position < position);
+    if (below.length === 0) {
+      continue;
+    }
+    working.set(recordId, position - below.length);
+    const cause = below[0];
+    if (cause !== undefined) {
+      recordOrderedCause(causes, recordId, cause);
+    }
+  }
+}
+
+/**
+ * Moves the block of siblings the anchor displaces one slot away from the slot
+ * the anchor vacated, which is the smallest rearrangement that leaves the
+ * anchor where it was asked to be.
+ *
+ * The block ends at the first free slot, so a move up stops at the slot the
+ * record itself vacated and an insertion stops at the first gap — a contiguous
+ * collection stays contiguous and an existing gap absorbs the shift instead of
+ * being pushed along. An anchor already sitting on its requested position moves
+ * nothing, which is what makes replaying a reorder converge.
+ */
+function shiftOrderedScopeForAnchor(
+  constraint: ResolvedOrderedObjectConstraint,
+  working: Map<string, number>,
+  claimed: Map<number, string>,
+  anchor: OrderedCollectionAnchor,
+  causes: Map<string, { authority: ObjectStoreWriteAuthority; originIndex: number }>,
+): void {
+  if (!Number.isInteger(anchor.position) || anchor.position < constraint.minPosition) {
+    return;
+  }
+  if (anchor.previousPosition === anchor.position) {
+    return;
+  }
+
+  const step =
+    anchor.previousPosition !== undefined && anchor.previousPosition < anchor.position ? -1 : 1;
+  const pending: Array<[string, number]> = [];
+  let slot = anchor.position;
+  // The walk consumes one distinct occupied slot per step, so it always ends;
+  // the counter only guarantees that an unreachable case arranges nothing
+  // rather than half a block.
+  let guard = working.size + 1;
+
+  for (;;) {
+    if (guard <= 0) {
+      return;
+    }
+    guard -= 1;
+    const occupant = findOrderedOccupant(working, slot);
+    if (occupant === undefined) {
+      const claimant = claimed.get(slot);
+      const displaced =
+        pending.length > 0 &&
+        ((claimant !== undefined && claimant !== anchor.recordId) || slot < constraint.minPosition);
+      if (displaced) {
+        // The block has nowhere to go that another write has not already
+        // claimed, so nothing is moved and the duplicate is refused.
+        return;
+      }
+      break;
+    }
+
+    pending.push([occupant, slot + step]);
+    slot += step;
+  }
+
+  for (const [recordId, position] of pending) {
+    working.set(recordId, position);
+    recordOrderedCause(causes, recordId, anchor);
+  }
+}
+
+function recordOrderedCause(
+  causes: Map<string, { authority: ObjectStoreWriteAuthority; originIndex: number }>,
+  recordId: string,
+  cause: { authority: ObjectStoreWriteAuthority; originIndex: number },
+): void {
+  const existing = causes.get(recordId);
+  if (existing === undefined) {
+    causes.set(recordId, { authority: cause.authority, originIndex: cause.originIndex });
+    return;
+  }
+  // Several writes can displace one sibling. The move is then planned under the
+  // narrowest authority of any of them, never the widest.
+  causes.set(recordId, {
+    authority:
+      existing.authority === "caller" || cause.authority === "caller" ? "caller" : "command",
+    originIndex: Math.min(existing.originIndex, cause.originIndex),
+  });
+}
+
+function findOrderedOccupant(working: Map<string, number>, slot: number): string | undefined {
+  for (const [recordId, position] of working) {
+    if (position === slot) {
+      return recordId;
+    }
+  }
+
+  return undefined;
+}
+
+function orderedScopeKey(record: StoredObjectRecord, scopeFields: string[]): string | undefined {
+  if (hasMissingConstraintValue(record, scopeFields)) {
+    return undefined;
+  }
+
+  return JSON.stringify(scopeFields.map((field) => record.values[field] ?? null));
+}
+
+function orderedPosition(
+  record: StoredObjectRecord,
+  constraint: ResolvedOrderedObjectConstraint,
+): number | undefined {
+  const position = record.values[constraint.positionField];
+  if (typeof position !== "number" || !Number.isInteger(position)) {
+    return undefined;
+  }
+
+  return position < constraint.minPosition ? undefined : position;
+}
+
+function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
+  const existing = map.get(key);
+  if (existing === undefined) {
+    map.set(key, [value]);
+    return;
+  }
+
+  existing.push(value);
 }
 
 function stateProperty(currentState: string | undefined): { currentState: string } | {} {

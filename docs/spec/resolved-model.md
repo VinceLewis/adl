@@ -42,6 +42,15 @@ Resolution applies platform defaults consistently:
   view, and `always` visibility.
 - Shell top-bar controls default to business context selectors and sync status.
   Mobile business-context selectors default to sheet behavior.
+- Shell top-bar and navigation-drawer control lists each default to the declared
+  controls whose placement names that region, so a declared placement is
+  meaningful without a second declaration repeating it. An undeclared drawer
+  title stays **absent** in the resolved model rather than being defaulted to the
+  application name; the renderer falls back. Resolution does not invent a value
+  that would then be indistinguishable from an author declaring the same string.
+- Ordered constraints default to `strict` reordering and `none` compaction.
+- Command inputs default to non-repeated; read-model source joins default to
+  `one` cardinality. Both defaults leave existing behaviour unchanged.
 - View edit containers default to `modal`; `splitPane` is available only when
   explicitly selected.
 - View presentation defaults, when a view declares presentation, are `stack`
@@ -72,18 +81,60 @@ commands, computed fields, and read-model expression fields.
 
 ## Contexts
 
-Business contexts name a context object and optional membership declaration.
-Object scopes link objects to a context through a field. View and read-model
-contexts declare whether a context is none, required, optional, or all.
+Business contexts name a context object, an optional membership declaration, and
+zero or more grants. Object scopes link objects to a context through a field.
+View and read-model contexts declare whether a context is none, required,
+optional, or all.
 
 Context roles are not global roles. Runtime context roles must carry context
 name, context instance id, and role.
+
+### Grants
+
+A grant names an object whose records associate a user with a context instance,
+the fields carrying each, and an optional condition on the record. It is a route
+into a context that is not membership.
+
+A grant and a membership are not interchangeable, and a conforming runtime must
+not conflate them:
+
+- **A grant confers no roles.** Context roles are derived from membership alone.
+  A caller reachable only through a grant holds an empty role set for that
+  context, so every role-gated rule denies them.
+- **A grant widens the object-scope gate and nothing else.** It makes a record of
+  that context instance eligible for a policy decision; the object's own policy
+  still decides. Without this distinction a pending invitation could not be read
+  by its own invitee, because the invitation is scoped to the very context the
+  invitation exists to get them into, and the refusal happens upstream of policy.
+- **A grant-holder is not a co-member.** They do not appear in, and are not
+  admitted by, the `contextMember` principal below.
+
+A runtime carries grants separately from roles on its runtime context, and the
+available-context listing reports them separately, so "invited" and "joined" stay
+distinguishable to a caller and a renderer.
 
 ## Policies
 
 Policies are object-scoped and deny by default. A rule has effect, principal,
 action, optional states, optional fields, optional lifecycle action, optional
 condition, and channels. Conditions are resolved expressions.
+
+Principals match everyone, authenticated users, anonymous users, owners, specific
+users/roles/group-roles, or **context members**.
+
+A `contextMember` principal names a business context and a field on the target
+record. It matches when that field holds a user the caller shares an instance of
+that context with, by membership. It answers a question neither `owner` nor a
+role can: `owner` covers a caller's own records, and a role covers everything of
+an object inside a context, but a shared roster needs "this record belongs to
+somebody I am in a context with" — expressing that as a role would grant it over
+every record of the object, including those of people the caller shares nothing
+with.
+
+Membership resolution is asynchronous and policy evaluation is not, so the
+membership set is resolved onto the runtime context before evaluation. A missing
+set never matches: the principal fails closed rather than treating "not resolved"
+as "not restricted".
 
 ## Lifecycles
 
@@ -98,6 +149,58 @@ Read models contain named sources, output fields, and sort order. Source scopes
 are backend-neutral: `all`, `currentContext`, `allAvailableContexts`, and
 `currentUser`. Expression fields evaluate over already-projected row values.
 
+A source after the first may declare a **join** naming an earlier source, a field
+on each side, and a cardinality. The field name `id` on either side means the
+record's own id rather than a declared field.
+
+- `one` contributes at most one matching record and leaves the row count
+  unchanged. No match drops the row.
+- `many` **fans out**: an upstream row with N matches becomes N rows, and no
+  match drops the row.
+
+Without a declared join a source is resolved the original way — follow whatever
+lookup field an already-loaded record declares toward this source's object, and
+read one record by id. That only walks a foreign key forwards and cannot fan out,
+so a projection through a junction object — two objects that share a third
+object's id rather than referencing each other — is inexpressible without an
+explicit join.
+
+A declared join matches records by field value rather than reading one by a known
+id, so it is a search in everything but name and a conforming runtime must
+require the `search` action on the joined object — for **both** cardinalities,
+not only `many`. The predicate enumerates the joined object either way. An
+undeclared lookup source still requires only `read`, because it reads a single
+record whose id an already-loaded record handed it.
+
+Per-record read policy, object scope and per-object field shaping still apply to
+every source of every produced row. A record the caller may not read must be
+indistinguishable from no match: a `one` join drops the row, a `many` join drops
+that branch, and neither may reveal that something was withheld.
+
+A join may not appear on the primary source, may not name a later source, and may
+not appear in a `union` read model, which interleaves independent feeds and has
+no row to join onto.
+
+## Ordered Collections
+
+An `ordered` object constraint declares a parent field, a position field, scope
+fields, a minimum position, a reorder mode and a compaction mode.
+
+- `reorder: "strict"` refuses a write onto a position a sibling holds.
+- `reorder: "shift"` accepts it and moves the intervening siblings, in the same
+  transaction, so the collection stays contiguous and unique and the record lands
+  where the author asked.
+- `compaction: "none"` leaves the gap a removal creates.
+- `compaction: "onDelete"` renumbers later siblings down, in the same transaction
+  as the delete.
+
+Both default to the stricter, non-moving behaviour. Neither introduces a new
+operation kind: a reorder is ordinary `update` intents and a compacting delete is
+a `delete` intent plus `update` intents, so both replay through authority intent
+replay unchanged. Every generated sibling write passes the same policy,
+validation, scope and sync checks as an authored one — a sibling the caller may
+not write fails the whole transaction rather than moving silently.
+
 ## Commands
 
 Commands contain typed inputs, resolved-expression preconditions, and ordered
@@ -105,6 +208,37 @@ create/update steps. A step names its target object, authority mode, value or
 patch expressions, and optional step preconditions. Step value expressions can
 reference command input, runtime values, earlier step fields, or earlier step
 metadata such as generated record ids.
+
+### Repeated inputs and iterating steps
+
+An input may be **repeated**, carrying a list of scalars or of records whose
+fields the input declares. A step may declare `forEach` naming a repeated input;
+it then plans one write per item into the same transaction, and its value
+expressions may additionally reference the current item, a named field of it, or
+its zero-based index.
+
+This exists because a command's steps are otherwise fixed at authoring time, so
+the number of records a command can write is fixed too — and importing fifty
+songs as fifty independent transactions has no shared success or failure.
+
+An iterating step produces many records, so no step may reference one by step
+field or step metadata: there would be no single answer. A conforming runtime
+must refuse such a reference at validation and must not bind an iterating step's
+name to any one of its records at execution.
+
+### Established contexts
+
+A create step may declare that its new record **establishes** a business context,
+naming the context whose object it creates. For the remainder of that transaction
+the new instance is in reach of the object-scope gate, so a later step may write
+a record scoped to it — which is what creating a context and its first membership
+atomically requires, and what the gate otherwise refuses because the instance did
+not exist when the transaction opened.
+
+It reaches only the instance the step just created and does not survive the
+transaction, so it cannot hand a caller access to a context that already existed.
+It confers no roles; the membership record a later step creates is what confers
+real access afterwards.
 
 Command declarations are backend-neutral runtime semantics. They do not encode
 SQL, browser callbacks, or generated application code. Runtime side effects keep

@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "models": {
+    "shellPlacedControls": {
+      "app": {
+        "name": "ShellPlacedControls"
+      },
+      "shell": {
+        "controls": [
+          {
+            "name": "contextSelector",
+            "kind": "contextSelector",
+            "placement": "topBar"
+          },
+          {
+            "name": "syncStatus",
+            "kind": "syncStatus",
+            "label": "Sync status",
+            "placement": "topBar"
+          },
+          {
+            "name": "themeSwitch",
+            "kind": "themeSwitch",
+            "label": "Theme",
+            "placement": "navDrawer"
+          },
+          {
+            "name": "logout",
+            "kind": "logout",
+            "label": "Sign out",
+            "placement": "navDrawer"
+          }
+        ]
+      },
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ]
+    },
+    "shellDeclaredNavDrawer": {
+      "app": {
+        "name": "ShellDeclaredNavDrawer"
+      },
+      "shell": {
+        "navDrawer": {
+          "title": "Menu",
+          "controls": ["logout"]
+        },
+        "controls": [
+          {
+            "name": "contextSelector",
+            "kind": "contextSelector",
+            "placement": "topBar"
+          },
+          {
+            "name": "themeSwitch",
+            "kind": "themeSwitch",
+            "label": "Theme",
+            "placement": "navDrawer"
+          },
+          {
+            "name": "logout",
+            "kind": "logout",
+            "label": "Sign out",
+            "placement": "navDrawer"
+          }
+        ]
+      },
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ]
+    },
+    "shellUndeclared": {
+      "app": {
+        "name": "ShellUndeclared"
+      },
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "shell.nav-drawer.controls-default-to-declared-placement.001",
+      "title": "Each shell region's control list defaults to the declared controls placed in that region",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "shellPlacedControls",
+      "input": {
+        "select": ["shell.topBar.controls", "shell.navDrawer.controls", "shell.navDrawer.title"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "shell.topBar.controls": ["contextSelector", "syncStatus"],
+          "shell.navDrawer.controls": ["themeSwitch", "logout"],
+          "shell.navDrawer.title": "$absent"
+        }
+      }
+    },
+    {
+      "id": "shell.nav-drawer.declared-lists-are-not-widened-by-placement.002",
+      "title": "A declared region control list stands as written and is not widened by other controls placed there",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "shellDeclaredNavDrawer",
+      "input": {
+        "select": ["shell.navDrawer.controls", "shell.navDrawer.title", "shell.topBar.controls"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "shell.navDrawer.controls": ["logout"],
+          "shell.navDrawer.title": "Menu",
+          "shell.topBar.controls": ["contextSelector"]
+        }
+      }
+    },
+    {
+      "id": "shell.nav-drawer.platform-default-controls-are-top-bar-only.003",
+      "title": "A model declaring no shell gets the platform's top-bar controls and an empty navigation drawer",
+      "specRef": "resolved-model#defaults",
+      "operation": "resolveModel",
+      "modelRef": "shellUndeclared",
+      "input": {
+        "select": [
+          "shell.topBar.controls",
+          "shell.navDrawer.controls",
+          "shell.navDrawer.title",
+          "shell.controls.0.placement",
+          "shell.controls.1.placement"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "shell.topBar.controls": ["contextSelector", "syncStatus"],
+          "shell.navDrawer.controls": [],
+          "shell.navDrawer.title": "$absent",
+          "shell.controls.0.placement": "topBar",
+          "shell.controls.1.placement": "topBar"
+        }
+      }
+    }
+  ]
+}

@@ -115,7 +115,13 @@ export type PolicyAction =
   | "export"
   | "import";
 
-export type PrincipalMatch = "everyone" | "authenticated" | "anonymous" | "owner" | "specific";
+export type PrincipalMatch =
+  | "everyone"
+  | "authenticated"
+  | "anonymous"
+  | "owner"
+  | "specific"
+  | "contextMember";
 
 export type RuntimeChannel = "ui" | "api" | "sync" | "import" | "test";
 export type SyncMode = "localFirst" | "cacheReadonly" | "onlineRequired" | "localPrivate";
@@ -147,6 +153,9 @@ export type ReadModelSourceScope =
   | "currentUser";
 export type ReadModelStrategy = "join" | "union";
 export type ObjectConstraintKind = "unique" | "ordered";
+export type OrderedCollectionReorder = "strict" | "shift";
+export type OrderedCollectionCompaction = "none" | "onDelete";
+export type ReadModelJoinCardinality = "one" | "many";
 export type PolicyConditionKind = "equals" | "all" | "any" | "not";
 export type PolicyConditionRuntimeProperty = "userId";
 export type DecisionTableMatchPolicy = "first" | "single";
@@ -274,6 +283,7 @@ export interface ResolvedApp {
 export interface ResolvedShell {
   nav: ResolvedShellNavigation;
   topBar: ResolvedShellTopBar;
+  navDrawer: ResolvedShellNavDrawer;
   controls: ResolvedShellControl[];
 }
 
@@ -303,6 +313,20 @@ export interface ResolvedShellTopBar {
   controls: string[];
 }
 
+/**
+ * The navigation drawer's own chrome, symmetrical with {@link ResolvedShellTopBar}.
+ *
+ * `navDrawer` was already a legal {@link ShellControlPlacement}, so a control
+ * could be placed in the drawer and then never rendered anywhere: the drawer had
+ * no declared control list for a renderer to consume. This is that list.
+ */
+export interface ResolvedShellNavDrawer {
+  /** Drawer heading. Undeclared means the renderer falls back to the app name. */
+  title?: string;
+  /** Ordered control names rendered inside the drawer. */
+  controls: string[];
+}
+
 export interface ResolvedShellControl {
   name: string;
   kind: ShellControlKind;
@@ -324,6 +348,41 @@ export interface ResolvedBusinessContext {
   object: string;
   selection: ResolvedContextSelectionPolicy;
   membership?: ResolvedContextMembership;
+  /**
+   * Records that put a context instance *in reach* of a user without making
+   * them a member of it.
+   *
+   * Membership is the only thing that confers context roles, and it stays that
+   * way. A grant does one narrower thing: it lets the runtime's object-scope
+   * gate accept a record belonging to that context instance, so the object's own
+   * policy is the thing that finally decides. Without this, a person holding a
+   * pending invitation to a context they have not joined is refused upstream of
+   * policy entirely — the invitation is scoped to the very context the
+   * invitation is what would get them into — and the rule the model wrote to let
+   * an invitee read and accept their own invitation can never be reached.
+   */
+  grants: ResolvedContextGrant[];
+}
+
+/**
+ * One declared route into a context that is not membership.
+ *
+ * A grant names an object whose records associate a user with a context
+ * instance, plus an optional condition those records must satisfy. It confers
+ * **no roles**: `contextRoles` stays derived from membership alone, so a
+ * grant-holder passes the scope gate and then meets exactly the policy rules
+ * written for a non-member, never a role-gated one.
+ */
+export interface ResolvedContextGrant {
+  name: string;
+  /** The object whose records carry the grant, e.g. an invitation. */
+  object: string;
+  /** The field naming the granted user. */
+  userField: string;
+  /** The field naming the context instance the grant reaches. */
+  contextField: string;
+  /** Evaluated against the grant record; absent means every record grants. */
+  condition?: ResolvedExpression;
 }
 
 export interface ResolvedContextSelectionPolicy {
@@ -488,6 +547,25 @@ export interface ResolvedOrderedObjectConstraint {
   positionField: string;
   scopeFields: string[];
   minPosition: number;
+  /**
+   * What happens when a write lands on a position a sibling already holds.
+   *
+   * `strict` refuses it, which is the original behaviour and stays the default:
+   * a duplicate position is a genuine error in a collection nobody reorders.
+   * `shift` makes the collection reorderable — the platform moves the
+   * intervening siblings in the same transaction, so an author can express
+   * "put this third" without also having to express every consequence of it.
+   */
+  reorder: OrderedCollectionReorder;
+  /**
+   * Whether removing an item closes the gap it leaves.
+   *
+   * `none` keeps the hole, which is what deleting has always done. `onDelete`
+   * renumbers the later siblings down in the same transaction as the delete, so
+   * positions stay contiguous from {@link minPosition} without a caller having
+   * to walk the collection itself.
+   */
+  compaction: OrderedCollectionCompaction;
 }
 
 export interface ResolvedObjectValidation {
@@ -588,6 +666,29 @@ export interface ResolvedPrincipalSelector {
   groupRoles: string[];
   users: string[];
   owner: boolean;
+  contextMember?: ResolvedContextMemberPrincipal;
+}
+
+/**
+ * "Whoever this record belongs to is in a context with me."
+ *
+ * `owner` says a record is the caller's own and roles say what a caller may do
+ * inside a context. Neither says the thing a shared roster needs: that a record
+ * belonging to *somebody else* is visible because the two of them are in the
+ * same context instance. Expressing that with a role instead would grant it
+ * over every record of the object, including those of people the caller shares
+ * nothing with.
+ *
+ * It is evaluated against {@link RuntimeContext.contextMembers}, which the
+ * runtime resolves from the same accepted membership records
+ * `listAvailableContexts` reads. Absent membership data never matches, so the
+ * principal fails closed.
+ */
+export interface ResolvedContextMemberPrincipal {
+  /** The business context whose members match. */
+  context: string;
+  /** The field on the target record naming the user who must be a co-member. */
+  field: string;
 }
 
 export interface ResolvedView {
@@ -958,7 +1059,43 @@ export interface ResolvedReadModelSource {
   name: string;
   object: string;
   scope: ReadModelSourceScope;
+  /**
+   * How this source reaches an earlier one.
+   *
+   * Undeclared keeps the original behaviour: the runtime follows whatever
+   * lookup field an already-loaded record declares toward this source's object,
+   * and reads exactly one record by id. That only ever walks a foreign key
+   * forwards, so it cannot express "the records that point *at* what I already
+   * have" — the shape every projection through a junction object needs.
+   */
+  join?: ResolvedReadModelSourceJoin;
 }
+
+/**
+ * An explicit equality join between two read-model sources.
+ *
+ * Naming both sides makes the hop sayable when no lookup field connects the two
+ * objects directly, which is what a junction object always looks like: two
+ * records that share a third object's id rather than referencing each other.
+ * `many` additionally lets one upstream row produce several rows, which the
+ * id-based lookup join structurally could not.
+ */
+export interface ResolvedReadModelSourceJoin {
+  /** An earlier source in the same read model. */
+  source: string;
+  /** The field on this source's object. {@link RECORD_ID_JOIN_FIELD} means the record id. */
+  localField: string;
+  /** The field on the joined source's object. {@link RECORD_ID_JOIN_FIELD} means the record id. */
+  sourceField: string;
+  cardinality: ReadModelJoinCardinality;
+}
+
+/**
+ * The join-field name that means "this record's own id" rather than a declared
+ * field, so a join can key on identity without an object having to carry a
+ * duplicate of its own id as a business field.
+ */
+export const RECORD_ID_JOIN_FIELD = "id";
 
 export interface ResolvedReadModelField {
   name: string;
@@ -1007,6 +1144,25 @@ export interface ResolvedCommandInput {
   type: FieldType;
   required: boolean;
   defaultValue?: JsonValue;
+  /**
+   * Whether this input carries a list rather than one value.
+   *
+   * A command's steps are fixed at authoring time, so without this the number
+   * of records a command can write is fixed too, and importing fifty songs
+   * means fifty independent transactions with no shared success or failure.
+   */
+  repeated: boolean;
+  /**
+   * The shape of one item, when items are records rather than scalars. Empty
+   * means the list carries plain {@link ResolvedCommandInput.type} values.
+   */
+  itemFields: ResolvedCommandInputItemField[];
+}
+
+export interface ResolvedCommandInputItemField {
+  name: string;
+  type: FieldType;
+  required: boolean;
 }
 
 export type ResolvedCommandStep = ResolvedCommandCreateStep | ResolvedCommandUpdateStep;
@@ -1018,6 +1174,24 @@ export interface ResolvedCommandCreateStep {
   authority: CommandStepAuthority;
   values: Record<string, ResolvedCommandValueExpression>;
   preconditions: ResolvedExpression[];
+  /**
+   * Names a repeated input this step iterates. The step then plans one write
+   * per item into the same transaction, so a batch either lands whole or not at
+   * all — the guarantee a caller looping over single writes cannot get.
+   */
+  forEach?: string;
+  /**
+   * Names the business context this step's new record *becomes an instance of*.
+   *
+   * Creating a context and its first membership in one transaction is otherwise
+   * impossible: the membership record is scoped to a context instance that did
+   * not exist when the transaction began, so the object-scope gate refuses it,
+   * and the context is left with no members and therefore no way in. Declaring
+   * this puts the new instance in reach **for the rest of this transaction
+   * only**. It reaches no context that already existed, so it cannot hand a
+   * caller anything they did not just create.
+   */
+  establishesContext?: string;
 }
 
 export interface ResolvedCommandUpdateStep {
@@ -1028,6 +1202,8 @@ export interface ResolvedCommandUpdateStep {
   recordId: ResolvedCommandValueExpression;
   patch: Record<string, ResolvedCommandValueExpression>;
   preconditions: ResolvedExpression[];
+  /** See {@link ResolvedCommandCreateStep.forEach}. */
+  forEach?: string;
 }
 
 export type ResolvedCommandValueExpression =
@@ -1035,7 +1211,11 @@ export type ResolvedCommandValueExpression =
   | { kind: "input"; name: string }
   | { kind: "runtime"; property: CommandRuntimeProperty }
   | { kind: "stepField"; step: string; field: string }
-  | { kind: "stepMeta"; step: string; property: CommandStepMetaProperty };
+  | { kind: "stepMeta"; step: string; property: CommandStepMetaProperty }
+  /** The current item of an iterating step, or one of its fields. */
+  | { kind: "item"; field?: string }
+  /** The current item's zero-based position in the list. */
+  | { kind: "itemIndex" };
 
 export interface ResolvedTheme {
   name: string;
@@ -1204,7 +1384,13 @@ export interface PartialAppModel {
 export interface PartialShellModel {
   nav?: PartialShellNavigationModel;
   topBar?: PartialShellTopBarModel;
+  navDrawer?: PartialShellNavDrawerModel;
   controls?: PartialShellControlModel[];
+}
+
+export interface PartialShellNavDrawerModel {
+  title?: string;
+  controls?: string[];
 }
 
 export interface PartialShellNavigationModel {
@@ -1254,6 +1440,15 @@ export interface PartialBusinessContextModel {
   object?: string;
   selection?: PartialContextSelectionPolicyModel;
   membership?: PartialContextMembershipModel;
+  grants?: PartialContextGrantModel[];
+}
+
+export interface PartialContextGrantModel {
+  name: string;
+  object: string;
+  userField: string;
+  contextField: string;
+  condition?: PartialPolicyConditionModel;
 }
 
 export interface PartialContextSelectionPolicyModel {
@@ -1360,6 +1555,8 @@ export interface PartialOrderedObjectConstraintModel {
   positionField: string;
   scopeFields?: string[];
   minPosition?: number;
+  reorder?: OrderedCollectionReorder;
+  compaction?: OrderedCollectionCompaction;
 }
 
 export interface PartialObjectValidationModel {
@@ -1430,6 +1627,7 @@ export interface PartialPrincipalSelectorModel {
   groupRoles?: string[];
   users?: string[];
   owner?: boolean;
+  contextMember?: ResolvedContextMemberPrincipal;
 }
 
 export interface PartialViewModel {
@@ -1797,6 +1995,14 @@ export interface PartialReadModelSourceModel {
   name?: string;
   object: string;
   scope?: ReadModelSourceScope;
+  join?: PartialReadModelSourceJoinModel;
+}
+
+export interface PartialReadModelSourceJoinModel {
+  source: string;
+  localField: string;
+  sourceField: string;
+  cardinality?: ReadModelJoinCardinality;
 }
 
 export interface PartialReadModelFieldModel {
@@ -1846,6 +2052,14 @@ export interface PartialCommandInputModel {
   type?: FieldType;
   required?: boolean;
   defaultValue?: JsonValue;
+  repeated?: boolean;
+  itemFields?: PartialCommandInputItemFieldModel[];
+}
+
+export interface PartialCommandInputItemFieldModel {
+  name: string;
+  type?: FieldType;
+  required?: boolean;
 }
 
 export type PartialCommandStepModel = PartialCommandCreateStepModel | PartialCommandUpdateStepModel;
@@ -1857,6 +2071,8 @@ export interface PartialCommandCreateStepModel {
   authority?: CommandStepAuthority;
   values?: Record<string, ResolvedCommandValueExpression>;
   preconditions?: PartialPolicyConditionModel[];
+  forEach?: string;
+  establishesContext?: string;
 }
 
 export interface PartialCommandUpdateStepModel {
@@ -1867,6 +2083,7 @@ export interface PartialCommandUpdateStepModel {
   recordId: ResolvedCommandValueExpression;
   patch?: Record<string, ResolvedCommandValueExpression>;
   preconditions?: PartialPolicyConditionModel[];
+  forEach?: string;
 }
 
 export interface PartialThemeModel {

@@ -394,6 +394,7 @@ describe("resolveApplicationModel", () => {
         roleField: "Role",
         roles: ["BandAdmin", "BandMember"],
       },
+      grants: [],
     });
     expect(gig?.scope).toEqual({ context: "Band", field: "Band" });
     expect(homeDashboard).toMatchObject({

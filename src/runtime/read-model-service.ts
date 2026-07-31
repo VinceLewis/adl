@@ -6,9 +6,11 @@ import type {
   ResolvedReadModel,
   ResolvedReadModelField,
   ResolvedReadModelSource,
+  ResolvedReadModelSourceJoin,
   ResolvedSort,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import { RECORD_ID_JOIN_FIELD } from "../model/resolved-model.js";
 import { applyComputedFieldsToRecord } from "./computed-fields.js";
 import {
   contextWithoutSelectedBusinessContext,
@@ -85,12 +87,22 @@ export class ReadModelService {
     const contextName = readModelContext.context;
     const baseContext = contextWithoutSelectedBusinessContext(context, contextName);
     const contextRoles = await this.contextService.resolveContextRoles(contextName, baseContext);
+    // Grants are re-resolved alongside roles for the same reason roles are:
+    // dropping the selection also dropped everything derived from it. Omitting
+    // them would make a context reachable only through a grant — a pending
+    // invitation — invisible to precisely the cross-context view that exists to
+    // surface it, while a context the caller has joined stayed visible.
+    const contextGrants = await this.contextService.resolveContextGrants(contextName, baseContext);
 
     return {
       ...baseContext,
       contextRoles: [
         ...(baseContext.contextRoles ?? []).filter((role) => role.context !== contextName),
         ...contextRoles,
+      ],
+      contextGrants: [
+        ...(baseContext.contextGrants ?? []).filter((grant) => grant.context !== contextName),
+        ...contextGrants,
       ],
     };
   }
@@ -117,31 +129,140 @@ export class ReadModelService {
       return [];
     }
 
-    const primaryRecords = await this.searchPrimarySource(readModel, primarySource, context);
-    const rows: RuntimeReadModelRow[] = [];
+    const primaryRecords = await this.searchAuthorisedSourceRecords(
+      readModel,
+      primarySource,
+      context,
+    );
 
-    for (const primaryRecord of primaryRecords) {
-      const sourceRecords = new Map<string, StoredObjectRecord>([
-        [primarySource.name, primaryRecord],
-      ]);
-      let rowComplete = true;
+    // Row production is a fold over the sources rather than a loop over primary
+    // records, because a `many` join turns one partial row into several. Each
+    // step takes the partial rows built so far and returns the partial rows that
+    // survive this source, so "one row in, one row out" is no longer assumed
+    // anywhere. Each surviving row owns its own source map, so fan-out branches
+    // never share mutable state and `projectRow` still sees exactly the records
+    // that produced that row.
+    let partialRows: Map<string, StoredObjectRecord>[] = primaryRecords.map(
+      (record) => new Map<string, StoredObjectRecord>([[primarySource.name, record]]),
+    );
 
-      for (const source of readModel.sources.slice(1)) {
-        const joined = await this.resolveJoinedSource(readModel, source, sourceRecords, context);
-        if (joined === undefined) {
-          rowComplete = false;
-          break;
-        }
+    for (const source of readModel.sources.slice(1)) {
+      const join = source.join;
+      partialRows =
+        join === undefined
+          ? await this.applyLookupJoinedSource(readModel, source, partialRows, context)
+          : await this.applyDeclaredJoinedSource(readModel, source, join, partialRows, context);
+    }
 
-        sourceRecords.set(source.name, joined);
+    return partialRows.map((sourceRecords) => this.projectRow(readModel, sourceRecords, context));
+  }
+
+  /**
+   * The original implicit join: follow a lookup field toward this source's
+   * object and read exactly one record by id. Unchanged in behaviour; a source
+   * that declares no `join` still drops its row when nothing is found, when the
+   * record is deleted, when it falls outside scope, or when the caller may not
+   * read it.
+   */
+  private async applyLookupJoinedSource(
+    readModel: ResolvedReadModel,
+    source: ResolvedReadModelSource,
+    partialRows: Map<string, StoredObjectRecord>[],
+    context: RuntimeContext,
+  ): Promise<Map<string, StoredObjectRecord>[]> {
+    const nextRows: Map<string, StoredObjectRecord>[] = [];
+
+    for (const sourceRecords of partialRows) {
+      const joined = await this.resolveJoinedSource(readModel, source, sourceRecords, context);
+      if (joined === undefined) {
+        continue;
       }
 
-      if (rowComplete) {
-        rows.push(this.projectRow(readModel, sourceRecords, context));
+      nextRows.push(new Map(sourceRecords).set(source.name, joined));
+    }
+
+    return nextRows;
+  }
+
+  /**
+   * An explicitly declared equality join.
+   *
+   * The candidate set is loaded and indexed once per execution rather than per
+   * upstream row, so a fan-out join costs one search plus a hash lookup per row
+   * instead of a full scan per row.
+   *
+   * Loading it goes through {@link searchAuthorisedSourceRecords}, which is the
+   * point of the design: a declared join matches records by field value, which
+   * is a search however it is spelled, so it must clear the `search` action on
+   * the joined object, the object-scope search check, the source scope check and
+   * the per-record read policy before a single record can reach a row. A caller
+   * who may not search the joined object is refused here, not quietly given
+   * rows.
+   */
+  private async applyDeclaredJoinedSource(
+    readModel: ResolvedReadModel,
+    source: ResolvedReadModelSource,
+    join: ResolvedReadModelSourceJoin,
+    partialRows: Map<string, StoredObjectRecord>[],
+    context: RuntimeContext,
+  ): Promise<Map<string, StoredObjectRecord>[]> {
+    const candidates = await this.searchAuthorisedSourceRecords(readModel, source, context);
+    const candidatesByKey = new Map<string, StoredObjectRecord[]>();
+
+    for (const candidate of candidates) {
+      if (candidate.meta.deletedAt !== undefined) {
+        continue;
+      }
+
+      const key = joinKeyForRecord(candidate, join.localField);
+      if (key === undefined) {
+        continue;
+      }
+
+      const bucket = candidatesByKey.get(key);
+      if (bucket === undefined) {
+        candidatesByKey.set(key, [candidate]);
+      } else {
+        bucket.push(candidate);
       }
     }
 
-    return rows;
+    const nextRows: Map<string, StoredObjectRecord>[] = [];
+
+    for (const sourceRecords of partialRows) {
+      // A join naming a source that is not resolved on this row is a model
+      // defect; drop the row rather than guess which record was meant.
+      const joinedRecord = sourceRecords.get(join.source);
+      if (joinedRecord === undefined) {
+        this.logger.debug("Read-model join references an unresolved source", {
+          readModel: readModel.name,
+          source: source.name,
+          joinSource: join.source,
+        });
+        continue;
+      }
+
+      const key = joinKeyForRecord(joinedRecord, join.sourceField);
+      if (key === undefined) {
+        continue;
+      }
+
+      const matches = candidatesByKey.get(key) ?? [];
+      if (join.cardinality === "one") {
+        const match = matches[0];
+        if (match !== undefined) {
+          nextRows.push(new Map(sourceRecords).set(source.name, match));
+        }
+
+        continue;
+      }
+
+      for (const match of matches) {
+        nextRows.push(new Map(sourceRecords).set(source.name, match));
+      }
+    }
+
+    return nextRows;
   }
 
   private async executeUnionRows(
@@ -151,7 +272,7 @@ export class ReadModelService {
     const rows: RuntimeReadModelRow[] = [];
 
     for (const source of readModel.sources) {
-      const records = await this.searchPrimarySource(readModel, source, context);
+      const records = await this.searchAuthorisedSourceRecords(readModel, source, context);
       for (const record of records) {
         rows.push(this.projectRow(readModel, new Map([[source.name, record]]), context));
       }
@@ -160,7 +281,14 @@ export class ReadModelService {
     return rows;
   }
 
-  private async searchPrimarySource(
+  /**
+   * Loads the authorised record set for a source: the primary source of a join
+   * read model, every source of a union read model, and the candidate set of a
+   * declared join. All three enumerate records by search, so all three clear the
+   * same checks — `search` on the object, object scope, source scope, and the
+   * per-record read policy — before any record can reach a row.
+   */
+  private async searchAuthorisedSourceRecords(
     readModel: ResolvedReadModel,
     source: ResolvedReadModelSource,
     context: RuntimeContext,
@@ -442,6 +570,36 @@ export class ReadModelService {
       ),
     };
   }
+}
+
+/**
+ * The comparable key a record contributes to a declared join.
+ *
+ * {@link RECORD_ID_JOIN_FIELD} always means the record's own id, so a junction
+ * object can be joined on identity without carrying a copy of its own id. The
+ * key is type-tagged so a numeric `1` never matches the string `"1"`, and any
+ * value that is absent, empty, null, or structured yields no key at all: an
+ * unjoinable record must not collide with every other unjoinable record.
+ */
+function joinKeyForRecord(record: StoredObjectRecord, fieldName: string): string | undefined {
+  if (fieldName === RECORD_ID_JOIN_FIELD) {
+    return record.meta.guid.length === 0 ? undefined : `s:${record.meta.guid}`;
+  }
+
+  const value = record.values[fieldName];
+  if (typeof value === "string") {
+    return value.length === 0 ? undefined : `s:${value}`;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? `n:${value}` : undefined;
+  }
+
+  if (typeof value === "boolean") {
+    return `b:${value}`;
+  }
+
+  return undefined;
 }
 
 function evaluateReadModelExpressionField(

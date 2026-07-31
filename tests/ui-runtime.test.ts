@@ -611,6 +611,68 @@ describe("browser UI runtime", () => {
     expect(app.textContent).not.toContain("Model-driven browser runtime");
   });
 
+  it("falls back to the app name and renders no drawer control region by default", async () => {
+    const seeded = await createSeededBandUiRuntime();
+    const app = await mountApp(seeded.model, seeded.runtime, seeded.musicianContext);
+
+    expect(requireElement<HTMLElement>(app, "[data-shell-drawer-title]").textContent?.trim()).toBe(
+      "BandOps",
+    );
+    expect(app.querySelector("[data-shell-drawer-tools]")).toBeNull();
+    expect(app.querySelector(".adl-topbar-tools adl-context-selector")).not.toBeNull();
+  });
+
+  it("renders a drawer-placed control in the drawer and a declared drawer title", async () => {
+    const seeded = await createSeededBandUiRuntime();
+    const model: ResolvedApplicationModel = {
+      ...seeded.model,
+      shell: {
+        ...seeded.model.shell,
+        topBar: {
+          ...seeded.model.shell.topBar,
+          contextSelector: "navDrawer",
+          controls: ["syncStatus"],
+        },
+        navDrawer: { title: "Band Menu", controls: ["contextSelector"] },
+        controls: seeded.model.shell.controls.map((control) =>
+          control.kind === "contextSelector" ? { ...control, placement: "navDrawer" } : control,
+        ),
+      },
+    };
+    const app = await mountApp(model, seeded.runtime, seeded.musicianContext);
+
+    expect(requireElement<HTMLElement>(app, "[data-shell-drawer-title]").textContent?.trim()).toBe(
+      "Band Menu",
+    );
+    // Only the drawer heading changes; the top-bar brand is still the app name.
+    expect(requireElement<HTMLElement>(app, ".adl-nav-drawer-header").textContent).not.toContain(
+      "BandOps",
+    );
+    expect(requireElement<HTMLElement>(app, ".adl-brand h1").textContent?.trim()).toBe("BandOps");
+
+    const drawerTools = requireElement<HTMLElement>(
+      app,
+      ".adl-nav-drawer [data-shell-drawer-tools]",
+    );
+    expect(drawerTools.querySelector("select[data-context-select='Band']")).not.toBeNull();
+    expect(app.querySelector(".adl-topbar-tools adl-context-selector")).toBeNull();
+    expect(
+      app.querySelector(".adl-topbar-tools [data-shell-control-kind='syncStatus']"),
+    ).not.toBeNull();
+    expect(
+      app.querySelector("[data-shell-drawer-tools] [data-shell-control-kind='syncStatus']"),
+    ).toBeNull();
+
+    // The drawer selector is the same control, so it still drives selection.
+    const selector = requireElement<HTMLSelectElement>(app, "select[data-context-select='Band']");
+    selector.value = seeded.firstBand.meta.guid;
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushUi();
+
+    expect(app.textContent).toContain("Alpha Hall");
+    expect(app.textContent).not.toContain("Beta Hall");
+  });
+
   it("opens Giggle calendar availability rows as Availability records", async () => {
     const seeded = await createSeededGiggleRuntime();
     const app = await mountApp(seeded.model, seeded.runtime, {

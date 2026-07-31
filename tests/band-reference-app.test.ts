@@ -88,8 +88,12 @@ describe("band reference app model", () => {
       mode: "onlineRequired",
       scope: "currentContext",
     });
+    // Band-authored since Phase 56. It was `cacheReadonly` while being offered
+    // as ordinary user-entered band data, and both could not be true: no local
+    // write and no authority replay may create a `cacheReadonly` record, so
+    // nobody using the deployed app could ever populate one.
     expect(syncByObject.get("StreamingLink")).toMatchObject({
-      mode: "cacheReadonly",
+      mode: "localFirst",
       scope: "currentContext",
     });
     expect(syncByObject.get("DevicePreference")).toMatchObject({
@@ -536,25 +540,36 @@ describe("band reference app runtime", () => {
         }),
       ],
     });
-    await expect(
-      seeded.runtime.create(
-        "SetListItem",
-        {
-          Band: seeded.firstBand.meta.guid,
-          SetList: seeded.firstSetList.meta.guid,
-          Song: seeded.firstSong.meta.guid,
-          Position: 2,
-        },
-        seeded.firstBandContext,
-      ),
-    ).rejects.toMatchObject({
-      issues: [
-        expect.objectContaining({
-          code: "ADL_RUNTIME_CONSTRAINT_ORDERED_DUPLICATE",
-          field: "Position",
-        }),
-      ],
-    });
+    // The set list declares `REORDER shift`, so landing on an occupied position
+    // is a reorder rather than an error: the new item takes position 2 and the
+    // sibling that held it moves along. `strict` still refuses a duplicate —
+    // proven in `tests/ordered-collections.test.ts`, which exercises both modes.
+    const displaced = await seeded.runtime.search(
+      "SetListItem",
+      undefined,
+      seeded.firstBandContext,
+    );
+    const previouslySecond = displaced.find((item) => item.values.Position === 2);
+    expect(previouslySecond).toBeDefined();
+
+    const inserted = await seeded.runtime.create(
+      "SetListItem",
+      {
+        Band: seeded.firstBand.meta.guid,
+        SetList: seeded.firstSetList.meta.guid,
+        Song: seeded.firstSong.meta.guid,
+        Position: 2,
+      },
+      seeded.firstBandContext,
+    );
+    expect(inserted.values.Position).toBe(2);
+
+    const afterInsert = await seeded.runtime.read(
+      "SetListItem",
+      previouslySecond?.meta.guid ?? "",
+      seeded.firstBandContext,
+    );
+    expect(afterInsert?.values.Position).toBe(3);
     await expect(
       seeded.runtime.create(
         "Song",

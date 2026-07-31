@@ -4,6 +4,11 @@ Status: Accepted by Phase 19
 
 Date: 2026-07-16
 
+Last reconciled against the repository: Phase 56, 2026-07-31. The architectural
+decisions below are unchanged since Phase 19; what Phase 56 corrected was the
+Sequencing and Gating Criteria sections, which still described shipped work as
+upcoming.
+
 ## Purpose
 
 This document reconciles the July 2026 architecture notes into one target
@@ -205,55 +210,75 @@ explains why the TypeScript/PWA + TypeScript server direction no longer fits.
 
 ## Sequencing
 
-Phases 20-23 delivered the expression language, declarative validation, computed
-fields, and the conformance suite and spec. Phases 24-38 delivered the UI
-presentation model, its runtime and renderer, and the Giggle Band reference
-screens. Phases 39-45 delivered the authority service, remote bootstrap, opaque
-sessions and access lifecycle, the production HTTP edge, reporting and
-administration, transactional projection integrity, and audit scope and
-retention.
+This section records what has shipped. It is read at the start of every phase, so
+a stale forward-looking list here misdirects the next execution; keep it in the
+past tense and let `docs/phases/` carry what is next.
 
-Phase 46 is the first phase whose result is demonstrable outside `vitest`: a
-runnable authority process, a switchable identity boundary (bypass by default,
-disclosed at startup and on `/readyz`), an HTTP client transport, and browser
-session/bootstrap/reconnect wiring.
+- **Phases 20-23** delivered the expression language, declarative validation,
+  computed fields, and the conformance suite and spec.
+- **Phases 24-38** delivered the UI presentation model, its runtime and renderer,
+  and the Giggle Band reference screens.
+- **Phases 39-45** delivered the authority service, remote bootstrap, opaque
+  sessions and access lifecycle, the production HTTP edge, reporting and
+  administration, transactional projection integrity, and audit scope and
+  retention.
+- **Phase 46** was the first phase whose result is demonstrable outside `vitest`:
+  a runnable authority process, a switchable identity boundary (bypass by
+  default, disclosed at startup and on `/readyz`), an HTTP client transport, and
+  browser session/bootstrap/reconnect wiring.
+- **Phases 47-48** delivered the usable sync slice (sign-in and invite-claim UI,
+  conflict and manual-resolution recovery, the PWA offline shell) and offline
+  operation identity, so an offline-created record converges to one accepted
+  record.
+- **Phases 49-50 were the deployment gate, and both are complete.** Phase 49 made
+  signing in real (passkey identity, provider-independent identity keying);
+  Phase 50 made staying signed in survive being offline (session lifetime and
+  the model-declared sync grace). The rule Phases 46-48 stated — that no
+  deployment may hold real user data until both were done — is therefore
+  discharged. The accepted temporary risk is recorded in
+  [the threat model](../security/phase-42-threat-model.md).
+- **Phases 51-52** delivered platform contract conformance, model migrations, and
+  conformance expressiveness.
+- **Phase 53** delivered sync-mode delivery and authority coherence.
+- **Phase 54** delivered authority membership projection and scoped access.
+- **Phase 55** delivered retention scheduling and its administration UI.
+- **Phase 56** closed the documented Giggle Band platform gaps as generic
+  capabilities — context grants, multi-hop read-model joins, command-established
+  contexts, reorderable and self-compacting ordered collections, batch commands,
+  the `contextMember` policy principal, and navigation-drawer chrome — and
+  reconciled this document.
 
-Phases 47 (the usable sync slice — sign-in and invite-claim UI, conflict and
-manual-resolution recovery, the PWA offline shell) and 48 (offline operation
-identity, so an offline-created record converges to one accepted record) are
-complete. The remaining sequence is:
-
-1. Phase 49: passkey identity and provider-independent identity keying.
-2. Phase 50: offline session lifetime and sync grace.
-3. Phase 51: platform contract conformance and model migrations.
-4. Phase 52: conformance expressiveness and contract completion.
-5. Phase 53: authority membership projection and scoped access.
-6. Phase 54: retention scheduling and its administration UI.
-7. Phase 55: reference-app gaps and documentation hygiene.
-
-**Phases 49 and 50 together are the deployment gate.** Until both are complete the
-identity bypass is the only way in, and the rule stated by Phases 46, 47 and 48
-stands: no deployment may hold real user data. Neither phase alone is sufficient —
-Phase 49 makes signing in real, Phase 50 makes staying signed in survive being
-offline. See the accepted temporary risk in
-[the threat model](../security/phase-42-threat-model.md).
+The one open sequenced phase is **Phase 57: command intent replay and
+transactional sync**. Phase 56 made it the highest-value remaining gap: a command
+is replayed to the authority as one ordinary intent per step, so the transaction
+a command has locally does not survive the sync boundary — and two Phase 56
+capabilities depend on that transaction. See
+`docs/phases/phase-57-command-intent-replay-and-transactional-sync.md`.
 
 ## Gating Criteria
 
-Before building the TypeScript authority server:
+These were the conditions each decision waited on. They are kept as the record of
+why the architecture moved when it did; every one below the first heading has
+since been met, and the authority server, its PostgreSQL projection and the
+identity decision all shipped.
+
+Before building the TypeScript authority server — **all met; the server shipped in
+Phase 39 and became runnable in Phase 46**:
 
 - operation-intent semantics are documented
 - command and lifecycle semantics are covered by tests
 - context membership and policy re-check semantics are clear
 - the server can consume the same resolved model as the browser runtime
 
-Before replacing IndexedDB with SQLite/OPFS:
+Before replacing IndexedDB with SQLite/OPFS — **not met; IndexedDB remains the
+browser store**:
 
 - there is a demonstrated IndexedDB limitation
 - storage remains behind the existing backend abstraction
 - schema version and migration checks remain runtime-level concerns
 
-Before introducing Automerge:
+Before introducing Automerge — **not met; operation-intent sync remains the only
+sync implementation**:
 
 - operation-intent sync has a concrete limitation
 - Automerge remains below the ADL semantic layer

@@ -1,0 +1,2313 @@
+{
+  "version": 1,
+  "models": {
+    "invitationGrant": {
+      "app": {
+        "name": "InvitationGrant"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        },
+        {
+          "name": "BandAdmin",
+          "inherits": [
+            "BandMember"
+          ]
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": [
+              "BandAdmin",
+              "BandMember"
+            ]
+          },
+          "grants": [
+            {
+              "name": "pendingBandInvitation",
+              "object": "BandInvitation",
+              "userField": "Invitee",
+              "contextField": "Band",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Pending"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandInvitation",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Invitee",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gig",
+          "displayField": "Venue",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "CreateBand",
+          "label": "Create band",
+          "inputs": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createBand",
+              "action": "create",
+              "object": "Band",
+              "establishesContext": "Band",
+              "values": {
+                "Name": {
+                  "kind": "input",
+                  "name": "Name"
+                }
+              }
+            },
+            {
+              "name": "createFounderMembership",
+              "action": "create",
+              "object": "BandMember",
+              "authority": "command",
+              "values": {
+                "User": {
+                  "kind": "runtime",
+                  "property": "userId"
+                },
+                "Band": {
+                  "kind": "stepMeta",
+                  "step": "createBand",
+                  "property": "guid"
+                },
+                "Role": {
+                  "kind": "literal",
+                  "value": "BandAdmin"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "ReachableInvitations",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "invitation",
+              "object": "BandInvitation",
+              "scope": "allAvailableContexts"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Invitee",
+              "source": "invitation",
+              "field": "Invitee"
+            },
+            {
+              "name": "Status",
+              "source": "invitation",
+              "field": "Status"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Invitee",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "ReachableGigs",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig",
+              "scope": "allAvailableContexts"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedCreateBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "create"
+            },
+            {
+              "name": "allowAuthenticatedReadBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandMemberReadBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandMember"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowBandMemberSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandMember"
+                ]
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "BandInvitationPolicy",
+          "object": "BandInvitation",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowBandAdminCreateBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandAdmin"
+                ]
+              },
+              "action": "create"
+            },
+            {
+              "name": "allowBandAdminReadBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandAdmin"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowInviteeReadOwnBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "everyone"
+              },
+              "action": "read",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Invitee"
+                },
+                "right": {
+                  "kind": "runtime",
+                  "property": "userId"
+                }
+              }
+            },
+            {
+              "name": "allowInviteeUpdateOwnBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "everyone"
+              },
+              "action": "update",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Invitee"
+                },
+                "right": {
+                  "kind": "runtime",
+                  "property": "userId"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllGig",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandMemberAllGig",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandMember"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "invitationGrantRoleGatedBand": {
+      "app": {
+        "name": "InvitationGrant"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "BandMember"
+        },
+        {
+          "name": "BandAdmin",
+          "inherits": [
+            "BandMember"
+          ]
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": [
+              "BandAdmin",
+              "BandMember"
+            ]
+          },
+          "grants": [
+            {
+              "name": "pendingBandInvitation",
+              "object": "BandInvitation",
+              "userField": "Invitee",
+              "contextField": "Band",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "Pending"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "objects": [
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandMember",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "BandInvitation",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Invitee",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gig",
+          "displayField": "Venue",
+          "scope": {
+            "context": "Band",
+            "field": "Band"
+          },
+          "fields": [
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Band",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Venue",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "CreateBand",
+          "label": "Create band",
+          "inputs": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createBand",
+              "action": "create",
+              "object": "Band",
+              "establishesContext": "Band",
+              "values": {
+                "Name": {
+                  "kind": "input",
+                  "name": "Name"
+                }
+              }
+            },
+            {
+              "name": "createFounderMembership",
+              "action": "create",
+              "object": "BandMember",
+              "authority": "command",
+              "values": {
+                "User": {
+                  "kind": "runtime",
+                  "property": "userId"
+                },
+                "Band": {
+                  "kind": "stepMeta",
+                  "step": "createBand",
+                  "property": "guid"
+                },
+                "Role": {
+                  "kind": "literal",
+                  "value": "BandAdmin"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "ReachableInvitations",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "invitation",
+              "object": "BandInvitation",
+              "scope": "allAvailableContexts"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Invitee",
+              "source": "invitation",
+              "field": "Invitee"
+            },
+            {
+              "name": "Status",
+              "source": "invitation",
+              "field": "Status"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Invitee",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "ReachableGigs",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "sources": [
+            {
+              "name": "gig",
+              "object": "Gig",
+              "scope": "allAvailableContexts"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Venue",
+              "source": "gig",
+              "field": "Venue"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Venue",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedCreateBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "create"
+            },
+            {
+              "name": "allowAuthenticatedSearchBand",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowBandMemberReadBand",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandMember"
+                ]
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandMemberReadBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandMember"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowBandMemberSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandMember"
+                ]
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "BandInvitationPolicy",
+          "object": "BandInvitation",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowBandAdminCreateBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandAdmin"
+                ]
+              },
+              "action": "create"
+            },
+            {
+              "name": "allowBandAdminReadBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandAdmin"
+                ]
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowInviteeReadOwnBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "everyone"
+              },
+              "action": "read",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Invitee"
+                },
+                "right": {
+                  "kind": "runtime",
+                  "property": "userId"
+                }
+              }
+            },
+            {
+              "name": "allowInviteeUpdateOwnBandInvitation",
+              "effect": "allow",
+              "principal": {
+                "match": "everyone"
+              },
+              "action": "update",
+              "condition": {
+                "kind": "equals",
+                "left": {
+                  "kind": "field",
+                  "field": "Invitee"
+                },
+                "right": {
+                  "kind": "runtime",
+                  "property": "userId"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "GigPolicy",
+          "object": "Gig",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllGig",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowBandMemberAllGig",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "BandMember"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "context.grant.puts-a-context-in-reach-of-a-non-member.001",
+      "title": "A grant record puts its holder's context instance in reach without any membership, and the object's own policy then decides what they see",
+      "specRef": "resolved-model#grants",
+      "operation": "executeReadModel",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "ReachableInvitations",
+        "context": {
+          "userId": "user-invitee",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Invitee": "user-invitee",
+                "Status": "Pending"
+              },
+              "sources": {
+                "invitation": {
+                  "objectName": "BandInvitation",
+                  "recordId": "$inviteeInvitation"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "context.grant.a-caller-holding-no-grant-reaches-nothing.002",
+      "title": "A caller with neither a membership nor a grant reaches no instance of the context at all",
+      "specRef": "resolved-model#grants",
+      "operation": "executeReadModel",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "ReachableInvitations",
+        "context": {
+          "userId": "user-stranger",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "context.grant.a-grant-whose-condition-is-false-grants-nothing.003",
+      "title": "A grant record failing the declared condition puts nothing in reach",
+      "specRef": "resolved-model#grants",
+      "operation": "executeReadModel",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Declined"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "ReachableInvitations",
+        "context": {
+          "userId": "user-invitee",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "context.grant.confers-no-context-role.004",
+      "title": "A grant confers no context role, so a role-gated object stays refused to its holder",
+      "specRef": "resolved-model#grants",
+      "operation": "executeReadModel",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "ReachableGigs",
+        "context": {
+          "userId": "user-invitee",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "context.grant.a-member-of-the-same-instance-does-hold-the-role.005",
+      "title": "A member of the very same instance passes the role-gated rule, so the refusal above is the missing role and not the missing data",
+      "specRef": "resolved-model#grants",
+      "operation": "executeReadModel",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "ReachableGigs",
+        "context": {
+          "userId": "user-member",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Venue": "The Hall"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "context.grant.lets-an-invitee-answer-their-own-invitation.006",
+      "title": "A pending invitation is enough for its invitee to select the context and update the invitation, with no membership anywhere",
+      "specRef": "resolved-model#grants",
+      "operation": "authorityReplay",
+      "modelRef": "invitationGrant",
+      "input": {
+        "sessions": {
+          "leader": {
+            "userId": "user-leader"
+          },
+          "invitee": {
+            "userId": "user-invitee"
+          },
+          "stranger": {
+            "userId": "user-stranger"
+          }
+        },
+        "setup": [
+          {
+            "session": "leader",
+            "alias": "band",
+            "intent": {
+              "operationId": "op-create-band",
+              "kind": "command",
+              "commandName": "CreateBand",
+              "input": {
+                "Name": "The Alphas"
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "invitation",
+            "intent": {
+              "operationId": "op-create-invitation",
+              "kind": "create",
+              "objectName": "BandInvitation",
+              "recordId": "invitation-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Invitee": "user-invitee",
+                "Status": "Pending"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "gig",
+            "intent": {
+              "operationId": "op-create-gig",
+              "kind": "create",
+              "objectName": "Gig",
+              "recordId": "gig-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Venue": "The Hall"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          }
+        ],
+        "session": "invitee",
+        "intent": {
+          "operationId": "op-answer-invitation",
+          "kind": "update",
+          "objectName": "BandInvitation",
+          "recordId": "invitation-1",
+          "patch": {
+            "Status": "Accepted"
+          },
+          "baseRevision": {
+            "$ref": "invitation.records.0.meta.revision"
+          },
+          "selectedContexts": {
+            "Band": {
+              "$ref": "band.records.0.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-answer-invitation",
+          "records": [
+            {
+              "object": "BandInvitation",
+              "recordId": "invitation-1",
+              "values": {
+                "Invitee": "user-invitee",
+                "Status": "Accepted"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "context.grant.a-role-gated-sibling-record-stays-denied.007",
+      "title": "The same invitee, reaching the same context instance, is denied a record whose rule needs a context role",
+      "specRef": "resolved-model#grants",
+      "operation": "authorityReplay",
+      "modelRef": "invitationGrant",
+      "input": {
+        "sessions": {
+          "leader": {
+            "userId": "user-leader"
+          },
+          "invitee": {
+            "userId": "user-invitee"
+          },
+          "stranger": {
+            "userId": "user-stranger"
+          }
+        },
+        "setup": [
+          {
+            "session": "leader",
+            "alias": "band",
+            "intent": {
+              "operationId": "op-create-band",
+              "kind": "command",
+              "commandName": "CreateBand",
+              "input": {
+                "Name": "The Alphas"
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "invitation",
+            "intent": {
+              "operationId": "op-create-invitation",
+              "kind": "create",
+              "objectName": "BandInvitation",
+              "recordId": "invitation-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Invitee": "user-invitee",
+                "Status": "Pending"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "gig",
+            "intent": {
+              "operationId": "op-create-gig",
+              "kind": "create",
+              "objectName": "Gig",
+              "recordId": "gig-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Venue": "The Hall"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          }
+        ],
+        "session": "invitee",
+        "intent": {
+          "operationId": "op-edit-gig",
+          "kind": "update",
+          "objectName": "Gig",
+          "recordId": "gig-1",
+          "patch": {
+            "Venue": "Somewhere else"
+          },
+          "baseRevision": {
+            "$ref": "gig.records.0.meta.revision"
+          },
+          "selectedContexts": {
+            "Band": {
+              "$ref": "band.records.0.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-edit-gig",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "context.grant.a-caller-without-one-cannot-select-the-context.008",
+      "title": "A caller holding no grant cannot select the context at all, so the selection is checked and not merely believed",
+      "specRef": "resolved-model#grants",
+      "operation": "authorityReplay",
+      "modelRef": "invitationGrant",
+      "input": {
+        "sessions": {
+          "leader": {
+            "userId": "user-leader"
+          },
+          "invitee": {
+            "userId": "user-invitee"
+          },
+          "stranger": {
+            "userId": "user-stranger"
+          }
+        },
+        "setup": [
+          {
+            "session": "leader",
+            "alias": "band",
+            "intent": {
+              "operationId": "op-create-band",
+              "kind": "command",
+              "commandName": "CreateBand",
+              "input": {
+                "Name": "The Alphas"
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "invitation",
+            "intent": {
+              "operationId": "op-create-invitation",
+              "kind": "create",
+              "objectName": "BandInvitation",
+              "recordId": "invitation-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Invitee": "user-invitee",
+                "Status": "Pending"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "gig",
+            "intent": {
+              "operationId": "op-create-gig",
+              "kind": "create",
+              "objectName": "Gig",
+              "recordId": "gig-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Venue": "The Hall"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          }
+        ],
+        "session": "stranger",
+        "intent": {
+          "operationId": "op-answer-invitation",
+          "kind": "update",
+          "objectName": "BandInvitation",
+          "recordId": "invitation-1",
+          "patch": {
+            "Status": "Accepted"
+          },
+          "baseRevision": {
+            "$ref": "invitation.records.0.meta.revision"
+          },
+          "selectedContexts": {
+            "Band": {
+              "$ref": "band.records.0.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-answer-invitation",
+          "code": "ADL_RUNTIME_CONTEXT_ERROR"
+        }
+      }
+    },
+    {
+      "id": "context.grant.a-declined-invitation-no-longer-reaches-the-context.009",
+      "title": "The same invitee is refused the same context once their invitation stops satisfying the grant condition",
+      "specRef": "resolved-model#grants",
+      "operation": "authorityReplay",
+      "modelRef": "invitationGrant",
+      "input": {
+        "sessions": {
+          "leader": {
+            "userId": "user-leader"
+          },
+          "invitee": {
+            "userId": "user-invitee"
+          },
+          "stranger": {
+            "userId": "user-stranger"
+          }
+        },
+        "setup": [
+          {
+            "session": "leader",
+            "alias": "band",
+            "intent": {
+              "operationId": "op-create-band",
+              "kind": "command",
+              "commandName": "CreateBand",
+              "input": {
+                "Name": "The Alphas"
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "invitation",
+            "intent": {
+              "operationId": "op-create-invitation",
+              "kind": "create",
+              "objectName": "BandInvitation",
+              "recordId": "invitation-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Invitee": "user-invitee",
+                "Status": "Declined"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "gig",
+            "intent": {
+              "operationId": "op-create-gig",
+              "kind": "create",
+              "objectName": "Gig",
+              "recordId": "gig-1",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Venue": "The Hall"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          }
+        ],
+        "session": "invitee",
+        "intent": {
+          "operationId": "op-answer-invitation",
+          "kind": "update",
+          "objectName": "BandInvitation",
+          "recordId": "invitation-1",
+          "patch": {
+            "Status": "Accepted"
+          },
+          "baseRevision": {
+            "$ref": "invitation.records.0.meta.revision"
+          },
+          "selectedContexts": {
+            "Band": {
+              "$ref": "band.records.0.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-answer-invitation",
+          "code": "ADL_RUNTIME_CONTEXT_ERROR"
+        }
+      }
+    },
+    {
+      "id": "context.grant.reaching-a-context-is-not-reading-everything-in-it.010",
+      "title": "A member of the reached instance sees both of its invitations, so the grant-holder's single row above is read policy deciding and not an empty context",
+      "specRef": "resolved-model#grants",
+      "operation": "executeReadModel",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "ReachableInvitations",
+        "context": {
+          "userId": "user-member",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Invitee": "user-invitee",
+                "Status": "Pending"
+              },
+              "sources": {
+                "invitation": {
+                  "objectName": "BandInvitation",
+                  "recordId": "$inviteeInvitation"
+                }
+              }
+            },
+            {
+              "values": {
+                "Invitee": "user-other",
+                "Status": "Pending"
+              },
+              "sources": {
+                "invitation": {
+                  "objectName": "BandInvitation",
+                  "recordId": "$otherInvitation"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "context.grant.reaches-a-device-that-has-selected-nothing.011",
+      "title": "A device that has selected nothing still receives the invitation its grant reaches, and nothing else in that context",
+      "specRef": "resolved-model#grants",
+      "operation": "authorityBootstrap",
+      "modelRef": "invitationGrantRoleGatedBand",
+      "input": {
+        "sessions": {
+          "leader": {
+            "userId": "user-leader"
+          },
+          "invitee": {
+            "userId": "user-invitee"
+          }
+        },
+        "setup": [
+          {
+            "session": "leader",
+            "alias": "band",
+            "intent": {
+              "operationId": "op-bootstrap-band",
+              "kind": "command",
+              "commandName": "CreateBand",
+              "input": {
+                "Name": "The Alphas"
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "invitation",
+            "intent": {
+              "operationId": "op-bootstrap-invitation",
+              "kind": "create",
+              "objectName": "BandInvitation",
+              "recordId": "invitation-bootstrap",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Invitee": "user-invitee",
+                "Status": "Pending"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          },
+          {
+            "session": "leader",
+            "alias": "gig",
+            "intent": {
+              "operationId": "op-bootstrap-gig",
+              "kind": "create",
+              "objectName": "Gig",
+              "recordId": "gig-bootstrap",
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Venue": "The Hall"
+              },
+              "selectedContexts": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                }
+              }
+            }
+          }
+        ],
+        "session": "invitee"
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "object": "BandInvitation",
+              "recordId": "invitation-bootstrap",
+              "deleted": false,
+              "values": {
+                "Band": {
+                  "$ref": "band.records.0.meta.guid"
+                },
+                "Invitee": "user-invitee",
+                "Status": "Pending"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -662,6 +662,216 @@ END.COMMAND
     });
   });
 
+  it("compiles Phase 56 source syntax into the partial and resolved models", () => {
+    const result = compileAdl(`APP Phase56Capabilities
+END.APP
+
+SHELL
+  NAV BandHome LABEL 'Home'
+  CONTROL themeSwitch KIND THEME_SWITCH PLACEMENT navDrawer
+  CONTROL logout KIND LOGOUT PLACEMENT navDrawer
+  NAV_DRAWER TITLE 'Giggle Band' CONTROLS themeSwitch logout
+END.SHELL
+
+ROLE Member
+
+CONTEXT Band OBJECT Band MEMBERSHIP BandMember USER User CONTEXT_FIELD Band ROLE_FIELD Role ROLES Leader Member
+CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee CONTEXT_FIELD Band WHEN Status == 'Pending'
+
+OBJECT Band
+  FIELD Name TEXT REQUIRED
+
+  VIEW BandHome LIST
+    FIELDS Name
+  END.VIEW
+END.OBJECT
+
+OBJECT User
+  FIELD Name TEXT REQUIRED
+END.OBJECT
+
+OBJECT BandMember
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD User TEXT REQUIRED LOOKUP User DISPLAY Name
+  FIELD Role TEXT REQUIRED
+END.OBJECT
+
+OBJECT BandInvitation
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD Invitee TEXT REQUIRED LOOKUP User DISPLAY Name
+  FIELD Status TEXT REQUIRED DEFAULT Pending
+END.OBJECT
+
+OBJECT Availability
+  SCOPE Band FIELD Band
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD User TEXT REQUIRED LOOKUP User DISPLAY Name
+  FIELD Note TEXT
+END.OBJECT
+
+OBJECT Song
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD Title TEXT REQUIRED
+  FIELD Composer TEXT
+END.OBJECT
+
+OBJECT SetListItem
+  FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
+  FIELD SetList TEXT REQUIRED
+  FIELD Position NUMBER REQUIRED
+  CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position REORDER shift COMPACT onDelete
+END.OBJECT
+
+READ_MODEL BandAvailability
+  SOURCE member OBJECT BandMember SCOPE currentContext
+  SOURCE availability OBJECT Availability SCOPE all JOIN member ON User == member.User CARDINALITY many
+  FIELD User FROM member.User
+  FIELD Note FROM availability.Note
+END.READ_MODEL
+
+COMMAND ImportSongs
+  INPUT Ids LIST TEXT OPTIONAL
+  INPUT Songs LIST REQUIRED
+    FIELD Title TEXT REQUIRED
+    FIELD Composer TEXT
+  END.INPUT
+  STEP createSongs CREATE Song FOR EACH Songs
+    VALUE Band LITERAL 'band-1'
+    VALUE Title ITEM Title
+    VALUE Composer ITEM Composer
+  END.STEP
+END.COMMAND
+
+COMMAND CreateBand
+  INPUT Name TEXT REQUIRED
+  STEP createBand CREATE Band ESTABLISHES CONTEXT Band
+    VALUE Name INPUT Name
+  END.STEP
+  STEP createMembership CREATE BandMember
+    VALUE Band STEP createBand META guid
+    VALUE User RUNTIME userId
+    VALUE Role LITERAL Leader
+  END.STEP
+END.COMMAND
+
+POLICY AvailabilityPolicy ON Availability
+  RULE allowBandMemberReadSharedAvailability ALLOW READ CONTEXT_MEMBER Band FIELD User
+END.POLICY
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.partialModel.shell?.navDrawer).toEqual({
+      title: "Giggle Band",
+      controls: ["themeSwitch", "logout"],
+    });
+    expect(result.model.shell.navDrawer).toEqual({
+      title: "Giggle Band",
+      controls: ["themeSwitch", "logout"],
+    });
+
+    // A grant declared at top level lands on the context named by its ON clause.
+    expect(result.partialModel.contexts?.[0]?.grants).toEqual([
+      {
+        name: "pendingBandInvitation",
+        object: "BandInvitation",
+        userField: "Invitee",
+        contextField: "Band",
+        condition: expect.objectContaining({ kind: "binary", operator: "==" }),
+      },
+    ]);
+    expect(result.model.contexts?.[0]?.grants).toEqual([
+      expect.objectContaining({
+        name: "pendingBandInvitation",
+        object: "BandInvitation",
+        userField: "Invitee",
+        contextField: "Band",
+      }),
+    ]);
+
+    const setListItem = result.model.objects.find((object) => object.name === "SetListItem");
+    expect(setListItem?.constraints[0]).toEqual({
+      name: "orderedSetListItems",
+      kind: "ordered",
+      parentField: "SetList",
+      positionField: "Position",
+      scopeFields: ["Band"],
+      minPosition: 1,
+      reorder: "shift",
+      compaction: "onDelete",
+    });
+
+    expect(result.partialModel.readModels?.[0]?.sources[1]?.join).toEqual({
+      source: "member",
+      localField: "User",
+      sourceField: "User",
+      cardinality: "many",
+    });
+    expect(result.model.readModels?.[0]?.sources[1]?.join).toEqual({
+      source: "member",
+      localField: "User",
+      sourceField: "User",
+      cardinality: "many",
+    });
+
+    const importSongs = result.model.commands?.find((command) => command.name === "ImportSongs");
+    expect(result.partialModel.commands?.[0]?.inputs).toEqual([
+      { name: "Ids", type: "text", required: false, repeated: true },
+      {
+        name: "Songs",
+        type: "text",
+        required: true,
+        repeated: true,
+        itemFields: [
+          { name: "Title", type: "text", required: true },
+          // No modifier on the item FIELD line means optional, so the parser
+          // states it rather than letting resolution default it to required.
+          { name: "Composer", type: "text", required: false },
+        ],
+      },
+    ]);
+    expect(importSongs?.inputs).toEqual([
+      { name: "Ids", type: "text", required: false, repeated: true, itemFields: [] },
+      {
+        name: "Songs",
+        type: "text",
+        required: true,
+        repeated: true,
+        itemFields: [
+          { name: "Title", type: "text", required: true },
+          { name: "Composer", type: "text", required: false },
+        ],
+      },
+    ]);
+    expect(importSongs?.steps[0]).toMatchObject({
+      name: "createSongs",
+      action: "create",
+      forEach: "Songs",
+      values: {
+        Title: { kind: "item", field: "Title" },
+        Composer: { kind: "item", field: "Composer" },
+      },
+    });
+
+    const createBand = result.model.commands?.find((command) => command.name === "CreateBand");
+    expect(createBand?.steps[0]).toMatchObject({
+      name: "createBand",
+      action: "create",
+      establishesContext: "Band",
+    });
+
+    const availabilityRule = result.model.policies
+      .find((policy) => policy.name === "AvailabilityPolicy")
+      ?.rules.find((rule) => rule.name === "allowBandMemberReadSharedAvailability");
+    expect(availabilityRule?.principal).toEqual({
+      match: "contextMember",
+      contextMember: { context: "Band", field: "User" },
+      roles: [],
+      groupRoles: [],
+      users: [],
+      owner: false,
+    });
+  });
+
   it("compiles the Giggle Band ADL reference app from app.yaml into the runtime model", async () => {
     const result = compileAdlProject({
       manifestSource: readReference("giggle-band/app.yaml"),
@@ -690,18 +900,21 @@ END.COMMAND
         ["BandEventList", "Gigs", 20],
         ["BandEventCalendar", "Calendar", 30],
         ["MyAvailabilityList", "Availability", 40],
+        ["BandMemberAvailabilityBoard", "Who is free", 45],
         ["SongLibrary", "Songs", 50],
         ["SetListList", "Set Lists", 60],
+        ["StreamingLinkList", "Streaming", 65],
         ["BandDirectory", "Bands", 70],
-        ["UserProfileList", "User Profile List", 80],
-        ["BandProfile", "Band Profile", 90],
-        ["BandMemberList", "Band Member List", 100],
-        ["BandInvitationList", "Band Invitation List", 110],
-        ["BandEventForm", "Band Event Form", 120],
-        ["SetListItemList", "Set List Item List", 130],
-        ["SetListByPosition", "Set List By Position", 140],
-        ["StreamingLinkList", "Streaming Link List", 150],
-        ["DevicePreferenceList", "Device Preference List", 160],
+        // Undeclared views keep their derived ordering after the declared ones,
+        // which is why adding two NAV entries moves this block from 80 to 100.
+        ["UserProfileList", "User Profile List", 100],
+        ["BandProfile", "Band Profile", 110],
+        ["BandMemberList", "Band Member List", 120],
+        ["BandInvitationList", "Band Invitation List", 130],
+        ["BandEventForm", "Band Event Form", 140],
+        ["SetListItemList", "Set List Item List", 150],
+        ["SetListByPosition", "Set List By Position", 160],
+        ["DevicePreferenceList", "Device Preference List", 170],
       ],
     );
     expect(

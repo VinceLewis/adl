@@ -5,6 +5,7 @@ import {
   isValidModelVersion,
   normaliseModelVersion,
 } from "../model/defaults.js";
+import { RECORD_ID_JOIN_FIELD } from "../model/resolved-model.js";
 import type {
   ConflictStrategy,
   CommandRuntimeProperty,
@@ -21,6 +22,8 @@ import type {
   ExpressionUnaryOperator,
   ExpressionValueType,
   FieldType,
+  OrderedCollectionCompaction,
+  OrderedCollectionReorder,
   ValidatorKind,
   PresentationDensity,
   PresentationActionPlacement,
@@ -41,6 +44,7 @@ import type {
   PresentationStatePersistence,
   PresentationStateType,
   PolicyAction,
+  ReadModelJoinCardinality,
   ReadModelSourceScope,
   ReadModelStrategy,
   ResolvedApplicationModel,
@@ -51,6 +55,7 @@ import type {
   ResolvedCommandPrecondition,
   ResolvedCommandStep,
   ResolvedCommandValueExpression,
+  ResolvedContextGrant,
   ResolvedContextMembership,
   ResolvedDecisionTable,
   ResolvedDecisionTableRow,
@@ -68,6 +73,7 @@ import type {
   ResolvedPolicy,
   ResolvedExpression,
   ResolvedPolicyRule,
+  ResolvedPrincipalSelector,
   ResolvedPresentationControl,
   ResolvedPresentationCalendar,
   ResolvedPresentationIconRef,
@@ -85,6 +91,7 @@ import type {
   ResolvedRelationshipPicker,
   ResolvedViewPresentation,
   ResolvedReadModel,
+  ResolvedReadModelSource,
   ResolvedShell,
   ResolvedShellControl,
   ResolvedShellNavItem,
@@ -145,6 +152,15 @@ export const MODEL_VALIDATION_CODES = {
   AUTO_ID_NON_TEXT: "ADL_AUTO_ID_NON_TEXT",
   AUTO_ID_SCOPE_FIELD_UNKNOWN: "ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN",
   CONTEXT_DUPLICATE: "ADL_CONTEXT_DUPLICATE",
+  CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN: "ADL_CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN",
+  CONTEXT_GRANT_CONDITION_INVALID: "ADL_CONTEXT_GRANT_CONDITION_INVALID",
+  CONTEXT_GRANT_CONDITION_RUNTIME_PROPERTY_INVALID:
+    "ADL_CONTEXT_GRANT_CONDITION_RUNTIME_PROPERTY_INVALID",
+  CONTEXT_GRANT_CONDITION_TYPE: "ADL_CONTEXT_GRANT_CONDITION_TYPE",
+  CONTEXT_GRANT_CONTEXT_FIELD_INVALID: "ADL_CONTEXT_GRANT_CONTEXT_FIELD_INVALID",
+  CONTEXT_GRANT_DUPLICATE: "ADL_CONTEXT_GRANT_DUPLICATE",
+  CONTEXT_GRANT_FIELD_UNKNOWN: "ADL_CONTEXT_GRANT_FIELD_UNKNOWN",
+  CONTEXT_GRANT_OBJECT_UNKNOWN: "ADL_CONTEXT_GRANT_OBJECT_UNKNOWN",
   CONTEXT_MEMBERSHIP_CONTEXT_FIELD_INVALID: "ADL_CONTEXT_MEMBERSHIP_CONTEXT_FIELD_INVALID",
   CONTEXT_MEMBERSHIP_FIELD_UNKNOWN: "ADL_CONTEXT_MEMBERSHIP_FIELD_UNKNOWN",
   CONTEXT_MEMBERSHIP_OBJECT_UNKNOWN: "ADL_CONTEXT_MEMBERSHIP_OBJECT_UNKNOWN",
@@ -193,6 +209,10 @@ export const MODEL_VALIDATION_CODES = {
   COMMAND_DUPLICATE: "ADL_COMMAND_DUPLICATE",
   COMMAND_INPUT_DEFAULT_INCOMPATIBLE: "ADL_COMMAND_INPUT_DEFAULT_INCOMPATIBLE",
   COMMAND_INPUT_DUPLICATE: "ADL_COMMAND_INPUT_DUPLICATE",
+  COMMAND_INPUT_ITEM_FIELDS_INVALID: "ADL_COMMAND_INPUT_ITEM_FIELDS_INVALID",
+  COMMAND_INPUT_ITEM_FIELD_DUPLICATE: "ADL_COMMAND_INPUT_ITEM_FIELD_DUPLICATE",
+  COMMAND_INPUT_ITEM_FIELD_TYPE_INVALID: "ADL_COMMAND_INPUT_ITEM_FIELD_TYPE_INVALID",
+  COMMAND_INPUT_REPEATED_DEFAULT_INVALID: "ADL_COMMAND_INPUT_REPEATED_DEFAULT_INVALID",
   COMMAND_INPUT_TYPE_INVALID: "ADL_COMMAND_INPUT_TYPE_INVALID",
   COMMAND_PRECONDITION_FIELD_UNKNOWN: "ADL_COMMAND_PRECONDITION_FIELD_UNKNOWN",
   COMMAND_PRECONDITION_INVALID: "ADL_COMMAND_PRECONDITION_INVALID",
@@ -217,17 +237,26 @@ export const MODEL_VALIDATION_CODES = {
   DECISION_TABLE_ROW_OVERLAP: "ADL_DECISION_TABLE_ROW_OVERLAP",
   DECISION_TABLE_ROW_UNREACHABLE: "ADL_DECISION_TABLE_ROW_UNREACHABLE",
   COMMAND_STEP_ACTION_INVALID: "ADL_COMMAND_STEP_ACTION_INVALID",
+  COMMAND_STEP_CONTEXT_OBJECT_MISMATCH: "ADL_COMMAND_STEP_CONTEXT_OBJECT_MISMATCH",
+  COMMAND_STEP_CONTEXT_UNKNOWN: "ADL_COMMAND_STEP_CONTEXT_UNKNOWN",
   COMMAND_STEP_DUPLICATE: "ADL_COMMAND_STEP_DUPLICATE",
   COMMAND_STEP_FIELD_UNKNOWN: "ADL_COMMAND_STEP_FIELD_UNKNOWN",
+  COMMAND_STEP_FOR_EACH_NOT_REPEATED: "ADL_COMMAND_STEP_FOR_EACH_NOT_REPEATED",
+  COMMAND_STEP_FOR_EACH_UNKNOWN: "ADL_COMMAND_STEP_FOR_EACH_UNKNOWN",
   COMMAND_STEP_INPUT_UNKNOWN: "ADL_COMMAND_STEP_INPUT_UNKNOWN",
+  COMMAND_STEP_ITEM_FIELD_UNKNOWN: "ADL_COMMAND_STEP_ITEM_FIELD_UNKNOWN",
+  COMMAND_STEP_ITEM_OUTSIDE_FOR_EACH: "ADL_COMMAND_STEP_ITEM_OUTSIDE_FOR_EACH",
+  COMMAND_STEP_ITERATING_REFERENCE: "ADL_COMMAND_STEP_ITERATING_REFERENCE",
   COMMAND_STEP_META_PROPERTY_INVALID: "ADL_COMMAND_STEP_META_PROPERTY_INVALID",
   COMMAND_STEP_OBJECT_UNKNOWN: "ADL_COMMAND_STEP_OBJECT_UNKNOWN",
   COMMAND_STEP_REFERENCE_UNKNOWN: "ADL_COMMAND_STEP_REFERENCE_UNKNOWN",
   COMMAND_STEP_RUNTIME_PROPERTY_INVALID: "ADL_COMMAND_STEP_RUNTIME_PROPERTY_INVALID",
   OBJECT_DISPLAY_FIELD_UNKNOWN: "ADL_OBJECT_DISPLAY_FIELD_UNKNOWN",
+  OBJECT_CONSTRAINT_COMPACTION_INVALID: "ADL_OBJECT_CONSTRAINT_COMPACTION_INVALID",
   OBJECT_CONSTRAINT_DUPLICATE: "ADL_OBJECT_CONSTRAINT_DUPLICATE",
   OBJECT_CONSTRAINT_FIELD_UNKNOWN: "ADL_OBJECT_CONSTRAINT_FIELD_UNKNOWN",
   OBJECT_CONSTRAINT_KIND_INVALID: "ADL_OBJECT_CONSTRAINT_KIND_INVALID",
+  OBJECT_CONSTRAINT_REORDER_INVALID: "ADL_OBJECT_CONSTRAINT_REORDER_INVALID",
   OBJECT_CONSTRAINT_MIN_POSITION_INVALID: "ADL_OBJECT_CONSTRAINT_MIN_POSITION_INVALID",
   OBJECT_CONSTRAINT_POSITION_FIELD_TYPE_INVALID:
     "ADL_OBJECT_CONSTRAINT_POSITION_FIELD_TYPE_INVALID",
@@ -258,6 +287,12 @@ export const MODEL_VALIDATION_CODES = {
   POLICY_CONDITION_RUNTIME_PROPERTY_INVALID: "ADL_POLICY_CONDITION_RUNTIME_PROPERTY_INVALID",
   POLICY_LIFECYCLE_ACTION_UNKNOWN: "ADL_POLICY_LIFECYCLE_ACTION_UNKNOWN",
   POLICY_OBJECT_UNKNOWN: "ADL_POLICY_OBJECT_UNKNOWN",
+  POLICY_PRINCIPAL_CONTEXT_MEMBERSHIP_MISSING: "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBERSHIP_MISSING",
+  POLICY_PRINCIPAL_CONTEXT_MEMBER_FIELD_UNKNOWN:
+    "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_FIELD_UNKNOWN",
+  POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING: "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING",
+  POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED: "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED",
+  POLICY_PRINCIPAL_CONTEXT_UNKNOWN: "ADL_POLICY_PRINCIPAL_CONTEXT_UNKNOWN",
   POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
   POLICY_CHANNEL_INVALID: "ADL_POLICY_CHANNEL_INVALID",
   SHELL_CONTEXT_SELECTOR_PLACEMENT_INVALID: "ADL_SHELL_CONTEXT_SELECTOR_PLACEMENT_INVALID",
@@ -267,11 +302,14 @@ export const MODEL_VALIDATION_CODES = {
   SHELL_CONTROL_KIND_INVALID: "ADL_SHELL_CONTROL_KIND_INVALID",
   SHELL_CONTROL_PLACEMENT_INVALID: "ADL_SHELL_CONTROL_PLACEMENT_INVALID",
   SHELL_MOBILE_CONTEXT_SELECTOR_INVALID: "ADL_SHELL_MOBILE_CONTEXT_SELECTOR_INVALID",
+  SHELL_NAV_DRAWER_CONTROL_PLACEMENT_MISMATCH: "ADL_SHELL_NAV_DRAWER_CONTROL_PLACEMENT_MISMATCH",
+  SHELL_NAV_DRAWER_CONTROL_UNKNOWN: "ADL_SHELL_NAV_DRAWER_CONTROL_UNKNOWN",
   SHELL_NAV_ACTIVE_VIEW_UNKNOWN: "ADL_SHELL_NAV_ACTIVE_VIEW_UNKNOWN",
   SHELL_NAV_DUPLICATE: "ADL_SHELL_NAV_DUPLICATE",
   SHELL_NAV_ICON_INVALID: "ADL_SHELL_NAV_ICON_INVALID",
   SHELL_NAV_ORDER_DUPLICATE: "ADL_SHELL_NAV_ORDER_DUPLICATE",
   SHELL_NAV_VIEW_UNKNOWN: "ADL_SHELL_NAV_VIEW_UNKNOWN",
+  SHELL_TOP_BAR_CONTROL_PLACEMENT_MISMATCH: "ADL_SHELL_TOP_BAR_CONTROL_PLACEMENT_MISMATCH",
   SHELL_TOP_BAR_CONTROL_UNKNOWN: "ADL_SHELL_TOP_BAR_CONTROL_UNKNOWN",
   SHELL_VISIBILITY_CONTEXT_UNKNOWN: "ADL_SHELL_VISIBILITY_CONTEXT_UNKNOWN",
   SHELL_VISIBILITY_KIND_INVALID: "ADL_SHELL_VISIBILITY_KIND_INVALID",
@@ -370,6 +408,11 @@ export const MODEL_VALIDATION_CODES = {
   READ_MODEL_FIELD_SHAPE_INVALID: "ADL_READ_MODEL_FIELD_SHAPE_INVALID",
   READ_MODEL_FIELD_TYPE_INVALID: "ADL_READ_MODEL_FIELD_TYPE_INVALID",
   READ_MODEL_FIELD_UNKNOWN: "ADL_READ_MODEL_FIELD_UNKNOWN",
+  READ_MODEL_JOIN_CARDINALITY_INVALID: "ADL_READ_MODEL_JOIN_CARDINALITY_INVALID",
+  READ_MODEL_JOIN_FIELD_UNKNOWN: "ADL_READ_MODEL_JOIN_FIELD_UNKNOWN",
+  READ_MODEL_JOIN_PRIMARY_SOURCE_INVALID: "ADL_READ_MODEL_JOIN_PRIMARY_SOURCE_INVALID",
+  READ_MODEL_JOIN_SOURCE_UNKNOWN: "ADL_READ_MODEL_JOIN_SOURCE_UNKNOWN",
+  READ_MODEL_JOIN_STRATEGY_INVALID: "ADL_READ_MODEL_JOIN_STRATEGY_INVALID",
   READ_MODEL_SOURCE_DUPLICATE: "ADL_READ_MODEL_SOURCE_DUPLICATE",
   READ_MODEL_SOURCE_OBJECT_UNKNOWN: "ADL_READ_MODEL_SOURCE_OBJECT_UNKNOWN",
   READ_MODEL_SOURCE_SCOPE_INVALID: "ADL_READ_MODEL_SOURCE_SCOPE_INVALID",
@@ -575,6 +618,9 @@ const READ_MODEL_SOURCE_SCOPES = new Set<ReadModelSourceScope>([
   "currentUser",
 ]);
 const READ_MODEL_STRATEGIES = new Set<ReadModelStrategy>(["join", "union"]);
+const READ_MODEL_JOIN_CARDINALITIES = new Set<ReadModelJoinCardinality>(["one", "many"]);
+const ORDERED_COLLECTION_REORDERS = new Set<OrderedCollectionReorder>(["strict", "shift"]);
+const ORDERED_COLLECTION_COMPACTIONS = new Set<OrderedCollectionCompaction>(["none", "onDelete"]);
 const COMPUTED_FIELD_STRATEGIES = new Set<ComputedFieldStrategy>(["readTime"]);
 
 const POLICY_ACTIONS = new Set<PolicyAction>([
@@ -1150,18 +1196,74 @@ function validateShell(
     );
   }
 
-  for (let controlIndex = 0; controlIndex < shell.topBar.controls.length; controlIndex += 1) {
-    const controlName = shell.topBar.controls[controlIndex];
-    if (controlName === undefined || controlsByName.has(controlName)) {
+  validateShellRegionControls(
+    shell.topBar.controls,
+    "topBar",
+    "shell.topBar.controls",
+    "Shell top bar",
+    {
+      unknown: MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_UNKNOWN,
+      placement: MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_PLACEMENT_MISMATCH,
+    },
+    controlsByName,
+    diagnostics,
+  );
+  validateShellRegionControls(
+    shell.navDrawer.controls,
+    "navDrawer",
+    "shell.navDrawer.controls",
+    "Shell navigation drawer",
+    {
+      unknown: MODEL_VALIDATION_CODES.SHELL_NAV_DRAWER_CONTROL_UNKNOWN,
+      placement: MODEL_VALIDATION_CODES.SHELL_NAV_DRAWER_CONTROL_PLACEMENT_MISMATCH,
+    },
+    controlsByName,
+    diagnostics,
+  );
+}
+
+/**
+ * A region's control list names controls; a control's own `placement` says which
+ * region renders it. Both had to agree for anything to appear, and nothing
+ * checked that they did, so a control listed in the region it is not placed in
+ * simply never rendered and the model looked correct.
+ */
+function validateShellRegionControls(
+  controlNames: string[],
+  placement: ShellControlPlacement,
+  regionPath: string,
+  regionLabel: string,
+  codes: { unknown: ModelValidationCode; placement: ModelValidationCode },
+  controlsByName: Map<string, NamedReference<ResolvedShellControl>>,
+  diagnostics: Diagnostic[],
+): void {
+  for (let controlIndex = 0; controlIndex < controlNames.length; controlIndex += 1) {
+    const controlName = controlNames[controlIndex];
+    if (controlName === undefined) {
       continue;
     }
-    diagnostics.push(
-      diagnostic(
-        MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_UNKNOWN,
-        `Shell top bar references unknown control '${controlName}'.`,
-        `shell.topBar.controls[${controlIndex}]`,
-      ),
-    );
+
+    const control = controlsByName.get(controlName)?.item;
+    if (control === undefined) {
+      diagnostics.push(
+        diagnostic(
+          codes.unknown,
+          `${regionLabel} references unknown control '${controlName}'.`,
+          `${regionPath}[${controlIndex}]`,
+        ),
+      );
+      continue;
+    }
+
+    if (control.placement !== placement) {
+      diagnostics.push(
+        diagnostic(
+          codes.placement,
+          `${regionLabel} lists control '${controlName}', which is placed in '${String(control.placement)}' and so never renders there.`,
+          `${regionPath}[${controlIndex}]`,
+        ),
+      );
+    }
   }
 }
 
@@ -1394,6 +1496,121 @@ function validateBusinessContext(
       `${contextPath}.membership`,
       indexes,
       diagnostics,
+    );
+  }
+
+  reportDuplicateNames(
+    context.grants,
+    `${contextPath}.grants`,
+    MODEL_VALIDATION_CODES.CONTEXT_GRANT_DUPLICATE,
+    diagnostics,
+    `Grant names must be unique within business context '${context.name}'.`,
+  );
+
+  for (let grantIndex = 0; grantIndex < context.grants.length; grantIndex += 1) {
+    const grant = context.grants[grantIndex];
+    if (grant === undefined) {
+      continue;
+    }
+    validateContextGrant(
+      grant,
+      context,
+      `${contextPath}.grants[${grantIndex}]`,
+      indexes,
+      diagnostics,
+    );
+  }
+}
+
+/**
+ * A grant is the one route into a context that is not membership, so what it
+ * names has to be checkable here: an unknown object, a field that is not on it,
+ * or a context field that reaches somewhere other than this context's own object
+ * would each leave the scope gate accepting records for the wrong instance, or
+ * for none at all, with nothing reported until a person could not read their own
+ * invitation.
+ */
+function validateContextGrant(
+  grant: ResolvedContextGrant,
+  context: ResolvedBusinessContext,
+  grantPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const grantObject = indexes.objectsByName.get(grant.object)?.item;
+
+  if (grantObject === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_OBJECT_UNKNOWN,
+        `Business context '${context.name}' grant '${grant.name}' references unknown object '${grant.object}'.`,
+        `${grantPath}.object`,
+      ),
+    );
+    return;
+  }
+
+  const fieldsByName = indexByName(grantObject.fields);
+
+  if (!fieldsByName.has(grant.userField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_FIELD_UNKNOWN,
+        `Business context '${context.name}' grant '${grant.name}' user field '${grant.userField}' does not exist on object '${grantObject.name}'.`,
+        `${grantPath}.userField`,
+      ),
+    );
+  }
+
+  const contextField = fieldsByName.get(grant.contextField)?.item;
+  if (contextField === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_FIELD_UNKNOWN,
+        `Business context '${context.name}' grant '${grant.name}' context field '${grant.contextField}' does not exist on object '${grantObject.name}'.`,
+        `${grantPath}.contextField`,
+      ),
+    );
+  } else if (
+    // An unknown context object is already reported once against the context
+    // itself; repeating it per grant would say nothing new and would be wrong
+    // about which declaration is at fault.
+    indexes.objectsByName.has(context.object) &&
+    contextField.lookup?.targetObject !== context.object
+  ) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONTEXT_FIELD_INVALID,
+        `Business context '${context.name}' grant '${grant.name}' context field '${grant.contextField}' must look up '${context.object}'.`,
+        `${grantPath}.contextField`,
+      ),
+    );
+  }
+
+  if (grant.condition === undefined) {
+    return;
+  }
+
+  const conditionType = validateExpression(
+    grant.condition,
+    `${grantPath}.condition`,
+    fieldsByName,
+    {
+      invalid: MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_INVALID,
+      field: MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN,
+      runtime: MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_RUNTIME_PROPERTY_INVALID,
+      type: MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_TYPE,
+    },
+    diagnostics,
+  );
+
+  if (conditionType !== "boolean" && conditionType !== "unknown") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.CONTEXT_GRANT_CONDITION_TYPE,
+        `Business context '${context.name}' grant '${grant.name}' condition must resolve to boolean, not ${conditionType}.`,
+        `${grantPath}.condition`,
+      ),
     );
   }
 }
@@ -1762,6 +1979,32 @@ function validateObjectConstraint(
           MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_MIN_POSITION_INVALID,
           `Ordered constraint '${constraint.name}' on object '${object.name}' minPosition must be a positive integer.`,
           `${constraintPath}.minPosition`,
+        ),
+      );
+    }
+
+    /*
+     * Both of these decide what the platform does to *sibling* records inside
+     * the same transaction, so an unrecognised value cannot be treated as a
+     * harmless default: it would silently pick one of two different write
+     * behaviours for every reorder or delete in the collection.
+     */
+    if (!ORDERED_COLLECTION_REORDERS.has(constraint.reorder)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_REORDER_INVALID,
+          `Ordered constraint '${constraint.name}' on object '${object.name}' has invalid reorder behaviour '${String(constraint.reorder)}'.`,
+          `${constraintPath}.reorder`,
+        ),
+      );
+    }
+
+    if (!ORDERED_COLLECTION_COMPACTIONS.has(constraint.compaction)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_COMPACTION_INVALID,
+          `Ordered constraint '${constraint.name}' on object '${object.name}' has invalid compaction behaviour '${String(constraint.compaction)}'.`,
+          `${constraintPath}.compaction`,
         ),
       );
     }
@@ -2463,6 +2706,7 @@ function validatePolicy(
       fieldsByName,
       statesByName,
       actionsByName,
+      indexes,
       diagnostics,
     );
   }
@@ -2475,6 +2719,7 @@ function validatePolicyRule(
   fieldsByName: Map<string, NamedReference<ResolvedField>>,
   statesByName: Map<string, NamedReference<unknown>>,
   actionsByName: Map<string, NamedReference<unknown>>,
+  indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
   if (!POLICY_ACTIONS.has(rule.action)) {
@@ -2567,6 +2812,89 @@ function validatePolicyRule(
         ),
       );
     }
+  }
+
+  validatePolicyPrincipal(
+    rule.principal,
+    rule,
+    rulePath,
+    object,
+    fieldsByName,
+    indexes,
+    diagnostics,
+  );
+}
+
+/**
+ * The `contextMember` principal fails closed at runtime when it cannot resolve a
+ * roster, which is right for a request and wrong for a model: a rule that can
+ * never match is not a safe default, it is a rule the author believed they had
+ * written. A context with no declared membership has no roster to read, so the
+ * mismatch is decidable here rather than as an access denial nobody can explain.
+ */
+function validatePolicyPrincipal(
+  principal: ResolvedPrincipalSelector,
+  rule: ResolvedPolicyRule,
+  rulePath: string,
+  object: ResolvedObject,
+  fieldsByName: Map<string, NamedReference<ResolvedField>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const principalPath = `${rulePath}.principal`;
+
+  if (principal.match !== "contextMember") {
+    if (principal.contextMember !== undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED,
+          `Policy rule '${rule.name}' declares a context member principal but matches '${String(principal.match)}', so the declaration is never read.`,
+          `${principalPath}.contextMember`,
+        ),
+      );
+    }
+    return;
+  }
+
+  const contextMember = principal.contextMember;
+  if (contextMember === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING,
+        `Policy rule '${rule.name}' matches context members but declares no context member selector.`,
+        `${principalPath}.contextMember`,
+      ),
+    );
+    return;
+  }
+
+  const context = indexes.contextsByName.get(contextMember.context)?.item;
+  if (context === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_UNKNOWN,
+        `Policy rule '${rule.name}' context member principal references unknown business context '${contextMember.context}'.`,
+        `${principalPath}.contextMember.context`,
+      ),
+    );
+  } else if (context.membership === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBERSHIP_MISSING,
+        `Policy rule '${rule.name}' matches members of business context '${contextMember.context}', which declares no membership, so the rule can never match.`,
+        `${principalPath}.contextMember.context`,
+      ),
+    );
+  }
+
+  if (!fieldsByName.has(contextMember.field)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_PRINCIPAL_CONTEXT_MEMBER_FIELD_UNKNOWN,
+        `Policy rule '${rule.name}' context member principal references unknown field '${contextMember.field}' on object '${object.name}'.`,
+        `${principalPath}.contextMember.field`,
+      ),
+    );
   }
 }
 
@@ -5369,6 +5697,7 @@ function validateReadModel(
     `Output field names must be unique within read model '${readModel.name}'.`,
   );
 
+  const earlierSourcesByName = new Map<string, ResolvedReadModelSource>();
   for (let sourceIndex = 0; sourceIndex < readModel.sources.length; sourceIndex += 1) {
     const source = readModel.sources[sourceIndex];
     if (source === undefined) {
@@ -5394,6 +5723,18 @@ function validateReadModel(
         ),
       );
     }
+
+    validateReadModelSourceJoin(
+      source,
+      sourceIndex === 0,
+      readModel,
+      `${readModelPath}.sources[${sourceIndex}]`,
+      earlierSourcesByName,
+      indexes,
+      diagnostics,
+    );
+
+    earlierSourcesByName.set(source.name, source);
   }
 
   const fieldNames = new Set(readModel.fields.map((field) => field.name));
@@ -5534,6 +5875,128 @@ function validateReadModel(
       index: fieldIndex,
     });
   }
+}
+
+/**
+ * A join is only evaluable in one direction: the runtime walks the sources in
+ * declaration order, so a source may only reach one it already has. Naming
+ * itself or a later source would ask the runtime to key on rows it has not read,
+ * which is the same forward-reference ban command steps carry, for the same
+ * reason.
+ */
+function validateReadModelSourceJoin(
+  source: ResolvedReadModelSource,
+  isPrimarySource: boolean,
+  readModel: ResolvedReadModel,
+  sourcePath: string,
+  earlierSourcesByName: Map<string, ResolvedReadModelSource>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const join = source.join;
+  if (join === undefined) {
+    return;
+  }
+
+  if (isPrimarySource) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_PRIMARY_SOURCE_INVALID,
+        `Read model '${readModel.name}' source '${source.name}' is the first source and has nothing to join onto.`,
+        `${sourcePath}.join`,
+      ),
+    );
+  }
+
+  if (readModel.strategy === "union") {
+    /*
+     * A union interleaves independent feeds rather than widening one row, so
+     * there is no upstream row for a join to key against. Accepting the
+     * declaration would leave two plausible readings of the same model.
+     */
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_STRATEGY_INVALID,
+        `Read model '${readModel.name}' uses the union strategy, so source '${source.name}' must not declare a join.`,
+        `${sourcePath}.join`,
+      ),
+    );
+  }
+
+  if (!READ_MODEL_JOIN_CARDINALITIES.has(join.cardinality)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_CARDINALITY_INVALID,
+        `Read model '${readModel.name}' source '${source.name}' has invalid join cardinality '${String(join.cardinality)}'.`,
+        `${sourcePath}.join.cardinality`,
+      ),
+    );
+  }
+
+  const joinedSource = earlierSourcesByName.get(join.source);
+  if (joinedSource === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_JOIN_SOURCE_UNKNOWN,
+        `Read model '${readModel.name}' source '${source.name}' joins unknown or later source '${join.source}'.`,
+        `${sourcePath}.join.source`,
+      ),
+    );
+  }
+
+  validateReadModelJoinField(
+    join.localField,
+    source,
+    readModel,
+    `${sourcePath}.join.localField`,
+    indexes,
+    diagnostics,
+  );
+
+  if (joinedSource !== undefined) {
+    validateReadModelJoinField(
+      join.sourceField,
+      joinedSource,
+      readModel,
+      `${sourcePath}.join.sourceField`,
+      indexes,
+      diagnostics,
+    );
+  }
+}
+
+function validateReadModelJoinField(
+  fieldName: string,
+  source: ResolvedReadModelSource,
+  readModel: ResolvedReadModel,
+  fieldPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  // The record's own id is not a declared field, and requiring an object to
+  // carry a duplicate of it would make every junction join say the same thing
+  // twice.
+  if (fieldName === RECORD_ID_JOIN_FIELD) {
+    return;
+  }
+
+  const object = indexes.objectsByName.get(source.object)?.item;
+  if (object === undefined) {
+    // Already reported against the source itself.
+    return;
+  }
+
+  if (indexObjectExpressionFields(object).has(fieldName)) {
+    return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      MODEL_VALIDATION_CODES.READ_MODEL_JOIN_FIELD_UNKNOWN,
+      `Read model '${readModel.name}' join references unknown field '${fieldName}' on source '${source.name}' object '${object.name}'.`,
+      fieldPath,
+    ),
+  );
 }
 
 function validateDecisionTable(
@@ -6170,7 +6633,20 @@ function validateCommandInput(
     );
   }
 
-  if (
+  if (input.repeated && input.defaultValue !== undefined) {
+    /*
+     * A default is one value and a repeated input carries a list, so there is
+     * no reading of a declared default that is not either a silently wrapped
+     * single-item list or a silently ignored declaration.
+     */
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_REPEATED_DEFAULT_INVALID,
+        `Command '${command.name}' input '${input.name}' is repeated, so it must not declare a default value.`,
+        `${inputPath}.defaultValue`,
+      ),
+    );
+  } else if (
     input.defaultValue !== undefined &&
     !isValueCompatibleWithFieldType(input.type, input.defaultValue)
   ) {
@@ -6181,6 +6657,42 @@ function validateCommandInput(
         `${inputPath}.defaultValue`,
       ),
     );
+  }
+
+  if (!input.repeated && input.itemFields.length > 0) {
+    // Item fields describe the shape of one element of a list. A single-valued
+    // input has no elements, so the declaration would never be read.
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_INPUT_ITEM_FIELDS_INVALID,
+        `Command '${command.name}' input '${input.name}' declares item fields but is not repeated.`,
+        `${inputPath}.itemFields`,
+      ),
+    );
+  }
+
+  reportDuplicateNames(
+    input.itemFields,
+    `${inputPath}.itemFields`,
+    MODEL_VALIDATION_CODES.COMMAND_INPUT_ITEM_FIELD_DUPLICATE,
+    diagnostics,
+    `Item field names must be unique within command '${command.name}' input '${input.name}'.`,
+  );
+
+  for (let itemFieldIndex = 0; itemFieldIndex < input.itemFields.length; itemFieldIndex += 1) {
+    const itemField = input.itemFields[itemFieldIndex];
+    if (itemField === undefined) {
+      continue;
+    }
+    if (!FIELD_TYPES.has(itemField.type)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.COMMAND_INPUT_ITEM_FIELD_TYPE_INVALID,
+          `Command '${command.name}' input '${input.name}' item field '${itemField.name}' has invalid type '${String(itemField.type)}'.`,
+          `${inputPath}.itemFields[${itemFieldIndex}].type`,
+        ),
+      );
+    }
   }
 }
 
@@ -6246,6 +6758,41 @@ function validateCommandStep(
     );
   }
 
+  const iteration = validateCommandStepIteration(
+    step,
+    stepPath,
+    command,
+    inputsByName,
+    diagnostics,
+  );
+
+  if (step.action === "create" && step.establishesContext !== undefined) {
+    const establishedContext = indexes.contextsByName.get(step.establishesContext)?.item;
+    if (establishedContext === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.COMMAND_STEP_CONTEXT_UNKNOWN,
+          `Command '${command.name}' step '${step.name}' establishes unknown business context '${step.establishesContext}'.`,
+          `${stepPath}.establishesContext`,
+        ),
+      );
+    } else if (establishedContext.object !== step.object) {
+      /*
+       * The step puts *its own new record* in reach for the rest of the
+       * transaction. If the record is not an instance of the context's object,
+       * there is no instance to put in reach, and the declaration would either
+       * do nothing or reach a context instance the caller did not create.
+       */
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.COMMAND_STEP_CONTEXT_OBJECT_MISMATCH,
+          `Command '${command.name}' step '${step.name}' establishes business context '${step.establishesContext}', whose object is '${establishedContext.object}', but the step creates '${step.object}'.`,
+          `${stepPath}.establishesContext`,
+        ),
+      );
+    }
+  }
+
   const object = indexes.objectsByName.get(step.object)?.item;
   if (object === undefined) {
     diagnostics.push(
@@ -6279,6 +6826,7 @@ function validateCommandStep(
       command,
       inputsByName,
       previousStepsByName,
+      iteration,
       indexes,
       diagnostics,
     );
@@ -6291,6 +6839,7 @@ function validateCommandStep(
       command,
       inputsByName,
       previousStepsByName,
+      iteration,
       indexes,
       diagnostics,
     );
@@ -6329,12 +6878,67 @@ function validateCommandStep(
   }
 }
 
+/**
+ * What a step's value expressions are allowed to say about iteration.
+ *
+ * `iterates` is whether the step declared `forEach` at all, which is what
+ * decides whether `item` and `itemIndex` mean anything. `input` is the declared
+ * repeated input when it resolved, which is what `item.field` is checked
+ * against; it stays undefined when `forEach` itself was already reported, so a
+ * single mistake produces a single diagnostic.
+ */
+interface CommandStepIteration {
+  iterates: boolean;
+  input?: ResolvedCommandInput;
+}
+
+function validateCommandStepIteration(
+  step: ResolvedCommandStep,
+  stepPath: string,
+  command: ResolvedCommand,
+  inputsByName: Map<string, NamedReference<ResolvedCommandInput>>,
+  diagnostics: Diagnostic[],
+): CommandStepIteration {
+  if (step.forEach === undefined) {
+    return { iterates: false };
+  }
+
+  const input = inputsByName.get(step.forEach)?.item;
+
+  if (input === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_STEP_FOR_EACH_UNKNOWN,
+        `Command '${command.name}' step '${step.name}' iterates unknown input '${step.forEach}'.`,
+        `${stepPath}.forEach`,
+      ),
+    );
+    return { iterates: true };
+  }
+
+  if (!input.repeated) {
+    // A single-valued input has one value, so "one write per item" has no
+    // meaning; the step would silently become an ordinary single write.
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.COMMAND_STEP_FOR_EACH_NOT_REPEATED,
+        `Command '${command.name}' step '${step.name}' iterates input '${step.forEach}', which is not repeated.`,
+        `${stepPath}.forEach`,
+      ),
+    );
+    return { iterates: true };
+  }
+
+  return { iterates: true, input };
+}
+
 function validateCommandValueExpression(
   expression: ResolvedCommandValueExpression,
   expressionPath: string,
   command: ResolvedCommand,
   inputsByName: Map<string, NamedReference<ResolvedCommandInput>>,
   previousStepsByName: Map<string, ResolvedCommandStep>,
+  iteration: CommandStepIteration,
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
@@ -6376,6 +6980,8 @@ function validateCommandValueExpression(
         return;
       }
 
+      reportIteratingStepReference(step, expressionPath, command, diagnostics);
+
       const object = indexes.objectsByName.get(step.object)?.item;
       if (object !== undefined && !object.fields.some((field) => field.name === expression.field)) {
         diagnostics.push(
@@ -6388,8 +6994,9 @@ function validateCommandValueExpression(
       }
       return;
     }
-    case "stepMeta":
-      if (!previousStepsByName.has(expression.step)) {
+    case "stepMeta": {
+      const step = previousStepsByName.get(expression.step);
+      if (step === undefined) {
         diagnostics.push(
           diagnostic(
             MODEL_VALIDATION_CODES.COMMAND_STEP_REFERENCE_UNKNOWN,
@@ -6397,6 +7004,8 @@ function validateCommandValueExpression(
             `${expressionPath}.step`,
           ),
         );
+      } else {
+        reportIteratingStepReference(step, expressionPath, command, diagnostics);
       }
       if (!COMMAND_STEP_META_PROPERTIES.has(expression.property)) {
         diagnostics.push(
@@ -6408,6 +7017,64 @@ function validateCommandValueExpression(
         );
       }
       return;
+    }
+    case "item": {
+      if (!iteration.iterates) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_ITEM_OUTSIDE_FOR_EACH,
+            `Command '${command.name}' expression references the current item, but the step does not iterate an input.`,
+            `${expressionPath}.kind`,
+          ),
+        );
+        return;
+      }
+
+      const input = iteration.input;
+      if (input === undefined) {
+        // The iterated input itself was already reported; naming a field of an
+        // item whose shape is unknown adds nothing.
+        return;
+      }
+
+      if (input.itemFields.length === 0) {
+        if (expression.field !== undefined) {
+          diagnostics.push(
+            diagnostic(
+              MODEL_VALIDATION_CODES.COMMAND_STEP_ITEM_FIELD_UNKNOWN,
+              `Command '${command.name}' expression reads item field '${expression.field}', but input '${input.name}' carries plain ${input.type} values and its items have no fields.`,
+              `${expressionPath}.field`,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (
+        expression.field !== undefined &&
+        !input.itemFields.some((itemField) => itemField.name === expression.field)
+      ) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_ITEM_FIELD_UNKNOWN,
+            `Command '${command.name}' expression reads unknown item field '${expression.field}' of input '${input.name}'.`,
+            `${expressionPath}.field`,
+          ),
+        );
+      }
+      return;
+    }
+    case "itemIndex":
+      if (!iteration.iterates) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.COMMAND_STEP_ITEM_OUTSIDE_FOR_EACH,
+            `Command '${command.name}' expression references the current item index, but the step does not iterate an input.`,
+            `${expressionPath}.kind`,
+          ),
+        );
+      }
+      return;
   }
 
   diagnostics.push(
@@ -6415,6 +7082,31 @@ function validateCommandValueExpression(
       MODEL_VALIDATION_CODES.COMMAND_PRECONDITION_INVALID,
       `Command '${command.name}' expression has invalid kind '${String((expression as { kind?: unknown }).kind)}'.`,
       `${expressionPath}.kind`,
+    ),
+  );
+}
+
+/**
+ * An iterating step writes one record per item, so "the record step X created"
+ * names a set rather than a record. There is no single answer for a later step
+ * to read, and picking one — the first, the last — would be a runtime invention
+ * the model never asked for.
+ */
+function reportIteratingStepReference(
+  step: ResolvedCommandStep,
+  expressionPath: string,
+  command: ResolvedCommand,
+  diagnostics: Diagnostic[],
+): void {
+  if (step.forEach === undefined) {
+    return;
+  }
+
+  diagnostics.push(
+    diagnostic(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_ITERATING_REFERENCE,
+      `Command '${command.name}' expression references step '${step.name}', which iterates input '${step.forEach}' and so produces many records rather than one.`,
+      `${expressionPath}.step`,
     ),
   );
 }

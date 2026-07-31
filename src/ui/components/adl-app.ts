@@ -10,6 +10,7 @@ import type {
   ResolvedReadModel,
   ResolvedShellControl,
   ResolvedShellNavItem,
+  ShellControlPlacement,
   ResolvedView,
   ResolvedViewContext,
   StoredObjectRecord,
@@ -1582,14 +1583,30 @@ export class AdlAppElement extends HTMLElement {
   }
 
   private renderTopBarControls(): string {
-    return this._model.shell.topBar.controls
+    return this.placedShellControls(this._model.shell.topBar.controls, "topBar")
+      .map((control) => this.renderShellControl(control))
+      .join("");
+  }
+
+  /**
+   * The declared controls a surface should render: named by that surface's own
+   * list, resolved against the shell's controls, and kept only when the control
+   * asked for this placement and is currently visible.
+   *
+   * Both the top bar and the drawer go through here so a control can never be
+   * rendered twice, and so a name in one list that a control placed elsewhere
+   * does not silently appear on the wrong surface.
+   */
+  private placedShellControls(
+    controlNames: string[],
+    placement: ShellControlPlacement,
+  ): ResolvedShellControl[] {
+    return controlNames
       .map((controlName) =>
         this._model.shell.controls.find((control) => control.name === controlName),
       )
       .filter((control): control is ResolvedShellControl => control !== undefined)
-      .filter((control) => control.placement === "topBar" && this.isShellControlVisible(control))
-      .map((control) => this.renderShellControl(control))
-      .join("");
+      .filter((control) => control.placement === placement && this.isShellControlVisible(control));
   }
 
   private renderShellControl(control: ResolvedShellControl): string {
@@ -1712,6 +1729,28 @@ export class AdlAppElement extends HTMLElement {
     `;
   }
 
+  /**
+   * The drawer's control region, rendered between the heading and the nav list.
+   *
+   * `navDrawer` was always a legal placement, but nothing rendered it, so a
+   * control declared there disappeared. It reuses `renderShellControl`, so a
+   * control looks and behaves the same wherever it was placed; only the
+   * surrounding layout differs. Nothing is emitted when no control is placed
+   * here, which keeps the drawer of an app that declares none unchanged.
+   */
+  private renderNavDrawerControls(): string {
+    const controls = this.placedShellControls(this._model.shell.navDrawer.controls, "navDrawer");
+    if (controls.length === 0) {
+      return "";
+    }
+
+    return `
+      <div class="adl-nav-drawer-tools" data-shell-drawer-tools="true">
+        ${controls.map((control) => this.renderShellControl(control)).join("")}
+      </div>
+    `;
+  }
+
   private renderNavigationDrawer(activeView: ResolvedView): string {
     const activeViewName = activeView.name;
     const navGroups = groupNavItems(this.visibleNavItems);
@@ -1728,8 +1767,11 @@ export class AdlAppElement extends HTMLElement {
         aria-label="Application navigation"
       >
         <div class="adl-nav-drawer-header">
-          <span>${escapeHtml(this._model.app.name)}</span>
+          <span data-shell-drawer-title="true">${escapeHtml(
+            this._model.shell.navDrawer.title ?? this._model.app.name,
+          )}</span>
         </div>
+        ${this.renderNavDrawerControls()}
         <div class="adl-nav-list">
           ${navGroups
             .map(
@@ -2093,6 +2135,10 @@ export class AdlAppElement extends HTMLElement {
     }
 
     if (control.kind === "contextSelector") {
+      // `topBar.contextSelector` names where the selector belongs, not whether
+      // the top bar shows one, so it decides both placements: a selector placed
+      // in the drawer is visible exactly when the model asked for it there, and
+      // `hidden` still matches neither placement.
       return this._model.shell.topBar.contextSelector === control.placement;
     }
 

@@ -23,9 +23,12 @@ import type {
   PresentationStatusThemeToken,
   PresentationStatePersistence,
   PresentationStateType,
+  OrderedCollectionCompaction,
+  OrderedCollectionReorder,
   PolicyAction,
   PolicyEffect,
   ExpressionRuntimeProperty,
+  ReadModelJoinCardinality,
   ResolvedCommandValueExpression,
   ResolvedExpression,
   RuntimeChannel,
@@ -53,9 +56,11 @@ import type {
   BusinessContextDeclarationAst,
   CommandDeclarationAst,
   CommandInputDeclarationAst,
+  CommandInputItemFieldDeclarationAst,
   CommandPreconditionDeclarationAst,
   CommandStepDeclarationAst,
   ComputedFieldDeclarationAst,
+  ContextGrantDeclarationAst,
   DecisionTableDeclarationAst,
   DecisionTableInputDeclarationAst,
   DecisionTableRowDeclarationAst,
@@ -93,9 +98,11 @@ import type {
   ReadModelDeclarationAst,
   ReadModelFieldDeclarationAst,
   ReadModelSourceDeclarationAst,
+  ReadModelSourceJoinDeclarationAst,
   RoleDeclarationAst,
   ShellControlDeclarationAst,
   ShellDeclarationAst,
+  ShellNavDrawerDeclarationAst,
   ShellNavItemDeclarationAst,
   ShellTopBarDeclarationAst,
   ShellVisibilityDeclarationAst,
@@ -165,6 +172,7 @@ const FIELD_LIST_STOP_WORDS = new Set([
   "EVERYONE",
   "AUTHENTICATED",
   "ANONYMOUS",
+  "CONTEXT_MEMBER",
   "STATE",
   "ACTION",
   "CHANNEL",
@@ -172,8 +180,35 @@ const FIELD_LIST_STOP_WORDS = new Set([
   "WHEN",
 ]);
 
+/**
+ * Words that end the `SOURCE <name> [<object>]` shorthand. Without these an
+ * option keyword immediately after the source name would be read as the object.
+ */
+const READ_MODEL_SOURCE_OPTION_WORDS = new Set(["SCOPE", "AS", "JOIN", "CARDINALITY"]);
+
+/** Modifiers that may follow `INPUT <name> LIST` in place of an item type. */
+const COMMAND_INPUT_MODIFIER_WORDS = new Set(["REQUIRED", "OPTIONAL", "DEFAULT"]);
+
+/**
+ * Step-header keywords that may follow a value expression, so a bare `ITEM`
+ * there is not mistaken for `ITEM <field>`.
+ */
+const COMMAND_STEP_HEADER_WORDS = new Set([
+  "AUTHORITY",
+  "ID",
+  "RECORD",
+  "FOR",
+  "FOR_EACH",
+  "ESTABLISHES",
+]);
+
 class AdlParser {
   private currentIndex = 0;
+  /**
+   * The `ON <Context>` token of every parsed `CONTEXT_GRANT`, kept so the
+   * end-of-document check can point at the name rather than the whole line.
+   */
+  private readonly contextGrantTargets: { context: string; token: Token }[] = [];
 
   constructor(private readonly tokens: Token[]) {}
 
@@ -184,6 +219,7 @@ class AdlParser {
     let shell: ShellDeclarationAst | undefined;
     const roles: RoleDeclarationAst[] = [];
     const contexts: BusinessContextDeclarationAst[] = [];
+    const contextGrants: ContextGrantDeclarationAst[] = [];
     const objects: ObjectDeclarationAst[] = [];
     const readModels: ReadModelDeclarationAst[] = [];
     const decisionTables: DecisionTableDeclarationAst[] = [];
@@ -204,6 +240,8 @@ class AdlParser {
         shell = this.parseShell();
       } else if (this.checkWord("ROLE")) {
         roles.push(this.parseRole());
+      } else if (this.checkWord("CONTEXT_GRANT") || this.checkDottedWord("CONTEXT", "GRANT")) {
+        contextGrants.push(this.parseContextGrant());
       } else if (this.checkWord("CONTEXT")) {
         contexts.push(this.parseBusinessContext());
       } else if (this.checkWord("OBJECT")) {
@@ -223,11 +261,15 @@ class AdlParser {
       } else if (this.checkWord("MIGRATION")) {
         migrations.push(this.parseMigration());
       } else {
+        // `APP` is deliberately absent: it is consumed before this loop starts,
+        // and a second one is not a top-level declaration this grammar accepts.
         this.failUnexpected(
-          "a top-level ROLE, OBJECT, READ_MODEL, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, MIGRATION, or end of file",
+          "a top-level SHELL, ROLE, CONTEXT, CONTEXT_GRANT, OBJECT, READ_MODEL, DECISION_TABLE, COMMAND, POLICY, THEME, SYNC, MIGRATION, or end of file",
         );
       }
     }
+
+    this.requireDeclaredContextsForGrants(contexts, contextGrants);
 
     return {
       kind: "AdlDocument",
@@ -235,6 +277,7 @@ class AdlParser {
       ...(shell === undefined ? {} : { shell }),
       roles,
       contexts,
+      contextGrants,
       objects,
       readModels,
       decisionTables,
@@ -460,6 +503,7 @@ class AdlParser {
     const navItems: ShellNavItemDeclarationAst[] = [];
     const controls: ShellControlDeclarationAst[] = [];
     let topBar: ShellTopBarDeclarationAst | undefined;
+    let navDrawer: ShellNavDrawerDeclarationAst | undefined;
     this.consumeLineEnd("SHELL declaration");
 
     while (true) {
@@ -476,19 +520,24 @@ class AdlParser {
           navItems,
           controls,
           ...(topBar === undefined ? {} : { topBar }),
+          ...(navDrawer === undefined ? {} : { navDrawer }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
       }
 
-      if (this.checkWord("NAV")) {
+      // `NAV_DRAWER` is tested before `NAV` because the dotted spelling starts
+      // with the same word as a navigation item.
+      if (this.checkWord("NAV_DRAWER") || this.checkDottedWord("NAV", "DRAWER")) {
+        navDrawer = this.parseShellNavDrawer();
+      } else if (this.checkWord("NAV")) {
         navItems.push(this.parseShellNavItem());
       } else if (this.checkWord("CONTROL")) {
         controls.push(this.parseShellControl());
       } else if (this.checkWord("TOP_BAR") || this.checkDottedWord("TOP", "BAR")) {
         topBar = this.parseShellTopBar();
       } else {
-        this.failUnexpected("SHELL directive NAV, CONTROL, TOP_BAR, or END.SHELL");
+        this.failUnexpected("SHELL directive NAV, NAV_DRAWER, CONTROL, TOP_BAR, or END.SHELL");
       }
     }
   }
@@ -592,7 +641,10 @@ class AdlParser {
       : this.expectDottedWord("TOP", "BAR", "SHELL TOP.BAR declaration");
     let contextSelector: ShellContextSelectorPlacement | undefined;
     let mobileContextSelector: ShellMobileContextSelectorMode | undefined;
-    let controls: string[] = [];
+    // Left undeclared rather than defaulted to empty: an empty list means
+    // "render no controls", which is not what omitting the clause asks for.
+    // Resolution falls back to the controls that declared `PLACEMENT topBar`.
+    let controls: string[] | undefined;
 
     while (!this.isLineEnd()) {
       if (this.matchWord("CONTEXT_SELECTOR")) {
@@ -614,7 +666,43 @@ class AdlParser {
       kind: "ShellTopBarDeclaration",
       ...(contextSelector === undefined ? {} : { contextSelector }),
       ...(mobileContextSelector === undefined ? {} : { mobileContextSelector }),
-      controls,
+      ...(controls === undefined ? {} : { controls }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  /**
+   * ```text
+   * NAV_DRAWER TITLE 'Giggle Band' CONTROLS themeSwitch logout
+   * ```
+   *
+   * Both clauses are optional. An omitted `CONTROLS` leaves `controls`
+   * undefined rather than empty so resolution can still fall back to whichever
+   * controls declared `PLACEMENT navDrawer`.
+   */
+  private parseShellNavDrawer(): ShellNavDrawerDeclarationAst {
+    const startToken = this.checkWord("NAV_DRAWER")
+      ? this.expectWord("NAV_DRAWER", "SHELL NAV_DRAWER declaration")
+      : this.expectDottedWord("NAV", "DRAWER", "SHELL NAV.DRAWER declaration");
+    let title: string | undefined;
+    let controls: string[] | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("TITLE")) {
+        title = String(this.consumeLiteral("SHELL NAV_DRAWER title"));
+      } else if (this.matchWord("CONTROLS")) {
+        controls = this.consumeNameListUntilLine("SHELL NAV_DRAWER controls");
+        break;
+      } else {
+        this.failUnexpected("SHELL NAV_DRAWER option TITLE, CONTROLS, or end of line");
+      }
+    }
+    this.consumeLineEnd("SHELL NAV_DRAWER declaration");
+
+    return {
+      kind: "ShellNavDrawerDeclaration",
+      ...(title === undefined ? {} : { title }),
+      ...(controls === undefined ? {} : { controls }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -742,6 +830,107 @@ class AdlParser {
       roleField,
       roles,
     };
+  }
+
+  /**
+   * ```text
+   * CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee CONTEXT_FIELD Band WHEN Status == 'Pending'
+   * ```
+   *
+   * A grant is a one-line top-level declaration rather than a `CONTEXT` option
+   * because it names an object the context never mentions, and a context may
+   * have several. `ON` says which context it attaches to.
+   */
+  private parseContextGrant(): ContextGrantDeclarationAst {
+    const startToken = this.checkWord("CONTEXT_GRANT")
+      ? this.expectWord("CONTEXT_GRANT", "CONTEXT_GRANT declaration")
+      : this.expectDottedWord("CONTEXT", "GRANT", "CONTEXT.GRANT declaration");
+    const name = this.consumeName("context grant name");
+    let context: string | undefined;
+    let contextToken: Token | undefined;
+    let object: string | undefined;
+    let userField: string | undefined;
+    let contextField: string | undefined;
+    let condition: ResolvedExpression | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("ON")) {
+        contextToken = this.current();
+        context = this.consumeName("context grant target context");
+      } else if (this.matchWord("OBJECT")) {
+        object = this.consumeName("context grant object");
+      } else if (this.matchWord("USER")) {
+        userField = this.consumeName("context grant user field");
+      } else if (this.matchWord("CONTEXT_FIELD") || this.matchWord("CONTEXT")) {
+        contextField = this.consumeName("context grant context field");
+      } else if (this.matchWord("WHEN")) {
+        condition = this.parseExpressionUntil(new Set());
+      } else {
+        this.failUnexpected(
+          "CONTEXT_GRANT option ON, OBJECT, USER, CONTEXT_FIELD, WHEN, or end of line",
+        );
+      }
+    }
+
+    if (context === undefined || contextToken === undefined) {
+      this.failExpected("ON context in CONTEXT_GRANT", this.previous());
+    }
+    if (object === undefined) {
+      this.failExpected("OBJECT in CONTEXT_GRANT", this.previous());
+    }
+    if (userField === undefined) {
+      this.failExpected("USER field in CONTEXT_GRANT", this.previous());
+    }
+    if (contextField === undefined) {
+      this.failExpected("CONTEXT_FIELD in CONTEXT_GRANT", this.previous());
+    }
+
+    this.consumeLineEnd("CONTEXT_GRANT declaration");
+    this.contextGrantTargets.push({ context, token: contextToken });
+
+    return {
+      kind: "ContextGrantDeclaration",
+      name,
+      context,
+      object,
+      userField,
+      contextField,
+      ...(condition === undefined ? {} : { condition }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  /**
+   * A grant only exists as an entry on a context's `grants` array, so one naming
+   * a context this document never declares has nowhere to land. Dropping it
+   * would silently disable an access route, and inventing the context would
+   * silently create one; refusing the source is the only honest option, and it
+   * is checked at end of document so declaration order stays free.
+   */
+  private requireDeclaredContextsForGrants(
+    contexts: BusinessContextDeclarationAst[],
+    grants: ContextGrantDeclarationAst[],
+  ): void {
+    if (grants.length === 0) {
+      return;
+    }
+
+    const declared = new Set(contexts.map((context) => context.name));
+
+    for (const target of this.contextGrantTargets) {
+      if (declared.has(target.context)) {
+        continue;
+      }
+
+      const known = [...declared].join(", ");
+      this.fail(
+        "ADL_PARSE_UNEXPECTED_TOKEN",
+        `Expected CONTEXT_GRANT ON to name a declared CONTEXT (${
+          known.length === 0 ? "none declared" : known
+        }), but found '${target.context}'.`,
+        target.token,
+      );
+    }
   }
 
   private parseObject(): ObjectDeclarationAst {
@@ -915,12 +1104,14 @@ class AdlParser {
       let positionField: string | undefined;
       let scopeFields: string[] = [];
       let minPosition: number | undefined;
+      let reorder: OrderedCollectionReorder | undefined;
+      let compaction: OrderedCollectionCompaction | undefined;
 
       while (!this.isLineEnd()) {
         if (this.matchWord("SCOPE")) {
           scopeFields = this.consumeNameListUntilWords(
             "ordered constraint scope fields",
-            new Set(["PARENT", "POSITION", "MIN"]),
+            new Set(["PARENT", "POSITION", "MIN", "REORDER", "COMPACT"]),
           );
         } else if (this.matchWord("PARENT")) {
           parentField = this.consumeName("ordered constraint parent field");
@@ -928,9 +1119,13 @@ class AdlParser {
           positionField = this.consumeName("ordered constraint position field");
         } else if (this.matchWord("MIN")) {
           minPosition = this.consumeIntegerModifierValue("ordered constraint min position");
+        } else if (this.matchWord("REORDER")) {
+          reorder = this.parseOrderedCollectionReorder();
+        } else if (this.matchWord("COMPACT")) {
+          compaction = this.parseOrderedCollectionCompaction();
         } else {
           this.failUnexpected(
-            "ORDERED CONSTRAINT option SCOPE, PARENT, POSITION, MIN, or end of line",
+            "ORDERED CONSTRAINT option SCOPE, PARENT, POSITION, MIN, REORDER, COMPACT, or end of line",
           );
         }
       }
@@ -950,11 +1145,39 @@ class AdlParser {
         positionField,
         scopeFields,
         ...(minPosition === undefined ? {} : { minPosition }),
+        ...(reorder === undefined ? {} : { reorder }),
+        ...(compaction === undefined ? {} : { compaction }),
         range: this.rangeFrom(startToken),
       };
     }
 
     this.failExpected("object constraint kind UNIQUE or ORDERED", this.previous());
+  }
+
+  private parseOrderedCollectionReorder(): OrderedCollectionReorder {
+    const token = this.consumeWordToken("ordered constraint reorder mode");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "strict":
+        return "strict";
+      case "shift":
+        return "shift";
+      default:
+        this.failExpected("ORDERED CONSTRAINT REORDER mode STRICT or SHIFT", token);
+    }
+  }
+
+  private parseOrderedCollectionCompaction(): OrderedCollectionCompaction {
+    const token = this.consumeWordToken("ordered constraint compaction mode");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "none":
+        return "none";
+      case "ondelete":
+        return "onDelete";
+      default:
+        this.failExpected("ORDERED CONSTRAINT COMPACT mode NONE or ON_DELETE", token);
+    }
   }
 
   private parseField(): FieldDeclarationAst {
@@ -2311,10 +2534,11 @@ class AdlParser {
     let name = firstName;
     let object = firstName;
     let scope: ReadModelSourceDeclarationAst["scope"];
+    let join: ReadModelSourceJoinDeclarationAst | undefined;
 
     if (this.matchWord("OBJECT")) {
       object = this.consumeName("read model source object");
-    } else if (!this.isLineEnd() && !this.checkWord("SCOPE")) {
+    } else if (!this.isLineEnd() && !this.currentWordIsAny(READ_MODEL_SOURCE_OPTION_WORDS)) {
       object = this.consumeName("read model source object");
     }
 
@@ -2323,8 +2547,20 @@ class AdlParser {
         scope = this.parseReadModelSourceScope();
       } else if (this.matchWord("AS")) {
         name = this.consumeName("read model source alias");
+      } else if (this.checkWord("JOIN")) {
+        join = this.parseReadModelSourceJoin();
+      } else if (this.matchWord("CARDINALITY")) {
+        if (join === undefined) {
+          this.failExpected(
+            "JOIN before CARDINALITY in READ_MODEL SOURCE declaration",
+            this.previous(),
+          );
+        }
+        join.cardinality = this.parseReadModelJoinCardinality();
       } else {
-        this.failUnexpected("READ_MODEL SOURCE option SCOPE, AS, or end of line");
+        this.failUnexpected(
+          "READ_MODEL SOURCE option SCOPE, AS, JOIN, CARDINALITY, or end of line",
+        );
       }
     }
 
@@ -2334,8 +2570,64 @@ class AdlParser {
       name,
       object,
       ...(scope === undefined ? {} : { scope }),
+      ...(join === undefined ? {} : { join }),
       range: this.rangeFrom(startToken),
     };
+  }
+
+  /**
+   * ```text
+   * JOIN member ON User == member.User
+   * ```
+   *
+   * The left operand is a bare field on the declaring source's object and the
+   * right operand is qualified by the joined source, so the direction of the hop
+   * is readable without knowing which object owns which field. Either side may
+   * be `id`, meaning the record's own identity.
+   */
+  private parseReadModelSourceJoin(): ReadModelSourceJoinDeclarationAst {
+    const startToken = this.expectWord("JOIN", "READ_MODEL SOURCE JOIN clause");
+    const source = this.consumeName("read model join source name");
+    this.expectWord("ON", "READ_MODEL SOURCE JOIN ON clause");
+    const localField = this.consumeName("read model join local field");
+    this.expectSymbol("==", "READ_MODEL SOURCE JOIN comparison");
+    const qualified = this.consumeQualifiedName("read model join source field");
+    const [qualifier, ...fieldParts] = qualified.split(".");
+
+    if (qualifier === undefined || fieldParts.length !== 1) {
+      this.failExpected(
+        `joined field written as ${source}.<field> in READ_MODEL SOURCE JOIN`,
+        this.previous(),
+      );
+    }
+
+    if (qualifier !== source) {
+      this.failExpected(
+        `joined field qualified by the joined source '${source}' in READ_MODEL SOURCE JOIN`,
+        this.previous(),
+      );
+    }
+
+    return {
+      kind: "ReadModelSourceJoinDeclaration",
+      source,
+      localField,
+      sourceField: fieldParts[0] ?? "",
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseReadModelJoinCardinality(): ReadModelJoinCardinality {
+    const token = this.consumeWordToken("read model join cardinality");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "one":
+        return "one";
+      case "many":
+        return "many";
+      default:
+        this.failExpected("READ_MODEL SOURCE JOIN CARDINALITY ONE or MANY", token);
+    }
   }
 
   private parseReadModelField(): ReadModelFieldDeclarationAst {
@@ -2550,9 +2842,18 @@ class AdlParser {
         principal.match = "authenticated";
       } else if (this.matchWord("ANONYMOUS")) {
         principal.match = "anonymous";
+      } else if (this.matchWord("CONTEXT_MEMBER") || this.matchDottedWord("CONTEXT", "MEMBER")) {
+        // `FIELD` is consumed here rather than left to the rule's own FIELD
+        // option: it names the record field holding the co-member, not a field
+        // the effect applies to.
+        const context = this.consumeName("principal context member context name");
+        this.expectWord("FIELD", "principal CONTEXT_MEMBER FIELD clause");
+        const field = this.consumeName("principal context member field");
+        principal.match = "contextMember";
+        principal.contextMember = { context, field };
       } else {
         this.failUnexpected(
-          "POLICY rule option FIELD, STATE, ACTION, CHANNELS, principal selector, or end of line",
+          "POLICY rule option FIELD, STATE, ACTION, CHANNELS, principal selector ROLE, GROUP_ROLE, USER, OWNER, EVERYONE, AUTHENTICATED, ANONYMOUS, CONTEXT_MEMBER, or end of line",
         );
       }
     }
@@ -2831,10 +3132,28 @@ class AdlParser {
     }
   }
 
+  /**
+   * ```text
+   * INPUT Ids LIST TEXT REQUIRED
+   *
+   * INPUT Songs LIST REQUIRED
+   *   FIELD Title TEXT REQUIRED
+   *   FIELD Composer TEXT
+   * END.INPUT
+   * ```
+   *
+   * `LIST` makes the input repeated. The item type follows it for a list of
+   * scalars, or an `END.INPUT`-terminated block describes an item record. `LIST`
+   * with neither carries plain text items.
+   */
   private parseCommandInput(): CommandInputDeclarationAst {
     const startToken = this.expectWord("INPUT", "COMMAND INPUT directive");
     const name = this.consumeName("command input name");
-    const { type } = this.parseFieldType();
+    const repeated = this.matchWord("LIST");
+    const type =
+      repeated && (this.isLineEnd() || this.currentWordIsAny(COMMAND_INPUT_MODIFIER_WORDS))
+        ? "text"
+        : this.parseFieldType().type;
     let required = true;
     let defaultValue: JsonValue | undefined;
 
@@ -2850,12 +3169,67 @@ class AdlParser {
       }
     }
     this.consumeLineEnd("COMMAND INPUT directive");
+
+    const itemFields: CommandInputItemFieldDeclarationAst[] = [];
+    let end: EndMarkerNode | undefined;
+
+    // The block form is recognised by lookahead rather than a keyword on the
+    // header line, so a scalar list stays a single line.
+    if (repeated && this.checkWord("FIELD")) {
+      while (end === undefined) {
+        this.skipNewlines();
+
+        if (this.isAtEnd()) {
+          this.failExpected("END.INPUT", this.current());
+        }
+
+        if (this.checkEnd("INPUT")) {
+          end = this.parseEnd("INPUT");
+        } else if (this.checkWord("FIELD")) {
+          itemFields.push(this.parseCommandInputItemField());
+        } else {
+          this.failUnexpected("COMMAND INPUT item directive FIELD or END.INPUT");
+        }
+      }
+    }
+
     return {
       kind: "CommandInputDeclaration",
       name,
       type,
       required,
       ...(defaultValue === undefined ? {} : { defaultValue }),
+      repeated,
+      itemFields,
+      ...(end === undefined ? {} : { end }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  private parseCommandInputItemField(): CommandInputItemFieldDeclarationAst {
+    const startToken = this.expectWord("FIELD", "COMMAND INPUT item FIELD declaration");
+    const name = this.consumeName("command input item field name");
+    const { type } = this.parseFieldType();
+    // Undeclared means optional, matching an object FIELD line of the same
+    // shape rather than the containing INPUT's required-by-default header.
+    let required = false;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("REQUIRED")) {
+        required = true;
+      } else if (this.matchWord("OPTIONAL")) {
+        required = false;
+      } else {
+        this.failUnexpected("COMMAND INPUT item FIELD modifier REQUIRED, OPTIONAL, or end of line");
+      }
+    }
+    this.consumeLineEnd("COMMAND INPUT item FIELD declaration");
+
+    return {
+      kind: "CommandInputItemFieldDeclaration",
+      name,
+      type,
+      required,
       range: this.rangeFrom(startToken),
     };
   }
@@ -2886,14 +3260,30 @@ class AdlParser {
     const object = this.consumeName("command step object name");
     let authority: CommandStepAuthority | undefined;
     let recordId: ResolvedCommandValueExpression | undefined;
+    let forEach: string | undefined;
+    let establishesContext: string | undefined;
 
     while (!this.isLineEnd()) {
       if (this.matchWord("AUTHORITY")) {
         authority = this.parseCommandStepAuthority();
       } else if (this.matchWord("ID") || this.matchWord("RECORD")) {
         recordId = this.parseCommandValueExpression();
+      } else if (this.matchWord("FOR_EACH")) {
+        forEach = this.consumeName("command step FOR_EACH input name");
+      } else if (this.matchWord("FOR")) {
+        // `FOR EACH` as two words reads better in source; `FOR_EACH` is the
+        // same clause spelled as one, like ACTIVE_WHEN and TOP_BAR elsewhere.
+        this.expectWord("EACH", "command step FOR EACH clause");
+        forEach = this.consumeName("command step FOR EACH input name");
+      } else if (action === "create" && this.matchWord("ESTABLISHES")) {
+        this.expectWord("CONTEXT", "command step ESTABLISHES CONTEXT clause");
+        establishesContext = this.consumeName("command step established context name");
       } else {
-        this.failUnexpected("COMMAND STEP header option AUTHORITY, ID, or end of line");
+        this.failUnexpected(
+          action === "create"
+            ? "COMMAND STEP header option AUTHORITY, ID, FOR EACH, ESTABLISHES CONTEXT, or end of line"
+            : "COMMAND STEP header option AUTHORITY, ID, FOR EACH, or end of line",
+        );
       }
     }
     this.consumeLineEnd("COMMAND STEP declaration");
@@ -2917,6 +3307,8 @@ class AdlParser {
           object,
           ...(authority === undefined ? {} : { authority }),
           ...(recordId === undefined ? {} : { recordId }),
+          ...(forEach === undefined ? {} : { forEach }),
+          ...(establishesContext === undefined ? {} : { establishesContext }),
           values,
           preconditions,
           end,
@@ -3075,6 +3467,17 @@ class AdlParser {
   }
 
   private parseCommandValueExpression(): ResolvedCommandValueExpression {
+    if (this.matchWord("ITEM_INDEX")) {
+      return { kind: "itemIndex" };
+    }
+    if (this.matchWord("ITEM")) {
+      // A bare `ITEM` is the whole current item. A following word is one of its
+      // fields unless it opens another step-header clause.
+      if (this.isLineEnd() || this.currentWordIsAny(COMMAND_STEP_HEADER_WORDS)) {
+        return { kind: "item" };
+      }
+      return { kind: "item", field: this.consumeName("command item field") };
+    }
     if (this.matchWord("INPUT")) {
       return { kind: "input", name: this.consumeName("command input reference") };
     }

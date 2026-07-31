@@ -6,7 +6,7 @@ import type {
 } from "../model/resolved-model.js";
 import { AuditService } from "./audit-service.js";
 import { CommandService } from "./command-service.js";
-import type { RuntimeCommandResult } from "./command-service.js";
+import type { RuntimeCommandResult, RuntimeCommandStepResult } from "./command-service.js";
 import { HookRegistry } from "./hook-registry.js";
 import type { RuntimeHook } from "./hook-registry.js";
 import type { ContextMembershipIndex } from "./context-membership-index.js";
@@ -98,6 +98,16 @@ export class ApplicationRuntime {
   private readonly logger: RuntimeLogger;
   private readonly startupPromise: Promise<void>;
   private startupDiagnostics: RuntimeStartupDiagnostic[] = [];
+  /**
+   * The business contexts some policy rule matches members of, computed once
+   * because the model cannot change for the lifetime of a runtime.
+   *
+   * Empty for every model that declares no `contextMember` principal, which is
+   * the overwhelmingly common case, and the emptiness is what keeps membership
+   * resolution off the hot path: {@link withContextMembers} returns the caller's
+   * own context untouched without reading storage at all.
+   */
+  private readonly contextMemberPrincipalContexts: string[];
 
   constructor(
     readonly model: ResolvedApplicationModel,
@@ -236,6 +246,52 @@ export class ApplicationRuntime {
     this.commandService = new CommandService(model, this.objectStore, this.index, this.logger, () =>
       this.whenReady(),
     );
+    this.contextMemberPrincipalContexts = collectContextMemberPrincipalContexts(model);
+  }
+
+  /**
+   * Attaches the co-member rosters the `contextMember` policy principal reads,
+   * for the contexts this model's policies actually name.
+   *
+   * The principal is synchronous by design, so the roster has to be on the
+   * context before any service evaluates policy with it. Every entry point that
+   * hands a context to `ObjectStore`, `PolicyEngine` or `ReadModelService` goes
+   * through here first, including the ones the authority server replays intents
+   * through, so a server-side re-check sees the same roster the device did.
+   *
+   * A roster the caller already supplied is never overwritten: the authority
+   * resolves it once for a bootstrap and passes it down, and re-resolving would
+   * both cost a storage scan and let this method silently disagree with the
+   * decision its caller already made. Resolution result is recorded even when it
+   * is empty, so a nested call through the presentation or edit-surface runtime
+   * does not repeat the scan.
+   *
+   * Nothing is cached across calls. Membership is revocable, and a roster held
+   * past the transaction that revoked it would keep admitting a former member.
+   *
+   * Public because a few callers evaluate policy through `runtime.policyEngine`
+   * directly rather than through an entry point here — the authority's invite
+   * acceptance check and its reporting export/administration re-checks. Those
+   * contexts carry no roster today, so a `contextMember` rule covering them
+   * denies rather than admits, but they can pass their context through this
+   * first to get the same decision the entry points make.
+   */
+  async withContextMembers(context: RuntimeContext): Promise<RuntimeContext> {
+    if (this.contextMemberPrincipalContexts.length === 0) {
+      return context;
+    }
+
+    const members: Record<string, string[]> = { ...(context.contextMembers ?? {}) };
+    let resolved = false;
+    for (const contextName of this.contextMemberPrincipalContexts) {
+      if (Object.prototype.hasOwnProperty.call(members, contextName)) {
+        continue;
+      }
+      members[contextName] = await this.contextService.resolveContextMembers(contextName, context);
+      resolved = true;
+    }
+
+    return resolved ? { ...context, contextMembers: members } : context;
   }
 
   async whenReady(): Promise<void> {
@@ -274,7 +330,12 @@ export class ApplicationRuntime {
       objectName,
       context: safeContextLog(context),
     });
-    const result = await this.objectStore.create(objectName, values, context, options);
+    const result = await this.objectStore.create(
+      objectName,
+      values,
+      await this.withContextMembers(context),
+      options,
+    );
     this.logger.debug("EXIT ApplicationRuntime.create", {
       objectName,
       recordId: result.meta.guid,
@@ -293,7 +354,11 @@ export class ApplicationRuntime {
       recordId: id,
       context: safeContextLog(context),
     });
-    const result = await this.objectStore.read(objectName, id, context);
+    const result = await this.objectStore.read(
+      objectName,
+      id,
+      await this.withContextMembers(context),
+    );
     this.logger.debug("EXIT ApplicationRuntime.read", {
       objectName,
       recordId: id,
@@ -319,7 +384,12 @@ export class ApplicationRuntime {
       recordId: id,
       context: safeContextLog(context),
     });
-    const result = await this.objectStore.update(objectName, id, patch, context);
+    const result = await this.objectStore.update(
+      objectName,
+      id,
+      patch,
+      await this.withContextMembers(context),
+    );
     this.logger.debug("EXIT ApplicationRuntime.update", {
       objectName,
       recordId: result.meta.guid,
@@ -338,7 +408,11 @@ export class ApplicationRuntime {
       recordId: id,
       context: safeContextLog(context),
     });
-    const result = await this.objectStore.delete(objectName, id, context);
+    const result = await this.objectStore.delete(
+      objectName,
+      id,
+      await this.withContextMembers(context),
+    );
     this.logger.debug("EXIT ApplicationRuntime.delete", {
       objectName,
       recordId: result.meta.guid,
@@ -356,7 +430,11 @@ export class ApplicationRuntime {
       objectName,
       context: safeContextLog(context),
     });
-    const result = await this.objectStore.search(objectName, query, context);
+    const result = await this.objectStore.search(
+      objectName,
+      query,
+      await this.withContextMembers(context),
+    );
     this.logger.debug("EXIT ApplicationRuntime.search", {
       objectName,
       count: result.length,
@@ -412,7 +490,7 @@ export class ApplicationRuntime {
 
     const datasetContext = this.offlineDatasetService.contextForDatasetRead(
       objectName,
-      context,
+      await this.withContextMembers(context),
       dataset,
     );
     const result = await this.objectStore.search(objectName, query, datasetContext, (record) =>
@@ -435,7 +513,11 @@ export class ApplicationRuntime {
       readModelName,
       context: safeContextLog(context),
     });
-    const result = await this.readModelService.execute(readModelName, context, query);
+    const result = await this.readModelService.execute(
+      readModelName,
+      await this.withContextMembers(context),
+      query,
+    );
     this.logger.debug("EXIT ApplicationRuntime.executeReadModel", {
       readModelName,
       count: result.rows.length,
@@ -458,7 +540,7 @@ export class ApplicationRuntime {
     const result = await this.presentationRuntime.evaluate({
       objectName,
       viewName,
-      context,
+      context: await this.withContextMembers(context),
       ...options,
     });
     this.logger.debug("EXIT ApplicationRuntime.evaluatePresentationView", {
@@ -473,14 +555,20 @@ export class ApplicationRuntime {
     input: RuntimePresentationMatrixCellCycleInput,
   ): Promise<RuntimePresentationMatrixEditResult> {
     await this.whenReady();
-    return this.presentationRuntime.cycleMatrixCell(input);
+    return this.presentationRuntime.cycleMatrixCell({
+      ...input,
+      context: await this.withContextMembers(input.context),
+    });
   }
 
   async applyPresentationMatrixRangeEdit(
     input: RuntimePresentationMatrixRangeEditInput,
   ): Promise<RuntimePresentationMatrixEditResult> {
     await this.whenReady();
-    return this.presentationRuntime.applyMatrixRangeEdit(input);
+    return this.presentationRuntime.applyMatrixRangeEdit({
+      ...input,
+      context: await this.withContextMembers(input.context),
+    });
   }
 
   async evaluateEditSurface(
@@ -498,7 +586,7 @@ export class ApplicationRuntime {
     const result = await this.editSurfaceRuntime.evaluate({
       objectName,
       viewName,
-      context,
+      context: await this.withContextMembers(context),
       ...options,
     });
     this.logger.debug("EXIT ApplicationRuntime.evaluateEditSurface", {
@@ -520,7 +608,10 @@ export class ApplicationRuntime {
       count: input.stagedChanges.length,
       context: safeContextLog(input.context),
     });
-    const result = await this.editSurfaceRuntime.applyStagedChanges(input);
+    const result = await this.editSurfaceRuntime.applyStagedChanges({
+      ...input,
+      context: await this.withContextMembers(input.context),
+    });
     this.logger.debug("EXIT ApplicationRuntime.applyStagedChildChanges", {
       objectName: input.objectName,
       viewName: input.viewName,
@@ -539,7 +630,10 @@ export class ApplicationRuntime {
       sectionName: input.sectionName,
       context: safeContextLog(input.context),
     });
-    const result = await this.editSurfaceRuntime.evaluateRelationshipPicker(input);
+    const result = await this.editSurfaceRuntime.evaluateRelationshipPicker({
+      ...input,
+      context: await this.withContextMembers(input.context),
+    });
     this.logger.debug("EXIT ApplicationRuntime.evaluateRelationshipPicker", {
       objectName: input.objectName,
       viewName: input.viewName,
@@ -580,7 +674,12 @@ export class ApplicationRuntime {
       actionName,
       context: safeContextLog(context),
     });
-    const result = await this.lifecycleEngine.transition(objectName, id, actionName, context);
+    const result = await this.lifecycleEngine.transition(
+      objectName,
+      id,
+      actionName,
+      await this.withContextMembers(context),
+    );
     this.logger.debug("EXIT ApplicationRuntime.transition", {
       objectName,
       recordId: result.meta.guid,
@@ -599,12 +698,55 @@ export class ApplicationRuntime {
       commandName,
       context: safeContextLog(context),
     });
-    const result = await this.commandService.execute(commandName, input, context);
+    const result = await this.commandService.execute(
+      commandName,
+      input,
+      await this.withContextMembers(context),
+    );
+    const steps = await this.reshapeCommandRecords(result.steps, context);
     this.logger.debug("EXIT ApplicationRuntime.executeCommand", {
       commandName,
-      count: result.steps.length,
+      count: steps.length,
     });
-    return result;
+    return { ...result, steps };
+  }
+
+  /**
+   * Re-reads a command's own records when the command changed who the caller is.
+   *
+   * Read shaping happens as each write commits, against the context the command
+   * started with — and a command that creates a membership record makes that
+   * context out of date before it finishes. A caller who founds a context and
+   * its first membership in one command was handed the membership record back
+   * with every field stripped: readable, but empty, because at the moment it was
+   * shaped they were not yet a member of a context that did not yet exist.
+   *
+   * Only a command that wrote a membership record pays for this, so the ordinary
+   * case costs nothing. `AuthorityService.shapingContext` does the same thing for
+   * the same reason on the server side; the two layers agreeing is the point.
+   */
+  private async reshapeCommandRecords(
+    steps: RuntimeCommandStepResult[],
+    context: RuntimeContext,
+  ): Promise<RuntimeCommandStepResult[]> {
+    const membershipObjects = new Set(
+      (this.model.contexts ?? [])
+        .map((declared) => declared.membership?.object)
+        .filter((object): object is string => object !== undefined),
+    );
+    if (!steps.some((step) => membershipObjects.has(step.objectName))) {
+      return steps;
+    }
+
+    const reshaped: RuntimeCommandStepResult[] = [];
+    for (const step of steps) {
+      // Through `read`, so the re-shaping is the ordinary policy path rather
+      // than a second implementation of it. A record the caller still may not
+      // read keeps what the command already returned.
+      const visible = await this.read(step.objectName, step.recordId, context).catch(() => null);
+      reshaped.push(visible === null ? step : { ...step, record: visible });
+    }
+    return reshaped;
   }
 
   registerHook(name: string, hook: RuntimeHook): void {
@@ -702,4 +844,32 @@ export class ApplicationRuntime {
       operations: this.operationLog.getOperations(),
     });
   }
+}
+
+/**
+ * The declared business contexts whose members some policy rule matches.
+ *
+ * A principal naming a context this model does not declare is skipped rather
+ * than thrown from: an unresolvable roster is an unmatchable principal, which
+ * is the fail-closed direction, and refusing here would take down every
+ * unrelated operation instead of the one rule at fault. Model validation is
+ * where a name like that should be reported.
+ */
+function collectContextMemberPrincipalContexts(model: ResolvedApplicationModel): string[] {
+  const declared = new Set((model.contexts ?? []).map((context) => context.name));
+  const names = new Set<string>();
+
+  for (const policy of model.policies) {
+    for (const rule of policy.rules) {
+      if (rule.principal.match !== "contextMember") {
+        continue;
+      }
+      const contextName = rule.principal.contextMember?.context;
+      if (contextName !== undefined && declared.has(contextName)) {
+        names.add(contextName);
+      }
+    }
+  }
+
+  return [...names].sort();
 }

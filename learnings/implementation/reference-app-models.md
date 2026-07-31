@@ -55,6 +55,36 @@ Read this before adding or changing ADL reference applications, especially multi
   invitation-command setup local to command tests so the reference dashboard can
   keep proving its empty-state presentation.
 
+## Key decisions from Phase 56
+
+- **A sync mode with no producer is a modelling error, not a platform gap.**
+  `StreamingLink` declared `CACHE_READONLY` while offering create/update
+  affordances. No local write and no authority replay may create a
+  `cacheReadonly` record, so nobody using the deployed app could populate one.
+  It is now band-authored (`LOCAL_FIRST`/`currentContext` with `BandAdmin`
+  writes). When a mode and a surface disagree, fix the model — the platform
+  behaviour was correct and deliberate.
+- **The demo seeds only when no authority is configured.** Seeding into a
+  deployment that has a real source of truth produced a queue of writes the
+  authority refused and a recovery panel full of `ADL_POLICY_DENIED` before the
+  operator had done anything. Fix the fixture, never the surface reporting the
+  verdicts.
+- **A runtime capability and a modelled permission are separate things, and so
+  are a runtime capability and a runtime call site.** Phase 55 found `EXPORT`
+  shipped with no rule granting it. Phase 56's sweep found worse: `import` is a
+  declared policy action that parses and validates and has **no invocation site
+  anywhere**. Audit both directions when adding a capability.
+- **Creating a record does not mean you may read it back.** `CreateBand` was
+  refused at the authority because `BandPolicy` granted `READ` only to
+  `ROLE BandMember`, so the founder could not be shown the band they had just
+  created. A create rule usually needs a matching read rule for the same
+  principal, or the write succeeds and the caller is told it failed.
+- **A projection that crosses users needs a policy vocabulary, not just a join.**
+  The multi-hop read model can put a bandmate's availability in front of a
+  caller; authorising that with `ROLE BandMember` would have granted every
+  availability record in the system. That is what the `contextMember` principal
+  is for.
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.

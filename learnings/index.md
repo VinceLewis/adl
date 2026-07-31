@@ -32,6 +32,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 
 Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
 
+- `implementation/context-grants-and-relationship-access.md`
 - `architecture/business-contexts-and-backends.md`
 - `architecture/target-architecture.md`
 - `implementation/business-context-model.md`
@@ -99,6 +100,7 @@ or revoked, that add a scope-indexed read model over accepted records, or that
 touch `adl_authority_context_memberships`, `ContextMembershipIndex`, or the
 authority's startup advisory lock, also read:
 
+- `implementation/context-grants-and-relationship-access.md`
 - `implementation/membership-projection.md`
 - `implementation/authority-transaction-integrity.md`
 - `implementation/identity-invites-and-access-lifecycle.md`
@@ -246,4 +248,5 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record.
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
 - `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read.
+- `implementation/context-grants-and-relationship-access.md`: read before changing business-context availability, the object-scope gate, policy principals, read-model joins, command-established contexts, or anything that decides whether one user may see another user's records.
 - `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.
