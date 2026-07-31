@@ -3351,9 +3351,9 @@ class AdlParser {
       case "statusevent":
       case "colorstatusevent":
         return "colorStatusEvent";
-      case "statusrehearsal":
-      case "colorstatusrehearsal":
-        return "colorStatusRehearsal";
+      case "statusalternate":
+      case "colorstatusalternate":
+        return "colorStatusAlternate";
       case "statusavailable":
       case "colorstatusavailable":
         return "colorStatusAvailable";
@@ -3813,9 +3813,9 @@ class AdlParser {
       case "statusevent":
       case "colorstatusevent":
         return "colorStatusEvent";
-      case "statusrehearsal":
-      case "colorstatusrehearsal":
-        return "colorStatusRehearsal";
+      case "statusalternate":
+      case "colorstatusalternate":
+        return "colorStatusAlternate";
       case "statusavailable":
       case "colorstatusavailable":
         return "colorStatusAvailable";

@@ -71,7 +71,7 @@ export type PresentationFormatKind = "text" | "number" | "date" | "datetime" | "
 export type PresentationShellRegion = "topBar" | "bottomBar" | "sidebar";
 export type PresentationStatusThemeToken =
   | "colorStatusEvent"
-  | "colorStatusRehearsal"
+  | "colorStatusAlternate"
   | "colorStatusAvailable"
   | "colorStatusUnavailable"
   | "colorStatusBusyElsewhere"
@@ -1057,7 +1057,7 @@ export interface ResolvedThemeTokens {
   colorSuccess: string;
   colorInfo: string;
   colorStatusEvent: string;
-  colorStatusRehearsal: string;
+  colorStatusAlternate: string;
   colorStatusAvailable: string;
   colorStatusUnavailable: string;
   colorStatusBusyElsewhere: string;

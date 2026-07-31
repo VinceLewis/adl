@@ -206,10 +206,21 @@ The shell contains:
   and ordered shell control names.
 
 Resolved themes include common semantic status color tokens:
-`colorStatusEvent`, `colorStatusRehearsal`, `colorStatusAvailable`,
+`colorStatusEvent`, `colorStatusAlternate`, `colorStatusAvailable`,
 `colorStatusUnavailable`, `colorStatusBusyElsewhere`, `colorStatusConflict`,
 and `colorStatusUnset`. Presentation statuses reference these tokens by name;
 renderers map them to platform colors or CSS variables.
+
+The token set is closed and carries no application vocabulary. A status whose
+name is one the platform itself defines — `event`, `available`, `unavailable`,
+`busyElsewhere`, `conflict`, `unset` — resolves to the matching token with
+nothing declared. Every other status name is the application's own and resolves
+to `colorInfo`; an author who wants a distinct colour for it declares one, and
+`colorStatusAlternate` exists as a second categorical colour alongside
+`colorStatusEvent` for exactly that purpose. No application's own status name
+may be added to the reserved set: that would put one domain's vocabulary in
+every model's type.
+
 - `controls`: optional shell controls such as context selector, sync status,
   theme switch, logout, and PWA install prompt.
 
@@ -322,6 +333,7 @@ must be reproducible by any conforming runtime:
    migration between them) is itself invalid because they do not move forward
    relative to each other. A model that declares `1.0.0` therefore fingerprints
    identically to one that declares nothing, provided their content matches.
+
 2. **Digest.** SHA-256 over the UTF-8 bytes of that text, lowercase hex,
    prefixed `sha256-`.
 

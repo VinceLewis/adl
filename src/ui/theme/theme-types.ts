@@ -16,7 +16,7 @@ export const THEME_COLOR_CSS_VARIABLES = {
   colorSuccess: "--adl-color-success",
   colorInfo: "--adl-color-info",
   colorStatusEvent: "--adl-color-status-event",
-  colorStatusRehearsal: "--adl-color-status-rehearsal",
+  colorStatusAlternate: "--adl-color-status-alternate",
   colorStatusAvailable: "--adl-color-status-available",
   colorStatusUnavailable: "--adl-color-status-unavailable",
   colorStatusBusyElsewhere: "--adl-color-status-busy-elsewhere",

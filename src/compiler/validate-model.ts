@@ -525,7 +525,7 @@ const PRESENTATION_SHELL_REGIONS = new Set<PresentationShellRegion>([
 ]);
 const PRESENTATION_STATUS_THEME_TOKENS = new Set<PresentationStatusThemeToken>([
   "colorStatusEvent",
-  "colorStatusRehearsal",
+  "colorStatusAlternate",
   "colorStatusAvailable",
   "colorStatusUnavailable",
   "colorStatusBusyElsewhere",
@@ -664,7 +664,7 @@ const THEME_STRING_TOKENS = [
   "colorSuccess",
   "colorInfo",
   "colorStatusEvent",
-  "colorStatusRehearsal",
+  "colorStatusAlternate",
   "colorStatusAvailable",
   "colorStatusUnavailable",
   "colorStatusBusyElsewhere",

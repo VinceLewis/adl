@@ -1141,14 +1141,24 @@ function resolvePresentationStatusCandidate(
   };
 }
 
+/**
+ * The platform's own status vocabulary, and only that. Every name here is a
+ * concept ADL itself has — scheduling, availability and conflict are what the
+ * calendar and resource-matrix presentations are built on — so a model that uses
+ * one gets a sensible colour without declaring a theme token.
+ *
+ * An application's own status names must not be added here. `rehearsal` was, and
+ * it made the platform know a word only one reference app uses: any other domain
+ * had no equivalent slot, and the closed theme-token set carried a band's
+ * vocabulary. A status this table does not know falls to `colorInfo`, and an
+ * author who wants a distinct colour declares `THEME colorStatusAlternate`.
+ */
 function defaultPresentationStatusThemeToken(
   name: string,
 ): ResolvedPresentationStatus["themeToken"] {
   switch (normaliseIdentifier(name)) {
     case "event":
       return "colorStatusEvent";
-    case "rehearsal":
-      return "colorStatusRehearsal";
     case "available":
       return "colorStatusAvailable";
     case "unavailable":

@@ -895,8 +895,8 @@ function statusThemeCssVariable(themeToken: RuntimePresentationStatus["themeToke
   switch (themeToken) {
     case "colorStatusEvent":
       return "--adl-color-status-event";
-    case "colorStatusRehearsal":
-      return "--adl-color-status-rehearsal";
+    case "colorStatusAlternate":
+      return "--adl-color-status-alternate";
     case "colorStatusAvailable":
       return "--adl-color-status-available";
     case "colorStatusUnavailable":

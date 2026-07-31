@@ -5,9 +5,13 @@ status-colored browser presentation.
 
 ## Decisions
 
-- Presentation statuses are semantic model data, not CSS classes. A status name
-  such as `event`, `rehearsal`, `available`, `unavailable`, `busyElsewhere`,
-  `conflict`, or `unset` is the stable contract.
+- Presentation statuses are semantic model data, not CSS classes. The status
+  name is the stable contract, and an application may declare any name it likes.
+- **The reserved names are the platform's own, and only those**: `event`,
+  `available`, `unavailable`, `busyElsewhere`, `conflict`, `unset`. They are
+  reserved because ADL itself has those concepts — the calendar and
+  resource-matrix presentations are built on scheduling, availability and
+  conflict. Anything else is an application's word and resolves to `colorInfo`.
 - A view declares statuses, status maps, and legends on
   `ResolvedView.presentation`. Lists opt in through status candidates. This
   keeps the shared layer usable by future grids, matrices, and calendars without
@@ -37,3 +41,11 @@ status-colored browser presentation.
   is expected and should not produce diagnostics.
 - Do not hard-code app colors in components. Add or reuse resolved theme tokens,
   then expose them through the theme CSS-variable adapter.
+- **Never add an application's status name to the reserved set or to the theme
+  token union.** `rehearsal` was in both for eleven phases: a band's word sat in
+  `ResolvedThemeTokens`, in the parser's `THEME` vocabulary, in the CSS variable
+  set and in a conformance case that pinned it as contractual. Every other domain
+  had no equivalent slot. It is now `colorStatusAlternate`, a second categorical
+  colour with no domain meaning, and a status named `rehearsal` is ordinary
+  application data that declares the token it wants. If a reference app seems to
+  need a new reserved name, that is the signal the slot should be neutral.

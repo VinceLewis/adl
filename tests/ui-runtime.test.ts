@@ -456,7 +456,7 @@ describe("browser UI runtime", () => {
         app,
         "[data-presentation-row][data-status='rehearsal'] .adl-presentation-status",
       ).style.getPropertyValue("--adl-status-color"),
-    ).toContain("--adl-color-status-rehearsal");
+    ).toContain("--adl-color-status-alternate");
 
     const menu = requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']");
     requireElement<HTMLButtonElement>(app, "button[data-shell-menu='true']").click();

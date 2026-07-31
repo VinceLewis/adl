@@ -704,7 +704,7 @@ export type ThemeTokenName =
   | "colorSuccess"
   | "colorInfo"
   | "colorStatusEvent"
-  | "colorStatusRehearsal"
+  | "colorStatusAlternate"
   | "colorStatusAvailable"
   | "colorStatusUnavailable"
   | "colorStatusBusyElsewhere"

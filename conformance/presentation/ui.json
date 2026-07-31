@@ -55,7 +55,7 @@
                       "map": "EventTypeIcon",
                       "value": "Rehearsal"
                     },
-                    "themeToken": "colorStatusRehearsal",
+                    "themeToken": "colorStatusAlternate",
                     "precedence": 10
                   },
                   {
@@ -530,7 +530,7 @@
                     "name": "rehearsal",
                     "label": "Rehearsal",
                     "accessibleLabel": "Rehearsal event",
-                    "themeToken": "colorStatusRehearsal"
+                    "themeToken": "colorStatusAlternate"
                   }
                 },
                 {
@@ -633,7 +633,7 @@
                     },
                     {
                       "values": { "Title": "New set rehearsal", "EventType": "Rehearsal" },
-                      "status": { "name": "rehearsal", "themeToken": "colorStatusRehearsal" }
+                      "status": { "name": "rehearsal", "themeToken": "colorStatusAlternate" }
                     },
                     {
                       "values": {

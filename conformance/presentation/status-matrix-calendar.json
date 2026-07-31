@@ -880,7 +880,7 @@
     },
     {
       "id": "presentation.status.resolve-theme-tokens.001",
-      "title": "Built-in status names default to their reserved theme tokens and unknown names to colorInfo",
+      "title": "Only the platform's own status names have reserved theme tokens; an application's own name defaults to colorInfo",
       "specRef": "resolved-model#view-presentation",
       "operation": "resolveModel",
       "modelRef": "semanticStatus",
@@ -901,7 +901,7 @@
         "ok": true,
         "result": {
           "objects.0.views.0.presentation.statuses.0.themeToken": "colorStatusEvent",
-          "objects.0.views.0.presentation.statuses.1.themeToken": "colorStatusRehearsal",
+          "objects.0.views.0.presentation.statuses.1.themeToken": "colorInfo",
           "objects.0.views.0.presentation.statuses.2.themeToken": "colorStatusAvailable",
           "objects.0.views.0.presentation.statuses.3.themeToken": "colorStatusUnavailable",
           "objects.0.views.0.presentation.statuses.4.themeToken": "colorStatusBusyElsewhere",
@@ -969,7 +969,7 @@
                       "status": {
                         "name": "rehearsal",
                         "label": "Rehearsal",
-                        "themeToken": "colorStatusRehearsal",
+                        "themeToken": "colorInfo",
                         "precedence": 10,
                         "source": { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
                       }

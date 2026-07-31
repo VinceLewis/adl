@@ -440,7 +440,7 @@ VIEW HomeDashboard DASHBOARD
   END.ICON_MAP
 
   STATUS event LABEL "Gig" ARIA_LABEL "Gig event" ICON EventTypeIcon(Gig) THEME colorStatusEvent PRECEDENCE 10
-  STATUS rehearsal LABEL "Rehearsal" ARIA_LABEL "Rehearsal event" ICON EventTypeIcon(Rehearsal) THEME colorStatusRehearsal PRECEDENCE 10
+  STATUS rehearsal LABEL "Rehearsal" ARIA_LABEL "Rehearsal event" ICON EventTypeIcon(Rehearsal) THEME colorStatusAlternate PRECEDENCE 10
   STATUS unavailable LABEL "Unavailable" ARIA_LABEL "Unavailable block" ICON EventTypeIcon(Unavailable) THEME colorStatusUnavailable PRECEDENCE 20
 
   STATUS_MAP EventTypeStatus FOR EventType DEFAULT event

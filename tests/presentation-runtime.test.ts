@@ -80,7 +80,7 @@ describe("presentation runtime", () => {
               name: "rehearsal",
               label: "Rehearsal",
               accessibleLabel: "Rehearsal event",
-              themeToken: "colorStatusRehearsal",
+              themeToken: "colorStatusAlternate",
             }),
           },
           {
