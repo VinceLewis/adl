@@ -5,6 +5,7 @@ import type {
   SyncRecoveryStatus,
   SyncRecoveryStrategy,
 } from "../runtime/sync-queue.js";
+import { requiresImmediateDelivery } from "../runtime/sync-policy-service.js";
 import type { LocalOperationKind } from "../model/resolved-model.js";
 import type {
   AuthorityBootstrapRecord,
@@ -55,7 +56,28 @@ export interface SyncRecoveryItem {
   choices: SyncRecoveryChoice[];
 }
 
-/** Sends only local-first queue entries; local-private records never enter that queue. */
+/**
+ * What the user may be shown about an accepted write that has not reached the
+ * authority. Like {@link SyncRecoveryItem} it is queue metadata only, and it
+ * describes a transport failure rather than a verdict: the entry is still
+ * queued, still replayable, and still counted by the next reconcile.
+ */
+export interface SyncDeliveryItem {
+  queueId: string;
+  opId: string;
+  objectName: string;
+  recordId: string;
+  operation: LocalOperationKind;
+  /** Credential-free failure text for the last attempt. */
+  message: string;
+  attemptedAt: string;
+}
+
+/**
+ * Sends every queued entry — `localFirst` and `onlineRequired` alike.
+ * `localPrivate` and `cacheReadonly` records never enter the queue, and the
+ * authority refuses them if some other client sends one anyway.
+ */
 export class AuthoritySyncClient {
   constructor(
     private readonly runtime: ApplicationRuntime,
@@ -83,9 +105,86 @@ export class AuthoritySyncClient {
     return outcomes;
   }
 
+  /**
+   * Delivers the queued operations whose mode does not permit them to wait for
+   * the next connection. Call it immediately after a write: an `onlineRequired`
+   * write was only accepted because the authority was believed reachable, so
+   * leaving it for the next reconcile would accept work with no stated moment at
+   * which it is sent.
+   *
+   * A failure here is deliberately not thrown at the caller. The local write
+   * already succeeded and stands; the entry stays queued and replayable, and the
+   * failure is recorded as an undelivered delivery state for the user to see.
+   */
+  async deliverPending(
+    sessionToken: string | undefined,
+    context: RuntimeContext,
+  ): Promise<AuthorityOutcome[]> {
+    const outcomes: AuthorityOutcome[] = [];
+    for (const entry of this.runtime.syncQueue.getReplayable()) {
+      if (!requiresImmediateDelivery(entry.objectSync.mode)) continue;
+      try {
+        const outcome = await this.send(sessionToken, entry, context, entry.operation.baseRevision);
+        if (outcome !== null) outcomes.push(outcome);
+      } catch {
+        // `send` has already recorded the undelivered state against the entry.
+      }
+    }
+    return outcomes;
+  }
+
+  /**
+   * Retries one undelivered entry. The operation id is deliberately unchanged:
+   * a transport failure settles nothing, and if the request did reach the
+   * authority before the response was lost, the same id returns the stored
+   * outcome instead of applying the operation a second time.
+   */
+  async retryDelivery(
+    sessionToken: string | undefined,
+    context: RuntimeContext,
+    queueId: string,
+  ): Promise<AuthorityOutcome | null> {
+    const entry = this.runtime.syncQueue
+      .getUndelivered()
+      .find((candidate) => candidate.queueId === queueId);
+    if (entry === undefined) return null;
+
+    this.runtime.syncQueue.clearDeliveryFailure(queueId);
+    try {
+      return await this.send(sessionToken, entry, context, entry.operation.baseRevision);
+    } catch {
+      // Recorded again by `send`; the entry stays queued either way.
+      return null;
+    }
+  }
+
   /** Every settled operation the user or the model still has to resolve. */
   listRecovery(): SyncRecoveryItem[] {
     return this.runtime.syncQueue.getAwaitingRecovery().map((entry) => toRecoveryItem(entry));
+  }
+
+  /** Every accepted write that has not reached the authority. */
+  listUndelivered(): SyncDeliveryItem[] {
+    return this.runtime.syncQueue.getUndelivered().map((entry) => toDeliveryItem(entry));
+  }
+
+  /**
+   * Marks the queued work that may not wait as undelivered without attempting
+   * it. This is for the case where the client itself declines to sync — an
+   * expired offline grace — rather than for a failed request: not attempting a
+   * delivery leaves the same write undelivered as a failed attempt does, and it
+   * must be just as visible.
+   */
+  markPendingUndelivered(message: string): void {
+    const attemptedAt = new Date().toISOString();
+    for (const entry of this.runtime.syncQueue.getReplayable()) {
+      if (!requiresImmediateDelivery(entry.objectSync.mode)) continue;
+      this.runtime.syncQueue.setDeliveryFailure(entry.queueId, {
+        status: "undelivered",
+        message,
+        attemptedAt,
+      });
+    }
   }
 
   /**
@@ -212,7 +311,20 @@ export class AuthoritySyncClient {
     // reconstructible from the queued operation alone.
     if (record === null && operation.operation === "create") return null;
     const intent = toIntent(operationIdFor(entry), operation, record, context, baseRevision);
-    const outcome = await this.transport.replay(sessionToken, intent);
+    let outcome: AuthorityOutcome;
+    try {
+      outcome = await this.transport.replay(sessionToken, intent);
+    } catch (error) {
+      // A transport failure is not a verdict: no recovery is recorded and the
+      // entry stays replayable. It is marked undelivered so that a mode whose
+      // writes may not wait shows the user that this one has not landed.
+      this.runtime.syncQueue.setDeliveryFailure(entry.queueId, {
+        status: "undelivered",
+        message: describeDeliveryFailure(error),
+        attemptedAt: new Date().toISOString(),
+      });
+      throw error;
+    }
     if (outcome.status === "accepted") {
       for (const accepted of outcome.records) {
         await this.runtime.reconcileRemoteRecord(accepted.meta.object, accepted);
@@ -247,6 +359,28 @@ export class AuthoritySyncClient {
 function operationIdFor(entry: SyncQueueEntry): string {
   const attempts = entry.attempts ?? 0;
   return attempts === 0 ? entry.operation.opId : `${entry.operation.opId}-r${attempts}`;
+}
+
+/**
+ * Concise failure text with no credentials in it. The transport's own error
+ * already excludes proofs, cookies and tokens; anything else is reduced to its
+ * name and message rather than serialised whole.
+ */
+function describeDeliveryFailure(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  return "The change could not be sent to the server.";
+}
+
+function toDeliveryItem(entry: SyncQueueEntry): SyncDeliveryItem {
+  return {
+    queueId: entry.queueId,
+    opId: entry.operation.opId,
+    objectName: entry.operation.object,
+    recordId: entry.operation.recordId,
+    operation: entry.operation.operation,
+    message: entry.delivery?.message ?? "",
+    attemptedAt: entry.delivery?.attemptedAt ?? "",
+  };
 }
 
 function toRecoveryItem(entry: SyncQueueEntry): SyncRecoveryItem {

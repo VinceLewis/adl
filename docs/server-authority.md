@@ -89,7 +89,14 @@ before it is returned. Denied rows and invalid context selection both produce
 an empty result; they are not distinguishable to the caller. Cursors are opaque,
 bounded, and advance only through records already visible to that caller.
 
-`AuthoritySyncClient` continues to submit only `localFirst` queue entries.
+`AuthoritySyncClient` submits every queue entry: Phase 53 added `onlineRequired`
+to the modes that queue, so an accepted online-required write has a delivery
+path instead of being persisted locally and never sent. It also refuses a
+`localPrivate` replay at the authority (`ADL_SYNC_POLICY_DENIED`), symmetrically
+with `cacheReadonly`, so no accepted record can exist that the bootstrap above
+would then withhold from every device. See
+[runtime semantics](spec/runtime-semantics.md#each-modes-relationship-to-the-authority)
+for the mode-by-mode statement of what is sent, accepted and returned.
 The IndexedDB `syncState` database persists queue entries and operation-log
 outcomes separately from object records, with a model-version startup guard.
 Conflict outcomes carry only a deterministic recovery strategy from the resolved

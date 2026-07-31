@@ -51,7 +51,8 @@ export type ConformanceCase =
   | StartupCompatibilityConformanceCase
   | ModelFingerprintConformanceCase
   | ModelMigrationConformanceCase
-  | AuthorityConformanceCase;
+  | AuthorityConformanceCase
+  | AuthorityBootstrapConformanceCase;
 
 export interface ConformanceCaseBase {
   id: string;
@@ -176,6 +177,26 @@ export interface AuthorityConformanceCase extends ConformanceCaseBase {
     /** Which seeded session submits the intent; defaults to the first declared. */
     session?: string;
     sessions?: Record<string, { userId: string }>;
+  };
+}
+
+/**
+ * What a device gets back from the authority. Replay states what the authority
+ * *accepts*; without this the other half of a sync mode's contract — whether an
+ * accepted record ever returns to a device — was unsayable, and a mode could be
+ * silently write-only without any case noticing.
+ */
+export interface AuthorityBootstrapConformanceCase extends ConformanceCaseBase {
+  operation: "authorityBootstrap";
+  model?: PartialApplicationModel;
+  modelRef?: string;
+  input: {
+    /** Seeded through the replay path, so the bootstrap reads real accepted state. */
+    setup?: AuthorityConformanceIntent[];
+    /** Which seeded session pulls; defaults to the first declared. */
+    session?: string;
+    sessions?: Record<string, { userId: string }>;
+    selectedContexts?: Record<string, string>;
   };
 }
 
@@ -406,6 +427,8 @@ async function runCaseActual(
         return await runMigratePersistedStateCase(conformanceCase, models);
       case "authorityReplay":
         return await runAuthorityReplayCase(conformanceCase, models, state);
+      case "authorityBootstrap":
+        return await runAuthorityBootstrapCase(conformanceCase, models, state);
       default:
         return await runRuntimeCase(conformanceCase, models, state);
     }
@@ -652,11 +675,22 @@ async function runMigratePersistedStateCase(
   }
 }
 
-async function runAuthorityReplayCase(
-  conformanceCase: AuthorityConformanceCase,
+interface AuthorityFixture {
+  authority: AuthorityService;
+  tokenFor(sessionName: string | undefined): string | undefined;
+}
+
+/**
+ * Builds the authority and its sessions, and applies every seeded intent through
+ * the real replay path. Shared by the replay and bootstrap operations so a
+ * bootstrap case reads state that was accepted exactly as any other client's
+ * would be, rather than state written past the authority.
+ */
+async function seedAuthority(
+  conformanceCase: AuthorityConformanceCase | AuthorityBootstrapConformanceCase,
   models: Record<string, PartialApplicationModel>,
   state: RunState,
-): Promise<ConformanceActual> {
+): Promise<AuthorityFixture> {
   const model = resolveApplicationModel(getPartialModel(conformanceCase, models));
   const declaredSessions = Object.entries(
     conformanceCase.input.sessions ?? { primary: { userId: "user-1" } },
@@ -699,12 +733,74 @@ async function runAuthorityReplayCase(
     }
   }
 
-  const outcome = await authority.replay(
-    tokensByName.get(conformanceCase.input.session ?? firstSessionName),
+  return {
+    authority,
+    tokenFor: (sessionName) => tokensByName.get(sessionName ?? firstSessionName),
+  };
+}
+
+async function runAuthorityReplayCase(
+  conformanceCase: AuthorityConformanceCase,
+  models: Record<string, PartialApplicationModel>,
+  state: RunState,
+): Promise<ConformanceActual> {
+  const fixture = await seedAuthority(conformanceCase, models, state);
+  const outcome = await fixture.authority.replay(
+    fixture.tokenFor(conformanceCase.input.session),
     resolveRefs(conformanceCase.input.intent, state) as AuthorityOperationIntent,
   );
 
   return { ok: true, result: normaliseAuthorityOutcome(outcome) };
+}
+
+/**
+ * What an authenticated device reads back. Every page is followed, because a
+ * bootstrap that stopped at page one would let a case claim a record was
+ * withheld when it was merely on the next page.
+ */
+async function runAuthorityBootstrapCase(
+  conformanceCase: AuthorityBootstrapConformanceCase,
+  models: Record<string, PartialApplicationModel>,
+  state: RunState,
+): Promise<ConformanceActual> {
+  const fixture = await seedAuthority(conformanceCase, models, state);
+  const token = fixture.tokenFor(conformanceCase.input.session);
+  const selected =
+    conformanceCase.input.selectedContexts === undefined
+      ? {}
+      : { selectedContexts: conformanceCase.input.selectedContexts };
+  const records: Array<{ objectName: string; record: StoredObjectRecord }> = [];
+  const usedCursors = new Set<string>();
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await fixture.authority.bootstrap(token, {
+      ...selected,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    records.push(...page.records);
+    const next = page.nextCursor;
+    if (next === undefined || page.records.length === 0 || usedCursors.has(next)) break;
+    usedCursors.add(next);
+    cursor = next;
+  }
+
+  return {
+    ok: true,
+    result: {
+      // Ordered by name, not by the order the authority happened to page them
+      // in, which no specification defines.
+      records: records
+        .map((entry) => ({
+          object: entry.objectName,
+          recordId: entry.record.meta.guid,
+          values: entry.record.values,
+          deleted: entry.record.meta.deletedAt !== undefined,
+        }))
+        .sort((left, right) =>
+          `${left.object} ${left.recordId}`.localeCompare(`${right.object} ${right.recordId}`),
+        ),
+    } as unknown as JsonValue,
+  };
 }
 
 /**

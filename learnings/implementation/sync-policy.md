@@ -8,10 +8,10 @@ Read this before changing object sync modes, runtime write gating, sync queue be
 - `SyncPolicyService` is the runtime write gate for object sync mode. It evaluates `RuntimeContext.online`, defaulting to online when the context does not say otherwise.
 - Policy and field-policy checks run before sync-mode write checks on create, update, and delete. Lifecycle transition policy also runs before the sync check, and transition sync checks run before lifecycle hooks.
 - `ObjectStorageBackend` remains only object-record persistence. Sync decisions and sync queue behavior stay above the backend.
-- `SyncQueue` is an explicit runtime service separate from the object-record backend. It currently stores in-memory queue entries for `localFirst` operations only.
-- `localPrivate` operations are still local runtime operations and may appear in the operation log, but they are not added to the sync queue.
+- `SyncQueue` is an explicit runtime service separate from the object-record backend. It stored queue entries for `localFirst` operations only; **Phase 53 changed this** — `onlineRequired` operations queue too, because a mode that accepted a write and queued nothing had no delivery path at all. See [[sync-mode-delivery]].
+- `localPrivate` operations are still local runtime operations and may appear in the operation log, but they are not added to the sync queue. Phase 53 added the symmetrical half: they are refused outright on the `sync` channel, so the authority cannot accept one either.
 - `cacheReadonly` allows reads of locally cached records but blocks local create, update, delete, and transition writes.
-- `onlineRequired` blocks local writes only when `RuntimeContext.online === false`. Full online server write behavior remains deferred.
+- `onlineRequired` blocks local writes only when `RuntimeContext.online === false`. Phase 53 settled what an allowed one then does: it is queued and delivered, with the failure to deliver made visible.
 - Browser UI presentation uses `runtime.syncPolicy` to mark fields readonly, hide blocked write actions, and display compact sync state labels.
 
 ## Practical guidance

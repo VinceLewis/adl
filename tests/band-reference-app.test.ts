@@ -2,11 +2,12 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  AuthoritySyncClient,
   PolicyDeniedError,
   RuntimeValidationError,
   validateApplicationModel,
 } from "../src/index.js";
-import type { RuntimeContext } from "../src/index.js";
+import type { AuthorityOperationIntent, AuthorityTransport, RuntimeContext } from "../src/index.js";
 import {
   bandReferenceSystemContext,
   createBandReferenceModel,
@@ -410,6 +411,55 @@ describe("band reference app runtime", () => {
       Role: "BandMember",
       JoinedAt: "2026-07-08",
     });
+  });
+
+  it("delivers a band invitation to the authority instead of stranding it on the device", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+    const invitation = await createPendingInvitation(seeded);
+
+    // `BandInvitation` is the reference app's only online-required object. This
+    // write used to be validated, policy-checked, persisted and written to the
+    // operation log, and then never sent to anyone.
+    const queued = seeded.runtime.syncQueue
+      .getEntries()
+      .filter((entry) => entry.operation.object === "BandInvitation");
+    expect(queued.map((entry) => entry.operation.recordId)).toContain(invitation.meta.guid);
+
+    const sent: AuthorityOperationIntent[] = [];
+    const transport: AuthorityTransport = {
+      async replay(_sessionToken, intent) {
+        sent.push(intent);
+        return { status: "accepted", operationId: intent.operationId, records: [] };
+      },
+      async bootstrap() {
+        return { records: [] };
+      },
+    };
+
+    const outcomes = await new AuthoritySyncClient(seeded.runtime, transport).deliverPending(
+      undefined,
+      bandContext,
+    );
+
+    expect(outcomes.every((outcome) => outcome.status === "accepted")).toBe(true);
+    // Only invitations go now. The seeded local-first work is allowed to wait
+    // for the next reconcile, which is that mode's contract.
+    expect(
+      new Set(sent.map((intent) => (intent.kind === "command" ? "" : intent.objectName))),
+    ).toEqual(new Set(["BandInvitation"]));
+    expect(sent).toContainEqual(
+      expect.objectContaining({
+        kind: "create",
+        objectName: "BandInvitation",
+        recordId: invitation.meta.guid,
+      }),
+    );
+    expect(
+      seeded.runtime.syncQueue
+        .getEntries()
+        .filter((entry) => entry.operation.object === "BandInvitation"),
+    ).toEqual([]);
   });
 
   it("keeps invitation acceptance atomic when membership creation violates uniqueness", async () => {

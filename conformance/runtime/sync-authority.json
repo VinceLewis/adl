@@ -502,6 +502,20 @@
             "scope": "all",
             "conflict": "serverWins"
           }
+        },
+        {
+          "name": "PrivateNote",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localPrivate",
+            "scope": "all"
+          }
         }
       ],
       "commands": [
@@ -613,6 +627,20 @@
                 "users": [
                   "owner-user"
                 ]
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "PrivateNotePolicy",
+          "object": "PrivateNote",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllPrivateNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
               },
               "action": "*"
             }
@@ -3436,6 +3464,177 @@
           "operationId": "op-missing-server",
           "code": "ADL_SYNC_CONFLICT",
           "recovery": "serverWins"
+        }
+      }
+    },
+    {
+      "id": "authority.sync-mode.local-private-refused.001",
+      "title": "A local-private object refuses a replay, symmetrically with cache-readonly",
+      "specRef": "runtime-semantics#each-modes-relationship-to-the-authority",
+      "operation": "authorityReplay",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "intent": {
+          "operationId": "op-private",
+          "kind": "create",
+          "objectName": "PrivateNote",
+          "recordId": "private-note-1",
+          "values": {
+            "Title": "Private"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-private",
+          "code": "ADL_SYNC_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "authority.bootstrap.local-private-never-stored.001",
+      "title": "A refused local-private replay leaves no record for a bootstrap to withhold",
+      "specRef": "runtime-semantics#each-modes-relationship-to-the-authority",
+      "operation": "authorityBootstrap",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-private-seed",
+              "kind": "create",
+              "objectName": "PrivateNote",
+              "recordId": "private-note-2",
+              "values": {
+                "Title": "Private"
+              }
+            },
+            "expect": "rejected"
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": []
+        }
+      }
+    },
+    {
+      "id": "authority.bootstrap.local-first-and-online-required-returned.001",
+      "title": "A bootstrap returns both local-first and online-required accepted records",
+      "specRef": "runtime-semantics#each-modes-relationship-to-the-authority",
+      "operation": "authorityBootstrap",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-1",
+              "values": {
+                "Title": "Local first"
+              }
+            }
+          },
+          {
+            "intent": {
+              "operationId": "op-online",
+              "kind": "create",
+              "objectName": "OnlineNote",
+              "recordId": "online-note-2",
+              "values": {
+                "Title": "Online required"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-1",
+              "values": {
+                "Title": "Local first"
+              },
+              "deleted": false
+            },
+            {
+              "object": "OnlineNote",
+              "recordId": "online-note-2",
+              "values": {
+                "Title": "Online required"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "authority.bootstrap.deleted-record-withheld.001",
+      "title": "A bootstrap withholds a deleted record rather than returning an empty tombstone",
+      "specRef": "runtime-semantics#each-modes-relationship-to-the-authority",
+      "operation": "authorityBootstrap",
+      "modelRef": "authorityModel",
+      "input": {
+        "sessions": {
+          "primary": {
+            "userId": "user-1"
+          }
+        },
+        "setup": [
+          {
+            "alias": "doomed",
+            "intent": {
+              "operationId": "op-doomed",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-doomed",
+              "values": {
+                "Title": "Doomed"
+              }
+            }
+          },
+          {
+            "intent": {
+              "operationId": "op-doomed-delete",
+              "kind": "delete",
+              "objectName": "Note",
+              "recordId": "note-doomed",
+              "baseRevision": {
+                "$ref": "doomed.records.0.meta.revision"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": []
         }
       }
     }

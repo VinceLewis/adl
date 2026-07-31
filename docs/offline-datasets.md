@@ -45,7 +45,7 @@ A future remote sync service must provide these capabilities without requiring a
 - Resolve available business context instances and context-scoped roles authoritatively.
 - Return object records matching the resolved dataset declaration, including read-model source needs.
 - Enforce row, field, state, lifecycle, validation, and context-scope policy on every record sent to or accepted from a device.
-- Respect sync modes: never accept local writes for `cacheReadonly`, require online authority for `onlineRequired`, and avoid uploading `localPrivate` records.
+- Respect sync modes: never accept local writes for `cacheReadonly`, require an online context for `onlineRequired`, and never upload `localPrivate` records. An accepted `onlineRequired` write is queued and delivered like a `localFirst` one; the mode's difference is the refusal offline, not the absence of a delivery path.
 - Provide stable record metadata, schema versions, revisions, tombstones, and conflict information for local startup and replay checks.
 - Accept or reject queued local-first operations with backend-neutral conflict outcomes.
 - Avoid assuming PostgreSQL, SQL materialized views, HTTP-specific routes, or any other transport/storage mechanism as part of the ADL language contract.

@@ -1,3 +1,4 @@
+import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
@@ -88,6 +89,20 @@ const model = resolveApplicationModel({
         },
       ],
       sync: { mode: "localFirst", conflict: "serverWins" },
+    },
+    {
+      name: "Invitation",
+      scope: { context: "Band", field: "Band" },
+      fields: [
+        {
+          name: "Band",
+          type: "text",
+          required: true,
+          lookup: { targetObject: "Band", displayField: "Name" },
+        },
+        { name: "Email", type: "text", required: true },
+      ],
+      sync: { mode: "onlineRequired", conflict: "serverWins" },
     },
     {
       name: "PrivateNote",
@@ -181,6 +196,24 @@ const model = resolveApplicationModel({
       ],
     },
     {
+      name: "InvitationPolicy",
+      object: "Invitation",
+      rules: [
+        {
+          name: "systemAll",
+          effect: "allow",
+          principal: { match: "specific", roles: ["SystemAdmin"] },
+          action: "*",
+        },
+        {
+          name: "adminsAll",
+          effect: "allow",
+          principal: { match: "specific", roles: ["BandAdmin"] },
+          action: "*",
+        },
+      ],
+    },
+    {
       name: "PrivateNotePolicy",
       object: "PrivateNote",
       rules: [
@@ -228,6 +261,8 @@ let bypassServer: Server;
 let upstreamServer: Server;
 let throttledServer: Server;
 let bypassUrl: string;
+/** A port nothing listens on, so a real fetch fails the way an unreachable authority does. */
+let closedPort: number;
 let upstreamUrl: string;
 let throttledUrl: string;
 const logged: SecurityLogEvent[] = [];
@@ -273,6 +308,7 @@ beforeAll(async () => {
   const bypass = await startServer("bypass");
   const upstream = await startServer("upstream");
   const throttled = await startServer("bypass", 1);
+  closedPort = await reserveClosedPort();
   bypassServer = bypass.server;
   bypassUrl = bypass.baseUrl;
   upstreamServer = upstream.server;
@@ -293,6 +329,19 @@ beforeEach(async () => {
   await resetProjections(pool);
   await seedApplication(pool, applicationId, model.modelVersion);
 });
+
+/**
+ * Binds a port and immediately releases it. Nothing is listening there, so a
+ * request to it fails in the transport rather than being answered — which is the
+ * only way to exercise a delivery failure without stubbing the transport out.
+ */
+async function reserveClosedPort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((done) => probe.listen(0, "127.0.0.1", () => done()));
+  const { port } = probe.address() as AddressInfo;
+  await new Promise<void>((done) => probe.close(() => done()));
+  return port;
+}
 
 /** A browser-shaped client: real socket, real cookie jar, recorded wire payloads. */
 function browserClient(baseUrl: string) {
@@ -547,6 +596,128 @@ describe("Phase 46 deployment slice over a real socket and real PostgreSQL", () 
     expect(sessionToken).not.toBe("unset");
     expect(JSON.stringify(logged)).not.toContain(sessionToken);
     expect(JSON.stringify(logged)).not.toContain(accountProof);
+  });
+
+  it("delivers an online-required write to the authority and reads it back on bootstrap", async () => {
+    const browser = browserClient(bypassUrl);
+    const session = await browser.transport.signIn(accountProof);
+    const seeded = await seedAcceptedState(session.userId, 1);
+    const online: RuntimeContext = {
+      userId: session.userId,
+      roles: [],
+      channel: "ui",
+      selectedContexts: { Band: seeded.bandA },
+    };
+    await browser.client.bootstrap(undefined, online);
+    const bandContext = await browser.runtime.withSelectedContext("Band", seeded.bandA, online);
+
+    // The mode permits this write only while online, which is exactly when it
+    // used to be accepted locally and then never sent to anyone.
+    const invitation = await browser.runtime.create(
+      "Invitation",
+      { Band: seeded.bandA, Email: "player@deployment.test" },
+      bandContext,
+    );
+    expect(browser.runtime.syncQueue.getEntries()).toHaveLength(1);
+
+    const outcomes = await browser.client.deliverPending(undefined, bandContext);
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(["accepted"]);
+    expect(browser.runtime.syncQueue.getEntries()).toHaveLength(0);
+    expect(browser.client.listUndelivered()).toEqual([]);
+
+    // The authority holds it under the id the client minted, not a second one.
+    const stored = await pool.query<{ guid: string; email: string }>(
+      "select record -> 'meta' ->> 'guid' guid, record -> 'values' ->> 'Email' email from adl_authority_records where application_id = $1 and object_name = 'Invitation'",
+      [applicationId],
+    );
+    expect(stored.rows).toEqual([{ guid: invitation.meta.guid, email: "player@deployment.test" }]);
+
+    // And a device that has never seen it reads it back: the record has a path
+    // to the authority *and* a path home.
+    const second = browserClient(bypassUrl);
+    await second.transport.signIn(accountProof);
+    const pulled = await second.client.bootstrap(undefined, online);
+    expect(
+      pulled.records
+        .filter((entry) => entry.objectName === "Invitation")
+        .map((entry) => entry.record.meta.guid),
+    ).toEqual([invitation.meta.guid]);
+  });
+
+  it("refuses a local-private replay rather than storing a record no bootstrap returns", async () => {
+    const browser = browserClient(bypassUrl);
+    await browser.transport.signIn(accountProof);
+
+    // A conforming client never sends this; the authority must refuse it anyway,
+    // symmetrically with cache-readonly.
+    const outcome = await browser.transport.replay(undefined, {
+      operationId: "op-local-private-replay",
+      kind: "create",
+      objectName: "PrivateNote",
+      recordId: "private-note-smuggled",
+      values: { Body: "should never be stored" },
+    });
+
+    expect(outcome).toMatchObject({ status: "rejected", code: "ADL_SYNC_POLICY_DENIED" });
+    expect(
+      await pool.query(
+        "select 1 from adl_authority_records where application_id = $1 and object_name = 'PrivateNote' and record -> 'meta' ->> 'guid' = $2",
+        [applicationId, "private-note-smuggled"],
+      ),
+    ).toMatchObject({ rowCount: 0 });
+  });
+
+  it("makes an undelivered online-required write visible instead of losing it", async () => {
+    const browser = browserClient(bypassUrl);
+    const session = await browser.transport.signIn(accountProof);
+    const seeded = await seedAcceptedState(session.userId, 1);
+    const online: RuntimeContext = {
+      userId: session.userId,
+      roles: [],
+      channel: "ui",
+      selectedContexts: { Band: seeded.bandA },
+    };
+    await browser.client.bootstrap(undefined, online);
+    const bandContext = await browser.runtime.withSelectedContext("Band", seeded.bandA, online);
+    await browser.runtime.create(
+      "Invitation",
+      { Band: seeded.bandA, Email: "unreachable@deployment.test" },
+      bandContext,
+    );
+
+    // The same runtime and queue, pointed at an authority that is not there.
+    const unreachable = new AuthoritySyncClient(
+      browser.runtime,
+      new HttpAuthorityTransport({
+        baseUrl: `http://127.0.0.1:${String(closedPort)}`,
+        credentials: browser.credentials,
+        origin: "https://app.test",
+        forwardedProto: "https",
+      }),
+    );
+    await expect(unreachable.deliverPending(undefined, bandContext)).resolves.toEqual([]);
+
+    const [undelivered] = unreachable.listUndelivered();
+    expect(undelivered).toMatchObject({ objectName: "Invitation", operation: "create" });
+    // A transport failure is not a verdict: nothing is settled, and the entry
+    // is still there to be sent.
+    expect(unreachable.listRecovery()).toEqual([]);
+    expect(browser.runtime.syncQueue.getReplayable()).toHaveLength(1);
+
+    // Retried against the real authority under the same operation id.
+    const outcome = await browser.client.retryDelivery(
+      undefined,
+      bandContext,
+      undelivered?.queueId ?? "",
+    );
+    expect(outcome?.status).toBe("accepted");
+    expect(browser.client.listUndelivered()).toEqual([]);
+    expect(
+      await pool.query(
+        "select 1 from adl_authority_records where application_id = $1 and object_name = 'Invitation' and record -> 'values' ->> 'Email' = $2",
+        [applicationId, "unreachable@deployment.test"],
+      ),
+    ).toMatchObject({ rowCount: 1 });
   });
 
   it("replays a queued delete so the authority tombstones the accepted record", async () => {

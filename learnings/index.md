@@ -72,6 +72,7 @@ Before tasks that change client conflict/rejection recovery, the browser authori
 - `implementation/offline-operation-identity.md`
 - `implementation/first-deployment-slice.md`
 - `implementation/sync-policy.md`
+- `implementation/sync-mode-delivery.md`
 - `implementation/remote-bootstrap-and-sync-state.md`
 - `implementation/model-versioning-guard.md`
 
@@ -96,6 +97,7 @@ Before tasks that change runtime services, model-declared commands, UI runtime i
 - `implementation/policy-engine.md`
 - `implementation/expression-language.md`
 - `implementation/sync-policy.md`
+- `implementation/sync-mode-delivery.md`
 - `implementation/offline-dataset-runtime.md`
 - `implementation/conformance-suite.md`
 
@@ -199,6 +201,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/policy-engine.md`: read before changing policy evaluation, policy conditions, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/expression-language.md`: read before changing `ResolvedExpression`, expression evaluation, parser expression syntax, policy conditions, predicate validators, command preconditions, computed fields, decision tables, lifecycle guards, or read-model expressions.
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.
+- `implementation/sync-mode-delivery.md`: read before changing which sync modes queue, the client's delivery path, the authority's acceptance of a mode, undelivered-write presentation, or anything that decides whether an accepted write reaches the authority.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work.
 - `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases.

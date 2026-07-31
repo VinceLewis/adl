@@ -1,5 +1,6 @@
 import { ApplicationRuntime } from "../../runtime/application-runtime.js";
 import { RuntimeValidationError } from "../../runtime/runtime-types.js";
+import { requiresImmediateDelivery } from "../../runtime/sync-policy-service.js";
 import type {
   EditContainerMode,
   JsonValue,
@@ -54,6 +55,7 @@ import {
   ADL_REFRESH_DEVICES_EVENT,
   ADL_REGISTER_PASSKEY_EVENT,
   ADL_RESOLVE_RECOVERY_EVENT,
+  ADL_RETRY_DELIVERY_EVENT,
   ADL_REVOKE_DEVICE_EVENT,
   ADL_SIGN_IN_EVENT,
   ADL_SIGN_OUT_EVENT,
@@ -63,6 +65,7 @@ import type {
   ClaimInviteDetail,
   RegisterPasskeyDetail,
   ResolveRecoveryDetail,
+  RetryDeliveryDetail,
   RevokeDeviceDetail,
   SignInDetail,
 } from "../authority-bridge.js";
@@ -121,6 +124,7 @@ export class AdlAppElement extends HTMLElement {
   private navDrawerOpen = false;
   private _authority: AdlAuthorityBridge | undefined;
   private authorityBusy = false;
+  private deliveringWrites = false;
   private installPrompt: InstallPromptEvent | undefined;
 
   private readonly handleSignIn = (event: Event): void => {
@@ -198,6 +202,16 @@ export class AdlAppElement extends HTMLElement {
     }
 
     void this.runAuthorityAction(() => bridge.resolveRecovery(detail.queueId, detail.choice));
+  };
+
+  private readonly handleRetryDelivery = (event: Event): void => {
+    const detail = (event as CustomEvent<RetryDeliveryDetail>).detail;
+    const bridge = this._authority;
+    if (detail === undefined || bridge === undefined) {
+      return;
+    }
+
+    void this.runAuthorityAction(() => bridge.retryDelivery(detail.queueId));
   };
 
   /** Chromium fires this before offering installation; other engines never do. */
@@ -864,6 +878,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
     this.addEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.addEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
+    this.addEventListener(ADL_RETRY_DELIVERY_EVENT, this.handleRetryDelivery);
     document.addEventListener("keydown", this.handleKeyDown);
     globalThis.addEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
     addBrowserOnlineListeners(this.handleOnlineStateChange);
@@ -899,6 +914,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener(ADL_SIGN_OUT_EVENT, this.handleSignOut);
     this.removeEventListener(ADL_CLAIM_INVITE_EVENT, this.handleClaimInvite);
     this.removeEventListener(ADL_RESOLVE_RECOVERY_EVENT, this.handleResolveRecovery);
+    this.removeEventListener(ADL_RETRY_DELIVERY_EVENT, this.handleRetryDelivery);
     document.removeEventListener("keydown", this.handleKeyDown);
     globalThis.removeEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
     removeBrowserOnlineListeners(this.handleOnlineStateChange);
@@ -1120,6 +1136,54 @@ export class AdlAppElement extends HTMLElement {
       this.fieldIssues =
         error instanceof RuntimeValidationError ? [...error.issues] : this.fieldIssues;
       this.render();
+      return;
+    }
+
+    await this.deliverPendingWrites();
+  }
+
+  /**
+   * Sends the queued work that may not wait for the next synchronise. Every
+   * mutating action runs through `runCommand`, so this is the one place a write
+   * of an `onlineRequired` object is followed by the delivery its mode implies —
+   * rather than each handler having to remember.
+   *
+   * It never rethrows: the local write has already been accepted, and a
+   * delivery failure is surfaced as an undelivered change rather than as a
+   * failed save. The re-entrancy guard matters because the refresh below itself
+   * runs through `runCommand`.
+   */
+  private async deliverPendingWrites(): Promise<void> {
+    const bridge = this._authority;
+    if (bridge === undefined || this.deliveringWrites) {
+      return;
+    }
+
+    // Only work that must go now, and has not already failed to. Without this
+    // every refresh would call the bridge, and an entry the user has already
+    // been shown as undelivered would be retried on each render instead of when
+    // they ask or when the app next synchronises.
+    const pending = this.runtime.syncQueue
+      .getReplayable()
+      .some(
+        (entry) => entry.delivery === undefined && requiresImmediateDelivery(entry.objectSync.mode),
+      );
+    if (!pending) {
+      return;
+    }
+
+    this.deliveringWrites = true;
+    try {
+      // Only an answered operation changed a record, so nothing is re-read when
+      // there was nothing to send.
+      if ((await bridge.deliverPending()) > 0) {
+        await this.refreshFromRuntime();
+      }
+    } catch (error) {
+      this.messages = [messageFromRuntimeError(error)];
+      this.render();
+    } finally {
+      this.deliveringWrites = false;
     }
   }
 
@@ -1243,6 +1307,7 @@ export class AdlAppElement extends HTMLElement {
     const syncRecovery = this.querySelector<AdlSyncRecoveryElement>("adl-sync-recovery");
     if (syncRecovery !== null && bridge !== undefined) {
       syncRecovery.items = bridge.recovery;
+      syncRecovery.undelivered = bridge.undelivered;
       syncRecovery.busy = this.authorityBusy;
     }
 

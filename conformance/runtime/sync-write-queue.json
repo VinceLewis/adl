@@ -44,7 +44,9 @@
                 "name": "complete",
                 "from": "Draft",
                 "to": "Done",
-                "policyRefs": ["LocalFirstTaskPolicy"]
+                "policyRefs": [
+                  "LocalFirstTaskPolicy"
+                ]
               }
             ]
           },
@@ -86,7 +88,9 @@
                 "name": "complete",
                 "from": "Draft",
                 "to": "Done",
-                "policyRefs": ["LocalPrivateNotePolicy"]
+                "policyRefs": [
+                  "LocalPrivateNotePolicy"
+                ]
               }
             ]
           },
@@ -116,11 +120,41 @@
               "name": "Name",
               "type": "text",
               "required": true
+            },
+            {
+              "name": "Status",
+              "type": "text",
+              "required": true,
+              "defaultValue": "Draft"
             }
           ],
           "sync": {
             "mode": "onlineRequired",
             "scope": "all"
+          },
+          "lifecycle": {
+            "name": "OnlineRequiredItemLifecycle",
+            "stateField": "Status",
+            "initialState": "Draft",
+            "states": [
+              {
+                "name": "Draft"
+              },
+              {
+                "name": "Done",
+                "terminal": true
+              }
+            ],
+            "actions": [
+              {
+                "name": "complete",
+                "from": "Draft",
+                "to": "Done",
+                "policyRefs": [
+                  "OnlineRequiredItemPolicy"
+                ]
+              }
+            ]
           }
         }
       ],
@@ -134,7 +168,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -149,7 +185,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -164,7 +202,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -179,7 +219,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -203,7 +245,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -248,7 +292,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": false
         }
@@ -295,7 +341,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -312,7 +360,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -368,7 +418,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -382,7 +434,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -438,7 +492,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -453,7 +509,9 @@
         "actionName": "complete",
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -507,7 +565,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -545,7 +605,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": false
         }
@@ -585,7 +647,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -602,7 +666,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -643,7 +709,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -657,7 +725,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -698,7 +768,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -713,7 +785,9 @@
         "actionName": "complete",
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -754,7 +828,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -768,7 +844,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -816,7 +894,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -830,7 +910,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": true
         }
@@ -880,7 +962,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true
           }
@@ -894,7 +978,9 @@
         },
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "online": false
         }
@@ -921,6 +1007,466 @@
               "objectName": "LocalFirstTask",
               "operation": "create",
               "recordId": "$queued",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.onlinerequired.online-create-queues.001",
+      "title": "An online onlineRequired create is allowed and lands in the sync queue",
+      "specRef": "runtime-semantics#onlinerequired-delivery",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "write": "create",
+        "values": {
+          "Name": "Invitation"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "OnlineRequiredItem",
+            "operation": "create",
+            "mode": "onlineRequired",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": [
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "create",
+              "mode": "onlineRequired",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.onlinerequired.online-update-queues.001",
+      "title": "An onlineRequired update queues a second entry alongside the seeded create",
+      "specRef": "runtime-semantics#onlinerequired-delivery",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Original"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "write": "update",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "patch": {
+          "Name": "Renamed"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "OnlineRequiredItem",
+            "operation": "update",
+            "mode": "onlineRequired",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": [
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "create",
+              "recordId": "$seeded",
+              "mode": "onlineRequired",
+              "status": "pending"
+            },
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "update",
+              "recordId": "$seeded",
+              "mode": "onlineRequired",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.onlinerequired.online-delete-queues.001",
+      "title": "An onlineRequired delete queues a delete entry",
+      "specRef": "runtime-semantics#onlinerequired-delivery",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "Doomed"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "write": "delete",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "OnlineRequiredItem",
+            "operation": "delete",
+            "mode": "onlineRequired",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": [
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "create",
+              "recordId": "$seeded",
+              "mode": "onlineRequired",
+              "status": "pending"
+            },
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "delete",
+              "recordId": "$seeded",
+              "mode": "onlineRequired",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.onlinerequired.online-transition-queues.001",
+      "title": "An onlineRequired lifecycle transition queues a transition entry",
+      "specRef": "runtime-semantics#onlinerequired-delivery",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "seeded",
+          "operation": "create",
+          "objectName": "OnlineRequiredItem",
+          "values": {
+            "Name": "In progress"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "write": "transition",
+        "id": {
+          "$ref": "seeded.meta.guid"
+        },
+        "actionName": "complete",
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "OnlineRequiredItem",
+            "operation": "transition",
+            "mode": "onlineRequired",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written",
+            "recordId": "$seeded"
+          },
+          "queue": [
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "create",
+              "recordId": "$seeded",
+              "mode": "onlineRequired",
+              "status": "pending"
+            },
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "transition",
+              "recordId": "$seeded",
+              "mode": "onlineRequired",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.onlinerequired.queues-alongside-local-first.001",
+      "title": "An onlineRequired write joins the queue a localFirst write already filled, where a localPrivate write would not",
+      "specRef": "runtime-semantics#onlinerequired-delivery",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "queued",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Syncable"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "OnlineRequiredItem",
+        "write": "create",
+        "values": {
+          "Name": "Invitation"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "OnlineRequiredItem",
+            "operation": "create",
+            "mode": "onlineRequired",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$queued",
+              "mode": "localFirst",
+              "status": "pending"
+            },
+            {
+              "objectName": "OnlineRequiredItem",
+              "operation": "create",
+              "mode": "onlineRequired",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localprivate.sync-channel-refused.001",
+      "title": "A localPrivate write is refused on the sync channel and leaves the existing queue untouched",
+      "specRef": "runtime-semantics#each-modes-relationship-to-the-authority",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "setup": [
+        {
+          "alias": "queued",
+          "operation": "create",
+          "objectName": "LocalFirstTask",
+          "values": {
+            "Name": "Syncable"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true
+          }
+        }
+      ],
+      "input": {
+        "objectName": "LocalPrivateNote",
+        "write": "create",
+        "values": {
+          "Name": "Private"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "sync",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": false,
+            "objectName": "LocalPrivateNote",
+            "operation": "create",
+            "mode": "localPrivate",
+            "online": true,
+            "queueable": false,
+            "readonly": true
+          },
+          "write": {
+            "status": "refused",
+            "code": "ADL_SYNC_POLICY_DENIED",
+            "recordId": "$absent"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
+              "recordId": "$queued",
+              "mode": "localFirst",
+              "status": "pending"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "syncwrite.localfirst.sync-channel-queues.001",
+      "title": "The sync channel is not a blanket refusal: a localFirst write on it is allowed and queued",
+      "specRef": "runtime-semantics#sync-modes",
+      "operation": "syncWrite",
+      "modelRef": "syncWriteModes",
+      "input": {
+        "objectName": "LocalFirstTask",
+        "write": "create",
+        "values": {
+          "Name": "Replayed"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "sync",
+          "online": true
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "objectName": "LocalFirstTask",
+            "operation": "create",
+            "mode": "localFirst",
+            "online": true,
+            "queueable": true,
+            "readonly": false
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": [
+            {
+              "objectName": "LocalFirstTask",
+              "operation": "create",
               "mode": "localFirst",
               "status": "pending"
             }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ApplicationRuntime,
   AuthoritySyncClient,
+  AuthorityTransportError,
   InMemoryObjectStorageBackend,
   resolveApplicationModel,
   validateApplicationModel,
@@ -42,11 +43,30 @@ const partialModel: PartialApplicationModel = {
       fields: [{ name: "Body", type: "text", required: true }],
       sync: { mode: "localPrivate" },
     },
+    {
+      name: "Invitation",
+      businessKey: "Email",
+      displayField: "Email",
+      fields: [{ name: "Email", type: "text", required: true }],
+      sync: { mode: "onlineRequired", conflict: "manual" },
+    },
   ],
   policies: [
     {
       name: "GigPolicy",
       object: "Gig",
+      rules: [
+        {
+          name: "adminAll",
+          effect: "allow",
+          principal: { match: "specific", roles: ["Admin"] },
+          action: "*",
+        },
+      ],
+    },
+    {
+      name: "InvitationPolicy",
+      object: "Invitation",
       rules: [
         {
           name: "adminAll",
@@ -389,3 +409,171 @@ describe("AuthoritySyncClient reconcile", () => {
     expect(JSON.stringify(transport.replayCalls)).not.toContain("Admin");
   });
 });
+
+/**
+ * An `onlineRequired` write used to be validated, policy-checked, persisted,
+ * written to the operation log — and then never sent, because the queue admitted
+ * `localFirst` alone. These cases pin the delivery path that closes that gap,
+ * and the visible state a failed delivery leaves behind.
+ */
+describe("AuthoritySyncClient online-required delivery", () => {
+  async function onlineRequiredRuntime(): Promise<ApplicationRuntime> {
+    const runtime = newRuntime();
+    await runtime.create("Invitation", { Email: "player@example.test" }, adminContext);
+    return runtime;
+  }
+
+  it("queues an accepted online-required write and delivers it", async () => {
+    const runtime = await onlineRequiredRuntime();
+    expect(runtime.syncQueue.getEntries().map((entry) => entry.operation.object)).toEqual([
+      "Invitation",
+    ]);
+
+    const transport = new FakeAuthorityTransport();
+    const outcomes = await new AuthoritySyncClient(runtime, transport).deliverPending(
+      undefined,
+      adminContext,
+    );
+
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(["accepted"]);
+    expect(transport.replayCalls.map(intentObjectName)).toEqual(["Invitation"]);
+    // Delivered work leaves the queue and is recorded as accepted, not pending.
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+    expect(runtime.operationLog.getOperations().map((operation) => operation.status)).toEqual([
+      "accepted",
+    ]);
+  });
+
+  it("reconcile delivers a queued online-required entry alongside local-first work", async () => {
+    const runtime = await onlineRequiredRuntime();
+    await runtime.create("Gig", { Title: "Summer show" }, adminContext);
+    const transport = new FakeAuthorityTransport();
+
+    await new AuthoritySyncClient(runtime, transport).reconcile(undefined, adminContext);
+
+    expect(transport.replayCalls.map(intentObjectName).sort()).toEqual(["Gig", "Invitation"]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
+  it("marks a failed delivery undelivered, and leaves the entry replayable", async () => {
+    const runtime = await onlineRequiredRuntime();
+    const transport = new FailingTransport();
+
+    const outcomes = await new AuthoritySyncClient(runtime, transport).deliverPending(
+      undefined,
+      adminContext,
+    );
+
+    // A transport failure is not thrown at the writer: the local write stands.
+    expect(outcomes).toEqual([]);
+    const [entry] = runtime.syncQueue.getEntries();
+    expect(entry?.delivery?.status).toBe("undelivered");
+    expect(entry?.delivery?.message).toContain("The authority is unreachable.");
+    // Not a verdict: no recovery, and the next reconcile still sends it.
+    expect(entry?.recovery).toBeUndefined();
+    expect(runtime.syncQueue.getReplayable()).toHaveLength(1);
+    expect(runtime.syncQueue.getAwaitingRecovery()).toEqual([]);
+  });
+
+  it("lists an undelivered write as queue metadata a person can be shown", async () => {
+    const runtime = await onlineRequiredRuntime();
+    const client = new AuthoritySyncClient(runtime, new FailingTransport());
+    await client.deliverPending(undefined, adminContext);
+
+    const [item] = client.listUndelivered();
+    expect(item).toMatchObject({ objectName: "Invitation", operation: "create" });
+    // Queue metadata only: an undelivered item discloses no record values.
+    expect(JSON.stringify(client.listUndelivered())).not.toContain("player@example.test");
+    // It is not a settled operation, so it never appears as one.
+    expect(client.listRecovery()).toEqual([]);
+  });
+
+  it("retries an undelivered write under its original operation id", async () => {
+    const runtime = await onlineRequiredRuntime();
+    const failing = new FailingTransport();
+    const client = new AuthoritySyncClient(runtime, failing);
+    await client.deliverPending(undefined, adminContext);
+    const [undelivered] = client.listUndelivered();
+
+    // A transport failure settles nothing, so the retry must reuse the id: if
+    // the first request did reach the authority, the stored outcome answers it
+    // instead of the operation being applied twice.
+    const accepting = new FakeAuthorityTransport();
+    const outcome = await new AuthoritySyncClient(runtime, accepting).retryDelivery(
+      undefined,
+      adminContext,
+      undelivered?.queueId ?? "",
+    );
+
+    expect(outcome?.status).toBe("accepted");
+    expect(accepting.replayCalls[0]?.operationId).toBe(failing.replayCalls[0]?.operationId);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+  });
+
+  it("does not mark a local-first entry undelivered: queueing offline is that mode working", async () => {
+    const runtime = newRuntime();
+    await runtime.create("Gig", { Title: "Queued offline" }, { ...adminContext, online: false });
+    const client = new AuthoritySyncClient(runtime, new FailingTransport());
+
+    // Nothing here requires immediate delivery, so nothing is attempted at all.
+    await expect(client.deliverPending(undefined, adminContext)).resolves.toEqual([]);
+    await expect(client.reconcile(undefined, adminContext)).rejects.toThrow(
+      "The authority is unreachable.",
+    );
+    expect(runtime.syncQueue.getEntries()[0]?.delivery).toBeUndefined();
+    expect(client.listUndelivered()).toEqual([]);
+  });
+
+  it("clears the undelivered state once the authority answers", async () => {
+    const runtime = await onlineRequiredRuntime();
+    const client = new AuthoritySyncClient(runtime, new FailingTransport());
+    await client.deliverPending(undefined, adminContext);
+    expect(client.listUndelivered()).toHaveLength(1);
+
+    const rejecting = new FakeAuthorityTransport([], (intent) => ({
+      status: "rejected",
+      operationId: intent.operationId,
+      code: "ADL_POLICY_DENIED",
+      message: "Not permitted.",
+    }));
+    await new AuthoritySyncClient(runtime, rejecting).reconcile(undefined, adminContext);
+
+    // A verdict outranks the transport failure that preceded it: the entry is
+    // settled, so it is shown as refused rather than as still on its way.
+    expect(client.listUndelivered()).toEqual([]);
+    expect(client.listRecovery().map((item) => item.status)).toEqual(["rejected"]);
+  });
+
+  it("never queues a local-private write, so none can be marked undelivered", async () => {
+    const runtime = newRuntime();
+    await runtime.create("PrivateNote", { Body: "secret-private-body" }, adminContext);
+    const client = new AuthoritySyncClient(runtime, new FailingTransport());
+
+    await client.deliverPending(undefined, adminContext);
+
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+    expect(client.listUndelivered()).toEqual([]);
+  });
+});
+
+/** A command intent names no single object; every intent this suite sends does. */
+function intentObjectName(intent: AuthorityOperationIntent): string {
+  return intent.kind === "command" ? intent.commandName : intent.objectName;
+}
+
+/** Fails every replay the way an unreachable authority does: no verdict at all. */
+class FailingTransport implements AuthorityTransport {
+  readonly replayCalls: AuthorityOperationIntent[] = [];
+
+  async bootstrap(): Promise<AuthorityBootstrapResponse> {
+    throw new AuthorityTransportError("The authority is unreachable.", 503);
+  }
+
+  async replay(
+    _sessionToken: string | undefined,
+    intent: AuthorityOperationIntent,
+  ): Promise<AuthorityOutcome> {
+    this.replayCalls.push(intent);
+    throw new AuthorityTransportError("The authority is unreachable.", 503);
+  }
+}

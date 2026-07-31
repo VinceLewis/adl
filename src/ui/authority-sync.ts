@@ -3,7 +3,11 @@ import {
   HttpAuthorityTransport,
 } from "../server/http-authority-transport.js";
 import { AuthoritySyncClient } from "../server/sync-client.js";
-import type { SyncRecoveryChoice, SyncRecoveryItem } from "../server/sync-client.js";
+import type {
+  SyncDeliveryItem,
+  SyncRecoveryChoice,
+  SyncRecoveryItem,
+} from "../server/sync-client.js";
 import type { AuthorityOutcome } from "../server/authority-types.js";
 import type { HttpAuthorityTransportOptions } from "../server/http-authority-transport.js";
 import type { ApplicationRuntime } from "../runtime/application-runtime.js";
@@ -76,7 +80,7 @@ export interface BrowserAuthorityConnection extends AdlAuthorityBridge {
   client: AuthoritySyncClient;
   /** Applies every permitted page and returns how many records were reconciled. */
   bootstrap(context: RuntimeContext): Promise<number>;
-  /** Replays the local-first queue; local-private work never enters that queue. */
+  /** Replays the whole queue; local-private work never enters that queue. */
   reconcile(context: RuntimeContext): Promise<AuthorityOutcome[]>;
   /** Replay, then read back accepted state, then apply every automatic recovery. */
   synchronize(context: RuntimeContext): Promise<void>;
@@ -147,6 +151,7 @@ export async function connectBrowserAuthority(
   let invite: AdlInviteState = { status: "idle" };
   let devices: AdlDeviceState = { status: "idle", devices: [] };
   let recovery: SyncRecoveryItem[] = client.listRecovery();
+  let undelivered: SyncDeliveryItem[] = client.listUndelivered();
   let readinessAnswered = false;
 
   try {
@@ -217,6 +222,9 @@ export async function connectBrowserAuthority(
     get recovery() {
       return recovery;
     },
+    get undelivered() {
+      return undelivered;
+    },
 
     async bootstrap(context: RuntimeContext): Promise<number> {
       const response = await client.bootstrap(undefined, context);
@@ -244,6 +252,11 @@ export async function connectBrowserAuthority(
     async synchronize(context: RuntimeContext): Promise<void> {
       grace = evaluateOfflineGrace(persisted, offlineGraceDays, now());
       if (grace.status === "expired") {
+        // Declining to sync leaves the same work undelivered as a failed
+        // attempt would, so work that may not wait is marked rather than left
+        // to look pending forever.
+        client.markPendingUndelivered(GRACE_EXPIRED_DELIVERY_MESSAGE);
+        refreshQueueState();
         session = { ...session, grace };
         return;
       }
@@ -251,7 +264,7 @@ export async function connectBrowserAuthority(
       await client.reconcile(undefined, context);
       await client.bootstrap(undefined, context);
       await client.applyAutomaticRecovery(undefined, context);
-      recovery = client.listRecovery();
+      refreshQueueState();
       // A completed sync is a successful contact, so the clock restarts. Past
       // the halfway point it also rotates, which is what restarts the session
       // the authority holds rather than only the client's belief about it.
@@ -438,12 +451,60 @@ export async function connectBrowserAuthority(
       } catch (error) {
         session = { ...session, error: describeAuthorityFailure(error) };
       }
-      recovery = client.listRecovery();
+      refreshQueueState();
+      await options.onChange();
+    },
+
+    /**
+     * Sends the queued work that may not wait, right after the write that
+     * produced it. It never throws at the caller and never undoes the local
+     * write: the write was accepted, and a failure here is a delivery state the
+     * user is shown, not a verdict on the operation.
+     *
+     * It is attempted even when the browser believes it is offline. The
+     * connection may have dropped between the write being accepted and this
+     * call, and an attempt that fails records the undelivered state that makes
+     * the write visible — where skipping it would leave exactly the silent
+     * pending write this path exists to prevent.
+     */
+    async deliverPending(): Promise<number> {
+      grace = evaluateOfflineGrace(persisted, offlineGraceDays, now());
+      let answered = 0;
+      if (grace.status === "expired") {
+        client.markPendingUndelivered(GRACE_EXPIRED_DELIVERY_MESSAGE);
+      } else {
+        try {
+          answered = (await client.deliverPending(undefined, options.getContext())).length;
+        } catch (error) {
+          // `deliverPending` records transport failures itself; anything that
+          // still escapes must not break the write that triggered it.
+          console.warn(`ADL could not deliver a queued change: ${describeAuthorityFailure(error)}`);
+        }
+      }
+      refreshQueueState();
+      await options.onChange();
+      return answered;
+    },
+
+    /** Sends one undelivered operation again, under its original operation id. */
+    async retryDelivery(queueId: string): Promise<void> {
+      try {
+        await client.retryDelivery(undefined, options.getContext(), queueId);
+      } catch (error) {
+        session = { ...session, error: describeAuthorityFailure(error) };
+      }
+      refreshQueueState();
       await options.onChange();
     },
   };
 
   return connection;
+
+  /** Both queue-derived surfaces are read from the queue together, never apart. */
+  function refreshQueueState(): void {
+    recovery = client.listRecovery();
+    undelivered = client.listUndelivered();
+  }
 
   /**
    * Records a successful authentication: the server-derived identity is cached
@@ -512,10 +573,18 @@ export async function connectBrowserAuthority(
           : { ...session, busy: false, error: describeAuthorityFailure(error) };
     }
     session = { ...session, busy: false };
-    recovery = client.listRecovery();
+    refreshQueueState();
     await options.onChange();
   }
 }
+
+/**
+ * Said when the device's offline grace has run out. Sync is suspended, so the
+ * write is not going anywhere until the person signs in again, and the surface
+ * has to say that rather than show a change as merely pending.
+ */
+const GRACE_EXPIRED_DELIVERY_MESSAGE =
+  "This device has been offline too long to sync. Sign in again to send this change.";
 
 /**
  * Drains the offline queue and refreshes the dataset when the browser comes

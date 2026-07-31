@@ -1909,6 +1909,15 @@ textarea.adl-field-control {
   color: var(--adl-color-danger);
 }
 
+/*
+ * An undelivered change is pending, not refused, and is coloured as such: the
+ * work is safe here and has not been sent, which is a different thing from a
+ * server verdict against it.
+ */
+.adl-sync-recovery-item[data-recovery-status="undelivered"] .adl-sync-recovery-verdict {
+  color: var(--adl-color-status-busy-elsewhere);
+}
+
 .adl-sync-recovery-choices {
   display: flex;
   flex-wrap: wrap;

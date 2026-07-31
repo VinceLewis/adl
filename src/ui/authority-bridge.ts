@@ -1,5 +1,9 @@
 import type { AuthorityDeviceSession } from "../server/http-authority-transport.js";
-import type { SyncRecoveryChoice, SyncRecoveryItem } from "../server/sync-client.js";
+import type {
+  SyncDeliveryItem,
+  SyncRecoveryChoice,
+  SyncRecoveryItem,
+} from "../server/sync-client.js";
 import type { OfflineGraceState } from "./offline-session.js";
 
 /**
@@ -15,6 +19,12 @@ export interface AdlAuthorityBridge {
   readonly devices: AdlDeviceState;
   /** Settled operations still awaiting a strategy or a person. */
   readonly recovery: SyncRecoveryItem[];
+  /**
+   * Accepted writes that have not reached the authority. Unlike `recovery`
+   * these carry no verdict and are still queued: the user is being told the
+   * work has not landed, not asked to choose a winner.
+   */
+  readonly undelivered: SyncDeliveryItem[];
   signIn(accountProof: string): Promise<void>;
   /**
    * Registers an authenticator. With no invite token the caller must already
@@ -36,6 +46,18 @@ export interface AdlAuthorityBridge {
   revokeDevice(sessionId: string): Promise<void>;
   claimInvite(inviteToken: string): Promise<void>;
   resolveRecovery(queueId: string, choice: SyncRecoveryChoice): Promise<void>;
+  /**
+   * Sends every queued operation whose mode does not permit it to wait. Called
+   * after a write rather than only on reconnect, because an `onlineRequired`
+   * write was accepted on the premise that the authority is reachable now.
+   *
+   * Returns how many operations the authority answered, so a caller can refresh
+   * the records those answers changed and do nothing at all when there was
+   * nothing to send.
+   */
+  deliverPending(): Promise<number>;
+  /** Sends one undelivered operation again under its original operation id. */
+  retryDelivery(queueId: string): Promise<void>;
 }
 
 export type AdlSessionStatus = "signedOut" | "signedIn" | "unavailable";
@@ -99,6 +121,7 @@ export const ADL_SIGN_IN_EVENT = "adl-sign-in";
 export const ADL_SIGN_OUT_EVENT = "adl-sign-out";
 export const ADL_CLAIM_INVITE_EVENT = "adl-claim-invite";
 export const ADL_RESOLVE_RECOVERY_EVENT = "adl-resolve-recovery";
+export const ADL_RETRY_DELIVERY_EVENT = "adl-retry-delivery";
 export const ADL_REGISTER_PASSKEY_EVENT = "adl-register-passkey";
 export const ADL_PASSKEY_SIGN_IN_EVENT = "adl-passkey-sign-in";
 export const ADL_REFRESH_DEVICES_EVENT = "adl-refresh-devices";
@@ -129,6 +152,10 @@ export interface ResolveRecoveryDetail {
   choice: SyncRecoveryChoice;
 }
 
+export interface RetryDeliveryDetail {
+  queueId: string;
+}
+
 export const RECOVERY_CHOICE_LABELS: Record<SyncRecoveryChoice, string> = {
   keepServer: "Keep the server version",
   resubmitMine: "Resubmit my change",
@@ -137,14 +164,28 @@ export const RECOVERY_CHOICE_LABELS: Record<SyncRecoveryChoice, string> = {
 /** Terminal-verdict wording, so a rejection does not read as a choice. */
 export const RECOVERY_ACKNOWLEDGE_LABEL = "Dismiss";
 
+/**
+ * Wording for an undelivered write. It states what is true — the change is
+ * saved here and the server has not received it — rather than implying the work
+ * was lost or that the server refused it.
+ */
+export const DELIVERY_UNDELIVERED_LABEL = "Saved here, not yet sent to the server";
+export const DELIVERY_RETRY_LABEL = "Try sending again";
+
 export function describeRecoveryItem(item: SyncRecoveryItem): string {
-  const operation =
-    item.operation === "create"
-      ? "Create"
-      : item.operation === "delete"
-        ? "Delete"
-        : item.operation === "transition"
-          ? "Transition"
-          : "Update";
-  return `${operation} ${item.objectName}`;
+  return `${describeOperationKind(item.operation)} ${item.objectName}`;
+}
+
+export function describeDeliveryItem(item: SyncDeliveryItem): string {
+  return `${describeOperationKind(item.operation)} ${item.objectName}`;
+}
+
+function describeOperationKind(operation: SyncRecoveryItem["operation"]): string {
+  return operation === "create"
+    ? "Create"
+    : operation === "delete"
+      ? "Delete"
+      : operation === "transition"
+        ? "Transition"
+        : "Update";
 }

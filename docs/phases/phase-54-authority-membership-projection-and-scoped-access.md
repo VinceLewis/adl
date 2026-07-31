@@ -89,6 +89,43 @@
 > still has no writer, and the three `listRecords()` scans are still O(all
 > accepted records). Nothing Phase 52 did touches them.
 
+> **Phase 53 handoff (kept in sequence; accepted).** Phase 53 gave every sync
+> mode a stated relationship to the authority. `onlineRequired` writes now queue
+> and are delivered — the Giggle Band `BandInvitation` defect is fixed and proven
+> against real PostgreSQL — `localPrivate` writes are refused on the `sync`
+> channel so the authority can no longer accept a record no bootstrap returns,
+> and an undelivered write is shown to the user instead of being lost. The corpus
+> gained an `authorityBootstrap` operation, so what a device *reads back* is now
+> assertable rather than only what the authority accepts.
+>
+> **This phase remains the highest-value remaining gap repository-wide**, and
+> Phase 53 strengthened rather than weakened its case. `AuthorityService.bootstrap`
+> was already on the hot path for every reconnect; it now also carries every
+> `onlineRequired` object, which previously never reached the authority at all.
+> The three `listRecords()` scans are unchanged and still O(all accepted
+> records), and `adl_authority_context_memberships` still has no writer. Phase 53
+> touched neither.
+>
+> Two findings from Phase 53's mode-by-mode audit, neither of which outranks this
+> phase:
+>
+> - **`cacheReadonly` has no producer.** The mode's premise is that the data is
+>   owned elsewhere and cached read-only on a device, so no client write and no
+>   replay can create one — correctly. But the reference app declares
+>   `StreamingLink` as `SYNC CACHE_READONLY` while offering it as ordinary band
+>   data a member would enter, so no user of the deployed app can ever populate
+>   it. That is a reference-app modelling defect rather than a platform one, and
+>   it belongs to Phase 56; a note has been added there. The platform question
+>   behind it — how authority-owned data enters ADL at all — is an import or
+>   provisioning feature, not a defect of the delivery paths this phase's
+>   predecessor closed.
+> - **The authority's own sync queue is bounded.** Worth recording because
+>   Phase 53 widened what enqueues: in the deployed configuration every accepted
+>   replay runs on a transaction-scoped runtime
+>   (`authority-unit-of-work.ts:53`), so its queue is discarded with the
+>   transaction. The long-lived `AuthorityService.runtime` is used only for reads
+>   and the model index. No growth, nothing to fix.
+
 ## Objective
 
 Populate and use the context-membership projection so authority membership

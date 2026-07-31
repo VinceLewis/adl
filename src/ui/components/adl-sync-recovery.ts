@@ -1,10 +1,19 @@
-import type { SyncRecoveryChoice, SyncRecoveryItem } from "../../server/sync-client.js";
+import type {
+  SyncDeliveryItem,
+  SyncRecoveryChoice,
+  SyncRecoveryItem,
+} from "../../server/sync-client.js";
 import {
   ADL_RESOLVE_RECOVERY_EVENT,
+  ADL_RETRY_DELIVERY_EVENT,
+  DELIVERY_RETRY_LABEL,
+  DELIVERY_UNDELIVERED_LABEL,
   RECOVERY_ACKNOWLEDGE_LABEL,
   RECOVERY_CHOICE_LABELS,
+  describeDeliveryItem,
   describeRecoveryItem,
   type ResolveRecoveryDetail,
+  type RetryDeliveryDetail,
 } from "../authority-bridge.js";
 import { escapeHtml } from "./html.js";
 
@@ -19,21 +28,44 @@ export const RECOVERY_STATUS_LABELS: Record<string, string> = {
 };
 
 /**
- * Presents the operations the authority has settled against the queue and that
- * still need a person. It decides nothing: the choices come from the item, the
- * resolution is performed by whoever listens to `adl-resolve-recovery`.
+ * Presents the work that has not landed on the authority: the operations it has
+ * settled against the queue and that still need a person, and the accepted
+ * writes that never reached it at all. It decides nothing — the choices come
+ * from the item, and whoever listens to `adl-resolve-recovery` or
+ * `adl-retry-delivery` performs the action.
  *
- * It renders only `SyncRecoveryItem` fields. A conflict must never disclose a
- * server record the caller could not read through a normal runtime read, so no
- * record or field value reaches this component at all.
+ * The two are shown together and labelled apart. Both answer "what happened to
+ * my change?", so splitting them across surfaces would make a person check two
+ * places to learn that nothing had gone wrong yet; but an undelivered change is
+ * not a verdict, so it never offers a verdict's choices.
+ *
+ * It renders only `SyncRecoveryItem` and `SyncDeliveryItem` fields. A conflict
+ * must never disclose a server record the caller could not read through a
+ * normal runtime read, so no record or field value reaches this component.
  */
 export class AdlSyncRecoveryElement extends HTMLElement {
   private _items: SyncRecoveryItem[] = [];
+  private _undelivered: SyncDeliveryItem[] = [];
   private _busy = false;
 
   private readonly handleClick = (event: Event): void => {
     const target = event.target;
     if (!(target instanceof Element) || this._busy) {
+      return;
+    }
+
+    const retry = target.closest<HTMLButtonElement>("[data-delivery-retry]");
+    if (retry !== null) {
+      const retryQueueId = retry.dataset.deliveryQueueId;
+      if (retryQueueId !== undefined) {
+        this.dispatchEvent(
+          new CustomEvent<RetryDeliveryDetail>(ADL_RETRY_DELIVERY_EVENT, {
+            bubbles: true,
+            composed: true,
+            detail: { queueId: retryQueueId },
+          }),
+        );
+      }
       return;
     }
 
@@ -66,6 +98,15 @@ export class AdlSyncRecoveryElement extends HTMLElement {
     return [...this._items];
   }
 
+  set undelivered(items: SyncDeliveryItem[]) {
+    this._undelivered = [...items];
+    this.render();
+  }
+
+  get undelivered(): SyncDeliveryItem[] {
+    return [...this._undelivered];
+  }
+
   set busy(busy: boolean) {
     this._busy = busy;
     this.render();
@@ -85,8 +126,8 @@ export class AdlSyncRecoveryElement extends HTMLElement {
   }
 
   private render(): void {
-    // Nothing to recover means no chrome at all, not an empty panel.
-    if (this._items.length === 0) {
+    // Nothing outstanding means no chrome at all, not an empty panel.
+    if (this._items.length === 0 && this._undelivered.length === 0) {
       this.innerHTML = "";
       return;
     }
@@ -100,8 +141,43 @@ export class AdlSyncRecoveryElement extends HTMLElement {
         data-sync-recovery="true"
       >
         <h2 class="adl-sync-recovery-heading">Changes that need your attention</h2>
+        ${this._undelivered.map((item) => this.renderUndelivered(item)).join("")}
         ${this._items.map((item) => this.renderItem(item)).join("")}
       </section>
+    `;
+  }
+
+  /**
+   * An undelivered write offers one action and no choice. There is no server
+   * version to keep and no verdict to dismiss: the change is saved here, the
+   * authority has not seen it, and the only move is to try again.
+   */
+  private renderUndelivered(item: SyncDeliveryItem): string {
+    const message =
+      item.message.length === 0
+        ? ""
+        : `<p class="adl-sync-recovery-message">${escapeHtml(item.message)}</p>`;
+
+    return `
+      <article
+        class="adl-sync-recovery-item adl-sync-recovery-item-undelivered"
+        data-recovery-queue-id="${escapeHtml(item.queueId)}"
+        data-recovery-status="undelivered"
+        data-delivery-item="true"
+      >
+        <h3 class="adl-sync-recovery-title">${escapeHtml(describeDeliveryItem(item))}</h3>
+        <p class="adl-sync-recovery-verdict">${escapeHtml(DELIVERY_UNDELIVERED_LABEL)}</p>
+        ${message}
+        <div class="adl-sync-recovery-choices">
+          <button
+            class="adl-sync-recovery-choice"
+            type="button"
+            data-delivery-retry="true"
+            data-delivery-queue-id="${escapeHtml(item.queueId)}"
+            ${this._busy ? "disabled" : ""}
+          >${escapeHtml(DELIVERY_RETRY_LABEL)}</button>
+        </div>
+      </article>
     `;
   }
 

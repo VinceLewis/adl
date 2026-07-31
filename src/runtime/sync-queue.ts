@@ -4,6 +4,7 @@ import type {
   ResolvedObject,
 } from "../model/resolved-model.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
+import { isQueueableSyncMode, requiresImmediateDelivery } from "./sync-policy-service.js";
 import { cloneJson, noopRuntimeLogger } from "./runtime-types.js";
 import type { RuntimeLogger } from "./runtime-types.js";
 
@@ -28,12 +29,29 @@ export interface SyncQueueEntryRecovery {
   recordedAt: string;
 }
 
+/**
+ * A delivery attempt that failed for transport reasons, held on the entry so a
+ * write the runtime accepted and could not send is visible rather than lost.
+ *
+ * It is emphatically not a verdict: the entry keeps no `recovery`, stays
+ * replayable, and is sent again by the next reconcile. Recorded only for a mode
+ * whose accepted writes may not wait for a later connection, because a
+ * `localFirst` entry waiting offline is that mode working, not failing.
+ */
+export interface SyncQueueEntryDelivery {
+  status: "undelivered";
+  message: string;
+  attemptedAt: string;
+}
+
 export interface SyncQueueEntry {
   queueId: string;
   operation: LocalOperation;
   objectSync: ResolvedObject["sync"];
   /** Present once the authority has answered; absent while the entry is replayable. */
   recovery?: SyncQueueEntryRecovery;
+  /** Present after a failed delivery attempt; cleared once the entry is sent or answered. */
+  delivery?: SyncQueueEntryDelivery;
   /** Resubmission count, so each retry carries an operation id the authority has not settled. */
   attempts?: number;
 }
@@ -53,7 +71,10 @@ export class SyncQueue {
     }
 
     const object = this.index.getObject(operation.object);
-    if (object.sync.mode !== "localFirst") {
+    // Every mode whose accepted writes belong to the authority is queued here,
+    // not `localFirst` alone. An `onlineRequired` write that skipped the queue
+    // was validated, persisted, logged and then never sent to anyone.
+    if (!isQueueableSyncMode(object.sync.mode)) {
       this.logger.debug("SyncQueue.enqueue skipped", {
         objectName: operation.object,
         mode: object.sync.mode,
@@ -90,10 +111,54 @@ export class SyncQueue {
     return cloneJson(this.entries.filter((entry) => entry.recovery !== undefined));
   }
 
+  /**
+   * Entries that were expected to reach the authority now and did not. They are
+   * still replayable — a transport failure settles nothing — so they appear here
+   * *and* in `getReplayable()`.
+   */
+  getUndelivered(): SyncQueueEntry[] {
+    return cloneJson(this.entries.filter((entry) => entry.delivery !== undefined));
+  }
+
   setRecovery(queueId: string, recovery: SyncQueueEntryRecovery): void {
     const entry = this.entries.find((candidate) => candidate.queueId === queueId);
     if (entry !== undefined) {
       entry.recovery = cloneJson(recovery);
+      // The authority answered, so the delivery question is closed however it
+      // answered. Leaving the marker would report the entry as both undelivered
+      // and settled.
+      delete entry.delivery;
+    }
+  }
+
+  /**
+   * Records a failed delivery attempt. Ignored for a mode that is allowed to
+   * wait for the next connection, so normal offline queueing is never reported
+   * as a failure, and ignored once the authority has answered, because a verdict
+   * outranks a transport failure that preceded it.
+   */
+  setDeliveryFailure(queueId: string, delivery: SyncQueueEntryDelivery): void {
+    const entry = this.entries.find((candidate) => candidate.queueId === queueId);
+    if (
+      entry === undefined ||
+      entry.recovery !== undefined ||
+      !requiresImmediateDelivery(entry.objectSync.mode)
+    ) {
+      return;
+    }
+
+    entry.delivery = cloneJson(delivery);
+    this.logger.debug("SyncQueue.setDeliveryFailure recorded", {
+      objectName: entry.operation.object,
+      queueId,
+      mode: entry.objectSync.mode,
+    });
+  }
+
+  clearDeliveryFailure(queueId: string): void {
+    const entry = this.entries.find((candidate) => candidate.queueId === queueId);
+    if (entry !== undefined) {
+      delete entry.delivery;
     }
   }
 
@@ -109,6 +174,7 @@ export class SyncQueue {
     }
 
     delete entry.recovery;
+    delete entry.delivery;
     entry.attempts = (entry.attempts ?? 0) + 1;
     return cloneJson(entry);
   }

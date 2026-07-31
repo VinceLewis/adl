@@ -15,7 +15,7 @@ import type {
   AdlSessionState,
 } from "../src/ui/authority-bridge.js";
 import type { OfflineGraceState } from "../src/ui/offline-session.js";
-import type { SyncRecoveryChoice, SyncRecoveryItem } from "../src/index.js";
+import type { SyncDeliveryItem, SyncRecoveryChoice, SyncRecoveryItem } from "../src/index.js";
 import type { PartialApplicationModel, RuntimeContext } from "../src/index.js";
 
 /**
@@ -91,12 +91,25 @@ function signedOutState(): AdlSessionState {
   };
 }
 
+function signedInState(): AdlSessionState {
+  return {
+    status: "signedIn",
+    userId: "user-42",
+    developmentMode: false,
+    identityMode: "bypass",
+    passkeySupported: true,
+    busy: false,
+    grace: NO_GRACE,
+  };
+}
+
 /** Records every call so the shell's dispatch can be asserted without a network. */
 class FakeAuthorityBridge implements AdlAuthorityBridge {
   session: AdlSessionState = signedOutState();
   invite: AdlInviteState = { status: "idle" };
   devices: AdlDeviceState = { status: "idle", devices: [] };
   recovery: SyncRecoveryItem[] = [];
+  undelivered: SyncDeliveryItem[] = [];
   readonly calls: string[] = [];
 
   async signIn(accountProof: string): Promise<void> {
@@ -148,6 +161,14 @@ class FakeAuthorityBridge implements AdlAuthorityBridge {
   async resolveRecovery(queueId: string, choice: SyncRecoveryChoice): Promise<void> {
     this.calls.push(`resolveRecovery:${queueId}:${choice}`);
     this.recovery = this.recovery.filter((item) => item.queueId !== queueId);
+  }
+  async deliverPending(): Promise<number> {
+    this.calls.push("deliverPending");
+    return 0;
+  }
+  async retryDelivery(queueId: string): Promise<void> {
+    this.calls.push(`retryDelivery:${queueId}`);
+    this.undelivered = this.undelivered.filter((item) => item.queueId !== queueId);
   }
 }
 
@@ -203,15 +224,7 @@ describe("browser authority chrome", () => {
 
   it("refuses an invite claim while offline instead of queuing it", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = {
-      status: "signedIn",
-      userId: "user-42",
-      developmentMode: false,
-      identityMode: "bypass",
-      passkeySupported: true,
-      busy: false,
-      grace: NO_GRACE,
-    };
+    bridge.session = signedInState();
     const app = await mountApp(bridge, { ...adminContext, online: false });
 
     const claim = requireElement<HTMLButtonElement>(app, "[data-session-claim-invite]");
@@ -224,15 +237,7 @@ describe("browser authority chrome", () => {
 
   it("claims an invitation through the bridge when online", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = {
-      status: "signedIn",
-      userId: "user-42",
-      developmentMode: false,
-      identityMode: "bypass",
-      passkeySupported: true,
-      busy: false,
-      grace: NO_GRACE,
-    };
+    bridge.session = signedInState();
     const app = await mountApp(bridge, { ...adminContext, online: true });
 
     requireElement<HTMLInputElement>(app, "[data-session-invite-token]").value =
@@ -289,15 +294,7 @@ describe("browser authority chrome", () => {
 
   it("shows a manual conflict and resolves it through the bridge", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = {
-      status: "signedIn",
-      userId: "user-42",
-      developmentMode: false,
-      identityMode: "bypass",
-      passkeySupported: true,
-      busy: false,
-      grace: NO_GRACE,
-    };
+    bridge.session = signedInState();
     bridge.recovery = [recoveryItem({ strategy: "manual" })];
     const app = await mountApp(bridge);
 
@@ -314,17 +311,41 @@ describe("browser authority chrome", () => {
     expect(requireElement<HTMLElement>(app, "adl-sync-recovery").innerHTML).toBe("");
   });
 
+  it("shows an undelivered write as pending rather than as a verdict, and retries it", async () => {
+    const bridge = new FakeAuthorityBridge();
+    bridge.session = signedInState();
+    bridge.undelivered = [
+      {
+        queueId: "sync-op-9",
+        opId: "op-9",
+        objectName: "BandInvitation",
+        recordId: "invite-1",
+        operation: "create",
+        message: "AuthorityTransportError: The authority is unreachable.",
+        attemptedAt: "2026-07-31T09:00:00.000Z",
+      },
+    ];
+    const app = await mountApp(bridge);
+
+    const recovery = requireElement<HTMLElement>(app, "adl-sync-recovery");
+    const item = requireElement<HTMLElement>(recovery, "[data-delivery-item]");
+    expect(item.dataset.recoveryStatus).toBe("undelivered");
+    expect(item.textContent).toContain("Create BandInvitation");
+    expect(item.textContent).toContain("Saved here, not yet sent to the server");
+    // It is not a verdict, so it never offers a verdict's choices.
+    expect(item.querySelector("[data-recovery-choice]")).toBeNull();
+
+    requireElement<HTMLButtonElement>(item, "[data-delivery-retry]").click();
+    await flushUi();
+
+    expect(bridge.calls).toEqual(["retryDelivery:sync-op-9"]);
+    // Delivered work leaves the surface once the bridge reports it gone.
+    expect(requireElement<HTMLElement>(app, "adl-sync-recovery").innerHTML).toBe("");
+  });
+
   it("offers a rejected write a dismissal only, never a resubmission", async () => {
     const bridge = new FakeAuthorityBridge();
-    bridge.session = {
-      status: "signedIn",
-      userId: "user-42",
-      developmentMode: false,
-      identityMode: "bypass",
-      passkeySupported: true,
-      busy: false,
-      grace: NO_GRACE,
-    };
+    bridge.session = signedInState();
     bridge.recovery = [
       recoveryItem({
         status: "rejected",

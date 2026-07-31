@@ -315,7 +315,8 @@ rather than a cached grant, so revocation takes effect on the next resolution.
 `localFirst` allows local writes and queues syncable operations.
 `cacheReadonly` allows local reads of cached records but rejects local writes.
 `onlineRequired` rejects writes only when `context.online === false`.
-`localPrivate` allows local writes but excludes them from the sync queue.
+`localPrivate` allows local writes on every channel except `sync`, and excludes
+them from the sync queue.
 
 Policy checks run before sync-mode write checks.
 
@@ -323,13 +324,70 @@ A write decision carries `queueable`, and it is a claim about what the runtime
 did, not a label: an allowed write is queued if and only if its decision says
 `queueable`. `localPrivate` is `queueable: false` for **every** operation kind —
 create, update, delete and transition — whether the context is online or
-offline, and whether or not other operations are already queued. This is the
-only observable difference between `localPrivate` and `localFirst`; a runtime
-that queued a `localPrivate` write would have implemented one mode twice.
+offline, and whether or not other operations are already queued. A runtime that
+queued a `localPrivate` write would have implemented one mode twice.
 
 A refused write is queue-neutral. Nothing a `cacheReadonly` or offline
 `onlineRequired` write attempts may reach the queue, so a refusal can never cost
 a device the operations it was already holding.
+
+### Each mode's relationship to the authority
+
+Every mode has a stated answer in every column. Silence in any of them is what
+let an `onlineRequired` write be accepted locally and then never sent.
+
+| Mode | Local write | Queued and delivered | Authority accepts a replay | Bootstrap returns it |
+| --- | --- | --- | --- | --- |
+| `localFirst` | allowed online and offline | yes — delivered on the next reconcile | yes | yes |
+| `onlineRequired` | allowed only while `context.online !== false` | yes — delivery is attempted at once, and retried by every later reconcile until it lands | yes | yes |
+| `cacheReadonly` | refused on every channel | never: there is no accepted local write to queue | no — `ADL_SYNC_POLICY_DENIED` | yes |
+| `localPrivate` | allowed, except on the `sync` channel | never | no — `ADL_SYNC_POLICY_DENIED` | no |
+
+Two entries in that table are reachable only from the authority's side and are
+stated so a runtime does not have to guess:
+
+- A `cacheReadonly` record is read-only on a device, not invisible to it, so a
+  bootstrap discloses it under the same read policy as any other record. No
+  replay can create one, so such records originate on the authority rather than
+  on a device.
+- No `localPrivate` record can reach the authority at all, because the write is
+  refused on the `sync` channel before it is applied. A bootstrap therefore
+  excludes `localPrivate` objects as a second, redundant guard rather than as
+  the rule that keeps them local.
+
+### `onlineRequired` delivery
+
+An accepted `onlineRequired` write is queued exactly as a `localFirst` write is,
+and delivered by the same path. The mode's whole difference from `localFirst` is
+that it refuses the write while offline; once a write has been accepted, holding
+no delivery path for it would mean accepting work the runtime could not
+complete.
+
+Delivery of a queued `onlineRequired` operation is attempted immediately rather
+than deferred to the next reconcile, because the mode's premise is that the
+authority is reachable now. An attempt that fails does not undo the accepted
+write and does not settle the operation: the entry stays queued and replayable,
+and every later reconcile sends it again until the authority answers.
+
+### Delivery state
+
+A transport failure is not a verdict and never becomes one. It is recorded
+against the queue entry as an **undelivered** delivery state, distinct from the
+`rejected`, `conflict` and `manualResolution` verdicts the authority issues:
+
+- An undelivered entry is still replayable and is still sent by the next
+  reconcile. A verdict-bearing entry is not.
+- The delivery state is cleared when the entry is delivered, when the authority
+  answers it, or when it is retried.
+- An undelivered entry must be visible to the user, in the same surface as a
+  settled one. A write the runtime accepted and cannot deliver is the failure
+  mode this state exists to make impossible to hide.
+
+An undelivered state is recorded only for a mode whose accepted writes may not
+wait for a later connection — today `onlineRequired` alone. A `localFirst` write
+that has not been delivered is holding, not failing: queueing until the device
+reconnects is that mode's contract, and reporting it as undelivered would
+present normal offline operation as an error.
 
 ## Offline Datasets
 

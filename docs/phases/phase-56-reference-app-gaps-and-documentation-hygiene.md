@@ -22,6 +22,16 @@ documentation back into line with what the repository actually contains.
   compaction after removal; batch commands for song import, batch set-list item
   creation and drag-reorder updates; and ADL `SHELL`, `TOP_BAR` and `NAV_DRAWER`
   source syntax, the browser shell being generic but not model-declared.
+- **`StreamingLink` is declared with a mode that has no producer.**
+  Recorded by the Phase 53 mode-by-mode audit. `src/reference/giggle-band/domain.adl:207`
+  declares `SYNC CACHE_READONLY`, which means the data is owned elsewhere and
+  cached read-only on a device: no local write and no authority replay may create
+  one, and Phase 53 confirmed both refusals are correct and deliberate. But the
+  app presents `StreamingLink` as ordinary band data with an entry-shaped list
+  view, so no user of the deployed app can ever populate it. Either the object is
+  band-authored and the mode is wrong, or it is genuinely externally owned and
+  the app needs to say where it comes from. Decide which, and fix the model
+  rather than the platform.
 - **Planning documentation has drifted.**
   `docs/architecture/target-architecture.md` still ends its "Sequencing" section
   at "Phase 20 ... Phase 23" and says "Server implementation should wait until
@@ -39,6 +49,9 @@ which determines which gaps still matter.
 - Triage the open band-app gaps against the delivered platform: implement those
   that are genuine generic capabilities, and explicitly close as unnecessary any
   that Phase 46-50 or earlier work has already made moot.
+- Decide `StreamingLink`'s sync mode. It is declared `cacheReadonly` and offered
+  as user-entered band data, which cannot both be true; the platform behaviour is
+  correct and settled by Phase 53, so the fix is in the model.
 - Implement the surviving gaps as generic model and runtime capabilities, not as
   app-specific hooks or Giggle-specific code paths.
 - Reconcile the planning and architecture documentation: target architecture
@@ -164,7 +177,7 @@ Use worktree isolation for every capability agent.
 ## Tasks
 
 1. Triage each documented gap against the delivered platform and record
-   implement-or-close with reasons.
+   implement-or-close with reasons, including `StreamingLink`'s sync mode.
 2. Extend the resolved model, resolution and validation for every surviving gap
    in one serial pass.
 3. Implement each surviving capability generically, with runtime enforcement in
