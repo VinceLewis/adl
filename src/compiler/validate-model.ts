@@ -251,6 +251,7 @@ export const MODEL_VALIDATION_CODES = {
   COMMAND_STEP_OBJECT_UNKNOWN: "ADL_COMMAND_STEP_OBJECT_UNKNOWN",
   COMMAND_STEP_REFERENCE_UNKNOWN: "ADL_COMMAND_STEP_REFERENCE_UNKNOWN",
   COMMAND_STEP_RUNTIME_PROPERTY_INVALID: "ADL_COMMAND_STEP_RUNTIME_PROPERTY_INVALID",
+  COMMAND_STEP_SYNC_MODE_MIXED: "ADL_COMMAND_STEP_SYNC_MODE_MIXED",
   OBJECT_DISPLAY_FIELD_UNKNOWN: "ADL_OBJECT_DISPLAY_FIELD_UNKNOWN",
   OBJECT_CONSTRAINT_COMPACTION_INVALID: "ADL_OBJECT_CONSTRAINT_COMPACTION_INVALID",
   OBJECT_CONSTRAINT_DUPLICATE: "ADL_OBJECT_CONSTRAINT_DUPLICATE",
@@ -676,6 +677,17 @@ const SYNC_MODES = new Set<SyncMode>([
   "onlineRequired",
   "localPrivate",
 ]);
+/*
+ * Whether an accepted write of this mode is handed to the sync queue for
+ * delivery to the authority. This deliberately restates `isQueueableSyncMode`
+ * from `src/runtime/sync-policy-service.ts` rather than importing it: the
+ * compiler depends on the model only, and inverting that layering for two lines
+ * would cost more than the duplication does. The two must change together, so
+ * the set of queueing modes is stated in both places or neither.
+ */
+function isQueueableSyncMode(mode: SyncMode): boolean {
+  return mode === "localFirst" || mode === "onlineRequired";
+}
 const SYNC_SCOPES = new Set<SyncScope>([
   "all",
   "currentUser",
@@ -6615,6 +6627,72 @@ function validateCommand(
     );
     previousStepsByName.set(step.name, step);
   }
+
+  validateCommandStepSyncCoherence(command, commandPath, indexes, diagnostics);
+}
+
+/**
+ * A command replays to the authority as a single `command` intent, and a queue
+ * entry carries exactly one object's sync declaration. So if a command's steps
+ * disagree about whether their writes are delivered to the authority at all,
+ * there is no delivery the runtime can choose that is not wrong: queue the
+ * command and the authority refuses the write that was never meant to leave the
+ * device, on this reconnect and on every one after it; withhold it and the steps
+ * that were meant to reach the authority silently never do. Refusing the model
+ * is the only answer that does not lose writes or wedge the queue.
+ *
+ * Mixing `localFirst` with `onlineRequired` is not this defect. Both queue, and
+ * `commandModeRank` in the object store picks the more demanding of the two to
+ * file the entry under. A command all of whose objects withhold their writes is
+ * not this defect either: it simply never enters the queue.
+ */
+function validateCommandStepSyncCoherence(
+  command: ResolvedCommand,
+  commandPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const queued = new Map<string, SyncMode>();
+  const withheld = new Map<string, SyncMode>();
+
+  for (let stepIndex = 0; stepIndex < command.steps.length; stepIndex += 1) {
+    const step = command.steps[stepIndex];
+    if (step === undefined) {
+      continue;
+    }
+    const object = indexes.objectsByName.get(step.object)?.item;
+    if (object === undefined) {
+      // Already reported as an unknown step object, and an object that does not
+      // resolve has no declared mode to disagree with.
+      continue;
+    }
+    const mode = object.sync.mode;
+    if (!SYNC_MODES.has(mode)) {
+      // Same reasoning for an unreadable mode: it is already reported against
+      // the object, and guessing which side of the split it belongs on would
+      // stack a second, misleading error on top of the first.
+      continue;
+    }
+    (isQueueableSyncMode(mode) ? queued : withheld).set(object.name, mode);
+  }
+
+  if (queued.size === 0 || withheld.size === 0) {
+    return;
+  }
+
+  // One diagnostic for the whole command: the disagreement is a property of the
+  // command, and no single step is the one at fault.
+  diagnostics.push(
+    diagnostic(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_SYNC_MODE_MIXED,
+      `Command '${command.name}' replays to the authority as one transaction, so its steps cannot disagree about whether their writes are delivered to the authority at all. Steps write ${describeObjectSyncModes(queued)}, whose writes are queued for the authority, and ${describeObjectSyncModes(withheld)}, whose writes never leave the device.`,
+      `${commandPath}.steps`,
+    ),
+  );
+}
+
+function describeObjectSyncModes(modesByObject: Map<string, SyncMode>): string {
+  return [...modesByObject].map(([objectName, mode]) => `'${objectName}' (${mode})`).join(", ");
 }
 
 function validateCommandInput(

@@ -62,7 +62,19 @@ Before tasks that change the authority entrypoint or its deployment configuratio
 Before tasks that change the create intent contract, the authority's create path, record id minting or validation, or anything that decides which side of the sync loop names a record, also read:
 
 - `implementation/offline-operation-identity.md`
+- `implementation/command-intent-replay.md`
 - `implementation/usable-sync-slice.md`
+- `implementation/authority-server.md`
+
+Before tasks that change how a locally executed command is queued, the `command`
+local-operation kind, the command intent's record-id manifest, the authority's
+re-execution of a command, or which selected contexts an operation replays
+against, also read:
+
+- `implementation/command-intent-replay.md`
+- `implementation/offline-operation-identity.md`
+- `implementation/runtime-services.md`
+- `implementation/sync-mode-delivery.md`
 - `implementation/authority-server.md`
 
 Before tasks that change client conflict/rejection recovery, the browser authority bridge, sign-in, passkey registration or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell, also read:
@@ -246,6 +258,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/first-deployment-slice.md`: read before changing the authority entrypoint or deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging.
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
 - `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record.
+- `implementation/command-intent-replay.md`: read before changing how a locally executed command is queued, the `command` local-operation kind, the command intent's record-id manifest, the authority's re-execution of a command, the sync-queueability rule on command steps, or which selected contexts an operation replays against.
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
 - `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read.
 - `implementation/context-grants-and-relationship-access.md`: read before changing business-context availability, the object-scope gate, policy principals, read-model joins, command-established contexts, or anything that decides whether one user may see another user's records.

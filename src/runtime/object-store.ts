@@ -1,11 +1,13 @@
 import type {
   CommandStepAuthority,
   JsonValue,
+  LocalCommandRecordId,
   LocalOperationKind,
   ResolvedApplicationModel,
   ResolvedObject,
   ResolvedOrderedObjectConstraint,
   StoredObjectRecord,
+  SyncMode,
 } from "../model/resolved-model.js";
 import {
   recordMatchesObjectScope,
@@ -98,7 +100,17 @@ export interface PlannedTransactionCommitOptions {
   command?: {
     name: string;
     label?: string;
+    /** The step that planned each requested write, positionally. */
     steps: string[];
+    /** The iteration item each requested write belongs to, for a step that iterates. */
+    frames: (number | undefined)[];
+    /**
+     * The prepared input the command ran on. It is what the authority replays —
+     * a command crosses the sync boundary as the work it was asked to do, not as
+     * the writes it happened to produce, so that re-execution runs every policy,
+     * validation, lifecycle, scope and precondition check again server-side.
+     */
+    input: Record<string, JsonValue>;
   };
 }
 
@@ -485,6 +497,12 @@ export class ObjectStore {
 
     const commandTransactionId =
       options.command === undefined ? undefined : this.nextCommandTransactionId();
+    // A command's steps are logged for local history but never queued
+    // individually: the authority has to be told about the transaction, and one
+    // entry per step is precisely the shape that loses it.
+    const queueSteps = options.command === undefined;
+    const commandRecordIds: LocalCommandRecordId[] = [];
+    const commandRecords: Array<{ objectName: string; recordId: string }> = [];
     await this.commitStorageWrites(plan.writes);
 
     const committed: StoredObjectRecord[] = [];
@@ -518,10 +536,17 @@ export class ObjectStore {
           write.record.values,
           commandDetails,
         );
-        this.recordOperation("create", write.objectName, write.record, context, {
-          patch: write.record.values,
-          ...commandDetails,
-        });
+        this.recordOperation(
+          "create",
+          write.objectName,
+          write.record,
+          context,
+          {
+            patch: write.record.values,
+            ...commandDetails,
+          },
+          queueSteps,
+        );
       } else if (write.operation === "delete") {
         this.auditService.record(
           "delete",
@@ -532,10 +557,17 @@ export class ObjectStore {
           write.record.values,
           commandDetails,
         );
-        this.recordOperation("delete", write.objectName, write.record, context, {
-          baseRevision: write.existing.meta.revision,
-          ...commandDetails,
-        });
+        this.recordOperation(
+          "delete",
+          write.objectName,
+          write.record,
+          context,
+          {
+            baseRevision: write.existing.meta.revision,
+            ...commandDetails,
+          },
+          queueSteps,
+        );
       } else {
         this.auditService.record(
           "update",
@@ -546,11 +578,34 @@ export class ObjectStore {
           write.record.values,
           commandDetails,
         );
-        this.recordOperation("update", write.objectName, write.record, context, {
-          baseRevision: write.existing.meta.revision,
-          patch: write.patch,
-          ...commandDetails,
-        });
+        this.recordOperation(
+          "update",
+          write.objectName,
+          write.record,
+          context,
+          {
+            baseRevision: write.existing.meta.revision,
+            patch: write.patch,
+            ...commandDetails,
+          },
+          queueSteps,
+        );
+      }
+
+      if (options.command !== undefined) {
+        commandRecords.push({ objectName: write.objectName, recordId: write.record.meta.guid });
+        // Only the requested writes are named: a derived ordered-collection write
+        // updates a record that already exists, so re-execution reaches it through
+        // the same constraint rather than needing to be told its id.
+        if (write.operation === "create" && index < writes.length) {
+          const frame = options.command.frames[index];
+          commandRecordIds.push({
+            step: options.command.steps[index] ?? `step${index + 1}`,
+            ...(frame === undefined ? {} : { itemIndex: frame }),
+            objectName: write.objectName,
+            recordId: write.record.meta.guid,
+          });
+        }
       }
 
       // Only the requested writes are returned, positionally, so a caller still
@@ -561,7 +616,85 @@ export class ObjectStore {
       }
     }
 
+    if (options.command !== undefined && commandTransactionId !== undefined) {
+      this.recordCommandOperation(
+        options.command,
+        plan.writes,
+        commandRecordIds,
+        commandRecords,
+        commandTransactionId,
+        context,
+      );
+    }
+
     return committed;
+  }
+
+  /**
+   * Queues a locally executed command as one entry.
+   *
+   * The per-step writes above are logged but not queued, so exactly one entry
+   * describes the whole transaction. Replaying the steps separately is what
+   * destroys the command's atomicity across the sync boundary: a step writing
+   * into a context an earlier step established is refused outright, because the
+   * caller is not a member of a context whose only membership record is the one
+   * being refused, and a batch lands partially.
+   */
+  private recordCommandOperation(
+    command: NonNullable<PlannedTransactionCommitOptions["command"]>,
+    writes: PlannedObjectWrite[],
+    recordIds: LocalCommandRecordId[],
+    records: Array<{ objectName: string; recordId: string }>,
+    commandTransactionId: string,
+    context: RuntimeContext,
+  ): void {
+    const representative = this.representativeCommandWrite(writes);
+    if (representative === undefined) {
+      return;
+    }
+
+    this.recordOperation(
+      "command",
+      representative.objectName,
+      representative.record,
+      context,
+      {
+        commandName: command.name,
+        ...(command.label === undefined ? {} : { commandLabel: command.label }),
+        commandTransactionId,
+        command: {
+          name: command.name,
+          ...(command.label === undefined ? {} : { label: command.label }),
+          input: cloneJson(command.input),
+          recordIds: cloneJson(recordIds),
+          records: cloneJson(records),
+        },
+      },
+      true,
+    );
+  }
+
+  /**
+   * The write whose object decides how the queued command is treated.
+   *
+   * A queue entry carries one object's sync declaration, and a command has as
+   * many as it has steps. The most demanding mode wins: a command containing an
+   * `onlineRequired` step was accepted on the belief that the authority was
+   * reachable, so it must be delivered now rather than held like a `localFirst`
+   * write. Model validation refuses a command whose steps disagree about
+   * queueability at all, so this only ever chooses between modes that queue.
+   */
+  private representativeCommandWrite(writes: PlannedObjectWrite[]): PlannedObjectWrite | undefined {
+    let best: PlannedObjectWrite | undefined;
+    let bestRank = -1;
+    for (const write of writes) {
+      const rank = commandModeRank(this.index.getObject(write.objectName).sync.mode);
+      if (rank > bestRank) {
+        best = write;
+        bestRank = rank;
+      }
+    }
+    return best;
   }
 
   async getRecordForRuntime(objectName: string, id: string): Promise<StoredObjectRecord | null> {
@@ -977,6 +1110,7 @@ export class ObjectStore {
     record: StoredObjectRecord,
     context: RuntimeContext,
     details: OperationLogDetails = {},
+    queue = true,
   ): void {
     const localOperation = this.operationLog.record(
       operation,
@@ -985,7 +1119,9 @@ export class ObjectStore {
       context,
       details,
     );
-    this.syncQueue.enqueue(localOperation);
+    if (queue) {
+      this.syncQueue.enqueue(localOperation);
+    }
   }
 
   private nextRevision(): string {
@@ -1399,4 +1535,16 @@ function jsonValuesEqual(left: JsonValue | undefined, right: JsonValue | undefin
   }
 
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/**
+ * How demanding a mode is about when its accepted writes reach the authority.
+ * `onlineRequired` outranks `localFirst` because a write it accepted may not
+ * wait for the next connection; the non-queueing modes rank below both, so a
+ * command that touches none of the queueing modes never enters the queue.
+ */
+function commandModeRank(mode: SyncMode): number {
+  if (mode === "onlineRequired") return 2;
+  if (mode === "localFirst") return 1;
+  return 0;
 }

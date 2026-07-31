@@ -11,7 +11,11 @@ import {
   type AuthorityRateLimits,
 } from "./authority-config.js";
 import { AuthorityService } from "./authority-service.js";
-import type { AuthorityBootstrapRequest, AuthorityOperationIntent } from "./authority-types.js";
+import type {
+  AuthorityBootstrapRequest,
+  AuthorityCommandRecordId,
+  AuthorityOperationIntent,
+} from "./authority-types.js";
 import {
   describeIdentityVerification,
   type UpstreamIdentityVerifier,
@@ -25,6 +29,14 @@ import {
   StructuredSecurityLogger,
 } from "./security-operations.js";
 import { PasskeyCeremonyError, type PasskeyIdentityService } from "./webauthn-identity.js";
+
+/**
+ * How many records one command intent may name. A batch command exists to make
+ * a large import one transaction, so the bound is generous; it is here at all
+ * because an unbounded manifest is an unbounded transaction, and the body-size
+ * limit alone would let a small request ask for a very large one.
+ */
+const MAX_COMMAND_RECORD_IDS = 1_000;
 
 export interface AuthorityHttpDependencies {
   configuration: AuthorityConfiguration;
@@ -581,6 +593,7 @@ function operationIntent(body: Record<string, JsonValue>): AuthorityOperationInt
       kind,
       commandName: requiredString(body, "commandName"),
       input: requiredRecord(body, "input"),
+      recordIds: requiredCommandRecordIds(body, "recordIds"),
     };
   if (kind === "update")
     return {
@@ -730,6 +743,36 @@ function requiredRecordId(body: Record<string, JsonValue>, key: string): string 
   const value = body[key];
   if (!isValidRecordId(value)) throw new RequestShapeError("malformed_request");
   return value;
+}
+/**
+ * The record-id manifest a command intent carries, checked at the edge for the
+ * same reason a create's `recordId` is: every id in it is a storage key supplied
+ * by an untrusted caller, and neither layer may assume the other ran. The bound
+ * on its length is what keeps a single request from asking the authority to plan
+ * an unbounded transaction.
+ */
+function requiredCommandRecordIds(
+  body: Record<string, JsonValue>,
+  key: string,
+): AuthorityCommandRecordId[] {
+  const value = body[key];
+  if (!Array.isArray(value) || value.length > MAX_COMMAND_RECORD_IDS)
+    throw new RequestShapeError("malformed_request");
+  return value.map((entry) => {
+    if (!isJsonRecord(entry)) throw new RequestShapeError("malformed_request");
+    const itemIndex = entry.itemIndex;
+    if (
+      itemIndex !== undefined &&
+      (typeof itemIndex !== "number" || !Number.isInteger(itemIndex) || itemIndex < 0)
+    )
+      throw new RequestShapeError("malformed_request");
+    return {
+      step: requiredString(entry, "step"),
+      ...(itemIndex === undefined ? {} : { itemIndex }),
+      objectName: requiredString(entry, "objectName"),
+      recordId: requiredRecordId(entry, "recordId"),
+    };
+  });
 }
 function requiredRecord(body: Record<string, JsonValue>, key: string): Record<string, JsonValue> {
   const value = body[key];

@@ -51,6 +51,12 @@ Resolution applies platform defaults consistently:
 - Ordered constraints default to `strict` reordering and `none` compaction.
 - Command inputs default to non-repeated; read-model source joins default to
   `one` cardinality. Both defaults leave existing behaviour unchanged.
+- Audit operations default to `create`, `update`, `delete` and `transition`.
+  Operation-log operations default to those four **and `command`**. The two lists
+  differ deliberately: audit is per record, while the operation log is what feeds
+  the sync queue, and a command is queued as one operation covering the whole
+  transaction. `command` is therefore a local operation kind and not an audit
+  operation.
 - View edit containers default to `modal`; `splitPane` is available only when
   explicitly selected.
 - View presentation defaults, when a view declares presentation, are `stack`
@@ -209,6 +215,12 @@ patch expressions, and optional step preconditions. Step value expressions can
 reference command input, runtime values, earlier step fields, or earlier step
 metadata such as generated record ids.
 
+Command declarations are backend-neutral runtime semantics. They do not encode
+SQL, browser callbacks, or generated application code. Runtime side effects keep
+normal row-level audit and operation-log entries, with optional command name,
+label, step, and command transaction id metadata to preserve the business
+command intent.
+
 ### Repeated inputs and iterating steps
 
 An input may be **repeated**, carrying a list of scalars or of records whose
@@ -240,11 +252,39 @@ transaction, so it cannot hand a caller access to a context that already existed
 It confers no roles; the membership record a later step creates is what confers
 real access afterwards.
 
-Command declarations are backend-neutral runtime semantics. They do not encode
-SQL, browser callbacks, or generated application code. Runtime side effects keep
-normal row-level audit and operation-log entries, with optional command name,
-label, step, and command transaction id metadata to preserve the business
-command intent.
+### Step sync modes
+
+A command's steps may write objects in different sync modes, but every step
+object must agree on whether its writes reach the authority at all. Queueable
+modes are `localFirst` and `onlineRequired`; non-queueable modes are
+`localPrivate` and `cacheReadonly`. Mixing the two groups within one command is a
+validation error, `ADL_COMMAND_STEP_SYNC_MODE_MIXED`, reported once per command
+at `commands[<i>].steps`.
+
+Mixing modes _within_ the queueable group is legal, and so is a command whose
+steps are all non-queueable. The rule exists because a command replays as a
+single intent: a command that mixed the groups has no coherent delivery
+behaviour. Queue it and the authority refuses the `localPrivate` step on every
+reconnect; do not queue it and the steps that should have synced never do.
+
+The check is skipped when a step's object does not resolve or its declared mode
+is not a valid one, so it never stacks a second diagnostic on top of an existing
+error.
+
+### Local operation kinds
+
+Local operations are `create`, `update`, `delete`, `transition` and `command`.
+The first four describe one record each. `command` describes a whole
+model-declared command: it carries the command name and optional label, the input
+the command ran on, the record-id manifest for every record the command created
+(step name, item index for an iterating step, object name, record id — in planned
+order), and the full list of records the command wrote.
+
+A `command` operation is filed under a representative step object, so that a
+queue entry still carries exactly one object's sync declaration; the step object
+with the most demanding queueable mode is chosen. `command` is not an audit
+operation. See [runtime-semantics#command-replay](runtime-semantics.md) for what
+a runtime must do with it.
 
 ## View Presentation
 
@@ -458,7 +498,7 @@ must be reproducible by any conforming runtime:
    whitespace, and `-0` written as `0`. Three keys are excluded:
    `modelFingerprint`, because it is its own input; `generatedAt`, because it is
    a build stamp rather than semantics; and `modelVersion`, because it is what
-   the author *declared* rather than what the model *is*.
+   the author _declared_ rather than what the model _is_.
 
    Excluding the declared version matters more than it looks. The fingerprint is
    consulted only when two versions already compare equal, so digesting the
@@ -510,5 +550,5 @@ than they promise:
   needs, is reported so it cannot silently do nothing.
 
 Runtime startup compatibility is a separate concern: model validation checks the
-current model, while the startup guard checks *persisted data* against it. See
+current model, while the startup guard checks _persisted data_ against it. See
 [runtime-semantics#model-migration](runtime-semantics.md).

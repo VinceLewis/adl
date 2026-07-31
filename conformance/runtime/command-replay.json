@@ -1,0 +1,1427 @@
+{
+  "version": 1,
+  "models": {
+    "commandReplay": {
+      "app": {
+        "name": "CommandReplay"
+      },
+      "roles": [
+        {
+          "name": "Lead"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Crew",
+          "object": "Crew",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "CrewMember",
+            "userField": "User",
+            "contextField": "Crew",
+            "roleField": "Role",
+            "roles": ["Lead"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Note",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "Tag",
+          "displayField": "Label",
+          "fields": [
+            {
+              "name": "Note",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Note",
+                "displayField": "Title"
+              }
+            },
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "Crew",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "CrewMember",
+          "scope": {
+            "context": "Crew",
+            "field": "Crew"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Crew",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Crew",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        },
+        {
+          "name": "Task",
+          "displayField": "Title",
+          "scope": {
+            "context": "Crew",
+            "field": "Crew"
+          },
+          "fields": [
+            {
+              "name": "Crew",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Crew",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all"
+          }
+        }
+      ],
+      "commands": [
+        {
+          "name": "FileNote",
+          "label": "File a note",
+          "inputs": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createNote",
+              "action": "create",
+              "object": "Note",
+              "values": {
+                "Title": {
+                  "kind": "input",
+                  "name": "Title"
+                }
+              }
+            },
+            {
+              "name": "createTag",
+              "action": "create",
+              "object": "Tag",
+              "values": {
+                "Note": {
+                  "kind": "stepMeta",
+                  "step": "createNote",
+                  "property": "guid"
+                },
+                "Label": {
+                  "kind": "literal",
+                  "value": "filed"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "ImportNotes",
+          "label": "Import notes",
+          "inputs": [
+            {
+              "name": "Titles",
+              "type": "text",
+              "required": true,
+              "repeated": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "importNote",
+              "action": "create",
+              "object": "Note",
+              "forEach": "Titles",
+              "values": {
+                "Title": {
+                  "kind": "item"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "FoundCrew",
+          "label": "Found a crew",
+          "inputs": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createCrew",
+              "action": "create",
+              "object": "Crew",
+              "values": {
+                "Name": {
+                  "kind": "input",
+                  "name": "Name"
+                }
+              },
+              "establishesContext": "Crew"
+            },
+            {
+              "name": "createLead",
+              "action": "create",
+              "object": "CrewMember",
+              "values": {
+                "User": {
+                  "kind": "runtime",
+                  "property": "userId"
+                },
+                "Crew": {
+                  "kind": "stepMeta",
+                  "step": "createCrew",
+                  "property": "guid"
+                },
+                "Role": {
+                  "kind": "literal",
+                  "value": "Lead"
+                }
+              },
+              "authority": "command"
+            }
+          ]
+        },
+        {
+          "name": "AddTask",
+          "label": "Add a task",
+          "inputs": [
+            {
+              "name": "Crew",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "createTask",
+              "action": "create",
+              "object": "Task",
+              "values": {
+                "Crew": {
+                  "kind": "input",
+                  "name": "Crew"
+                },
+                "Title": {
+                  "kind": "input",
+                  "name": "Title"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllNote",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TagPolicy",
+          "object": "Tag",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllTag",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "CrewPolicy",
+          "object": "Crew",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllCrew",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "CrewMemberPolicy",
+          "object": "CrewMember",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllCrewMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TaskPolicy",
+          "object": "Task",
+          "rules": [
+            {
+              "name": "allowAuthenticatedAllTask",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "commandreplay.local.a-command-leaves-exactly-one-queue-entry.001",
+      "title": "A locally executed command queues once, as an operation of kind command naming every record it wrote, rather than once per step",
+      "specRef": "runtime-semantics#command-replay",
+      "operation": "syncCommand",
+      "modelRef": "commandReplay",
+      "input": {
+        "commandName": "FileNote",
+        "input": {
+          "Title": "Set list"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "command": "FileNote",
+          "execution": {
+            "status": "executed",
+            "steps": [
+              {
+                "step": "createNote",
+                "operation": "create",
+                "objectName": "Note",
+                "recordId": "$createNote"
+              },
+              {
+                "step": "createTag",
+                "operation": "create",
+                "objectName": "Tag",
+                "recordId": "$createTag"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Note",
+              "operation": "command",
+              "recordId": "$createNote",
+              "mode": "localFirst",
+              "status": "pending",
+              "command": {
+                "name": "FileNote",
+                "label": "File a note",
+                "input": {
+                  "Title": "Set list"
+                },
+                "recordIds": [
+                  {
+                    "step": "createNote",
+                    "itemIndex": "$absent",
+                    "objectName": "Note",
+                    "recordId": "$createNote"
+                  },
+                  {
+                    "step": "createTag",
+                    "itemIndex": "$absent",
+                    "objectName": "Tag",
+                    "recordId": "$createTag"
+                  }
+                ],
+                "records": [
+                  {
+                    "objectName": "Note",
+                    "recordId": "$createNote"
+                  },
+                  {
+                    "objectName": "Tag",
+                    "recordId": "$createTag"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.local.the-same-two-records-written-directly-queue-separately.002",
+      "title": "The baseline for the case above: written as ordinary creates the identical two records produce two queue entries, neither carrying a command",
+      "specRef": "runtime-semantics#command-replay",
+      "operation": "syncWrite",
+      "modelRef": "commandReplay",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Set list"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Tag",
+        "write": "create",
+        "values": {
+          "Note": {
+            "$ref": "note.meta.guid"
+          },
+          "Label": "filed"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "decision": {
+            "allowed": true,
+            "mode": "localFirst",
+            "queueable": true
+          },
+          "write": {
+            "status": "written"
+          },
+          "queue": [
+            {
+              "objectName": "Note",
+              "operation": "create",
+              "recordId": "$note",
+              "mode": "localFirst",
+              "command": "$absent"
+            },
+            {
+              "objectName": "Tag",
+              "operation": "create",
+              "mode": "localFirst",
+              "command": "$absent"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.local.an-iterating-command-still-queues-once.003",
+      "title": "An iterating step multiplies the records but not the queue entries, and each id in the manifest names the item it belongs to",
+      "specRef": "runtime-semantics#command-replay",
+      "operation": "syncCommand",
+      "modelRef": "commandReplay",
+      "input": {
+        "commandName": "ImportNotes",
+        "input": {
+          "Titles": ["First", "Second", "Third"]
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "command": "ImportNotes",
+          "execution": {
+            "status": "executed",
+            "steps": [
+              {
+                "step": "importNote",
+                "itemIndex": 0,
+                "objectName": "Note",
+                "recordId": "$importNote.0"
+              },
+              {
+                "step": "importNote",
+                "itemIndex": 1,
+                "objectName": "Note",
+                "recordId": "$importNote.1"
+              },
+              {
+                "step": "importNote",
+                "itemIndex": 2,
+                "objectName": "Note",
+                "recordId": "$importNote.2"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Note",
+              "operation": "command",
+              "mode": "localFirst",
+              "command": {
+                "name": "ImportNotes",
+                "recordIds": [
+                  {
+                    "step": "importNote",
+                    "itemIndex": 0,
+                    "objectName": "Note",
+                    "recordId": "$importNote.0"
+                  },
+                  {
+                    "step": "importNote",
+                    "itemIndex": 1,
+                    "objectName": "Note",
+                    "recordId": "$importNote.1"
+                  },
+                  {
+                    "step": "importNote",
+                    "itemIndex": 2,
+                    "objectName": "Note",
+                    "recordId": "$importNote.2"
+                  }
+                ],
+                "records": [
+                  {
+                    "objectName": "Note",
+                    "recordId": "$importNote.0"
+                  },
+                  {
+                    "objectName": "Note",
+                    "recordId": "$importNote.1"
+                  },
+                  {
+                    "objectName": "Note",
+                    "recordId": "$importNote.2"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.local.a-refused-command-queues-nothing.004",
+      "title": "A command refused before it commits leaves the queue exactly as it found it, so a refusal never costs a device the work it was already holding",
+      "specRef": "runtime-semantics#command-replay",
+      "operation": "syncCommand",
+      "modelRef": "commandReplay",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "crew",
+          "objectName": "Crew",
+          "values": {
+            "Name": "Night shift"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "commandName": "AddTask",
+        "input": {
+          "Crew": {
+            "$ref": "crew.meta.guid"
+          },
+          "Title": "Load in"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "command": "AddTask",
+          "execution": {
+            "status": "refused",
+            "code": "ADL_POLICY_DENIED"
+          },
+          "queue": [
+            {
+              "objectName": "Crew",
+              "operation": "create",
+              "recordId": "$crew"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.local.an-operation-carries-the-contexts-selected-when-it-executed.005",
+      "title": "A queued command carries the business contexts that were selected when it executed, so replay does not depend on what is selected when the queue drains",
+      "specRef": "runtime-semantics#the-context-an-operation-replays-against",
+      "operation": "syncCommand",
+      "modelRef": "commandReplay",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "crew",
+          "objectName": "Crew",
+          "values": {
+            "Name": "Night shift"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "commandName": "AddTask",
+        "input": {
+          "Crew": {
+            "$ref": "crew.meta.guid"
+          },
+          "Title": "Load in"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z",
+          "selectedContexts": {
+            "Crew": {
+              "$ref": "crew.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "execution": {
+            "status": "executed"
+          },
+          "queue": [
+            {
+              "objectName": "Crew",
+              "operation": "create",
+              "recordId": "$crew"
+            },
+            {
+              "objectName": "Task",
+              "operation": "command",
+              "recordId": "$createTask",
+              "selectedContexts": {
+                "Crew": "$crew"
+              },
+              "command": {
+                "name": "AddTask"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.local.a-command-executed-outside-a-context-carries-no-selection.006",
+      "title": "An operation made with nothing selected records an empty selection rather than none, so replay does not fall back to whatever is selected later",
+      "specRef": "runtime-semantics#the-context-an-operation-replays-against",
+      "operation": "syncCommand",
+      "modelRef": "commandReplay",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "crew",
+          "objectName": "Crew",
+          "values": {
+            "Name": "Night shift"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "commandName": "FileNote",
+        "input": {
+          "Title": "Set list"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "queue": [
+            {
+              "objectName": "Crew",
+              "operation": "create",
+              "selectedContexts": {
+                "Crew": "$absent"
+              }
+            },
+            {
+              "objectName": "Note",
+              "operation": "command",
+              "selectedContexts": {
+                "Crew": "$absent"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.adopts-every-supplied-id.007",
+      "title": "A command intent's accepted records come back under the ids the originating device minted, not under ids the re-execution chose",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "intent": {
+          "operationId": "op-file-note",
+          "kind": "command",
+          "commandName": "FileNote",
+          "input": {
+            "Title": "Set list"
+          },
+          "recordIds": [
+            {
+              "step": "createNote",
+              "objectName": "Note",
+              "recordId": "note-file-1"
+            },
+            {
+              "step": "createTag",
+              "objectName": "Tag",
+              "recordId": "tag-file-1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-file-note",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-file-1",
+              "values": {
+                "Title": "Set list"
+              },
+              "deleted": false
+            },
+            {
+              "object": "Tag",
+              "recordId": "tag-file-1",
+              "values": {
+                "Note": "note-file-1",
+                "Label": "filed"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.adopts-an-id-for-every-item-of-an-iterating-step.008",
+      "title": "Every item of a FOR EACH step is named separately, so a batch converges onto the rows the device already holds",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "intent": {
+          "operationId": "op-import-notes",
+          "kind": "command",
+          "commandName": "ImportNotes",
+          "input": {
+            "Titles": ["First", "Second"]
+          },
+          "recordIds": [
+            {
+              "step": "importNote",
+              "itemIndex": 0,
+              "objectName": "Note",
+              "recordId": "note-import-1"
+            },
+            {
+              "step": "importNote",
+              "itemIndex": 1,
+              "objectName": "Note",
+              "recordId": "note-import-2"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-import-notes",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-import-1",
+              "values": {
+                "Title": "First"
+              }
+            },
+            {
+              "object": "Note",
+              "recordId": "note-import-2",
+              "values": {
+                "Title": "Second"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.refuses-a-supplied-id-that-is-already-taken.009",
+      "title": "A command is not a way to claim an id a direct create would be refused",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-file-1",
+              "values": {
+                "Title": "Already here"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-file-note",
+          "kind": "command",
+          "commandName": "FileNote",
+          "input": {
+            "Title": "Set list"
+          },
+          "recordIds": [
+            {
+              "step": "createNote",
+              "objectName": "Note",
+              "recordId": "note-file-1"
+            },
+            {
+              "step": "createTag",
+              "objectName": "Tag",
+              "recordId": "tag-file-1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-file-note",
+          "code": "ADL_RUNTIME_RECORD_ID_TAKEN"
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.a-collided-command-leaves-nothing-behind.010",
+      "title": "The refusal above is atomic: neither the colliding record nor the step that would have succeeded beside it exists afterwards",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityBootstrap",
+      "modelRef": "commandReplay",
+      "input": {
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-seed-note",
+              "kind": "create",
+              "objectName": "Note",
+              "recordId": "note-file-1",
+              "values": {
+                "Title": "Already here"
+              }
+            }
+          },
+          {
+            "expect": "rejected",
+            "intent": {
+              "operationId": "op-file-note",
+              "kind": "command",
+              "commandName": "FileNote",
+              "input": {
+                "Title": "Set list"
+              },
+              "recordIds": [
+                {
+                  "step": "createNote",
+                  "objectName": "Note",
+                  "recordId": "note-file-1"
+                },
+                {
+                  "step": "createTag",
+                  "objectName": "Tag",
+                  "recordId": "tag-file-1"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-file-1",
+              "values": {
+                "Title": "Already here"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.refuses-a-manifest-longer-than-the-planned-writes.011",
+      "title": "A manifest describing more creates than the command plans is refused rather than truncated",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "intent": {
+          "operationId": "op-file-note",
+          "kind": "command",
+          "commandName": "FileNote",
+          "input": {
+            "Title": "Set list"
+          },
+          "recordIds": [
+            {
+              "step": "createNote",
+              "objectName": "Note",
+              "recordId": "note-file-1"
+            },
+            {
+              "step": "createTag",
+              "objectName": "Tag",
+              "recordId": "tag-file-1"
+            },
+            {
+              "step": "createTag",
+              "objectName": "Tag",
+              "recordId": "tag-file-2"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-file-note",
+          "code": "ADL_RUNTIME_COMMAND_RECORD_IDS_MISMATCH"
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.refuses-a-manifest-shorter-than-the-planned-writes.012",
+      "title": "A manifest describing fewer creates than the command plans is refused rather than completed with server-minted ids",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "intent": {
+          "operationId": "op-file-note",
+          "kind": "command",
+          "commandName": "FileNote",
+          "input": {
+            "Title": "Set list"
+          },
+          "recordIds": [
+            {
+              "step": "createNote",
+              "objectName": "Note",
+              "recordId": "note-file-1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-file-note",
+          "code": "ADL_RUNTIME_COMMAND_RECORD_IDS_MISMATCH"
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.refuses-a-manifest-naming-the-wrong-step.013",
+      "title": "Matching is by name as well as by position: two well-formed ids in the wrong order are refused",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "intent": {
+          "operationId": "op-file-note",
+          "kind": "command",
+          "commandName": "FileNote",
+          "input": {
+            "Title": "Set list"
+          },
+          "recordIds": [
+            {
+              "step": "createTag",
+              "objectName": "Tag",
+              "recordId": "tag-file-1"
+            },
+            {
+              "step": "createNote",
+              "objectName": "Note",
+              "recordId": "note-file-1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-file-note",
+          "code": "ADL_RUNTIME_COMMAND_RECORD_IDS_MISMATCH"
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.refuses-a-manifest-naming-the-wrong-item.014",
+      "title": "An iterating step's ids are matched by item index too, so a manifest that repeats an item is refused",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "intent": {
+          "operationId": "op-import-notes",
+          "kind": "command",
+          "commandName": "ImportNotes",
+          "input": {
+            "Titles": ["First", "Second"]
+          },
+          "recordIds": [
+            {
+              "step": "importNote",
+              "itemIndex": 0,
+              "objectName": "Note",
+              "recordId": "note-import-1"
+            },
+            {
+              "step": "importNote",
+              "itemIndex": 0,
+              "objectName": "Note",
+              "recordId": "note-import-2"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-import-notes",
+          "code": "ADL_RUNTIME_COMMAND_RECORD_IDS_MISMATCH"
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.a-repeated-operation-id-returns-the-stored-outcome.015",
+      "title": "Idempotency covers the whole command: the same operation id returns the outcome the first replay stored",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "setup": [
+          {
+            "alias": "first",
+            "intent": {
+              "operationId": "op-import-notes",
+              "kind": "command",
+              "commandName": "ImportNotes",
+              "input": {
+                "Titles": ["First", "Second"]
+              },
+              "recordIds": [
+                {
+                  "step": "importNote",
+                  "itemIndex": 0,
+                  "objectName": "Note",
+                  "recordId": "note-import-1"
+                },
+                {
+                  "step": "importNote",
+                  "itemIndex": 1,
+                  "objectName": "Note",
+                  "recordId": "note-import-2"
+                }
+              ]
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-import-notes",
+          "kind": "command",
+          "commandName": "ImportNotes",
+          "input": {
+            "Titles": ["First", "Second"]
+          },
+          "recordIds": [
+            {
+              "step": "importNote",
+              "itemIndex": 0,
+              "objectName": "Note",
+              "recordId": "note-import-1"
+            },
+            {
+              "step": "importNote",
+              "itemIndex": 1,
+              "objectName": "Note",
+              "recordId": "note-import-2"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-import-notes",
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-import-1",
+              "values": {
+                "Title": "First"
+              }
+            },
+            {
+              "object": "Note",
+              "recordId": "note-import-2",
+              "values": {
+                "Title": "Second"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.a-repeated-command-writes-nothing-twice.016",
+      "title": "The second replay of that operation id wrote nothing: every item of the iterating step exists exactly once",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityBootstrap",
+      "modelRef": "commandReplay",
+      "input": {
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-import-notes",
+              "kind": "command",
+              "commandName": "ImportNotes",
+              "input": {
+                "Titles": ["First", "Second"]
+              },
+              "recordIds": [
+                {
+                  "step": "importNote",
+                  "itemIndex": 0,
+                  "objectName": "Note",
+                  "recordId": "note-import-1"
+                },
+                {
+                  "step": "importNote",
+                  "itemIndex": 1,
+                  "objectName": "Note",
+                  "recordId": "note-import-2"
+                }
+              ]
+            }
+          },
+          {
+            "intent": {
+              "operationId": "op-import-notes",
+              "kind": "command",
+              "commandName": "ImportNotes",
+              "input": {
+                "Titles": ["First", "Second"]
+              },
+              "recordIds": [
+                {
+                  "step": "importNote",
+                  "itemIndex": 0,
+                  "objectName": "Note",
+                  "recordId": "note-import-1"
+                },
+                {
+                  "step": "importNote",
+                  "itemIndex": 1,
+                  "objectName": "Note",
+                  "recordId": "note-import-2"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "object": "Note",
+              "recordId": "note-import-1",
+              "values": {
+                "Title": "First"
+              }
+            },
+            {
+              "object": "Note",
+              "recordId": "note-import-2",
+              "values": {
+                "Title": "Second"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.accepts-a-context-establishing-command.017",
+      "title": "A command that founds a context and its first membership is accepted as one intent, under the ids the device minted for both records",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "sessions": {
+          "founder": {
+            "userId": "user-founder"
+          }
+        },
+        "intent": {
+          "operationId": "op-found-crew",
+          "kind": "command",
+          "commandName": "FoundCrew",
+          "input": {
+            "Name": "Night shift"
+          },
+          "recordIds": [
+            {
+              "step": "createCrew",
+              "objectName": "Crew",
+              "recordId": "crew-1"
+            },
+            {
+              "step": "createLead",
+              "objectName": "CrewMember",
+              "recordId": "crew-member-1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "accepted",
+          "operationId": "op-found-crew",
+          "records": [
+            {
+              "object": "Crew",
+              "recordId": "crew-1",
+              "values": {
+                "Name": "Night shift"
+              },
+              "deleted": false
+            },
+            {
+              "object": "CrewMember",
+              "recordId": "crew-member-1",
+              "values": {
+                "User": "user-founder",
+                "Crew": "crew-1",
+                "Role": "Lead"
+              },
+              "deleted": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "commandreplay.authority.the-same-membership-as-a-separate-intent-is-refused.018",
+      "title": "The baseline for the case above: the identical membership write submitted as a per-record intent is refused, which is why a command must replay as a command",
+      "specRef": "runtime-semantics#command-intents",
+      "operation": "authorityReplay",
+      "modelRef": "commandReplay",
+      "input": {
+        "sessions": {
+          "founder": {
+            "userId": "user-founder"
+          }
+        },
+        "setup": [
+          {
+            "intent": {
+              "operationId": "op-create-crew",
+              "kind": "create",
+              "objectName": "Crew",
+              "recordId": "crew-1",
+              "values": {
+                "Name": "Night shift"
+              }
+            }
+          }
+        ],
+        "intent": {
+          "operationId": "op-create-membership",
+          "kind": "create",
+          "objectName": "CrewMember",
+          "recordId": "crew-member-1",
+          "values": {
+            "User": "user-founder",
+            "Crew": "crew-1",
+            "Role": "Lead"
+          },
+          "selectedContexts": {
+            "Crew": "crew-1"
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "status": "rejected",
+          "operationId": "op-create-membership",
+          "code": "ADL_RUNTIME_CONTEXT_ERROR"
+        }
+      }
+    }
+  ]
+}

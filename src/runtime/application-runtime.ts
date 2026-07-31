@@ -6,7 +6,11 @@ import type {
 } from "../model/resolved-model.js";
 import { AuditService } from "./audit-service.js";
 import { CommandService } from "./command-service.js";
-import type { RuntimeCommandResult, RuntimeCommandStepResult } from "./command-service.js";
+import type {
+  CommandExecutionOptions,
+  RuntimeCommandResult,
+  RuntimeCommandStepResult,
+} from "./command-service.js";
 import { HookRegistry } from "./hook-registry.js";
 import type { RuntimeHook } from "./hook-registry.js";
 import type { ContextMembershipIndex } from "./context-membership-index.js";
@@ -692,6 +696,7 @@ export class ApplicationRuntime {
     commandName: string,
     input: Record<string, JsonValue>,
     context: RuntimeContext,
+    options: CommandExecutionOptions = {},
   ): Promise<RuntimeCommandResult> {
     await this.whenReady();
     this.logger.debug("ENTER ApplicationRuntime.executeCommand", {
@@ -702,6 +707,7 @@ export class ApplicationRuntime {
       commandName,
       input,
       await this.withContextMembers(context),
+      options,
     );
     const steps = await this.reshapeCommandRecords(result.steps, context);
     this.logger.debug("EXIT ApplicationRuntime.executeCommand", {

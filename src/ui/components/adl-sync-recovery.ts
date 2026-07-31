@@ -164,6 +164,7 @@ export class AdlSyncRecoveryElement extends HTMLElement {
         data-recovery-queue-id="${escapeHtml(item.queueId)}"
         data-recovery-status="undelivered"
         data-delivery-item="true"
+        ${commandAttributes(item)}
       >
         <h3 class="adl-sync-recovery-title">${escapeHtml(describeDeliveryItem(item))}</h3>
         <p class="adl-sync-recovery-verdict">${escapeHtml(DELIVERY_UNDELIVERED_LABEL)}</p>
@@ -205,6 +206,7 @@ export class AdlSyncRecoveryElement extends HTMLElement {
         class="adl-sync-recovery-item"
         data-recovery-queue-id="${escapeHtml(item.queueId)}"
         data-recovery-status="${escapeHtml(item.status)}"
+        ${commandAttributes(item)}
       >
         <h3 class="adl-sync-recovery-title">${escapeHtml(describeRecoveryItem(item))}</h3>
         <p class="adl-sync-recovery-verdict">${escapeHtml(verdict)}</p>
@@ -238,9 +240,41 @@ export function defineAdlSyncRecovery(): void {
 }
 
 /**
+ * Marks the article as one command rather than one record operation, so a test
+ * and the visual suite can assert that a refused command is a single change on
+ * screen instead of one row per record it wrote. The record count is exposed
+ * alongside it because that is the whole claim being made: one entry, one
+ * verdict, that many records.
+ *
+ * The command's *input* stays off the surface, as every other value does. This
+ * panel has no read policy behind it, and an input carries the values the
+ * command was asked to write.
+ */
+function commandAttributes(item: SyncRecoveryItem | SyncDeliveryItem): string {
+  if (item.operation !== "command") {
+    return "";
+  }
+
+  return [
+    `data-recovery-command="${escapeHtml(item.commandName ?? "")}"`,
+    `data-recovery-record-count="${escapeHtml(item.recordCount ?? 0)}"`,
+  ].join("\n        ");
+}
+
+/**
  * A rejection is terminal. The authority refused the write, so the only move is
  * to acknowledge it; wording it as "keep the server version" would imply a
  * choice between two candidate winners that was never offered.
+ *
+ * A refused command is terminal on exactly the same terms, and needs no new
+ * primitive: `keepServer` abandons the local operation and the authority's state
+ * stands. What that means locally is that every record the command's steps wrote
+ * here stays where it is. The authority refused the whole transaction, so none
+ * of it exists server-side and no later bootstrap can remove rows the server
+ * never had — the same standing residue a rejected create leaves today. This
+ * phase keeps that deliberately rather than inventing a local rollback: undoing
+ * a command's writes is itself a multi-record write, and it would need its own
+ * policy check, its own transaction and its own queue entry.
  */
 function choiceLabel(item: SyncRecoveryItem, choice: SyncRecoveryChoice): string {
   if (choice === "keepServer" && item.status === "rejected") {

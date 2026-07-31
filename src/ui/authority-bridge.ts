@@ -1,3 +1,4 @@
+import type { LocalOperationKind } from "../model/resolved-model.js";
 import type {
   AuthorityDeviceSession,
   AuthorityReportPage,
@@ -7,6 +8,7 @@ import type {
   SyncRecoveryChoice,
   SyncRecoveryItem,
 } from "../server/sync-client.js";
+import { titleCaseIdentifier } from "./components/html.js";
 import type { OfflineGraceState } from "./offline-session.js";
 
 /**
@@ -270,19 +272,70 @@ export const DELIVERY_UNDELIVERED_LABEL = "Saved here, not yet sent to the serve
 export const DELIVERY_RETRY_LABEL = "Try sending again";
 
 export function describeRecoveryItem(item: SyncRecoveryItem): string {
-  return `${describeOperationKind(item.operation)} ${item.objectName}`;
+  return describeSyncItem(item);
 }
 
 export function describeDeliveryItem(item: SyncDeliveryItem): string {
-  return `${describeOperationKind(item.operation)} ${item.objectName}`;
+  return describeSyncItem(item);
+}
+
+/**
+ * Names the change a person is being asked about.
+ *
+ * A command is named by the command, never by its object. For a command entry
+ * `objectName`/`recordId` name the *representative* record the whole command is
+ * filed under — the object whose sync mode decided how it was delivered — and
+ * not the subject of the change. Rendering them would tell someone that their
+ * refused `CreateBand` was a rejected "Update BandMember", which is a change
+ * they never made against a record they may not even recognise.
+ *
+ * The record count is part of the name for the same reason. A command succeeds
+ * or fails as one transaction, so one entry stands for every record it wrote;
+ * saying so is what stops one verdict reading as a verdict against one record
+ * while the rest of the command silently went through.
+ */
+function describeSyncItem(item: SyncRecoveryItem | SyncDeliveryItem): string {
+  if (item.operation !== "command") {
+    return `${describeOperationKind(item.operation)} ${item.objectName}`;
+  }
+
+  const name = item.commandLabel ?? describeCommandName(item.commandName);
+  const recordCount = item.recordCount ?? 0;
+
+  return recordCount > 1 ? `${name} ${describeRecordCoverage(recordCount)}` : name;
+}
+
+/**
+ * The declared label is preferred, then the command's own name title-cased.
+ * A command entry always carries one of them; the bare "Command" is there so a
+ * malformed entry still reads as what it is instead of borrowing the
+ * representative record's object name.
+ */
+function describeCommandName(commandName: string | undefined): string {
+  return commandName === undefined || commandName.length === 0
+    ? OPERATION_KIND_LABELS.command
+    : titleCaseIdentifier(commandName);
+}
+
+/** Plain and countable: one change on screen, and how far it reaches. */
+function describeRecordCoverage(recordCount: number): string {
+  return `— one command covering ${recordCount} records`;
 }
 
 function describeOperationKind(operation: SyncRecoveryItem["operation"]): string {
-  return operation === "create"
-    ? "Create"
-    : operation === "delete"
-      ? "Delete"
-      : operation === "transition"
-        ? "Transition"
-        : "Update";
+  return OPERATION_KIND_LABELS[operation];
 }
+
+/**
+ * Exhaustive over `LocalOperationKind` on purpose. This was a chain of ternaries
+ * falling back to "Update", so `command` — added when a command became one queue
+ * entry — would have been labelled as an update of the representative record.
+ * A map makes the next new kind a compile error rather than a quiet mislabel.
+ */
+const OPERATION_KIND_LABELS: Record<LocalOperationKind, string> = {
+  create: "Create",
+  update: "Update",
+  delete: "Delete",
+  transition: "Transition",
+  command: "Command",
+};

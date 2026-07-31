@@ -1,6 +1,7 @@
 import type {
   FieldType,
   JsonValue,
+  LocalCommandRecordId,
   ResolvedApplicationModel,
   ResolvedCommand,
   ResolvedCommandInput,
@@ -13,7 +14,9 @@ import { evaluateRuntimeCondition } from "./condition-evaluator.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import type { ObjectStore, PlannedObjectWrite } from "./object-store.js";
 import {
+  CommandRecordIdsMismatchError,
   PolicyDeniedError,
+  RecordIdUnavailableError,
   RuntimeValidationError,
   StorageError,
   cloneJson,
@@ -30,6 +33,10 @@ import type {
 
 export interface RuntimeCommandStepResult {
   step: string;
+  /** Which write of the step this is, for a step that iterates; absent otherwise. */
+  itemIndex?: number;
+  /** Whether the step created this record or updated an existing one. */
+  operation: "create" | "update";
   objectName: string;
   recordId: string;
   record: StoredObjectRecord;
@@ -38,6 +45,19 @@ export interface RuntimeCommandStepResult {
 export interface RuntimeCommandResult {
   command: ResolvedCommand;
   steps: RuntimeCommandStepResult[];
+}
+
+export interface CommandExecutionOptions {
+  /**
+   * Ids the originating device already holds for the records this command
+   * creates, in planned order.
+   *
+   * Supplied when the authority re-executes a command a device executed offline:
+   * without them the re-execution mints its own ids and every created record
+   * comes back naming a row the device does not have. Absent for a local
+   * execution, which mints its own.
+   */
+  recordIds?: LocalCommandRecordId[];
 }
 
 export class CommandService {
@@ -53,6 +73,7 @@ export class CommandService {
     commandName: string,
     input: Record<string, JsonValue>,
     context: RuntimeContext,
+    options: CommandExecutionOptions = {},
   ): Promise<RuntimeCommandResult> {
     await this.startupGuard();
     this.logger.debug("ENTER CommandService.execute", {
@@ -66,6 +87,10 @@ export class CommandService {
     // Parallel to `plannedWrites`: an iterating step contributes several writes,
     // so the committed records can no longer be matched to steps by index.
     const writeSteps: string[] = [];
+    const writeFrames: (number | undefined)[] = [];
+    // Consumed in planning order by every create, which is the only order in
+    // which the two executions can be checked against each other at all.
+    const supplied = new SuppliedRecordIds(command, options.recordIds);
     const stepRecords = new Map<string, StoredObjectRecord>();
     // Grows as steps establish contexts, so a later step writing into a context
     // an earlier step just created passes the scope gate. It is discarded with
@@ -74,12 +99,21 @@ export class CommandService {
 
     for (const step of command.steps) {
       for (const frame of this.iterationFrames(command, step, values)) {
-        const write = await this.planStepWrite(command, step, values, frame, stepRecords, {
-          callerContext: context,
-          stepContext,
-        });
+        const write = await this.planStepWrite(
+          command,
+          step,
+          values,
+          frame,
+          stepRecords,
+          {
+            callerContext: context,
+            stepContext,
+          },
+          supplied,
+        );
         plannedWrites.push(write);
         writeSteps.push(step.name);
+        writeFrames.push(frame?.index);
         // An iterating step produces many records, so binding its name to the
         // last one would silently mislead a later `STEP x FIELD y` reference.
         // Validation refuses those references; not recording the binding is
@@ -98,21 +132,33 @@ export class CommandService {
       }
     }
 
+    // An unconsumed entry means the caller's execution planned a write this one
+    // did not, which is the same disagreement as a mismatched entry and is
+    // refused for the same reason.
+    supplied.requireExhausted();
+
     const committed = await this.objectStore.commitPlannedTransaction(plannedWrites, context, {
       command: {
         name: command.name,
         ...(command.label === undefined ? {} : { label: command.label }),
         steps: [...writeSteps],
+        frames: [...writeFrames],
+        input: cloneJson(values),
       },
     });
     const result: RuntimeCommandResult = {
       command,
-      steps: committed.map((record, index) => ({
-        step: writeSteps[index] ?? `step${index + 1}`,
-        objectName: record.meta.object,
-        recordId: record.meta.guid,
-        record,
-      })),
+      steps: committed.map((record, index) => {
+        const frame = writeFrames[index];
+        return {
+          step: writeSteps[index] ?? `step${index + 1}`,
+          ...(frame === undefined ? {} : { itemIndex: frame }),
+          operation: plannedWrites[index]?.operation === "update" ? "update" : "create",
+          objectName: record.meta.object,
+          recordId: record.meta.guid,
+          record,
+        } satisfies RuntimeCommandStepResult;
+      }),
     };
     this.logger.debug("EXIT CommandService.execute", {
       commandName,
@@ -162,6 +208,7 @@ export class CommandService {
     frame: CommandIterationFrame | undefined,
     stepRecords: Map<string, StoredObjectRecord>,
     contexts: { callerContext: RuntimeContext; stepContext: RuntimeContext },
+    supplied: SuppliedRecordIds,
   ): Promise<PlannedObjectWrite> {
     const { callerContext, stepContext } = contexts;
 
@@ -205,11 +252,16 @@ export class CommandService {
       frame,
     );
     this.requireStepPreconditions(command, step, recordValues, callerContext);
+    // The id is adopted, never trusted: `planCreateForTransaction` shape-checks
+    // it and refuses one that already names a record, after scope, policy and
+    // field policy have allowed the create. Naming a record grants nothing.
+    const recordId = supplied.take(step, frame);
     return this.objectStore.planCreateForTransaction(
       step.object,
       recordValues,
       stepContext,
       step.authority,
+      recordId === undefined ? {} : { recordId },
     );
   }
 
@@ -408,6 +460,117 @@ export class CommandService {
 interface CommandIterationFrame {
   item: JsonValue;
   index: number;
+}
+
+/**
+ * The caller-supplied record-id manifest, consumed in planning order.
+ *
+ * Matching is positional *and* named. Positional alone would silently attach
+ * the id for item 3 to item 4 if the two executions disagreed about a list;
+ * named alone could not distinguish two writes of the same iterating step. Both
+ * together mean an adopted id is either the id for exactly the write it names or
+ * a refusal, with no third outcome.
+ *
+ * With no manifest every `take` returns undefined, which is the ordinary local
+ * execution: the runtime mints its own ids and nothing here applies.
+ */
+class SuppliedRecordIds {
+  private cursor = 0;
+
+  constructor(
+    private readonly command: ResolvedCommand,
+    private readonly entries: LocalCommandRecordId[] | undefined,
+  ) {
+    this.requireDistinct();
+  }
+
+  /**
+   * Refuses a manifest that names one id twice for the same object, before any
+   * write is planned.
+   *
+   * `planCreateForTransaction` detects a taken id by reading storage, and every
+   * write in a command is planned *before* any of them is committed — so the
+   * second plan's lookup cannot see the first plan's id. Both plans passed and
+   * the duplicate landed as a PostgreSQL primary-key violation at commit, which
+   * is not a `RuntimeError`: `AuthorityService.classifyFailure` returned null,
+   * `replay` rethrew, the client saw a transport failure, and the queue entry
+   * stayed replayable for ever. This is exactly the failure
+   * `learnings/implementation/offline-operation-identity.md` describes — "a
+   * durable rejection is only reachable by detecting the collision first" —
+   * reached by a route Phase 48 did not have.
+   *
+   * It is checked here rather than alongside the storage lookup because it is
+   * pure input validation: the caller supplied both ids, so refusing them
+   * discloses nothing about what exists, and the existence-oracle ordering that
+   * governs the storage check does not apply. The code is the same one a taken
+   * id raises, because the question and the caller's remedy are the same.
+   *
+   * An honest client cannot produce one — `ObjectStore` mints a distinct id per
+   * write — so this is hardening against a manifest that arrives over the wire.
+   */
+  private requireDistinct(): void {
+    if (this.entries === undefined) {
+      return;
+    }
+
+    const seen = new Set<string>();
+    for (const entry of this.entries) {
+      // Keyed by object as well as id: storage is keyed per object, so the same
+      // id under two different objects is not a collision and must not be
+      // refused as one. Neither part can contain a NUL, so the separator is
+      // unambiguous.
+      const key = `${entry.objectName} ${entry.recordId}`;
+      if (seen.has(key)) {
+        throw new RecordIdUnavailableError(
+          `Command '${this.command.name}' names the same '${entry.objectName}' record id more than once.`,
+          { commandName: this.command.name, objectName: entry.objectName },
+        );
+      }
+      seen.add(key);
+    }
+  }
+
+  take(step: ResolvedCommandStep, frame: CommandIterationFrame | undefined): string | undefined {
+    if (this.entries === undefined) {
+      return undefined;
+    }
+
+    const entry = this.entries[this.cursor];
+    this.cursor += 1;
+    if (entry === undefined) {
+      throw new CommandRecordIdsMismatchError(
+        `Command '${this.command.name}' plans more records than the supplied record ids describe.`,
+        { commandName: this.command.name, step: step.name },
+      );
+    }
+    if (
+      entry.step !== step.name ||
+      entry.objectName !== step.object ||
+      entry.itemIndex !== frame?.index
+    ) {
+      throw new CommandRecordIdsMismatchError(
+        `Command '${this.command.name}' step '${step.name}' does not match the supplied record id at position ${this.cursor - 1}.`,
+        { commandName: this.command.name, step: step.name, position: this.cursor - 1 },
+      );
+    }
+
+    return entry.recordId;
+  }
+
+  requireExhausted(): void {
+    if (this.entries === undefined || this.cursor === this.entries.length) {
+      return;
+    }
+
+    throw new CommandRecordIdsMismatchError(
+      `Command '${this.command.name}' plans fewer records than the supplied record ids describe.`,
+      {
+        commandName: this.command.name,
+        planned: this.cursor,
+        supplied: this.entries.length,
+      },
+    );
+  }
 }
 
 /**

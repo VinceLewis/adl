@@ -235,6 +235,7 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
     | "evaluatePresentationView"
     | "evaluateOfflineDataset"
     | "syncWrite"
+    | "syncCommand"
     | "readPersistedRecords";
   model?: PartialApplicationModel;
   modelRef?: string;
@@ -279,6 +280,9 @@ export type RuntimeConformanceInput =
       request: JsonPolicyRequest;
       context: JsonRuntimeContext;
     }
+  // Shared by `executeCommand`, which reports the records a command wrote, and
+  // `syncCommand`, which reports those records *and* the queue entry the command
+  // left behind. The input a command takes is the same either way.
   | {
       commandName: string;
       input: Record<string, JsonValue>;
@@ -321,6 +325,23 @@ type SyncWriteOperationInput = {
   id?: JsonValue;
   patch?: Record<string, JsonValue>;
   actionName?: string;
+  context: JsonRuntimeContext;
+};
+
+/**
+ * A command executed locally, reported together with the queue it left behind.
+ *
+ * `syncWrite` performs only create, update, delete and transition, so the
+ * central guarantee of command replay — that a locally executed command leaves
+ * exactly **one** queue entry, of kind `command`, naming every record it wrote —
+ * had no way into the corpus at all. It is stated the same way `syncWrite`
+ * states a mode: by reporting what the runtime did *and* the queue that resulted,
+ * because an implementation could report a command result faithfully and still
+ * queue its steps one by one.
+ */
+type SyncCommandOperationInput = {
+  commandName: string;
+  input: Record<string, JsonValue>;
   context: JsonRuntimeContext;
 };
 
@@ -874,6 +895,13 @@ async function runRuntimeCase(
     };
   }
 
+  if (conformanceCase.operation === "syncCommand") {
+    return {
+      ok: true,
+      result: await runSyncCommand(runtime, input as SyncCommandOperationInput, state),
+    };
+  }
+
   if (conformanceCase.operation === "readPersistedRecords") {
     return { ok: true, result: await reportPersistedRecords(runtime, storage, state) };
   }
@@ -946,15 +974,116 @@ function normaliseSyncDecision(decision: SyncWriteDecision): JsonValue {
   };
 }
 
-/** `queueId` and `opId` are generated, so an entry is named by what it carries. */
-function normaliseSyncQueueEntry(entry: SyncQueueEntry, state: RunState): JsonValue {
+/**
+ * A locally executed command, the records it wrote, and the queue it left behind.
+ *
+ * Modelled on `runSyncWrite` for the same reason: a result alone cannot state
+ * what was queued. A runtime could return a perfectly correct command result and
+ * still enqueue one entry per step, which is precisely the shape that loses the
+ * transaction across the sync boundary — an established context does not survive
+ * being replayed as separate intents, and a batch replayed as N intents can land
+ * partially. What is contractual is therefore the pair.
+ *
+ * Every record the command created is named after the step that created it
+ * before the queue is read, so the entry can be asserted without any case
+ * spelling out an id the runtime minted.
+ */
+async function runSyncCommand(
+  runtime: ApplicationRuntime,
+  input: SyncCommandOperationInput,
+  state: RunState,
+): Promise<JsonValue> {
+  const execution = await (async (): Promise<JsonValue> => {
+    try {
+      const result = await runtime.executeCommand(
+        input.commandName,
+        input.input,
+        parseContext(input.context),
+      );
+      for (const step of result.steps) {
+        state.recordAliases.set(step.recordId, commandStepAlias(step.step, step.itemIndex));
+      }
+      return {
+        status: "executed",
+        steps: result.steps.map((step) => ({
+          step: step.step,
+          ...(step.itemIndex === undefined ? {} : { itemIndex: step.itemIndex }),
+          operation: step.operation,
+          objectName: step.objectName,
+          recordId: aliasForRecordId(step.recordId, state),
+        })),
+      } as unknown as JsonValue;
+    } catch (error) {
+      if (isObject(error) && typeof error.code === "string") {
+        // Reported rather than rethrown, so a refused command can assert the
+        // queue it did *not* grow as well as the code it raised. A command
+        // succeeds or fails as a whole, so "nothing was queued" is part of the
+        // refusal rather than a separate observation.
+        return { status: "refused", code: error.code } as unknown as JsonValue;
+      }
+      throw error;
+    }
+  })();
+
   return {
-    objectName: entry.operation.object,
-    operation: entry.operation.operation,
-    recordId: aliasForRecordId(entry.operation.recordId, state),
+    command: input.commandName,
+    execution,
+    queue: runtime.syncQueue.getEntries().map((entry) => normaliseSyncQueueEntry(entry, state)),
+  } as unknown as JsonValue;
+}
+
+/** An iterating step writes one record per item, so its name alone is ambiguous. */
+function commandStepAlias(step: string, itemIndex: number | undefined): string {
+  return itemIndex === undefined ? step : `${step}.${itemIndex}`;
+}
+
+/**
+ * `queueId` and `opId` are generated, so an entry is named by what it carries.
+ *
+ * A `command` entry carries the whole transaction rather than one row, so it
+ * additionally reports the command's name, the input that will be re-executed,
+ * the record-id manifest, and every record the command wrote — all ids passed
+ * through the alias table, because a case that named one would be pinning a
+ * value the runtime minted. Without this an entry of kind `command` was
+ * indistinguishable from an ordinary create on the same object, so no case could
+ * state that a command queues once and names all of its records.
+ *
+ * `selectedContexts` is reported because it is captured when the operation
+ * executes, not when the queue drains: an entry that carried no selection would
+ * be replayed against whatever was selected later.
+ */
+function normaliseSyncQueueEntry(entry: SyncQueueEntry, state: RunState): JsonValue {
+  const operation = entry.operation;
+  const command = operation.command;
+  return {
+    objectName: operation.object,
+    operation: operation.operation,
+    recordId: aliasForRecordId(operation.recordId, state),
     mode: entry.objectSync.mode,
-    status: entry.operation.status,
-  };
+    status: operation.status,
+    ...(operation.selectedContexts === undefined
+      ? {}
+      : { selectedContexts: normaliseRecordIds(operation.selectedContexts, state) }),
+    ...(command === undefined
+      ? {}
+      : {
+          command: {
+            name: command.name,
+            ...(command.label === undefined ? {} : { label: command.label }),
+            input: command.input,
+            recordIds: command.recordIds.map((supplied) => ({
+              step: supplied.step,
+              ...(supplied.itemIndex === undefined ? {} : { itemIndex: supplied.itemIndex }),
+              objectName: supplied.objectName,
+              recordId: aliasForRecordId(supplied.recordId, state),
+            })),
+            records: command.records.map((named) => ({
+              objectName: named.objectName,
+              recordId: aliasForRecordId(named.recordId, state),
+            })),
+          },
+        }),
+  } as unknown as JsonValue;
 }
 
 /**
@@ -1029,7 +1158,10 @@ async function runRuntimeStep(
 
 async function runRuntimeOperation(
   runtime: ApplicationRuntime,
-  operation: Exclude<RuntimeConformanceCase["operation"], "syncWrite" | "readPersistedRecords">,
+  operation: Exclude<
+    RuntimeConformanceCase["operation"],
+    "syncWrite" | "syncCommand" | "readPersistedRecords"
+  >,
   input: RuntimeConformanceInput,
 ): Promise<unknown> {
   switch (operation) {

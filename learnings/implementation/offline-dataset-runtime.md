@@ -15,6 +15,28 @@ Read this before changing context-aware offline dataset selection, dataset-limit
 - `currentContext` dataset evaluation uses the selected context only. If no relevant context is selected, context-scoped records do not match.
 - `custom` sync scope has no runtime evaluator yet and contributes no records by default. A future phase should define a backend-neutral custom dataset expression before using it for real app behavior.
 
+## A recorded gap that turned out not to exist
+
+Phases 56 and 57 both listed "offline dataset selection does not know about
+read-model joins" as a remaining gap. It was checked during the Phase 57 handoff
+and **does not reproduce**. A scratch run over the Giggle Band model created a
+bandmate's `Availability` and evaluated `evaluateOfflineDataset` as the founder:
+the bandmate's record is offline-eligible, with reason
+`readModelSource/BandMemberAvailability/availability/all`. The `SCOPE all` source
+path in `recordMatchesReadModelSourceContext` admits it, so the joined
+`BandMemberAvailabilityBoard` is not silently empty offline. The same run
+executed the read model online and got two correctly paired rows.
+
+If a gap remains in this area it is **over**-inclusion — a `SCOPE all` source
+pulls records into the dataset on the strength of the source scope alone — not
+the under-inclusion that would have made a shipped view wrong. Do not re-plan a
+phase around the original claim without re-checking it.
+
+The general rule this is an instance of: a gap recorded in a phase document's
+non-goals is an assertion made at planning time, and
+`learnings/process/phase-execution.md` requires checking it before executing on
+it. Two of the four gaps Phase 57 listed were checked; one was wrong.
+
 ## Practical guidance
 
 - Do not use dataset membership as proof that a user can read a record. Always route user-facing local reads through `ApplicationRuntime.searchLocalDataset(...)`, `ApplicationRuntime.read(...)`, `executeReadModel(...)`, or another policy-enforcing runtime service.

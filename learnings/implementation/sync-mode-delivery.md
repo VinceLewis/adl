@@ -106,6 +106,21 @@ Even if a caller forgets entirely, nothing is lost: the entry is in the queue,
 so the next `synchronize` delivers it. Immediate delivery is a promptness
 guarantee layered on a durable one, not the only path.
 
+## What Phase 57 added to this
+
+A queued entry carries one object's sync declaration, and from Phase 57 a
+locally executed command is one entry covering as many objects as it has steps.
+Two rules follow, both recorded in [[command-intent-replay]]:
+
+- The entry is filed under the **most demanding** step object
+  (`onlineRequired` > `localFirst`), so a command containing an `onlineRequired`
+  step is delivered now rather than held. Its `objectName`/`recordId` therefore
+  name a representative record, not the subject of the change.
+- A command whose steps disagree about *queueability* is refused at compile time
+  (`ADL_COMMAND_STEP_SYNC_MODE_MIXED`). Queue it and the authority refuses the
+  `localPrivate` step on every reconnect; do not queue it and the steps that
+  should have synced silently never do.
+
 ## Testing notes
 
 - The hermetic suite proves the state machine; the real-PostgreSQL integration

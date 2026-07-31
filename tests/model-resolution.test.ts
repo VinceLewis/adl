@@ -156,7 +156,13 @@ describe("resolveApplicationModel", () => {
       },
     ]);
     expect(resolved.audit.enabled).toBe(true);
-    expect(resolved.operationLog.operations).toEqual(["create", "update", "delete", "transition"]);
+    expect(resolved.operationLog.operations).toEqual([
+      "create",
+      "update",
+      "delete",
+      "transition",
+      "command",
+    ]);
     expect("contexts" in resolved).toBe(false);
     expect("readModels" in resolved).toBe(false);
 

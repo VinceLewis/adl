@@ -1123,6 +1123,62 @@ describe("validateApplicationModel", () => {
     );
   });
 
+  it("reports a command whose steps disagree about sync queueability", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    setObjectSyncMode(invalid, "BandMember", "localPrivate");
+
+    const diagnostics = validateApplicationModel(invalid).filter(
+      (candidate) => candidate.code === MODEL_VALIDATION_CODES.COMMAND_STEP_SYNC_MODE_MIXED,
+    );
+
+    // One command, one diagnostic: the disagreement is not any single step's
+    // fault, so reporting it per step would say the same thing twice.
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.path).toBe("commands[1].steps");
+    expect(diagnostics[0]?.message).toContain("CreateBand");
+    expect(diagnostics[0]?.message).toContain("'Band' (localFirst)");
+    expect(diagnostics[0]?.message).toContain("'BandMember' (localPrivate)");
+  });
+
+  it("accepts a command mixing localFirst and onlineRequired steps", () => {
+    // Both modes queue, so the whole command still has one delivery answer.
+    const resolved = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    setObjectSyncMode(resolved, "BandMember", "onlineRequired");
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_SYNC_MODE_MIXED,
+    );
+  });
+
+  it("accepts a command whose steps all withhold their writes from the authority", () => {
+    // Nothing to disagree about: the command never enters the queue at all.
+    const resolved = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    setObjectSyncMode(resolved, "Band", "localPrivate");
+    setObjectSyncMode(resolved, "BandMember", "localPrivate");
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_SYNC_MODE_MIXED,
+    );
+  });
+
+  it("does not report mixed sync queueability on top of an unknown step object", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
+    const createBand = invalid.commands?.find((command) => command.name === "CreateBand")?.steps[0];
+    if (createBand === undefined || createBand.action !== "create") {
+      throw new Error("Expected create-band fixture.");
+    }
+    createBand.object = "MissingObject";
+    // The established context names the object this step creates, so leaving it
+    // declared would report a mismatch that is not what this case is about.
+    delete createBand.establishesContext;
+    setObjectSyncMode(invalid, "BandMember", "localPrivate");
+
+    const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
+
+    expect(codes).toContain(MODEL_VALIDATION_CODES.COMMAND_STEP_OBJECT_UNKNOWN);
+    expect(codes).not.toContain(MODEL_VALIDATION_CODES.COMMAND_STEP_SYNC_MODE_MIXED);
+  });
+
   it("reports invalid context member policy principals", () => {
     const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
     const visibility = invalid.policies.find((policy) => policy.name === "BandMemberVisibility");
@@ -1336,6 +1392,18 @@ function createInvalidResolvedModel(): ResolvedApplicationModel {
 
 function cloneResolved<T>(input: T): T {
   return JSON.parse(JSON.stringify(input)) as T;
+}
+
+function setObjectSyncMode(
+  model: ResolvedApplicationModel,
+  objectName: string,
+  mode: ResolvedSyncPolicy["mode"],
+): void {
+  const object = model.objects.find((candidate) => candidate.name === objectName);
+  if (object === undefined) {
+    throw new Error(`Expected object '${objectName}' in the fixture.`);
+  }
+  object.sync.mode = mode;
 }
 
 function createPresentationPartialModel(): PartialApplicationModel {

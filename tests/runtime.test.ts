@@ -1424,7 +1424,10 @@ describe("ApplicationRuntime", () => {
       SetList: setList.meta.guid,
       Position: 1,
     });
-    expect(runtime.operationLog.getOperations().slice(-2)).toMatchObject([
+    // Every step is still logged for local history; the command entry that
+    // follows them is the one the sync queue carries, so the authority is told
+    // about the transaction rather than about its two writes.
+    expect(runtime.operationLog.getOperations().slice(-3)).toMatchObject([
       {
         operation: "create",
         object: "Event",
@@ -1439,7 +1442,30 @@ describe("ApplicationRuntime", () => {
         commandStep: "linkSetList",
         commandTransactionId: "cmd-txn-1",
       },
+      {
+        operation: "command",
+        commandName: "CreateEventWithSetList",
+        commandTransactionId: "cmd-txn-1",
+        command: {
+          name: "CreateEventWithSetList",
+          recordIds: [
+            { step: "createEvent", objectName: "Event", recordId: result.steps[0]?.recordId },
+            {
+              step: "linkSetList",
+              objectName: "EventSetList",
+              recordId: result.steps[1]?.recordId,
+            },
+          ],
+        },
+      },
     ]);
+    // One queue entry for the whole command, never one per step.
+    expect(
+      runtime.syncQueue
+        .getEntries()
+        .filter((entry) => entry.operation.commandTransactionId === "cmd-txn-1")
+        .map((entry) => entry.operation.operation),
+    ).toEqual(["command"]);
   });
 
   it("updates records in two object collections as one command intent", async () => {

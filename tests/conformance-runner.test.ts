@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runConformanceCase } from "../src/index.js";
 import type {
   AuthorityConformanceCase,
+  JsonValue,
   ModelMigrationConformanceCase,
   PartialApplicationModel,
   RuntimeConformanceCase,
@@ -45,6 +46,75 @@ const syncModel: PartialApplicationModel = {
     },
   ],
   policies: ["LocalFirstItem", "LocalPrivateItem", "CacheReadonlyItem"].map((objectName) => ({
+    name: `${objectName}Policy`,
+    object: objectName,
+    rules: [
+      {
+        name: `allowAdmin${objectName}`,
+        effect: "allow" as const,
+        principal: { match: "specific" as const, roles: ["Admin"] },
+        action: "*" as const,
+      },
+    ],
+  })),
+};
+
+/**
+ * Two commands over the same objects: one whose steps are queueable, one whose
+ * single step is refused before it commits. `syncWrite` performs only
+ * create/update/delete/transition, so neither the one-entry guarantee nor the
+ * "a refused command queues nothing" guarantee had any way into the corpus.
+ */
+const commandSyncModel: PartialApplicationModel = {
+  app: { name: "RunnerCommandSync" },
+  roles: [{ name: "Admin" }],
+  objects: [
+    {
+      name: "Item",
+      fields: [{ name: "Name", type: "text", required: true }],
+      sync: { mode: "localFirst", scope: "all" },
+    },
+    {
+      name: "Locked",
+      fields: [{ name: "Name", type: "text", required: true }],
+      sync: { mode: "cacheReadonly", scope: "all" },
+    },
+  ],
+  commands: [
+    {
+      name: "PairItems",
+      label: "Pair two items",
+      inputs: [{ name: "Name", type: "text", required: true }],
+      steps: [
+        {
+          name: "first",
+          action: "create",
+          object: "Item",
+          values: { Name: { kind: "input", name: "Name" } },
+        },
+        {
+          name: "second",
+          action: "create",
+          object: "Item",
+          values: { Name: { kind: "literal", value: "Second" } },
+        },
+      ],
+    },
+    {
+      name: "WriteLocked",
+      label: "Write a cached record",
+      inputs: [{ name: "Name", type: "text", required: true }],
+      steps: [
+        {
+          name: "lock",
+          action: "create",
+          object: "Locked",
+          values: { Name: { kind: "input", name: "Name" } },
+        },
+      ],
+    },
+  ],
+  policies: ["Item", "Locked"].map((objectName) => ({
     name: `${objectName}Policy`,
     object: objectName,
     rules: [
@@ -318,6 +388,149 @@ describe("syncWrite", () => {
     });
 
     expect(result.pass).toBe(true);
+  });
+});
+
+describe("syncCommand", () => {
+  const pairItems = (queue: JsonValue[]): RuntimeConformanceCase => ({
+    id: "runner.synccommand.pair-items",
+    title: "A locally executed command and the queue it left behind",
+    specRef: "runtime-semantics#command-replay",
+    operation: "syncCommand",
+    model: commandSyncModel,
+    input: { commandName: "PairItems", input: { Name: "First" }, context: adminContext },
+    expected: {
+      ok: true,
+      result: {
+        command: "PairItems",
+        execution: {
+          status: "executed",
+          steps: [
+            { step: "first", objectName: "Item", recordId: "$first" },
+            { step: "second", objectName: "Item", recordId: "$second" },
+          ],
+        },
+        queue,
+      },
+    },
+  });
+
+  const oneCommandEntry = [
+    {
+      objectName: "Item",
+      operation: "command",
+      recordId: "$first",
+      mode: "localFirst",
+      command: {
+        name: "PairItems",
+        input: { Name: "First" },
+        recordIds: [
+          { step: "first", objectName: "Item", recordId: "$first" },
+          { step: "second", objectName: "Item", recordId: "$second" },
+        ],
+        records: [
+          { objectName: "Item", recordId: "$first" },
+          { objectName: "Item", recordId: "$second" },
+        ],
+      },
+    },
+  ];
+
+  it("reports a command as one queue entry naming every record it wrote", async () => {
+    const result = await runConformanceCase(pairItems(oneCommandEntry));
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same command asserted to have queued its steps separately", async () => {
+    // The discrimination that makes the one-entry guarantee contractual: a
+    // runtime that queued a command's writes individually — the shape that loses
+    // the transaction across the sync boundary — fails exactly here.
+    const result = await runConformanceCase(
+      pairItems([
+        { objectName: "Item", operation: "create" },
+        { objectName: "Item", operation: "create" },
+      ]),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  it("fails a command entry asserted to carry no command", async () => {
+    const result = await runConformanceCase(
+      pairItems([{ objectName: "Item", operation: "command", command: "$absent" }]),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  it("fails a manifest whose ids name the wrong steps", async () => {
+    // Without this, "recordIds are reported" would be satisfied by any two ids
+    // in any order, and the manifest's whole purpose is that order.
+    const result = await runConformanceCase(
+      pairItems([
+        {
+          objectName: "Item",
+          operation: "command",
+          command: {
+            recordIds: [
+              { step: "first", objectName: "Item", recordId: "$second" },
+              { step: "second", objectName: "Item", recordId: "$first" },
+            ],
+          },
+        },
+      ]),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  it("fails an ordinary create asserted to carry a command", async () => {
+    const result = await runConformanceCase({
+      id: "runner.synccommand.ordinary-create",
+      title: "A direct create is not a command",
+      specRef: "runtime-semantics#command-replay",
+      operation: "syncWrite",
+      model: commandSyncModel,
+      input: {
+        objectName: "Item",
+        write: "create",
+        values: { Name: "First" },
+        context: adminContext,
+      },
+      expected: {
+        ok: true,
+        result: {
+          queue: [{ objectName: "Item", operation: "command", command: { name: "PairItems" } }],
+        },
+      },
+    });
+
+    expect(result.pass).toBe(false);
+  });
+
+  const refusedCommand = (execution: Record<string, string>): RuntimeConformanceCase => ({
+    id: "runner.synccommand.refused",
+    title: "A command refused before it commits queues nothing",
+    specRef: "runtime-semantics#command-replay",
+    operation: "syncCommand",
+    model: commandSyncModel,
+    input: { commandName: "WriteLocked", input: { Name: "Nope" }, context: adminContext },
+    expected: { ok: true, result: { command: "WriteLocked", execution, queue: [] } },
+  });
+
+  it("reports a refused command and the queue it did not grow", async () => {
+    const result = await runConformanceCase(
+      refusedCommand({ status: "refused", code: "ADL_SYNC_POLICY_DENIED" }),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same refusal asserted to have executed", async () => {
+    const result = await runConformanceCase(refusedCommand({ status: "executed" }));
+
+    expect(result.pass).toBe(false);
   });
 });
 

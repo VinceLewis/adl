@@ -56,8 +56,68 @@ const partialModel: PartialApplicationModel = {
         ],
       },
     },
+    // What `PlanTour` writes. A command needs a plain step and an iterating one
+    // for "one rejected change" to mean anything: three records land, and the
+    // question is whether the user is shown one refusal or three.
+    {
+      name: "TourPlan",
+      businessKey: "Name",
+      displayField: "Name",
+      fields: [{ name: "Name", type: "text" as const, required: true }],
+      sync: { mode: "localFirst" as const, conflict: "manual" as const },
+    },
+    {
+      name: "TourPlanStop",
+      businessKey: "City",
+      displayField: "City",
+      fields: [
+        { name: "Plan", type: "text" as const, required: true },
+        { name: "City", type: "text" as const, required: true },
+      ],
+      sync: { mode: "localFirst" as const, conflict: "manual" as const },
+    },
   ],
-  policies: ["ServerGig", "ClientGig", "ManualGig", "TransitionGig"].map((objectName) => ({
+  commands: [
+    {
+      name: "PlanTour",
+      label: "Plan tour",
+      inputs: [
+        { name: "Name", type: "text", required: true },
+        {
+          name: "Cities",
+          required: true,
+          repeated: true,
+          itemFields: [{ name: "City", type: "text", required: true }],
+        },
+      ],
+      steps: [
+        {
+          name: "createPlan",
+          action: "create",
+          object: "TourPlan",
+          values: { Name: { kind: "input", name: "Name" } },
+        },
+        {
+          name: "createStops",
+          action: "create",
+          object: "TourPlanStop",
+          forEach: "Cities",
+          values: {
+            Plan: { kind: "stepMeta", step: "createPlan", property: "guid" },
+            City: { kind: "item", field: "City" },
+          },
+        },
+      ],
+    },
+  ],
+  policies: [
+    "ServerGig",
+    "ClientGig",
+    "ManualGig",
+    "TransitionGig",
+    "TourPlan",
+    "TourPlanStop",
+  ].map((objectName) => ({
     name: `${objectName}Policy`,
     object: objectName,
     rules: [
@@ -410,5 +470,139 @@ describe("client conflict and rejection recovery", () => {
 
     expect(client.listRecovery()).toEqual([]);
     expect(runtime.syncQueue.getReplayable()).toHaveLength(1);
+  });
+});
+
+/**
+ * A command succeeds or fails as one transaction, so it has to be recovered as
+ * one change.
+ *
+ * Presenting its steps separately would ask a person to resolve three unrelated
+ * failures against whichever object happened to be filed first — and would let
+ * them dismiss one and resubmit another, which for a transaction is not a
+ * resolution at all. There is one queue entry, so there is one verdict, one
+ * recovery item and one resolution.
+ */
+describe("recovery for a command", () => {
+  const tourInput = { Name: "Spring tour", Cities: [{ City: "Leeds" }, { City: "York" }] };
+
+  async function plannedTour(runtime: ApplicationRuntime): Promise<void> {
+    await runtime.executeCommand("PlanTour", tourInput, adminContext);
+  }
+
+  function refusingTransport(): ScriptedTransport {
+    return new ScriptedTransport((intent) => ({
+      status: "rejected",
+      operationId: intent.operationId,
+      code: "ADL_POLICY_DENIED",
+      message: "The authority refused this command.",
+    }));
+  }
+
+  it("presents a refused command as one change, named, with dismissal as the only choice", async () => {
+    const runtime = newRuntime();
+    await plannedTour(runtime);
+    expect(runtime.syncQueue.getEntries()).toHaveLength(1);
+    const client = new AuthoritySyncClient(runtime, refusingTransport());
+
+    await client.reconcile(undefined, adminContext);
+
+    const recovery = client.listRecovery();
+    // One item for three records. Three items would be three refusals to read,
+    // three things to dismiss, and no way to tell they were ever one change.
+    expect(recovery).toHaveLength(1);
+    expect(recovery[0]).toMatchObject({
+      operation: "command",
+      commandName: "PlanTour",
+      commandLabel: "Plan tour",
+      recordCount: 3,
+      status: "rejected",
+      code: "ADL_POLICY_DENIED",
+      requiresUserChoice: false,
+      // Terminal, exactly as for a refused single write: a command the authority
+      // refused is acknowledged, never resurrected as accepted.
+      choices: ["keepServer"],
+    });
+    // Still metadata only. A command's input carries record values, and the
+    // recovery surface has no read policy behind it to disclose them.
+    expect(JSON.stringify(recovery)).not.toContain("Leeds");
+    // Every step moves off `pending` with the command: the verdict covers them
+    // all, and leaving them pending would show settled work as unsent.
+    expect(runtime.operationLog.getOperations().map((operation) => operation.status)).toEqual([
+      "rejected",
+      "rejected",
+      "rejected",
+      "rejected",
+    ]);
+  });
+
+  /**
+   * The decision, recorded rather than discovered later: a rejected command
+   * leaves its local records exactly where a rejected create leaves its local
+   * row. Nothing deletes them, and a later bootstrap cannot remove records the
+   * authority never had. The user's work stays on the device, unsent, with the
+   * reason visible in the recovery panel.
+   */
+  it("leaves every local record the command wrote in place after a refusal", async () => {
+    const runtime = newRuntime();
+    await plannedTour(runtime);
+    const client = new AuthoritySyncClient(runtime, refusingTransport());
+    await client.reconcile(undefined, adminContext);
+
+    const localRows = async () => ({
+      plans: (await runtime.objectStore.search("TourPlan", {}, adminContext)).length,
+      stops: (await runtime.objectStore.search("TourPlanStop", {}, adminContext)).length,
+    });
+    expect(await localRows()).toEqual({ plans: 1, stops: 2 });
+
+    await client.resolveRecovery(
+      undefined,
+      adminContext,
+      client.listRecovery()[0]?.queueId ?? "",
+      "keepServer",
+    );
+
+    // Dismissing settles the operation, not the records.
+    expect(client.listRecovery()).toEqual([]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+    expect(await localRows()).toEqual({ plans: 1, stops: 2 });
+  });
+
+  it("resubmits a conflicted command whole, under a fresh operation id", async () => {
+    const runtime = newRuntime();
+    await plannedTour(runtime);
+    const transport = new ScriptedTransport((intent, attempt) =>
+      attempt === 1
+        ? manualOutcome(intent)
+        : { status: "accepted", operationId: intent.operationId, records: [] },
+    );
+    const client = new AuthoritySyncClient(runtime, transport);
+    await client.reconcile(undefined, adminContext);
+
+    const item = client.listRecovery()[0];
+    expect(item).toMatchObject({ operation: "command", requiresUserChoice: true });
+    expect(item?.choices).toEqual(["keepServer", "resubmitMine"]);
+
+    await client.resolveRecovery(undefined, adminContext, item?.queueId ?? "", "resubmitMine");
+
+    // Exactly one resubmission, not one per record: the transaction is what is
+    // being offered to the authority again.
+    expect(transport.replayCalls).toHaveLength(2);
+    const [first, second] = transport.replayCalls;
+    if (first?.kind !== "command" || second?.kind !== "command") {
+      throw new Error("Expected both attempts to be command intents.");
+    }
+    // A fresh operation id, because the authority has already settled the first
+    // one and would otherwise replay the stored conflict back verbatim.
+    expect(second.operationId).toBe(`${first.operationId}-r1`);
+    // The same work, and the same record ids: the device still holds those rows,
+    // so re-minting them here would strand the ones it is showing.
+    expect(second.commandName).toBe("PlanTour");
+    expect(second.input).toEqual(first.input);
+    expect(second.recordIds).toEqual(first.recordIds);
+    expect(second.recordIds).toHaveLength(3);
+
+    expect(client.listRecovery()).toEqual([]);
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
   });
 });

@@ -440,7 +440,11 @@
       "input": {
         "commandName": "ImportTags",
         "input": {
-          "Tags": ["Rock", "Folk", "Jazz"]
+          "Tags": [
+            "Rock",
+            "Folk",
+            "Jazz"
+          ]
         },
         "context": {
           "userId": "user-importer",
@@ -490,7 +494,9 @@
       "input": {
         "commandName": "ImportTags",
         "input": {
-          "Tags": ["Only"]
+          "Tags": [
+            "Only"
+          ]
         },
         "context": {
           "userId": "user-importer",
@@ -617,7 +623,27 @@
                 "Title": "Third Rail"
               }
             ]
-          }
+          },
+          "recordIds": [
+            {
+              "step": "importSongs",
+              "itemIndex": 0,
+              "objectName": "Song",
+              "recordId": "song-import-1"
+            },
+            {
+              "step": "importSongs",
+              "itemIndex": 1,
+              "objectName": "Song",
+              "recordId": "song-import-2"
+            },
+            {
+              "step": "importSongs",
+              "itemIndex": 2,
+              "objectName": "Song",
+              "recordId": "song-import-3"
+            }
+          ]
         }
       },
       "expected": {
@@ -679,7 +705,21 @@
                 "Composer": "Missing a title"
               }
             ]
-          }
+          },
+          "recordIds": [
+            {
+              "step": "importSongs",
+              "itemIndex": 0,
+              "objectName": "Song",
+              "recordId": "song-bad-1"
+            },
+            {
+              "step": "importSongs",
+              "itemIndex": 1,
+              "objectName": "Song",
+              "recordId": "song-bad-2"
+            }
+          ]
         }
       },
       "expected": {
@@ -718,7 +758,21 @@
                     "Composer": "Missing a title"
                   }
                 ]
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "importSongs",
+                  "itemIndex": 0,
+                  "objectName": "Song",
+                  "recordId": "song-nothing-1"
+                },
+                {
+                  "step": "importSongs",
+                  "itemIndex": 1,
+                  "objectName": "Song",
+                  "recordId": "song-nothing-2"
+                }
+              ]
             },
             "expect": "rejected"
           }
@@ -755,7 +809,15 @@
                     "Title": "Only Song"
                   }
                 ]
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "importSongs",
+                  "itemIndex": 0,
+                  "objectName": "Song",
+                  "recordId": "song-kept-1"
+                }
+              ]
             }
           }
         ]

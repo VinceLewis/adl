@@ -8,10 +8,17 @@ import { RuntimeModelIndex } from "./model-helpers.js";
 import { RuntimeError, noopRuntimeLogger, safeContextLog } from "./runtime-types.js";
 import type { RuntimeContext, RuntimeLogger } from "./runtime-types.js";
 
+/**
+ * A write against one record. A command is never one of these: it is the
+ * transaction such writes commit in, and it is gated by the modes of the objects
+ * its steps touch rather than by a mode of its own.
+ */
+export type LocalRecordWriteKind = Exclude<LocalOperationKind, "command">;
+
 export interface SyncWriteDecision {
   allowed: boolean;
   objectName: string;
-  operation: LocalOperationKind;
+  operation: LocalRecordWriteKind;
   mode: SyncMode;
   online: boolean;
   queueable: boolean;
@@ -68,7 +75,7 @@ export class SyncPolicyService {
 
   evaluateLocalWrite(
     objectName: string,
-    operation: LocalOperationKind,
+    operation: LocalRecordWriteKind,
     context: RuntimeContext,
   ): SyncWriteDecision {
     const object = this.index.getObject(objectName);
@@ -102,7 +109,7 @@ export class SyncPolicyService {
 
   requireLocalWriteAllowed(
     objectName: string,
-    operation: LocalOperationKind,
+    operation: LocalRecordWriteKind,
     context: RuntimeContext,
   ): SyncWriteDecision {
     const decision = this.evaluateLocalWrite(objectName, operation, context);
@@ -154,7 +161,7 @@ function isReadonly(mode: SyncMode, online: boolean, channel: RuntimeContext["ch
 
 function getWriteReason(
   object: ResolvedObject,
-  operation: LocalOperationKind,
+  operation: LocalRecordWriteKind,
   mode: SyncMode,
   online: boolean,
   channel: RuntimeContext["channel"],

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ApplicationRuntime,
+  AuthorityService,
   AuthoritySyncClient,
   AuthorityTransportError,
   InMemoryObjectStorageBackend,
+  InMemorySyncStateStorage,
+  StaticSessionAdapter,
   resolveApplicationModel,
   validateApplicationModel,
 } from "../src/index.js";
@@ -13,6 +16,7 @@ import type {
   AuthorityOperationIntent,
   AuthorityOutcome,
   AuthorityTransport,
+  LocalOperation,
   PartialApplicationModel,
   RuntimeContext,
   StoredObjectRecord,
@@ -49,6 +53,60 @@ const partialModel: PartialApplicationModel = {
       displayField: "Email",
       fields: [{ name: "Email", type: "text", required: true }],
       sync: { mode: "onlineRequired", conflict: "manual" },
+    },
+    // The two objects `PlanTour` writes. A command needs a plain step and an
+    // iterating one to be worth replaying at all: the plain step proves per-step
+    // identity, the iterating one proves per-item identity, and only the two
+    // together show that a manifest position is not simply a step position.
+    {
+      name: "Tour",
+      businessKey: "Name",
+      displayField: "Name",
+      fields: [{ name: "Name", type: "text", required: true }],
+      sync: { mode: "localFirst", conflict: "manual" },
+    },
+    {
+      name: "TourStop",
+      businessKey: "City",
+      displayField: "City",
+      fields: [
+        { name: "Tour", type: "text", required: true },
+        { name: "City", type: "text", required: true },
+      ],
+      sync: { mode: "localFirst", conflict: "manual" },
+    },
+  ],
+  commands: [
+    {
+      name: "PlanTour",
+      label: "Plan tour",
+      inputs: [
+        { name: "Name", type: "text", required: true },
+        {
+          name: "Cities",
+          required: true,
+          repeated: true,
+          itemFields: [{ name: "City", type: "text", required: true }],
+        },
+      ],
+      steps: [
+        {
+          name: "createTour",
+          action: "create",
+          object: "Tour",
+          values: { Name: { kind: "input", name: "Name" } },
+        },
+        {
+          name: "createStops",
+          action: "create",
+          object: "TourStop",
+          forEach: "Cities",
+          values: {
+            Tour: { kind: "stepMeta", step: "createTour", property: "guid" },
+            City: { kind: "item", field: "City" },
+          },
+        },
+      ],
     },
   ],
   policies: [
@@ -88,6 +146,24 @@ const partialModel: PartialApplicationModel = {
         },
       ],
     },
+    // Deliberately not role-gated. The authority resolves a replay context with
+    // no roles at all — roles come from accepted membership records, and this
+    // fixture declares no business contexts — so an `Admin`-only rule would make
+    // the real `AuthorityService` refuse every replayed command for a reason
+    // that has nothing to do with what these cases are about. `authenticated` is
+    // still a real policy check the server-side re-execution has to pass.
+    ...["Tour", "TourStop"].map((objectName) => ({
+      name: `${objectName}Policy`,
+      object: objectName,
+      rules: [
+        {
+          name: "signedInAll",
+          effect: "allow" as const,
+          principal: { match: "authenticated" as const },
+          action: "*" as const,
+        },
+      ],
+    })),
   ],
 };
 
@@ -389,12 +465,15 @@ describe("AuthoritySyncClient reconcile", () => {
     const [createIntent, updateIntent] = transport.replayCalls;
     // `recordId` names the record the client already holds. It is not an identity,
     // role, actor or timestamp assertion, and the authority still derives all of
-    // those itself.
+    // those itself. `selectedContexts` is the same kind of thing: it reports the
+    // context selection the operation was made under, and an empty object says
+    // "none was" rather than claiming membership of anything.
     expect(Object.keys(createIntent ?? {}).sort()).toEqual([
       "kind",
       "objectName",
       "operationId",
       "recordId",
+      "selectedContexts",
       "values",
     ]);
     expect(Object.keys(updateIntent ?? {}).sort()).toEqual([
@@ -404,7 +483,10 @@ describe("AuthoritySyncClient reconcile", () => {
       "operationId",
       "patch",
       "recordId",
+      "selectedContexts",
     ]);
+    expect(createIntent?.selectedContexts).toEqual({});
+    expect(updateIntent?.selectedContexts).toEqual({});
     expect(JSON.stringify(transport.replayCalls)).not.toContain(adminContext.userId);
     expect(JSON.stringify(transport.replayCalls)).not.toContain("Admin");
   });
@@ -555,6 +637,327 @@ describe("AuthoritySyncClient online-required delivery", () => {
     expect(client.listUndelivered()).toEqual([]);
   });
 });
+
+const SERVER_SESSION_TOKEN = "sync-client-session-sync-client-session";
+
+/**
+ * The real `AuthorityService`, in process, over its own accepted-state storage.
+ *
+ * A scripted fake would be the wrong instrument for a command. The whole
+ * question is whether the authority's *re-execution* adopts the ids the device
+ * minted, and a fake that answers with the ids it was handed cannot tell the
+ * difference between adoption and an echo — which is precisely how the Phase 48
+ * duplication defect survived two phases in this very file. Here the ids in the
+ * response are the ids the server-side execution actually wrote, and
+ * `serverStorage` can be inspected to confirm it.
+ */
+class AuthorityBackedTransport implements AuthorityTransport {
+  readonly replayCalls: AuthorityOperationIntent[] = [];
+  readonly serverStorage = new InMemoryObjectStorageBackend();
+  private readonly authority: AuthorityService;
+
+  constructor() {
+    this.authority = new AuthorityService(
+      model,
+      this.serverStorage,
+      new StaticSessionAdapter(new Map([[SERVER_SESSION_TOKEN, { userId: "server-user" }]])),
+    );
+  }
+
+  async bootstrap(
+    sessionToken: string | undefined,
+    request?: AuthorityBootstrapRequest,
+  ): Promise<AuthorityBootstrapResponse> {
+    return this.authority.bootstrap(sessionToken, request);
+  }
+
+  async replay(
+    sessionToken: string | undefined,
+    intent: AuthorityOperationIntent,
+  ): Promise<AuthorityOutcome> {
+    // Snapshotted, so an assertion describes what crossed the wire rather than
+    // whatever the runtime happens to hold by the time the test looks.
+    this.replayCalls.push(structuredClone(intent));
+    return this.authority.replay(sessionToken, intent);
+  }
+
+  async serverIds(objectName: string): Promise<string[]> {
+    return (await this.serverStorage.listRecords())
+      .filter((entry) => entry.objectName === objectName)
+      .map((entry) => entry.record.meta.guid)
+      .sort();
+  }
+}
+
+/**
+ * A locally executed command is one unit of work for the authority.
+ *
+ * Replaying its steps separately is what destroys the transaction: a step
+ * writing into a context an earlier step established is refused outright, and a
+ * batch lands partially. These cases pin the client half — one entry, one
+ * intent, one verdict — and prove the accepted records land on the rows the
+ * device already has rather than beside them.
+ */
+describe("AuthoritySyncClient command replay", () => {
+  const tourInput = {
+    Name: "Spring tour",
+    Cities: [{ City: "Leeds" }, { City: "York" }, { City: "Hull" }],
+  };
+
+  async function plannedTour(runtime: ApplicationRuntime): Promise<string[]> {
+    const result = await runtime.executeCommand("PlanTour", tourInput, adminContext);
+    return result.steps.map((step) => step.recordId);
+  }
+
+  it("queues a locally executed command as one entry, not one per write", async () => {
+    const runtime = newRuntime();
+    await plannedTour(runtime);
+
+    const entries = runtime.syncQueue.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.operation.operation).toBe("command");
+    expect(entries[0]?.operation.command?.name).toBe("PlanTour");
+    expect(entries[0]?.operation.command?.records).toHaveLength(4);
+    // The four writes are still in the device's own history. They are simply not
+    // queued: the authority has to be told about the transaction, and one entry
+    // per step is exactly the shape that loses it.
+    expect(runtime.operationLog.getOperations().map((operation) => operation.operation)).toEqual([
+      "create",
+      "create",
+      "create",
+      "create",
+      "command",
+    ]);
+    // Nothing the command wrote is separately replayable, so nothing can be sent
+    // twice or land alone.
+    expect(runtime.syncQueue.getReplayable().map((entry) => entry.operation.object)).toEqual([
+      "Tour",
+    ]);
+  });
+
+  it("sends one command intent carrying the name, input and full record-id manifest", async () => {
+    const runtime = newRuntime();
+    const [tourId, ...stopIds] = await plannedTour(runtime);
+    const transport = new AuthorityBackedTransport();
+
+    await new AuthoritySyncClient(runtime, transport).reconcile(SERVER_SESSION_TOKEN, adminContext);
+
+    expect(transport.replayCalls).toHaveLength(1);
+    const intent = transport.replayCalls[0];
+    if (intent?.kind !== "command")
+      throw new Error(`Expected a command intent, got ${intent?.kind}.`);
+    expect(intent.commandName).toBe("PlanTour");
+    // The input crosses the wire, not the resulting writes: the authority
+    // re-executes so that policy, validation, scope and preconditions all run
+    // there exactly as they ran here.
+    expect(intent.input).toEqual(tourInput);
+    // One manifest entry per create, in planned order, with the iterating step's
+    // items named individually. "The id for step N" is really "the id for item M
+    // of step N", and an entry that could not say which item would be useless.
+    expect(intent.recordIds).toEqual([
+      { step: "createTour", objectName: "Tour", recordId: tourId },
+      { step: "createStops", itemIndex: 0, objectName: "TourStop", recordId: stopIds[0] },
+      { step: "createStops", itemIndex: 1, objectName: "TourStop", recordId: stopIds[1] },
+      { step: "createStops", itemIndex: 2, objectName: "TourStop", recordId: stopIds[2] },
+    ]);
+  });
+
+  it("reconciles every accepted record onto the local rows and settles the whole command", async () => {
+    const runtime = newRuntime();
+    const [tourId, ...stopIds] = await plannedTour(runtime);
+    const transport = new AuthorityBackedTransport();
+
+    const outcomes = await new AuthoritySyncClient(runtime, transport).reconcile(
+      SERVER_SESSION_TOKEN,
+      adminContext,
+    );
+
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(["accepted"]);
+    // The authority wrote these ids itself, having adopted the manifest. Had it
+    // minted its own, these would be four ids nobody local has ever seen.
+    expect(await transport.serverIds("Tour")).toEqual([tourId]);
+    expect(await transport.serverIds("TourStop")).toEqual([...stopIds].sort());
+
+    // Four local rows, the same four ids, now marked synced. Eight rows here —
+    // the local four plus the authority's four — is the defect this case exists
+    // for, and it is invisible in the outcome status alone.
+    const tours = await runtime.objectStore.search("Tour", {}, adminContext);
+    const stops = await runtime.objectStore.search("TourStop", {}, adminContext);
+    expect(tours.map((row) => row.meta.guid)).toEqual([tourId]);
+    expect(stops.map((row) => row.meta.guid).sort()).toEqual([...stopIds].sort());
+    for (const row of [...tours, ...stops]) {
+      expect(row.meta.syncStatus).toBe("synced");
+    }
+    // The stop still points at the tour under the id the device holds, so the
+    // relationship survives the round trip rather than naming a server-side row.
+    expect(stops.every((row) => row.values.Tour === tourId)).toBe(true);
+
+    expect(runtime.syncQueue.getEntries()).toEqual([]);
+    // Only the command entry was queued, so only it is answered — and leaving
+    // its steps at `pending` would show accepted work as unsent for ever.
+    expect(runtime.operationLog.getOperations().map((operation) => operation.status)).toEqual([
+      "accepted",
+      "accepted",
+      "accepted",
+      "accepted",
+      "accepted",
+    ]);
+  });
+
+  it("leaves an ordinary write replaying as its own per-record intent", async () => {
+    const runtime = newRuntime();
+    await runtime.create("Gig", { Title: "Not part of a command" }, adminContext);
+    await plannedTour(runtime);
+    const transport = new FakeAuthorityTransport();
+
+    await new AuthoritySyncClient(runtime, transport).reconcile("session-token", adminContext);
+
+    // A command changes nothing for work that did not originate in one: the Gig
+    // is still its own create intent, sent under its own operation id.
+    expect(transport.replayCalls.map((intent) => intent.kind)).toEqual(["create", "command"]);
+    expect(transport.replayCalls.map(intentObjectName)).toEqual(["Gig", "PlanTour"]);
+  });
+});
+
+/**
+ * Which context a queued operation replays under.
+ *
+ * `toIntent` used to read the selection in force when the queue *drained*, so a
+ * queue sent after the user switched contexts — or after a reload, when the
+ * selection is whatever the shell restored — replayed writes against a selection
+ * that was never in force when they were made. The selection belongs to the
+ * operation, not to the moment it is sent.
+ *
+ * The three readings below are deliberately distinct, and the middle one is the
+ * one that bit: recording the selection only when there was one made "nothing
+ * was selected" indistinguishable from "this entry predates the capture", and
+ * the second reading falls back to the drain-time selection. An offline command
+ * executed outside any context then replayed against whichever context the
+ * device happened to be showing on reconnect.
+ */
+describe("AuthoritySyncClient context capture", () => {
+  const executedIn: RuntimeContext = { ...adminContext, selectedContexts: { Band: "band-a" } };
+  const drainedIn: RuntimeContext = { ...adminContext, selectedContexts: { Band: "band-b" } };
+  const tourInput = { Name: "Autumn tour", Cities: [{ City: "Derby" }] };
+
+  async function sentIntent(
+    runtime: ApplicationRuntime,
+    drainContext: RuntimeContext,
+  ): Promise<AuthorityOperationIntent> {
+    const transport = new FakeAuthorityTransport();
+    await new AuthoritySyncClient(runtime, transport).reconcile("session-token", drainContext);
+    const intent = transport.replayCalls[0];
+    if (intent === undefined) throw new Error("Expected the entry to be replayed.");
+    return intent;
+  }
+
+  it("replays a create with the selection it was made under, not the one in force now", async () => {
+    const runtime = newRuntime();
+    await runtime.create("Gig", { Title: "Made in band-a" }, executedIn);
+
+    const intent = await sentIntent(runtime, drainedIn);
+
+    expect(intent.selectedContexts).toEqual({ Band: "band-a" });
+  });
+
+  it("replays a command with the selection it was executed under", async () => {
+    const runtime = newRuntime();
+    await runtime.executeCommand("PlanTour", tourInput, executedIn);
+
+    const intent = await sentIntent(runtime, drainedIn);
+
+    expect(intent.kind).toBe("command");
+    expect(intent.selectedContexts).toEqual({ Band: "band-a" });
+  });
+
+  it("replays a create made outside any context with no selection at all", async () => {
+    const runtime = newRuntime();
+    await runtime.create("Gig", { Title: "Made in no context" }, adminContext);
+
+    const intent = await sentIntent(runtime, drainedIn);
+
+    // An empty selection is a selection. Reading it as "unknown" and falling
+    // back to `band-b` is what made an offline write land in a context its
+    // author never chose.
+    expect(intent.selectedContexts).toEqual({});
+  });
+
+  it("replays a command executed outside any context with no selection at all", async () => {
+    const runtime = newRuntime();
+    await runtime.executeCommand("PlanTour", tourInput, adminContext);
+
+    const intent = await sentIntent(runtime, drainedIn);
+
+    expect(intent.kind).toBe("command");
+    // The case that was caught end to end: an offline context-establishing
+    // command replayed under the drain-time selection is refused as
+    // `ADL_RUNTIME_CONTEXT_ERROR`, naming a context the caller never mentioned.
+    expect(intent.selectedContexts).toEqual({});
+  });
+
+  it("falls back to the drain-time selection only for an entry queued before capture existed", async () => {
+    const { runtime, opCount } = await legacyQueue(async (target) => {
+      await target.create("Gig", { Title: "Queued by an older build" }, executedIn);
+    });
+    expect(opCount).toBe(1);
+
+    const intent = await sentIntent(runtime, drainedIn);
+
+    // No captured selection at all — not an empty one — is the only reading that
+    // may fall back, because it is the only one that means "this entry predates
+    // the capture". That is the old behaviour, for exactly the entries written
+    // under it.
+    expect(intent.selectedContexts).toEqual({ Band: "band-b" });
+  });
+
+  it("falls back for a legacy command entry on the same terms", async () => {
+    const { runtime } = await legacyQueue(async (target) => {
+      await target.executeCommand("PlanTour", tourInput, executedIn);
+    });
+
+    const intent = await sentIntent(runtime, drainedIn);
+
+    expect(intent.kind).toBe("command");
+    expect(intent.selectedContexts).toEqual({ Band: "band-b" });
+  });
+
+  /**
+   * A queue as an older build left it: persisted, then reloaded by a runtime
+   * that captures selections. Stripping the key from the persisted snapshot is
+   * what that upgrade actually looks like, rather than reaching into the live
+   * queue's private state to fake it.
+   */
+  async function legacyQueue(
+    write: (runtime: ApplicationRuntime) => Promise<void>,
+  ): Promise<{ runtime: ApplicationRuntime; opCount: number }> {
+    const storage = new InMemoryObjectStorageBackend();
+    const syncStateStorage = new InMemorySyncStateStorage();
+    const first = new ApplicationRuntime(model, { storage, syncStateStorage });
+    await first.whenReady();
+    await write(first);
+
+    const persisted = await syncStateStorage.read();
+    if (persisted === null) throw new Error("Expected the sync state to have been persisted.");
+    await syncStateStorage.write({
+      ...persisted,
+      operations: persisted.operations.map(withoutSelectedContexts),
+      queue: persisted.queue.map((entry) => ({
+        ...entry,
+        operation: withoutSelectedContexts(entry.operation),
+      })),
+    });
+
+    const reloaded = new ApplicationRuntime(model, { storage, syncStateStorage });
+    await reloaded.whenReady();
+    return { runtime: reloaded, opCount: persisted.queue.length };
+  }
+});
+
+function withoutSelectedContexts(operation: LocalOperation): LocalOperation {
+  const copy: LocalOperation = { ...operation };
+  delete copy.selectedContexts;
+  return copy;
+}
 
 /** A command intent names no single object; every intent this suite sends does. */
 function intentObjectName(intent: AuthorityOperationIntent): string {

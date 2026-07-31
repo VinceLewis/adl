@@ -22,7 +22,9 @@
             "userField": "User",
             "contextField": "Workspace",
             "roleField": "Role",
-            "roles": ["Owner"]
+            "roles": [
+              "Owner"
+            ]
           }
         }
       ],
@@ -292,7 +294,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Owner"]
+                "roles": [
+                  "Owner"
+                ]
               },
               "action": "read"
             },
@@ -315,7 +319,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Owner"]
+                "roles": [
+                  "Owner"
+                ]
               },
               "action": "*"
             },
@@ -480,7 +486,14 @@
               "commandName": "CreateEmptyWorkspace",
               "input": {
                 "Name": "Studio"
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "createWorkspace",
+                  "objectName": "Workspace",
+                  "recordId": "workspace-1"
+                }
+              ]
             }
           }
         ],
@@ -532,7 +545,19 @@
               "commandName": "CreateWorkspace",
               "input": {
                 "Name": "Studio"
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "createWorkspace",
+                  "objectName": "Workspace",
+                  "recordId": "workspace-2"
+                },
+                {
+                  "step": "createOwner",
+                  "objectName": "WorkspaceMember",
+                  "recordId": "workspace-owner-2"
+                }
+              ]
             }
           }
         ],

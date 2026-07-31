@@ -2,7 +2,7 @@ import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/reso
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import type { ContextMembershipIndex } from "../runtime/context-membership-index.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
-import { RuntimeError } from "../runtime/runtime-types.js";
+import { CommandRecordIdsMismatchError, RuntimeError } from "../runtime/runtime-types.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import type {
   AuthorityOperationIntent,
@@ -289,10 +289,30 @@ export class AuthorityService {
           recordId: intent.recordId,
         }),
       ];
-    if (intent.kind === "command")
-      return (await runtime.executeCommand(intent.commandName, intent.input, context)).steps.map(
-        (step) => step.record,
-      );
+    if (intent.kind === "command") {
+      // Checked here as well as at the edge, and for the same reason a create's
+      // record id is: `AuthorityService` is constructed directly by tests and
+      // tooling, so an edge-only check would be no check at all on that path.
+      // A command replayed with no manifest would mint every id server-side and
+      // return records for rows the device does not have — the Phase 48
+      // duplication defect, reached by a different route.
+      if (!Array.isArray(intent.recordIds))
+        throw new CommandRecordIdsMismatchError(
+          `Command '${intent.commandName}' must be replayed with the record ids the originating device minted.`,
+          { commandName: intent.commandName },
+        );
+      // Re-executed rather than replayed as its writes, so policy, validation,
+      // lifecycle, scope, constraints and preconditions all run here exactly as
+      // they ran on the device — and so the steps stay in one transaction. The
+      // supplied ids only name what that re-execution produces: each is
+      // shape-checked and refused when already taken, and a manifest that does
+      // not describe the writes this execution plans is refused outright.
+      return (
+        await runtime.executeCommand(intent.commandName, intent.input, context, {
+          recordIds: intent.recordIds,
+        })
+      ).steps.map((step) => step.record);
+    }
     const record = await runtime.objectStore.getRecordForRuntime(
       intent.objectName,
       intent.recordId,

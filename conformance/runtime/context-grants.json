@@ -1657,7 +1657,19 @@
               "commandName": "CreateBand",
               "input": {
                 "Name": "The Alphas"
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "createBand",
+                  "objectName": "Band",
+                  "recordId": "band-006"
+                },
+                {
+                  "step": "createFounderMembership",
+                  "objectName": "BandMember",
+                  "recordId": "band-member-006"
+                }
+              ]
             }
           },
           {
@@ -1770,7 +1782,19 @@
               "commandName": "CreateBand",
               "input": {
                 "Name": "The Alphas"
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "createBand",
+                  "objectName": "Band",
+                  "recordId": "band-007"
+                },
+                {
+                  "step": "createFounderMembership",
+                  "objectName": "BandMember",
+                  "recordId": "band-member-007"
+                }
+              ]
             }
           },
           {
@@ -1873,7 +1897,19 @@
               "commandName": "CreateBand",
               "input": {
                 "Name": "The Alphas"
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "createBand",
+                  "objectName": "Band",
+                  "recordId": "band-008"
+                },
+                {
+                  "step": "createFounderMembership",
+                  "objectName": "BandMember",
+                  "recordId": "band-member-008"
+                }
+              ]
             }
           },
           {
@@ -1976,7 +2012,19 @@
               "commandName": "CreateBand",
               "input": {
                 "Name": "The Alphas"
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "createBand",
+                  "objectName": "Band",
+                  "recordId": "band-009"
+                },
+                {
+                  "step": "createFounderMembership",
+                  "objectName": "BandMember",
+                  "recordId": "band-member-009"
+                }
+              ]
             }
           },
           {
@@ -2240,7 +2288,19 @@
               "commandName": "CreateBand",
               "input": {
                 "Name": "The Alphas"
-              }
+              },
+              "recordIds": [
+                {
+                  "step": "createBand",
+                  "objectName": "Band",
+                  "recordId": "band-011"
+                },
+                {
+                  "step": "createFounderMembership",
+                  "objectName": "BandMember",
+                  "recordId": "band-member-011"
+                }
+              ]
             }
           },
           {

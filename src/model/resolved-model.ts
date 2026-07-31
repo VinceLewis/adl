@@ -136,9 +136,18 @@ export type SyncScope =
   | "custom";
 export type ConflictStrategy = "serverWins" | "clientWins" | "stateTransitionWins" | "manual";
 export type SyncStatus = "local" | "pending" | "synced" | "conflict" | "rejected";
-export type LocalOperationKind = "create" | "update" | "delete" | "transition";
+/**
+ * `command` is the whole of a model-declared command, not one of its writes. A
+ * command's steps commit in one transaction, and replaying them as separate
+ * per-record operations destroys that transaction across the sync boundary: a
+ * step writing into a context an earlier step established has no context to
+ * write into, and a batch lands partially. The command kind is what lets the
+ * queue carry the transaction rather than its pieces.
+ */
+export type LocalOperationKind = "create" | "update" | "delete" | "transition" | "command";
 export type LocalOperationStatus = "pending" | "sent" | "accepted" | "rejected" | "conflict";
-export type AuditOperation = LocalOperationKind | "read" | "search";
+/** Audit stays per record: a command is audited as the writes it made, step by step. */
+export type AuditOperation = Exclude<LocalOperationKind, "command"> | "read" | "search";
 export type ThemeRadius = "none" | "small" | "medium" | "large";
 export type ThemeDensity = "compact" | "comfortable" | "spacious";
 export type ThemeNav = "top" | "side" | "bottom";
@@ -1322,6 +1331,49 @@ export interface ResolvedOperationLogModel {
   statuses: LocalOperationStatus[];
 }
 
+/**
+ * One record a locally executed command created, and the id the device already
+ * holds for it.
+ *
+ * A command intent is re-executed by the authority, so without this every record
+ * it creates would be named server-side and arrive as a second row beside the
+ * one the device is already showing — the Phase 48 duplication defect, returned
+ * by a different route. The step name and item index are carried because a
+ * `FOR EACH` step writes one record per item, so "the id for step N" is really
+ * "the id for item M of step N", and an id adopted against the wrong write would
+ * be worse than one that was never supplied.
+ *
+ * Only creates appear here. An update step names an existing record through its
+ * own `ID` expression, and any such expression that reaches for a created
+ * record's id resolves to the adopted id for free.
+ */
+export interface LocalCommandRecordId {
+  step: string;
+  /** Present only for a step that iterates: which item of that step this id names. */
+  itemIndex?: number;
+  objectName: string;
+  recordId: string;
+}
+
+/**
+ * A model-declared command as one queued unit of work.
+ *
+ * The input rather than the resulting writes is what crosses the wire: the
+ * authority re-executes the command so that policy, validation, lifecycle,
+ * scope, constraints and preconditions all run server-side exactly as they ran
+ * locally. The ids are a name for what that re-execution produces, never an
+ * authorisation for producing it.
+ */
+export interface LocalCommandOperation {
+  name: string;
+  label?: string;
+  input: Record<string, JsonValue>;
+  /** In planned order, so re-execution can match each id to the write it names. */
+  recordIds: LocalCommandRecordId[];
+  /** Every record the command wrote, so a verdict can be reported over all of them. */
+  records: Array<{ objectName: string; recordId: string }>;
+}
+
 export interface LocalOperation {
   opId: string;
   object: string;
@@ -1333,6 +1385,27 @@ export interface LocalOperation {
   commandLabel?: string;
   commandStep?: string;
   commandTransactionId?: string;
+  /**
+   * Present only when `operation` is `"command"`: the whole command, queued as
+   * one entry. The per-step writes are still recorded in the operation log for
+   * local history; they are simply not queued separately, because the authority
+   * has to be told about the transaction rather than about its pieces.
+   */
+  command?: LocalCommandOperation;
+  /**
+   * The business contexts selected when this operation executed.
+   *
+   * Replay used to read the selection in force when the queue drained, so a
+   * queue drained after the user switched contexts — or after a reload — replayed
+   * writes against a selection that was not in force when they were made. The
+   * selection belongs to the operation, not to the moment it is sent.
+   *
+   * An empty object means nothing was selected, which is a selection and is
+   * replayed as one. Absent means the entry was queued before operations began
+   * carrying this, and only such an entry falls back to the drain-time
+   * selection — the old behaviour, for exactly the entries written under it.
+   */
+  selectedContexts?: Record<string, string>;
   lifecycleAction?: string;
   fromState?: string;
   toState?: string;

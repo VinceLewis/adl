@@ -1,4 +1,18 @@
-import type { JsonValue, StoredObjectRecord } from "../model/resolved-model.js";
+import type {
+  JsonValue,
+  LocalCommandRecordId,
+  StoredObjectRecord,
+} from "../model/resolved-model.js";
+
+/**
+ * The id the originating device already holds for one record a command created.
+ *
+ * It is the same contract a create intent's `recordId` carries, applied per
+ * step and per iteration item: untrusted input, shape-checked, refused when
+ * already taken, and never an assertion about revision, actor, timestamps,
+ * state or scope.
+ */
+export type AuthorityCommandRecordId = LocalCommandRecordId;
 
 export type AuthorityOperationIntent =
   | {
@@ -47,6 +61,19 @@ export type AuthorityOperationIntent =
       kind: "command";
       commandName: string;
       input: Record<string, JsonValue>;
+      /**
+       * The ids the originating device minted for every record this command
+       * creates, in planned order. Required for the same reason a create
+       * intent's `recordId` is: the authority re-executes the command, so
+       * without them every created record would be named server-side and arrive
+       * beside the local row rather than onto it.
+       *
+       * The manifest must describe exactly the creates the re-execution plans,
+       * in the same order. A divergence is refused rather than patched over: an
+       * id adopted against a different write than the one it names is worse than
+       * no id at all.
+       */
+      recordIds: AuthorityCommandRecordId[];
       selectedContexts?: Record<string, string>;
     };
 

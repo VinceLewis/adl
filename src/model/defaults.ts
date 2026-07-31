@@ -99,11 +99,20 @@ export const DEFAULT_AUDIT_OPERATIONS = [
   "transition",
 ] as const satisfies readonly AuditOperation[];
 
+/**
+ * `command` is here because the operation log is what feeds the sync queue: an
+ * operation kind that is not logged is never queued and so never reaches the
+ * authority. A command that was not logged would execute locally, write its
+ * records, and have no delivery path at all — while its per-step writes are
+ * deliberately not queued separately, because the authority must be told about
+ * the transaction rather than about its pieces.
+ */
 export const DEFAULT_OPERATION_LOG_OPERATIONS = [
   "create",
   "update",
   "delete",
   "transition",
+  "command",
 ] as const;
 
 export const LOCAL_OPERATION_STATUSES = [

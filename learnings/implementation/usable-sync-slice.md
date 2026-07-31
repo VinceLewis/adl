@@ -143,6 +143,34 @@ collision rules, and why a collision is a rejection rather than a conflict.
 Still true: acknowledging a *rejected* create leaves the local row in place, and a
 later bootstrap cannot remove a record the server never had.
 
+## Known defect: three declared record sync states have no producer
+
+Found while planning Phase 58, and stated here because it is easy to assume the
+opposite from the type alone.
+
+`SyncStatus` is `"local" | "pending" | "synced" | "conflict" | "rejected"`, and
+across the whole of `src/` the only writers are `"local"` when a record is built
+(`ObjectStore`) and `"synced"` when a remote record is reconciled
+(`ObjectStore.reconcileRemoteRecord`, `access-lifecycle.ts`). Nothing ever writes
+`"pending"`, `"conflict"` or `"rejected"`. So a record that was refused, one in
+conflict, one queued and waiting, and one that was never going anywhere are all
+`"local"` and all look identical.
+
+Two consequences that make it reachable rather than theoretical:
+
+- `_syncStatus` is a **required** platform metadata field
+  (`src/model/defaults.ts`) and an offline-dataset expression input
+  (`OfflineDatasetService`), so a model filtering or displaying on it is reading a
+  vocabulary the runtime does not honour.
+- The `syncStatus` shell control — which the Giggle Band app ships in its top bar
+  — renders `context.online ? "Online" : "Offline"`
+  (`AdlAppElement.renderShellControl`). It never reads a record. The platform's
+  only shipped sync-state surface answers a different question from the one it is
+  named after.
+
+This is the same class of defect Phase 56 named for `import`: a declared
+capability with no call site. Audit both directions when adding one.
+
 ## Practical guidance
 
 - When adding an automatic pass over settled work, ask what it does with a

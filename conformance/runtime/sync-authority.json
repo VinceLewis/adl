@@ -3192,7 +3192,14 @@
           "commandName": "CreateNote",
           "input": {
             "Title": "From a command"
-          }
+          },
+          "recordIds": [
+            {
+              "step": "createNote",
+              "objectName": "Note",
+              "recordId": "note-command-1"
+            }
+          ]
         }
       },
       "expected": {

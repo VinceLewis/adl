@@ -328,12 +328,26 @@ describe("authority replay against real PostgreSQL", () => {
       kind: "command",
       commandName: "CreateTwoNotes",
       input: { First: "one", Second: "two" },
+      // Phase 57: the manifest names every record the command creates, in
+      // planned order, so the re-execution adopts the ids the device already
+      // holds instead of minting its own.
+      recordIds: [
+        { step: "first", objectName: "Note", recordId: "note-cmd-first" },
+        { step: "second", objectName: "Note", recordId: "note-cmd-second" },
+      ],
     });
     expect(outcome.status).toBe("accepted");
     expect(
       await count("select count(*)::int n from adl_authority_records where application_id=$1", [
         noteApp,
       ]),
+    ).toBe(2);
+    // The rows PostgreSQL holds are keyed by the ids the manifest named.
+    expect(
+      await count(
+        "select count(*)::int n from adl_authority_records where application_id=$1 and record_id = any($2::text[])",
+        [noteApp, ["note-cmd-first", "note-cmd-second"]],
+      ),
     ).toBe(2);
   });
 

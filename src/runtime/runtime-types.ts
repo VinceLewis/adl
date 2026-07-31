@@ -287,6 +287,23 @@ export class RecordIdUnavailableError extends RuntimeError {
   }
 }
 
+/**
+ * A supplied command record-id manifest that does not describe the writes the
+ * command actually plans.
+ *
+ * The manifest names records by step and iteration item, so a divergence means
+ * the caller's execution and this one disagree about what the command does.
+ * Adopting the ids anyway would attach an id to a different record than the one
+ * it names — a silent identity swap, which is strictly worse than refusing. The
+ * refusal is a `RuntimeError`, so it settles as an ordinary durable rejection
+ * rather than as a retryable transport fault.
+ */
+export class CommandRecordIdsMismatchError extends RuntimeError {
+  constructor(message: string, details?: unknown) {
+    super("ADL_RUNTIME_COMMAND_RECORD_IDS_MISMATCH", message, details);
+  }
+}
+
 export class HookError extends RuntimeError {
   constructor(message: string, details?: unknown) {
     super("ADL_HOOK_ERROR", message, details);

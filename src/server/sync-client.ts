@@ -45,6 +45,16 @@ export interface SyncRecoveryItem {
   objectName: string;
   recordId: string;
   operation: LocalOperationKind;
+  /**
+   * Present only for a command. A command succeeds or fails as one transaction,
+   * so it is presented as one change: naming it, and saying how many records it
+   * covers, is what stops a refused command reading as several unrelated
+   * failures against whichever object happens to be filed first.
+   */
+  commandName?: string;
+  commandLabel?: string;
+  /** How many records the operation covers; more than one only for a command. */
+  recordCount?: number;
   status: SyncRecoveryStatus;
   code: string;
   message: string;
@@ -68,6 +78,11 @@ export interface SyncDeliveryItem {
   objectName: string;
   recordId: string;
   operation: LocalOperationKind;
+  /** Present only for a command; see {@link SyncRecoveryItem.commandName}. */
+  commandName?: string;
+  commandLabel?: string;
+  /** How many records the operation covers; more than one only for a command. */
+  recordCount?: number;
   /** Credential-free failure text for the last attempt. */
   message: string;
   attemptedAt: string;
@@ -301,12 +316,16 @@ export class AuthoritySyncClient {
     baseRevision: string | undefined,
   ): Promise<AuthorityOutcome | null> {
     const operation = entry.operation;
-    // Tombstones included: a queued delete has no active record, and skipping
-    // it would strand the entry in the queue and never tell the authority.
-    const record = await this.runtime.objectStore.getRecordForSync(
-      operation.object,
-      operation.recordId,
-    );
+    // A command carries its own input and ids, so it needs no record lookup at
+    // all — and the representative record its entry is filed under is not the
+    // subject of the intent, only the object whose mode decides how it is sent.
+    const record =
+      operation.operation === "command"
+        ? null
+        : // Tombstones included: a queued delete has no active record, and
+          // skipping it would strand the entry in the queue and never tell the
+          // authority.
+          await this.runtime.objectStore.getRecordForSync(operation.object, operation.recordId);
     // Only a create needs values that exist nowhere else; the other kinds are
     // reconstructible from the queued operation alone.
     if (record === null && operation.operation === "create") return null;
@@ -329,15 +348,12 @@ export class AuthoritySyncClient {
       for (const accepted of outcome.records) {
         await this.runtime.reconcileRemoteRecord(accepted.meta.object, accepted);
       }
-      this.runtime.operationLog.setStatus(operation.opId, "accepted");
+      this.setOperationStatus(operation, "accepted");
       this.runtime.syncQueue.remove(entry.queueId);
       return outcome;
     }
 
-    this.runtime.operationLog.setStatus(
-      operation.opId,
-      outcome.status === "rejected" ? "rejected" : "conflict",
-    );
+    this.setOperationStatus(operation, outcome.status === "rejected" ? "rejected" : "conflict");
     // The entry survives its verdict. It is discarded only once the declared
     // strategy or the user has resolved it.
     this.runtime.syncQueue.setRecovery(entry.queueId, {
@@ -348,6 +364,24 @@ export class AuthoritySyncClient {
       recordedAt: new Date().toISOString(),
     });
     return outcome;
+  }
+
+  /**
+   * Applies a verdict to the operation log. A command's verdict covers every
+   * step it wrote: only the command entry was queued, so only it is answered,
+   * and leaving the steps at `pending` would show accepted work as unsent.
+   */
+  private setOperationStatus(
+    operation: SyncQueueEntry["operation"],
+    status: "accepted" | "rejected" | "conflict",
+  ): void {
+    this.runtime.operationLog.setStatus(operation.opId, status);
+    if (operation.operation === "command" && operation.commandTransactionId !== undefined) {
+      this.runtime.operationLog.setStatusForCommandTransaction(
+        operation.commandTransactionId,
+        status,
+      );
+    }
   }
 }
 
@@ -378,8 +412,32 @@ function toDeliveryItem(entry: SyncQueueEntry): SyncDeliveryItem {
     objectName: entry.operation.object,
     recordId: entry.operation.recordId,
     operation: entry.operation.operation,
+    ...commandIdentity(entry),
     message: entry.delivery?.message ?? "",
     attemptedAt: entry.delivery?.attemptedAt ?? "",
+  };
+}
+
+/**
+ * What a command is called and how much it covers — and nothing else. The
+ * command's input is deliberately not surfaced: like every other field on these
+ * items this is queue metadata, and a command's input can carry record values a
+ * recovery panel has no read policy behind it to disclose.
+ */
+function commandIdentity(entry: SyncQueueEntry): {
+  commandName?: string;
+  commandLabel?: string;
+  recordCount?: number;
+} {
+  const command = entry.operation.command;
+  if (entry.operation.operation !== "command" || command === undefined) {
+    return {};
+  }
+
+  return {
+    commandName: command.name,
+    ...(command.label === undefined ? {} : { commandLabel: command.label }),
+    recordCount: command.records.length,
   };
 }
 
@@ -393,6 +451,7 @@ function toRecoveryItem(entry: SyncQueueEntry): SyncRecoveryItem {
     objectName: entry.operation.object,
     recordId: entry.operation.recordId,
     operation: entry.operation.operation,
+    ...commandIdentity(entry),
     status: recovery?.status ?? "conflict",
     code: recovery?.code ?? "",
     message: recovery?.message ?? "",
@@ -433,11 +492,32 @@ function toIntent(
   context: RuntimeContext,
   queuedBaseRevision: string | undefined,
 ): AuthorityOperationIntent {
-  const selected =
-    context.selectedContexts === undefined ? {} : { selectedContexts: context.selectedContexts };
+  // The selection the operation was made under, not the one in force now. The
+  // drain-time context remains the fallback for an entry queued before the
+  // operation began carrying its own, which is exactly the old behaviour for
+  // exactly the entries that were written under it.
+  const selectedContexts = operation.selectedContexts ?? context.selectedContexts;
+  const selected = selectedContexts === undefined ? {} : { selectedContexts };
   // An absent base revision cannot be invented: the authority answers with a
   // conflict, which is visible, rather than the entry vanishing silently.
   const baseRevision = queuedBaseRevision ?? record?.meta.revision ?? "";
+  if (operation.operation === "command") {
+    const command = operation.command;
+    if (command === undefined) {
+      throw new Error(`Queued command operation '${operation.opId}' carries no command.`);
+    }
+    return {
+      operationId,
+      kind: "command",
+      commandName: command.name,
+      input: command.input,
+      // Every record the local execution created, so the authority's
+      // re-execution adopts the ids the device already holds instead of minting
+      // its own and returning records for rows nobody has.
+      recordIds: command.recordIds,
+      ...selected,
+    };
+  }
   if (operation.operation === "create")
     return {
       operationId,

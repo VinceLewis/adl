@@ -1,5 +1,6 @@
 import type {
   JsonValue,
+  LocalCommandOperation,
   LocalOperation,
   LocalOperationKind,
   ResolvedApplicationModel,
@@ -20,6 +21,8 @@ export interface OperationLogDetails {
   commandLabel?: string;
   commandStep?: string;
   commandTransactionId?: string;
+  /** The whole command, for the single entry that stands for the transaction. */
+  command?: LocalCommandOperation;
   lifecycleAction?: string;
   fromState?: string;
   toState?: string;
@@ -68,6 +71,17 @@ export class OperationLog {
       ...(details.commandTransactionId === undefined
         ? {}
         : { commandTransactionId: details.commandTransactionId }),
+      ...(details.command === undefined ? {} : { command: cloneJson(details.command) }),
+      // Captured here rather than read at drain time, so a queue drained after
+      // the user switched contexts — or after a reload — replays every operation
+      // against the selection that was in force when it was made.
+      //
+      // Recorded even when nothing was selected, and that is the point: an
+      // empty selection is a selection. Omitting it would make "nothing was in
+      // force" indistinguishable from "this entry predates the capture", and the
+      // second reading falls back to the drain-time selection — which is exactly
+      // the defect, reappearing for every operation made outside a context.
+      selectedContexts: { ...(context.selectedContexts ?? {}) },
       ...(details.lifecycleAction === undefined
         ? {}
         : { lifecycleAction: details.lifecycleAction }),
@@ -108,6 +122,25 @@ export class OperationLog {
     const operation = this.operations.find((entry) => entry.opId === opId);
     if (operation !== undefined) {
       operation.status = status;
+    }
+  }
+
+  /**
+   * Carries a command's verdict to the per-step entries it stands for.
+   *
+   * Only the command entry is queued, so only it is answered by the authority.
+   * Without this the steps a command wrote would sit at `pending` in the local
+   * history for ever, reading as unsent work while the command that produced
+   * them had been accepted.
+   */
+  setStatusForCommandTransaction(
+    commandTransactionId: string,
+    status: LocalOperation["status"],
+  ): void {
+    for (const operation of this.operations) {
+      if (operation.commandTransactionId === commandTransactionId) {
+        operation.status = status;
+      }
     }
   }
 

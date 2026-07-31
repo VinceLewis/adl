@@ -144,6 +144,54 @@ intent metadata: command name, optional command label, command step, and a share
 command transaction id. This lets replay, audit, and diagnostics preserve the
 business action without hiding the affected object records.
 
+### Command replay
+
+A locally executed command produces **exactly one** sync-queue entry, whose
+operation kind is `command`. Its per-step writes are still recorded in the
+operation log and in audit, with the metadata above; they are simply not queued.
+
+This is a contract about delivery, not about history. One entry per step is
+precisely the shape that loses the transaction across the sync boundary: an
+established context does not survive being split into separate intents, because
+the caller is not a member of a context whose only membership record is the one
+being refused, and a batch replayed as N intents can land partially. A conforming
+runtime that queued a command's steps individually would have implemented a
+different guarantee from the one the command declares locally.
+
+The queued `command` operation carries:
+
+- the command name and optional label;
+- the **input** the command was executed with, because the authority re-executes
+  the command rather than replaying its writes;
+- the **record-id manifest**: the id the device minted for each record the
+  command created, in planned order (see
+  [command intents](#command-intents));
+- every record the command wrote, so one verdict can be reported over all of
+  them;
+- a shared command transaction id linking the entry to the per-step operation-log
+  entries it stands for.
+
+A command's steps may name objects in different sync modes, but every step object
+must agree on whether its writes reach the authority at all; the model rule is
+`ADL_COMMAND_STEP_SYNC_MODE_MIXED` in
+[resolved-model#commands](resolved-model.md). The single entry is filed under the
+step object with the **most demanding** queueable mode — `onlineRequired` outranks
+`localFirst` — so a command containing a write that may not wait for a later
+connection is delivered immediately rather than held.
+
+A command refused before it commits queues nothing, exactly as a refused
+single-record write does. A command whose verdict is `rejected` or `conflict`
+settles **as a unit**: the one entry carries the verdict, every operation-log
+entry sharing its command transaction id takes the same status, and the local
+records all of its steps wrote stay in place, exactly as a rejected create's
+record does. There is no local rollback primitive; dismissing the change
+(`keepServer`) remains the only resolution for a terminal verdict.
+
+`command` is in the default operation-log operations because the operation log is
+what feeds the sync queue. It is deliberately **not** an audit operation: audit
+stays per record, so a command's effects are auditable as the creates and updates
+they are, under the command metadata that names the business action.
+
 ## Decision Tables
 
 Decision-table inputs evaluate first against the source values. Row conditions
@@ -212,8 +260,8 @@ Evaluation order is deterministic:
 9. Evaluate matrix cell statuses using the same precedence and declaration-order
    rules as list rows.
 10. Evaluate legends from declared status order. Legends default to statuses
-   present in evaluated rows and matrix cells; `include: all` includes all
-   declared legend statuses.
+    present in evaluated rows and matrix cells; `include: all` includes all
+    declared legend statuses.
 
 Presentation filters are display filters only. They run after runtime read
 authorization, context scoping, offline dataset constraints, and read-model
@@ -336,12 +384,12 @@ a device the operations it was already holding.
 Every mode has a stated answer in every column. Silence in any of them is what
 let an `onlineRequired` write be accepted locally and then never sent.
 
-| Mode | Local write | Queued and delivered | Authority accepts a replay | Bootstrap returns it |
-| --- | --- | --- | --- | --- |
-| `localFirst` | allowed online and offline | yes — delivered on the next reconcile | yes | yes |
-| `onlineRequired` | allowed only while `context.online !== false` | yes — delivery is attempted at once, and retried by every later reconcile until it lands | yes | yes |
-| `cacheReadonly` | refused on every channel | never: there is no accepted local write to queue | no — `ADL_SYNC_POLICY_DENIED` | yes |
-| `localPrivate` | allowed, except on the `sync` channel | never | no — `ADL_SYNC_POLICY_DENIED` | no |
+| Mode             | Local write                                   | Queued and delivered                                                                     | Authority accepts a replay    | Bootstrap returns it |
+| ---------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------- | -------------------- |
+| `localFirst`     | allowed online and offline                    | yes — delivered on the next reconcile                                                    | yes                           | yes                  |
+| `onlineRequired` | allowed only while `context.online !== false` | yes — delivery is attempted at once, and retried by every later reconcile until it lands | yes                           | yes                  |
+| `cacheReadonly`  | refused on every channel                      | never: there is no accepted local write to queue                                         | no — `ADL_SYNC_POLICY_DENIED` | yes                  |
+| `localPrivate`   | allowed, except on the `sync` channel         | never                                                                                    | no — `ADL_SYNC_POLICY_DENIED` | no                   |
 
 Two entries in that table are reachable only from the authority's side and are
 stated so a runtime does not have to guess:
@@ -354,6 +402,28 @@ stated so a runtime does not have to guess:
   refused on the `sync` channel before it is applied. A bootstrap therefore
   excludes `localPrivate` objects as a second, redundant guard rather than as
   the rule that keeps them local.
+
+### The context an operation replays against
+
+A queued operation records the business contexts that were selected **when it
+executed**, and is replayed against that selection rather than against whatever is
+selected when the queue drains. A queue drained after the user switched contexts,
+or after a reload, would otherwise replay writes under a selection that was never
+in force for them. This applies to every operation kind, not only to `command`.
+
+The recorded selection is written unconditionally, and its three states are
+distinct:
+
+| Recorded value  | Meaning                         | Replayed as                          |
+| --------------- | ------------------------------- | ------------------------------------ |
+| a non-empty map | those contexts were selected    | those contexts                       |
+| an empty map    | nothing was selected            | nothing selected                     |
+| absent          | the entry predates this capture | the selection in force at drain time |
+
+The empty map is load-bearing. Collapsing it into "absent" makes "nothing was in
+force" indistinguishable from "this entry is older than the capture", and the
+fallback then attaches an unrelated context to an operation that was deliberately
+made outside one.
 
 ### `onlineRequired` delivery
 
@@ -444,14 +514,14 @@ Startup compares persisted application metadata against the running model and
 resolves exactly one of the situations below. Every one of them either proceeds or
 refuses; none of them destroys persisted data.
 
-| Persisted state | Outcome |
-| --- | --- |
-| Same version, same fingerprint | Proceeds. |
-| Same version, no fingerprint recorded | Proceeds with `ADL_PERSISTED_MODEL_FINGERPRINT_MISSING` (warning) and backfills it. |
-| Same version, different fingerprint | Refuses with `ADL_PERSISTED_MODEL_FINGERPRINT_STALE`. |
-| Earlier version, a declared chain reaches it | Migrates, then proceeds, reporting `ADL_MODEL_MIGRATION_APPLIED` (info). |
-| Earlier version, no chain reaches it | Refuses with `ADL_PERSISTED_MODEL_VERSION_MISMATCH`. |
-| Later version than the model's | Refuses with `ADL_MIGRATION_PERSISTED_VERSION_AHEAD`. |
+| Persisted state                              | Outcome                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Same version, same fingerprint               | Proceeds.                                                                           |
+| Same version, no fingerprint recorded        | Proceeds with `ADL_PERSISTED_MODEL_FINGERPRINT_MISSING` (warning) and backfills it. |
+| Same version, different fingerprint          | Refuses with `ADL_PERSISTED_MODEL_FINGERPRINT_STALE`.                               |
+| Earlier version, a declared chain reaches it | Migrates, then proceeds, reporting `ADL_MODEL_MIGRATION_APPLIED` (info).            |
+| Earlier version, no chain reaches it         | Refuses with `ADL_PERSISTED_MODEL_VERSION_MISMATCH`.                                |
+| Later version than the model's               | Refuses with `ADL_MIGRATION_PERSISTED_VERSION_AHEAD`.                               |
 
 Versions are compared **component-wise**, so `1.1` and `1.1.0` are the same
 version and neither migrates to the other. Anywhere a version is used as a key —
@@ -503,16 +573,16 @@ damage locally.
 Every expression failure is one of these codes. A conforming runtime returns the
 code; the message is advisory.
 
-| Code | Raised when |
-| --- | --- |
-| `ADL_EXPRESSION_FIELD_UNSUPPORTED_VALUE` | A field reference resolves to a value that is not a supported expression value. |
-| `ADL_EXPRESSION_RUNTIME_REFERENCE_MISSING` | A runtime property is referenced but absent from the runtime context. |
-| `ADL_EXPRESSION_RUNTIME_REFERENCE_UNSUPPORTED` | A runtime property is referenced that this contract does not define. |
-| `ADL_EXPRESSION_OPERATOR_UNSUPPORTED` | An operator is reserved and not yet supported (`in`). |
-| `ADL_EXPRESSION_TYPE_MISMATCH` | Operand kinds cannot be combined or compared. |
-| `ADL_EXPRESSION_DIVIDE_BY_ZERO` | Division or modulo by zero. |
-| `ADL_EXPRESSION_DECIMAL_OVERFLOW` | A value or result exceeds the supported decimal magnitude. |
-| `ADL_EXPRESSION_INVALID_TEMPORAL_VALUE` | A `date`, `datetime` or `time` value is not well formed. |
+| Code                                           | Raised when                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- |
+| `ADL_EXPRESSION_FIELD_UNSUPPORTED_VALUE`       | A field reference resolves to a value that is not a supported expression value. |
+| `ADL_EXPRESSION_RUNTIME_REFERENCE_MISSING`     | A runtime property is referenced but absent from the runtime context.           |
+| `ADL_EXPRESSION_RUNTIME_REFERENCE_UNSUPPORTED` | A runtime property is referenced that this contract does not define.            |
+| `ADL_EXPRESSION_OPERATOR_UNSUPPORTED`          | An operator is reserved and not yet supported (`in`).                           |
+| `ADL_EXPRESSION_TYPE_MISMATCH`                 | Operand kinds cannot be combined or compared.                                   |
+| `ADL_EXPRESSION_DIVIDE_BY_ZERO`                | Division or modulo by zero.                                                     |
+| `ADL_EXPRESSION_DECIMAL_OVERFLOW`              | A value or result exceeds the supported decimal magnitude.                      |
+| `ADL_EXPRESSION_INVALID_TEMPORAL_VALUE`        | A `date`, `datetime` or `time` value is not well formed.                        |
 
 Two rules about this table are contractual because they are easy to get wrong:
 
@@ -578,11 +648,11 @@ came from.
 
 An outcome is one of four:
 
-| Status | Meaning |
-| --- | --- |
-| `accepted` | Applied; the accepted records are returned. |
-| `rejected` | Refused with a code. |
-| `conflict` | The record moved; `recovery` names the resolution. |
+| Status             | Meaning                                                  |
+| ------------------ | -------------------------------------------------------- |
+| `accepted`         | Applied; the accepted records are returned.              |
+| `rejected`         | Refused with a code.                                     |
+| `conflict`         | The record moved; `recovery` names the resolution.       |
 | `manualResolution` | The record moved and the object asks a human to resolve. |
 
 `recovery` follows the object's declared `CONFLICT` strategy: `serverWins`,
@@ -610,3 +680,63 @@ check reads through tombstones — deleting a record does not free its id.
 Replay is **idempotent and bound to the actor**: the same `operationId` from the
 same actor returns the stored outcome verbatim, while a different actor reusing
 that id is applied afresh.
+
+### Command intents
+
+A model-declared command replays as a single intent of kind `command`, carrying
+the command name, the input it was executed with, and a **record-id manifest**.
+One command is one `operationId`.
+
+The authority **re-executes** the command rather than applying its recorded
+writes. Every enforcement layer therefore runs server-side exactly as it ran on
+the device: input validation and defaults, command preconditions, step
+preconditions, object scope, policy and field policy, lifecycle, constraints and
+sync-mode write checks — and the steps stay inside one transaction, which is the
+whole point. Nothing about a command intent is trusted because it already
+succeeded locally.
+
+The manifest names the records the re-execution will create:
+
+- **Creates only.** An update step names an existing record through its own `ID`
+  expression, and an expression reaching for a created record's id resolves to
+  the adopted id.
+- **Planned order**, including one entry per item of an iterating step. An entry
+  carries the step name, the item index for an iterating step (absent otherwise),
+  the object name and the record id.
+- **Positional and named.** The entry at position N must have the same step name,
+  object name and item index as the Nth planned create. Position alone would let
+  a manifest built for a different execution be adopted silently.
+
+Each supplied id is subject to the same contract as a create intent's `recordId`:
+untrusted input, shape-checked before any work, refused when already taken, and
+never an assertion about revision, actor, timestamps, accepted state or scope. It
+follows the same ordering — shape, then scope, then policy, then field policy,
+then sync mode, then collision — so a command can never be used to claim an id
+that a direct create by the same caller would be refused, and never becomes an
+existence oracle. **A supplied id is a name, never an authorisation.**
+
+Two refusals are specific to the manifest, and both are ordinary durable
+rejections rather than transport faults:
+
+| Code                                      | Raised when                                                                                                                                                                                  |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADL_RUNTIME_COMMAND_RECORD_IDS_MISMATCH` | the manifest is absent, is not a list, describes more or fewer creates than the command plans, or names a step, object or item index that does not match the planned create at that position |
+| `ADL_RUNTIME_RECORD_ID_TAKEN`             | a supplied id already names a record, including a deleted one                                                                                                                                |
+
+A refused command leaves **nothing** behind: no step of it is applied, so a
+partially adopted manifest is not a reachable state.
+
+Idempotency covers the whole command. Replaying the same `operationId` from the
+same actor returns the stored outcome and writes nothing a second time, including
+every item of an iterating step — which is also why a retry that has already been
+settled must carry a new operation id rather than the one the authority answered.
+
+A command intent is the only way some work can reach the authority at all. A
+command that founds a business context and its first membership record is
+accepted as one intent; the identical membership write submitted as a per-record
+create intent is refused with `ADL_RUNTIME_CONTEXT_ERROR`, because the caller may
+not select a context they are not yet a member of, and the record that would make
+them one is the record being refused. Established-context reach is transaction-
+local (see [resolved-model#established-contexts](resolved-model.md)), so the
+transaction is the mechanism, and preserving it across the sync boundary is what
+the `command` intent exists for.

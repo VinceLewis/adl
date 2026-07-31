@@ -32,9 +32,16 @@ anything that reasons about which side of the sync loop names a record.
   under a different id from the one the client holds, which is the very defect
   being fixed.
 - **Validation lives at both layers and neither assumes the other ran.** The HTTP
-  edge answers `malformed_request`; the runtime raises
+  edge classifies it as `malformed_request`; the runtime raises
   `ADL_RUNTIME_RECORD_ID_INVALID`. `AuthorityService` is constructed directly by
   tests and tooling, so an edge-only check would be no check at all on that path.
+
+  Corrected in Phase 57: `malformed_request` is the *classification*, not the
+  response body. `operationIntent(body)` is called inside the replay route's main
+  `try`, whose `catch` maps everything to `failure("request_rejected", 400)`, so
+  the wire body is `{"error":"request_rejected"}`. Only a `readJsonObject`
+  failure surfaces `malformed_request` to the caller. The status is 400 either
+  way. Assert the observed contract, not the internal code name.
 - **A collision is a rejection, and terminal.** `ADL_RUNTIME_RECORD_ID_TAKEN`,
   surfaced through the Phase 47 recovery path as an ordinary rejection: no
   strategy, so `applyAutomaticRecovery` skips it; `keepServer` ("Dismiss") is its
@@ -72,6 +79,20 @@ anything that reasons about which side of the sync loop names a record.
   *as commands*, each step needs a client-supplied id — and note that replaying
   steps individually already loses the multi-step atomicity the command had
   locally, which is separate pre-existing work.
+
+  **Superseded by Phase 57**, which is the future phase this paragraph
+  anticipated. A locally executed command now queues one `command` entry and
+  replays as one intent carrying a client-supplied id per step *and per
+  iteration item*, and the lost atomicity — which Phase 56 turned from a
+  recorded cost into a demonstrated failure — is closed. The create path
+  described above is unchanged and is exactly what the command path reuses:
+  `CommandService.planStepWrite` hands each supplied id to
+  `ObjectStore.planCreateForTransaction`, so the shape check, the
+  after-authorisation collision check, the tombstone-inclusive lookup and the
+  terminal `ADL_RUNTIME_RECORD_ID_TAKEN` rejection all apply per step, once for
+  every record a command creates. See [[command-intent-replay]] for the manifest
+  contract, why matching is positional *and* named, and what a refused command
+  leaves behind.
 
 ## No stranded rows existed, and that is evidence
 
@@ -117,3 +138,7 @@ survives.** A developer's own browser profile can be cleared per origin.
   under the same id. The user's local values for it are then gone while only verdict
   metadata remains in the recovery panel. Consistent with every `keepServer`
   resolution, but a real loss of local work that is not yet surfaced as such.
+  Phase 57 multiplied this rather than fixing it: a refused *command* strands
+  every row all of its steps wrote, not one. The decision was deliberate — a
+  local rollback would be a third recovery primitive that invents a winner —
+  but the residue is now large enough to be worth a phase of its own.
