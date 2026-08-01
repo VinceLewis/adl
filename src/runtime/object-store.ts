@@ -25,7 +25,12 @@ import { InMemoryObjectStorageBackend } from "./object-storage-backend.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
 import type { OperationLog, OperationLogDetails } from "./operation-log.js";
 import type { PolicyEngine } from "./policy-engine.js";
-import { MAX_RECORD_ID_LENGTH, createRecordGuid, isValidRecordId } from "./record-identity.js";
+import {
+  MAX_RECORD_ID_LENGTH,
+  createRecordGuid,
+  createRecordRevision,
+  isValidRecordId,
+} from "./record-identity.js";
 import {
   StorageError,
   RecordIdInvalidError,
@@ -150,7 +155,6 @@ export interface PlannedTransactionCommitOptions {
 }
 
 export class ObjectStore {
-  private nextRevisionId = 1;
   private nextTransactionId = 1;
 
   constructor(
@@ -1092,7 +1096,11 @@ export class ObjectStore {
         guid,
         object: object.name,
         schemaVersion: object.schemaVersion,
-        revision: this.nextRevision(),
+        // A new record has no prior revision, so this starts a sequence. It is
+        // still unique by construction, not the first value of a process
+        // counter: two runtimes creating records over one backend must not mint
+        // the same revision for two different versions of anything.
+        revision: createRecordRevision(),
         ...(currentState === undefined ? {} : { state: currentState }),
         createdAt: now,
         createdBy: context.userId,
@@ -1123,7 +1131,10 @@ export class ObjectStore {
        */
       meta: {
         ...existing.meta,
-        revision: this.nextRevision(),
+        // Derived from the record's own prior revision, so this record's
+        // revisions count up across process restarts instead of restarting at
+        // the top of a fresh counter.
+        revision: createRecordRevision(existing.meta.revision),
         ...(state === undefined ? {} : { state }),
         updatedAt: getContextNowIso(context),
         updatedBy: context.userId,
@@ -1140,7 +1151,7 @@ export class ObjectStore {
       // The licence is carried through, for the reason `updatedRecord` gives.
       meta: {
         ...existing.meta,
-        revision: this.nextRevision(),
+        revision: createRecordRevision(existing.meta.revision),
         updatedAt: now,
         updatedBy: context.userId,
         deletedAt: now,
@@ -1464,10 +1475,6 @@ export class ObjectStore {
     if (queue) {
       this.syncQueue.enqueue(localOperation);
     }
-  }
-
-  private nextRevision(): string {
-    return `rev-${this.nextRevisionId++}`;
   }
 
   private nextCommandTransactionId(): string {

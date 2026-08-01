@@ -198,11 +198,13 @@ async function seedBand(applicationId: string, userId: string): Promise<SeededBa
  * and updates a record proves nothing about editing a child, because the create
  * would carry the values either way.
  *
- * `runtime` is a parameter because revision ids are minted by a counter held on
- * the writing `ObjectStore`, so every freshly built runtime starts again at
- * `rev-1`. A caller that seeds a record with one runtime and then edits it with
- * another can be handed the same revision string twice — see the stale-revision
- * test, which needs the two to genuinely differ.
+ * A runtime of its own is enough. Since Phase 61 a revision is minted from the
+ * record's own prior revision plus a random token rather than from a counter
+ * held on the writing `ObjectStore`, so no other runtime — freshly built, or
+ * belonging to a restarted process — can hand this record a revision it has
+ * already worn. A caller may seed with this runtime and edit through another
+ * without the two colliding; `authority-revision-integrity.test.ts` proves that
+ * across a real authority restart.
  */
 async function seedItem(
   applicationId: string,
@@ -211,9 +213,8 @@ async function seedItem(
   songId: string,
   position: number,
   extra: Record<string, JsonValue> = {},
-  runtime: ApplicationRuntime = serverRuntime(applicationId),
 ): Promise<StoredObjectRecord> {
-  return runtime.create(
+  return serverRuntime(applicationId).create(
     "SetListItem",
     {
       Band: seeded.bandId,
@@ -617,22 +618,16 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
    */
   it("makes a stale base revision on the edited child a conflict for the whole batch", async () => {
     const seeded = await seedBand(directApp, founderId);
-    // One runtime for both writes, deliberately: revisions come from a counter
-    // on the writing store, so seeding with one runtime and editing with a
-    // second hands out `rev-1` twice and the "stale" revision below would in
-    // fact be the current one.
-    const other = serverRuntime(directApp);
-    await seedItem(
-      directApp,
-      seeded,
-      "item-inline-stale",
-      seeded.songOneId,
-      1,
-      { Notes: "As rehearsed" },
-      other,
-    );
+    await seedItem(directApp, seeded, "item-inline-stale", seeded.songOneId, 1, {
+      Notes: "As rehearsed",
+    });
     const stale = await authorityRevision(directApp, "SetListItem", "item-inline-stale");
-    // Another member edits the same row while this device's form is open.
+    // Another member edits the same row while this device's form is open, and
+    // deliberately through a *different* runtime than the one that seeded it:
+    // since Phase 61 a second runtime over the same state cannot reissue the
+    // revision the row already wears, so the value called `stale` below is
+    // genuinely stale rather than accidentally current.
+    const other = serverRuntime(directApp);
     await other.update(
       "SetListItem",
       "item-inline-stale",

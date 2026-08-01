@@ -884,6 +884,72 @@ An expression value has one of seven kinds: `text`, `number`, `boolean`, `date`,
 - Equality for temporal kinds remains **textual**, so two spellings of one
   instant are ordered equal but compared unequal. Also a known sharp edge.
 
+## Record Revisions
+
+Every stored record carries a `revision`, and it names **one version of one
+record**: the values, state and metadata that record held at one point in its
+history. Every write to a record mints a new one — create, update, transition and
+delete alike — and the runtime performing the write is the one that mints it.
+
+Three things a runtime, a client and a conformance case may assume:
+
+- a revision identifies one version of **one** record, so two records' revisions
+  say nothing about each other and are never compared;
+- an accepted write **advances** the record's revision, so the revision an
+  accepted outcome returns is the one the next intent must carry; and
+- a revision is **never reissued** for that record — not after a process restart,
+  not across two runtimes writing to the same persisted state, and not between a
+  device minting offline and the authority it eventually reaches.
+
+The scope of that last guarantee is the point of stating it. It is about the life
+of the **persisted state**, not the life of the process that minted the value. A
+runtime numbering revisions from a counter it starts at 1 in its constructor
+satisfies it right up until it is restarted; after that a record standing at its
+fourth revision is handed its first again, and it wears a name a _different_
+version of itself already wore.
+
+That is a silent lost update rather than a cosmetic problem, because the
+optimistic-concurrency check the whole sync loop rests on is an **equality
+comparison and nothing else**. A client holding the earlier version submits that
+revision as its `baseRevision`; the check compares it with the record's current
+revision, finds them equal, and applies the write over edits the client never
+saw. There is no conflict, no `manualResolution`, and no audit of anything
+unusual — and afterwards nothing can detect what happened, because the two
+versions are indistinguishable by the only value that distinguishes versions.
+Uniqueness for the life of the state is therefore a correctness requirement of
+the conflict check, not a property of one convenient minting scheme.
+
+Everything else about a revision is unspecified, because a revision is
+**opaque**:
+
+- **No format.** None is defined and none may be assumed. A conforming runtime
+  may mint a UUID, a ULID, a counted token or anything else that satisfies the
+  guarantees above. A conformance case names a revision by the outcome that
+  produced it — `{"$ref": "<alias>.records.0.meta.revision"}` — rather than
+  spelling one out, because a spelled-out revision pins one implementation's
+  convention as the contract.
+- **No order.** Two revisions of the same record cannot be ranked. Nothing in
+  this specification says a later revision sorts after an earlier one, and no
+  client, report or case may depend on it. The runtime that mints a record's next
+  revision is the only thing entitled to read the previous one.
+- **No arithmetic and no derivation.** A caller never constructs, parses or
+  increments a revision; it round-trips the value it was handed. Deriving the
+  next revision from the last would be depending on a guarantee only one
+  implementation makes.
+- **No comparison other than equality.** Equality against the revision the client
+  last saw is the only defined operation on the value.
+
+A revision is never supplied by a caller. It is derived by the writing runtime in
+the same sense as actor, timestamps, accepted state and scope, and a create
+intent naming its own record asserts nothing about the revision that record will
+receive. The `baseRevision` an `update`, `delete` or `transition` intent carries
+is a claim about the version the client last read, never an instruction about the
+version the write will produce.
+
+A migration is the one operation that rewrites a record without advancing its
+revision, and deliberately so — a schema change is not an edit by anyone. See
+[model migration](#model-migration) for why, and for what that preserves.
+
 ## Authority Replay And Outcomes
 
 A client replays an operation intent to the authority. Every intent carries an
@@ -905,13 +971,12 @@ it is a revision the authority superseded or one it never issued. An accepted
 mutation **advances** the record's revision, so the revision an accepted outcome
 returns is the one the next intent must carry.
 
-A revision is **opaque**. No format is defined and none may be assumed: a client
-round-trips the value the authority returned rather than constructing, parsing,
-incrementing or ordering one. This is a contract obligation rather than a
-convention. A caller that derived the next revision from the last would be
-depending on a guarantee only one implementation makes, and so would a
-conformance case that spelled a revision out instead of naming the outcome it
-came from.
+Equality is the whole of that test. [Record revisions](#record-revisions) states
+the contract this rests on — a revision is opaque, is compared only for equality,
+and is never reissued for the life of the persisted state rather than the life of
+the process that minted it — and states why an authority that broke it would
+accept a stale write in silence rather than raise the conflict this section
+describes.
 
 An outcome is one of four:
 

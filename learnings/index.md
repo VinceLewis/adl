@@ -66,6 +66,16 @@ Before tasks that change the create intent contract, the authority's create path
 - `implementation/usable-sync-slice.md`
 - `implementation/authority-server.md`
 
+Before tasks that change how a record revision is minted, what a revision means,
+the `baseRevision` conflict check on either authority path, or anything that adds
+a write path minting record metadata outside `ObjectStore`, also read:
+
+- `implementation/authority-server.md`
+- `implementation/storage-backend.md`
+- `implementation/offline-operation-identity.md`
+- `implementation/model-versions-and-migrations.md`
+- `implementation/conformance-suite.md`
+
 Before tasks that change how a locally executed command is queued, the `command`
 local-operation kind, the command intent's record-id manifest, the authority's
 re-execution of a command, or which selected contexts an operation replays
@@ -250,7 +260,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, object constraints, command declarations, or runtime model startup checks.
 - `implementation/adl-parser.md`: read before changing ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour.
 - `implementation/runtime-services.md`: read before changing runtime services, model-declared commands, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
-- `implementation/storage-backend.md`: read before changing runtime persistence, object storage backends, browser demo seeding, sync replay storage, or persisted record tests.
+- `implementation/storage-backend.md`: read before changing runtime persistence, object storage backends, browser demo seeding, sync replay storage, persisted record tests, or anything that mints a value identifying persisted state — it carries the Phase 61 decision that a record revision is durable state and that already-persisted old-format revisions are deliberately not migrated.
 - `implementation/model-versioning-guard.md`: read before changing runtime startup compatibility checks, persisted application metadata, object schema version guards, or future migration handling.
 - `implementation/business-context-model.md`: read before changing business context, object scope, view context, or read-model resolution and validation.
 - `implementation/context-runtime.md`: read before changing runtime context resolution, context-scoped roles, scoped object authorization, context-aware UI calls, or tests that assert context policy behavior.
@@ -265,8 +275,8 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/sync-mode-delivery.md`: read before changing which sync modes queue, the client's delivery path, the authority's acceptance of a mode, undelivered-write presentation, or anything that decides whether an accepted write reaches the authority.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work.
-- `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases.
-- `implementation/authority-server.md`: read before changing authority replay, server sessions, accepted-state persistence, operation idempotency, or browser/server reconciliation.
+- `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, conformance cases, the conformance runner's operations and step options, or the generated-value guard that keeps minted text out of the corpus.
+- `implementation/authority-server.md`: read before changing authority replay, server sessions, accepted-state persistence, operation idempotency, browser/server reconciliation, or the `baseRevision` conflict check and the rule that mints a record revision.
 - `implementation/remote-bootstrap-and-sync-state.md`: read before changing authenticated remote bootstrap/pull, browser sync-state persistence, reconciliation, conflict recovery, or sync cursors.
 - `implementation/identity-invites-and-access-lifecycle.md`: read before changing opaque server sessions, identity provisioning, invites, membership grants/revocation, access audit, or browser behavior after authentication/access loss.
 - `implementation/production-authority-operations.md`: read before changing authority HTTP deployment, cookies, upstream identity proof, rate limits, credential logging, PostgreSQL operations, or incident procedures.
@@ -281,7 +291,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors.
 - `implementation/first-deployment-slice.md`: read before changing the authority entrypoint or deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging.
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
-- `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record.
+- `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record or names a version of one.
 - `implementation/command-intent-replay.md`: read before changing how a locally executed command is queued, the `command` local-operation kind, the command intent's record-id manifest, the authority's re-execution of a command, the sync-queueability rule on command steps, or which selected contexts an operation replays against.
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
 - `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read.

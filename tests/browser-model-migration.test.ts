@@ -544,6 +544,79 @@ describe("browser model migration over IndexedDB", () => {
     expect(bare.operationLog.getOperations()).toEqual([]);
     expect(bare.syncQueue.getEntries()).toEqual([]);
   });
+
+  /**
+   * Phase 61, browser half. A browser `ObjectStore` is constructed once per
+   * session over records IndexedDB already holds, so the device is the place
+   * where "a fresh runtime over persisted state" happens most often: every
+   * reload is one. Until this phase the revision came from a counter seeded at
+   * 1 in that constructor, so the second session over a record already at its
+   * fourth version handed it a name that version had already worn — and the
+   * `baseRevision` a queued write carries to the authority is whatever that
+   * counter produced. The optimistic-concurrency check is equality, so a
+   * reissued revision is a lost update nothing can detect afterwards.
+   *
+   * This case runs through the same real-IndexedDB store the migration cases
+   * use, with the runtime replaced and the database name held still, because a
+   * reload is exactly that and nothing less would prove it.
+   */
+  it("does not reissue a revision to a record an earlier session already wrote", async () => {
+    installFakeIndexedDb();
+    const databaseName = nextDatabaseName();
+    const model = resolveApplicationModel(partialModelV1);
+
+    const firstSession = new ApplicationRuntime(model, {
+      storage: new IndexedDbObjectStorageBackend({ databaseName }),
+    });
+    const created = await firstSession.create(
+      "Customer",
+      { Name: "Ada Lovelace", Email: "ada@example.com" },
+      adminContext,
+    );
+    const worn = [created.meta.revision];
+    for (const email of ["ada@one.example", "ada@two.example", "ada@three.example"]) {
+      const updated = await firstSession.update(
+        "Customer",
+        created.meta.guid,
+        { Email: email },
+        adminContext,
+      );
+      worn.push(updated.meta.revision);
+    }
+    // Four versions in the first session, four distinct names. The context
+    // carries a frozen clock, so nothing here can be distinct by accident of
+    // the wall time.
+    expect(new Set(worn).size).toBe(worn.length);
+
+    // The reload: a new runtime over a new connection to the same database,
+    // holding nothing in memory from the session before it.
+    const secondSession = new ApplicationRuntime(model, {
+      storage: new IndexedDbObjectStorageBackend({ databaseName }),
+    });
+    await secondSession.whenReady();
+    const afterReload = await secondSession.update(
+      "Customer",
+      created.meta.guid,
+      { Email: "ada@four.example" },
+      adminContext,
+    );
+
+    expect(worn).not.toContain(afterReload.meta.revision);
+    expect(new Set([...worn, afterReload.meta.revision]).size).toBe(worn.length + 1);
+
+    // What IndexedDB now holds is the new revision, and a third session reading
+    // it back agrees — the value is persisted state, not a per-session artefact.
+    const persisted = await readStore(databaseName);
+    expect(findRecord(persisted.records, "Customer", created.meta.guid).record.meta.revision).toBe(
+      afterReload.meta.revision,
+    );
+    const thirdSession = new ApplicationRuntime(model, {
+      storage: new IndexedDbObjectStorageBackend({ databaseName }),
+    });
+    await expect(
+      thirdSession.read("Customer", created.meta.guid, adminContext),
+    ).resolves.toMatchObject({ meta: { revision: afterReload.meta.revision } });
+  });
 });
 
 /**

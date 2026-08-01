@@ -329,7 +329,8 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
     | "evaluateOfflineDataset"
     | "syncWrite"
     | "syncCommand"
-    | "readPersistedRecords";
+    | "readPersistedRecords"
+    | "readRecordRevisions";
   model?: ConformanceModelInput;
   modelRef?: string;
   /**
@@ -349,6 +350,20 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
 }
 
 export interface RuntimeConformanceStep {
+  /**
+   * Ends the runtime this case has been using and opens a new one over the same
+   * persisted state before this step runs — an ordinary process restart, which
+   * is the only way a case can observe state a runtime holds per process rather
+   * than in storage.
+   *
+   * A record revision is the reason this exists. It has to name one version of
+   * one record for the life of the *state*, not the life of the process that
+   * minted it, and a corpus with no way to restart could not tell the two apart:
+   * a runtime numbering revisions from a counter it reset on construction passed
+   * every case while reissuing revisions the authority's conflict check compares
+   * for equality.
+   */
+  restartRuntime?: boolean;
   operation:
     | "create"
     | "update"
@@ -632,6 +647,13 @@ export interface ConformanceRunResult {
 interface RunState {
   aliases: Record<string, unknown>;
   recordAliases: Map<string, string>;
+  /**
+   * Every revision this case's steps have seen, per record, in the order they
+   * were seen. Kept because a revision's guarantee is about the *history* of a
+   * record and not about any one value: nothing in a single result can say that
+   * a revision was never issued before.
+   */
+  revisions?: Map<string, string[]>;
 }
 
 export async function runConformanceSuite(
@@ -1235,14 +1257,22 @@ async function runRuntimeCase(
     await storage.create(item.objectName, item.record);
   }
 
-  const runtime = new ApplicationRuntime(resolveApplicationModel(source), { storage });
+  const model = resolveApplicationModel(source);
+  // Rebuilt, not reused, whenever a step declares `restartRuntime`. A runtime
+  // holding per-process state that a restart would lose is exactly what such a
+  // case is about, so the case has to be able to make the process end.
+  let runtime = new ApplicationRuntime(model, { storage });
 
   for (const setup of conformanceCase.setup ?? []) {
+    if (setup.restartRuntime === true) {
+      runtime = new ApplicationRuntime(model, { storage });
+    }
     const value = await runRuntimeStep(
       runtime,
       resolveRefs(setup, state) as RuntimeConformanceStep,
       state,
     );
+    recordRevisionObservations(value, state);
     if (setup.alias !== undefined) {
       state.aliases[setup.alias] = value;
       registerRecordAlias(setup.alias, value, state);
@@ -1279,6 +1309,18 @@ async function runRuntimeCase(
 
   if (conformanceCase.operation === "readPersistedRecords") {
     return { ok: true, result: await reportPersistedRecords(runtime, storage, state) };
+  }
+
+  if (conformanceCase.operation === "readRecordRevisions") {
+    return {
+      ok: true,
+      result: await reportRecordRevisions(
+        runtime,
+        storage,
+        input as ObjectRuntimeOperationInput,
+        state,
+      ),
+    };
   }
 
   const result = await runRuntimeOperation(runtime, conformanceCase.operation, input);
@@ -1670,6 +1712,104 @@ async function reportPersistedRecords(
   } as unknown as JsonValue;
 }
 
+/**
+ * Keys a record's revision history by object and id.
+ *
+ * The separator is written as the escape `\u0000` rather than typed as a byte,
+ * which is the repository's rule for a composite key: a raw NUL in a source file
+ * makes `grep` treat it as binary and silently report nothing from it, and this
+ * file already carries one such line.
+ */
+function revisionKey(objectName: string, recordId: string): string {
+  return `${objectName}\u0000${recordId}`;
+}
+
+/**
+ * Files every revision a step produced under the record it belongs to.
+ *
+ * The walk is structural rather than per operation because a step's result is a
+ * record for an ordinary write, an array of them for a staged batch, and a
+ * command result carrying its steps' records — and a command's revisions are as
+ * much part of a record's history as any other write's.
+ */
+function recordRevisionObservations(value: unknown, state: RunState): void {
+  if (Array.isArray(value)) {
+    for (const item of value) recordRevisionObservations(item, state);
+    return;
+  }
+
+  if (!isObject(value)) return;
+
+  if (isRecord(value) && typeof value.meta.revision === "string") {
+    const key = revisionKey(value.meta.object, value.meta.guid);
+    const revisions = (state.revisions ??= new Map());
+    revisions.set(key, [...(revisions.get(key) ?? []), value.meta.revision]);
+    return;
+  }
+
+  for (const item of Object.values(value)) recordRevisionObservations(item, state);
+}
+
+/**
+ * What a record's revisions did, stated as behaviour rather than as text.
+ *
+ * No case may name a revision — `tests/conformance-suite.test.ts` refuses one
+ * that does, because no specification defines a format and a runtime minting
+ * ULIDs is as correct as this one. That left the actual guarantee unsayable: a
+ * revision identifies **one** version of one record, so a write must change it
+ * and no write may ever hand back a revision this record already wore. Reported
+ * as counts and predicates, both of those are assertable by any runtime.
+ *
+ * Deliberately absent: anything about *order*. A revision is opaque and
+ * equality-compared, so a corpus that asserted revisions increase would be
+ * asserting one implementation's convention as the contract.
+ */
+async function reportRecordRevisions(
+  runtime: ApplicationRuntime,
+  storage: InMemoryObjectStorageBackend,
+  input: ObjectRuntimeOperationInput,
+  state: RunState,
+): Promise<JsonValue> {
+  await runtime.whenReady();
+  const objectName = input.objectName;
+  const recordId = requireText(input.id, "readRecordRevisions id");
+  const observed = state.revisions?.get(revisionKey(objectName, recordId)) ?? [];
+  const persisted = await storage.read(objectName, recordId);
+  const current = persisted?.meta.revision;
+  /*
+   * The persisted revision joins the history only when it is not already the
+   * last one a write reported.
+   *
+   * A record whose last write is the one storage is holding reports that
+   * revision twice — once from the write, once from storage — and appending it
+   * unconditionally made `everyWriteChangedTheRevision` permanently false and
+   * `revisionReissued` permanently true. Both predicates would then have been
+   * constants: the two statements that carry the whole guarantee would have
+   * constrained nothing, and a case asserting them would have been asserting the
+   * runner rather than the runtime. Including it when it *differs* is still
+   * worth doing — that is a version storage holds which no write reported.
+   */
+  const history =
+    current === undefined || current === observed[observed.length - 1]
+      ? observed
+      : [...observed, current];
+
+  return {
+    writes: observed.length,
+    distinctRevisions: new Set(history).size,
+    // Consecutive pairs, so a write that returned the revision it was planned
+    // against is caught even when every other write differed.
+    everyWriteChangedTheRevision: history.every(
+      (revision, index) => index === 0 || revision !== history[index - 1],
+    ),
+    // The whole history, not only neighbours: a reissued revision is a lost
+    // update whether or not the reissue happened to follow its twin.
+    revisionReissued: new Set(history).size !== history.length,
+    currentRevisionIsTheLastWritten:
+      current !== undefined && observed.length > 0 && current === observed[observed.length - 1],
+  } as unknown as JsonValue;
+}
+
 async function runRuntimeStep(
   runtime: ApplicationRuntime,
   step: RuntimeConformanceStep,
@@ -1734,7 +1874,11 @@ async function runRuntimeOperation(
   runtime: ApplicationRuntime,
   operation: Exclude<
     RuntimeConformanceCase["operation"],
-    "syncWrite" | "syncCommand" | "readPersistedRecords" | "applyStagedChildChanges"
+    | "syncWrite"
+    | "syncCommand"
+    | "readPersistedRecords"
+    | "readRecordRevisions"
+    | "applyStagedChildChanges"
   >,
   input: RuntimeConformanceInput,
 ): Promise<unknown> {

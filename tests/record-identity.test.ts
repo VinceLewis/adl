@@ -4,11 +4,17 @@ import {
   InMemoryObjectStorageBackend,
   MAX_RECORD_ID_LENGTH,
   createRecordGuid,
+  createRecordRevision,
   isValidRecordId,
+  recordRevisionSequence,
   resolveApplicationModel,
   validateApplicationModel,
 } from "../src/index.js";
-import type { PartialApplicationModel, RuntimeContext } from "../src/index.js";
+import type {
+  ObjectStorageBackend,
+  PartialApplicationModel,
+  RuntimeContext,
+} from "../src/index.js";
 
 /**
  * Phase 48. A record id crosses a trust boundary: an offline create names its own
@@ -39,6 +45,32 @@ const partialModel: PartialApplicationModel = {
       fields: [{ name: "Title", type: "text", required: true }],
       sync: { mode: "localFirst", conflict: "manual" },
     },
+    /**
+     * Declared only so the revision cases below can drive a *transition*, which
+     * is a fourth way a record gains a new version and mints a revision through
+     * a path of its own (`ObjectStore.commitTransition`). It is a separate
+     * object rather than a lifecycle bolted onto `Gig` so the Phase 48 fixture
+     * above keeps meaning exactly what it meant.
+     */
+    {
+      name: "Booking",
+      businessKey: "Reference",
+      displayField: "Reference",
+      fields: [
+        { name: "Reference", type: "text", required: true },
+        { name: "Status", type: "text" },
+      ],
+      sync: { mode: "localFirst", conflict: "manual" },
+      lifecycle: {
+        name: "BookingLifecycle",
+        stateField: "Status",
+        initialState: "Draft",
+        states: [{ name: "Draft" }, { name: "Confirmed" }],
+        actions: [
+          { name: "confirm", from: "Draft", to: "Confirmed", policyRefs: ["BookingPolicy"] },
+        ],
+      },
+    },
   ],
   policies: [
     {
@@ -59,6 +91,18 @@ const partialModel: PartialApplicationModel = {
         },
       ],
     },
+    {
+      name: "BookingPolicy",
+      object: "Booking",
+      rules: [
+        {
+          name: "adminAllBookings",
+          effect: "allow",
+          principal: { match: "specific", roles: ["Admin"] },
+          action: "*",
+        },
+      ],
+    },
   ],
 };
 
@@ -69,6 +113,16 @@ const memberContext: RuntimeContext = { userId: "user-member", roles: ["Member"]
 
 function newRuntime(): ApplicationRuntime {
   return new ApplicationRuntime(model, { storage: new InMemoryObjectStorageBackend() });
+}
+
+/**
+ * A second runtime over persisted state someone else's runtime wrote. This is
+ * an ordinary process restart — the authority coming back up, a browser tab
+ * reloading over its IndexedDB — expressed with the backend held still and the
+ * runtime replaced, which is the only part of a restart that matters here.
+ */
+function runtimeOver(storage: ObjectStorageBackend): ApplicationRuntime {
+  return new ApplicationRuntime(model, { storage });
 }
 
 describe("isValidRecordId", () => {
@@ -143,7 +197,11 @@ describe("create under a supplied record id", () => {
     // `pending`, not `local`: `Gig` is a queueable object, so this create was
     // queued by the same commit and the authority has not answered it yet.
     expect(created.meta.syncStatus).toBe("pending");
-    expect(created.meta.revision).toBe("rev-1");
+    // The record got a revision, and the caller did not choose it. What that
+    // string *says* is not this case's business — a revision is opaque, and the
+    // cases below own what makes one usable.
+    expect(typeof created.meta.revision).toBe("string");
+    expect(created.meta.revision).not.toBe("");
     await expect(
       runtime.objectStore.getRecordForRuntime("Gig", "gig-supplied-1"),
     ).resolves.toMatchObject({ values: { Title: "Friday rehearsal" } });
@@ -230,5 +288,203 @@ describe("create under a supplied record id", () => {
     await expect(
       runtime.create("Gig", { Title: "Probe" }, memberContext, { recordId: ` ${NUL}` }),
     ).rejects.toMatchObject({ code: "ADL_RUNTIME_RECORD_ID_INVALID" });
+  });
+});
+
+/**
+ * Phase 61. A record id names a record; a revision names one *version* of one
+ * record. The optimistic-concurrency check the entire sync loop rests on is a
+ * plain equality comparison against that value — `AuthorityService` refuses a
+ * write whose `baseRevision` does not equal the stored revision, and nothing
+ * anywhere orders revisions or parses them.
+ *
+ * That makes reissuing a revision a silent lost update rather than a curiosity.
+ * A device holds record X at some revision; the process that mints revisions
+ * restarts; other writers advance X until it wears that same name again — a
+ * different version, indistinguishable from the one the device saw. The stale
+ * write now passes the equality check and overwrites edits it never saw, with
+ * no conflict, no `manualResolution`, and nothing left afterwards that could
+ * detect it.
+ *
+ * Until this phase the value came from `private nextRevisionId = 1` on
+ * `ObjectStore`, seeded in every constructor and never rehydrated, so a record
+ * driven to `rev-4` through one runtime came back as `rev-1` through the next
+ * runtime over the same persisted state. The rules proven here are:
+ *
+ * - a revision is unique for the life of the persisted state it describes, not
+ *   for the life of the process that minted it;
+ * - a record's revisions never move backwards, including across a restart;
+ * - every path that produces a new version — create, update, delete and
+ *   transition alike — mints a fresh one;
+ * - and the derivation reads the record's *own* prior revision, so a value it
+ *   does not recognise starts a sequence instead of failing.
+ */
+describe("record revision", () => {
+  /**
+   * The restart case, and the one that fails outright if the process-local
+   * counter ever comes back: with the backend held still and the runtime
+   * replaced, the record must not be handed a revision it has already worn.
+   */
+  it("never reissues a revision a record already had, across a runtime restart", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const first = runtimeOver(storage);
+
+    const worn = [
+      (await first.create("Gig", { Title: "Take 1" }, adminContext, { recordId: "gig-restart" }))
+        .meta.revision,
+      (await first.update("Gig", "gig-restart", { Title: "Take 2" }, adminContext)).meta.revision,
+      (await first.update("Gig", "gig-restart", { Title: "Take 3" }, adminContext)).meta.revision,
+      (await first.update("Gig", "gig-restart", { Title: "Take 4" }, adminContext)).meta.revision,
+    ];
+    // Four versions, four distinct names, before anything restarts.
+    expect(new Set(worn).size).toBe(worn.length);
+
+    const second = runtimeOver(storage);
+    await second.whenReady();
+    const afterRestart = (
+      await second.update("Gig", "gig-restart", { Title: "Take 5" }, adminContext)
+    ).meta.revision;
+
+    // The whole point: the fresh runtime knows nothing of the four revisions
+    // above except what the record itself carries, and must not reuse one.
+    expect(worn).not.toContain(afterRestart);
+    expect(new Set([...worn, afterRestart]).size).toBe(worn.length + 1);
+    // And it is the persisted record that wears it, not just the returned copy.
+    await expect(
+      second.objectStore.getRecordForRuntime("Gig", "gig-restart"),
+    ).resolves.toMatchObject({ meta: { revision: afterRestart } });
+  });
+
+  /**
+   * Uniqueness alone would be satisfied by a value that jumps about. The
+   * sequence exists so a record's versions stay legible in an audit trail and
+   * an operation log, which only holds if a restart cannot wind it back.
+   * `recordRevisionSequence` is exported for the minting side and for this
+   * assertion; it is not a licence for a consumer to order revisions.
+   */
+  it("does not let a record's revision sequence go backwards across a restart", async () => {
+    const storage = new InMemoryObjectStorageBackend();
+    const first = runtimeOver(storage);
+
+    await first.create("Gig", { Title: "Take 1" }, adminContext, { recordId: "gig-sequence" });
+    await first.update("Gig", "gig-sequence", { Title: "Take 2" }, adminContext);
+    const beforeRestart = (
+      await first.update("Gig", "gig-sequence", { Title: "Take 3" }, adminContext)
+    ).meta.revision;
+
+    const second = runtimeOver(storage);
+    await second.whenReady();
+    const afterRestart = (
+      await second.update("Gig", "gig-sequence", { Title: "Take 4" }, adminContext)
+    ).meta.revision;
+
+    expect(recordRevisionSequence(afterRestart)).toBeGreaterThan(
+      recordRevisionSequence(beforeRestart),
+    );
+    // A third runtime keeps counting from where the second left off, so this is
+    // a property of the record rather than of one lucky restart.
+    const third = runtimeOver(storage);
+    await third.whenReady();
+    const afterSecondRestart = (
+      await third.update("Gig", "gig-sequence", { Title: "Take 5" }, adminContext)
+    ).meta.revision;
+    expect(recordRevisionSequence(afterSecondRestart)).toBeGreaterThan(
+      recordRevisionSequence(afterRestart),
+    );
+  });
+
+  /**
+   * A revision is minted on every path that produces a new version of a record,
+   * not only on `update`. A delete writes a tombstone other devices reconcile
+   * against, and a transition is a write with a state change attached; either
+   * one reusing the prior revision would leave a stale `baseRevision` matching a
+   * version that no longer exists.
+   */
+  it("mints a distinct revision for a delete and for a lifecycle transition", async () => {
+    const runtime = newRuntime();
+
+    const created = await runtime.create("Gig", { Title: "Doomed" }, adminContext, {
+      recordId: "gig-tombstone",
+    });
+    const deleted = await runtime.delete("Gig", "gig-tombstone", adminContext);
+    expect(deleted.meta.revision).not.toBe(created.meta.revision);
+    expect(recordRevisionSequence(deleted.meta.revision)).toBeGreaterThan(
+      recordRevisionSequence(created.meta.revision),
+    );
+
+    const booking = await runtime.create("Booking", { Reference: "B-1" }, adminContext, {
+      recordId: "booking-1",
+    });
+    const confirmed = await runtime.transition("Booking", "booking-1", "confirm", adminContext);
+    expect(confirmed.meta.state).toBe("Confirmed");
+    expect(confirmed.meta.revision).not.toBe(booking.meta.revision);
+    expect(recordRevisionSequence(confirmed.meta.revision)).toBeGreaterThan(
+      recordRevisionSequence(booking.meta.revision),
+    );
+  });
+
+  describe("createRecordRevision", () => {
+    it("mints a fresh revision when there is no prior one", () => {
+      const minted = createRecordRevision();
+      expect(typeof minted).toBe("string");
+      expect(minted).not.toBe("");
+      expect(recordRevisionSequence(minted)).toBe(1);
+    });
+
+    it("counts on from the record's own prior revision", () => {
+      const first = createRecordRevision();
+      const second = createRecordRevision(first);
+      const third = createRecordRevision(second);
+
+      expect(recordRevisionSequence(second)).toBe(recordRevisionSequence(first) + 1);
+      expect(recordRevisionSequence(third)).toBe(recordRevisionSequence(second) + 1);
+      expect(new Set([first, second, third]).size).toBe(3);
+    });
+
+    /**
+     * Records persisted before this phase carry the bare `rev-<n>` shape. Their
+     * sequence is still read, so an existing record counts on from where it
+     * stood rather than restarting — which is what stops the *first* write after
+     * an upgrade colliding with a revision that record already had.
+     */
+    it("reads the sequence out of a pre-phase revision", () => {
+      expect(recordRevisionSequence("rev-4")).toBe(4);
+      expect(recordRevisionSequence(createRecordRevision("rev-4"))).toBe(5);
+    });
+
+    /**
+     * A prior revision is derived from, never trusted. A fixture literal, a
+     * seeded value, or a revision some other runtime's format produced must
+     * still yield a usable unique revision — the random token is what makes
+     * starting a fresh sequence safe there.
+     */
+    it("starts a new sequence for a prior revision it does not recognise, instead of failing", () => {
+      for (const unrecognised of ["rev-seeded-a", "", "seeded", "rev-", "rev-x1"]) {
+        const minted = createRecordRevision(unrecognised);
+        expect(recordRevisionSequence(unrecognised)).toBe(0);
+        expect(minted).not.toBe(unrecognised);
+        expect(recordRevisionSequence(minted)).toBe(1);
+        expect(minted).not.toBe(createRecordRevision(unrecognised));
+      }
+    });
+
+    /**
+     * Two runtimes over one backend, or a device and the authority minting
+     * offline, both derive from the same prior revision. Uniqueness therefore
+     * cannot come from the sequence, and does not.
+     */
+    it("never mints the same value twice from the same prior revision", () => {
+      const previous = createRecordRevision();
+      const minted = new Set(Array.from({ length: 64 }, () => createRecordRevision(previous)));
+      expect(minted.size).toBe(64);
+      expect(minted.has(previous)).toBe(false);
+    });
+
+    it("mints only revisions that survive storage as a text key", () => {
+      // A revision is persisted in a text column and in an IndexedDB record, and
+      // travels in an operation-log entry, so the id shape rules bind it too.
+      expect(isValidRecordId(createRecordRevision())).toBe(true);
+      expect(isValidRecordId(createRecordRevision("rev-9"))).toBe(true);
+    });
   });
 });

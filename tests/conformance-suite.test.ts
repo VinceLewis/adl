@@ -74,12 +74,27 @@ describe("ADL conformance corpus", () => {
 });
 
 /**
- * Text the reference runtime mints. `rev-1` is the one that mattered: five cases
- * hard-coded it as a `baseRevision`, so a conforming runtime minting ULIDs would
- * have failed them while being entirely correct. Nothing in `docs/spec/` defines
- * any of these shapes, which is precisely why no case may name one.
+ * Text the reference runtime mints. A revision is the one that mattered: five
+ * cases hard-coded `rev-1` as a `baseRevision`, so a conforming runtime minting
+ * ULIDs would have failed them while being entirely correct. Nothing in
+ * `docs/spec/` defines any of these shapes, which is precisely why no case may
+ * name one.
+ *
+ * Two revision shapes are listed because the reference runtime changed its own.
+ * Until Phase 61 it minted `rev-<n>` from a counter that lived only as long as
+ * the process; it now mints `rev-<sequence>-<uuid>` derived from the record's
+ * own prior revision. Both stay banned: dropping the retired shape would let a
+ * case re-introduce a literal that once passed, and this guard exists to catch
+ * exactly that. Keeping only the retired one is what made this check silently
+ * stop guarding revisions at all.
  */
-const GENERATED_VALUE_SHAPES = [/^rev-\d+$/, /^cmd-txn-\d+$/, /^sha256-/, /^sync-op-/];
+const GENERATED_VALUE_SHAPES = [
+  /^rev-\d+$/,
+  /^rev-\d+-.+$/,
+  /^cmd-txn-\d+$/,
+  /^sha256-/,
+  /^sync-op-/,
+];
 
 /**
  * Keys whose values are minted rather than declared. Asserting one at all is a

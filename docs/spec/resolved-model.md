@@ -74,6 +74,16 @@ Business fields are author-defined. Metadata fields are platform-managed and
 include `_guid`, `_object`, `_schemaVersion`, `_revision`, `_state`,
 creation/update/delete metadata, and `_syncStatus`.
 
+`_revision` is a non-empty string naming one version of one record. Every write
+to the record replaces it with a value that record has never carried before, for
+the life of the persisted state rather than the life of the process that minted
+it. It is opaque: no format is defined, it is never ordered, parsed or derived
+from, and equality against the revision a caller last read is the only defined
+operation on it. See
+[runtime-semantics#record-revisions](runtime-semantics.md) for what that
+guarantees, why the scope of the uniqueness matters, and what a runtime may not
+assume.
+
 `_syncStatus` holds the record's device-local synchronisation state, one of
 `local`, `pending`, `synced`, `conflict` and `rejected`. Every value has a
 producer; see
@@ -292,7 +302,9 @@ the staged child changes of an edit surface are the implemented producer. Having
 no declaration to re-execute, it carries the **writes** instead of an input: each
 names an operation (`create`, `update` or `delete`), an object and a record id,
 plus the values a create was made with, the patch an update asked for, and the
-revision an update or delete was planned against. Only the writes the caller
+revision an update or delete was planned against — carried verbatim as the opaque
+value it is ([runtime-semantics#record-revisions](runtime-semantics.md)). Only the
+writes the caller
 _requested_ are carried, because the authority re-derives a platform-derived
 write — an ordered-collection shift — from the same constraint, and being told
 about it twice would apply it twice.

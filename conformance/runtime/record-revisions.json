@@ -1,0 +1,670 @@
+{
+  "version": 1,
+  "models": {
+    "revisionModel": {
+      "app": {
+        "name": "RecordRevisions"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "sync": {
+            "mode": "localFirst",
+            "scope": "all",
+            "conflict": "serverWins"
+          }
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAdminAllNote",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "revision.one-runtime.every-write-is-a-new-version.001",
+      "title": "Four writes through one runtime produce four versions and reissue nothing",
+      "specRef": "runtime-semantics#record-revisions",
+      "operation": "readRecordRevisions",
+      "modelRef": "revisionModel",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Version one"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version two"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:01:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version three"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:02:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version four"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:03:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:04:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "writes": 4,
+          "distinctRevisions": 4,
+          "everyWriteChangedTheRevision": true,
+          "revisionReissued": false,
+          "currentRevisionIsTheLastWritten": true
+        }
+      }
+    },
+    {
+      "id": "revision.restart.no-revision-is-reissued.001",
+      "title": "A write through a restarted runtime is a new version, not a version the record already wore",
+      "specRef": "runtime-semantics#record-revisions",
+      "operation": "readRecordRevisions",
+      "modelRef": "revisionModel",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Version one"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version two"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:01:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version three"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:02:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "restartRuntime": true,
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version four, written after the process ended"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:03:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:04:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "writes": 4,
+          "distinctRevisions": 4,
+          "everyWriteChangedTheRevision": true,
+          "revisionReissued": false,
+          "currentRevisionIsTheLastWritten": true
+        }
+      }
+    },
+    {
+      "id": "revision.restart.immediately-after-create.001",
+      "title": "The first write after a restart does not hand back the revision the create produced",
+      "specRef": "runtime-semantics#record-revisions",
+      "operation": "readRecordRevisions",
+      "modelRef": "revisionModel",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Version one"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "restartRuntime": true,
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version two, written after the process ended"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:01:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:02:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "writes": 2,
+          "distinctRevisions": 2,
+          "everyWriteChangedTheRevision": true,
+          "revisionReissued": false,
+          "currentRevisionIsTheLastWritten": true
+        }
+      }
+    },
+    {
+      "id": "revision.restart.repeated-restarts.001",
+      "title": "Every restart in a sequence of them still produces a version the record has never worn",
+      "specRef": "runtime-semantics#record-revisions",
+      "operation": "readRecordRevisions",
+      "modelRef": "revisionModel",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Version one"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "restartRuntime": true,
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version two"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:01:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "restartRuntime": true,
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version three"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:02:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "restartRuntime": true,
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version four"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:03:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:04:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "writes": 4,
+          "distinctRevisions": 4,
+          "everyWriteChangedTheRevision": true,
+          "revisionReissued": false,
+          "currentRevisionIsTheLastWritten": true
+        }
+      }
+    },
+    {
+      "id": "revision.restart.continues-past-the-first-write.001",
+      "title": "A restarted runtime keeps minting new versions, not only for its first write",
+      "specRef": "runtime-semantics#record-revisions",
+      "operation": "readRecordRevisions",
+      "modelRef": "revisionModel",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Version one"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version two"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:01:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "restartRuntime": true,
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version three"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:02:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version four"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:03:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:04:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "writes": 4,
+          "distinctRevisions": 4,
+          "everyWriteChangedTheRevision": true,
+          "revisionReissued": false,
+          "currentRevisionIsTheLastWritten": true
+        }
+      }
+    },
+    {
+      "id": "revision.restart.delete-is-a-version.001",
+      "title": "A tombstone written after a restart is a version of its own",
+      "specRef": "runtime-semantics#record-revisions",
+      "operation": "readRecordRevisions",
+      "modelRef": "revisionModel",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Version one"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version two"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:01:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "restartRuntime": true,
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:02:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:03:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "writes": 3,
+          "distinctRevisions": 3,
+          "everyWriteChangedTheRevision": true,
+          "revisionReissued": false,
+          "currentRevisionIsTheLastWritten": true
+        }
+      }
+    },
+    {
+      "id": "revision.one-runtime.delete-is-a-version.001",
+      "title": "A tombstone written without a restart is a version of its own",
+      "specRef": "runtime-semantics#record-revisions",
+      "operation": "readRecordRevisions",
+      "modelRef": "revisionModel",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note",
+          "objectName": "Note",
+          "values": {
+            "Title": "Version one"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "update",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "patch": {
+            "Title": "Version two"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:01:00.000Z"
+          }
+        },
+        {
+          "operation": "delete",
+          "objectName": "Note",
+          "id": {
+            "$ref": "note.meta.guid"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:02:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "id": {
+          "$ref": "note.meta.guid"
+        },
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "online": true,
+          "now": "2026-07-17T09:03:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "writes": 3,
+          "distinctRevisions": 3,
+          "everyWriteChangedTheRevision": true,
+          "revisionReissued": false,
+          "currentRevisionIsTheLastWritten": true
+        }
+      }
+    }
+  ]
+}

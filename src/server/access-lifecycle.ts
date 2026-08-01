@@ -6,6 +6,7 @@ import type {
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import type { ContextMembershipIndex } from "../runtime/context-membership-index.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
+import { createRecordRevision } from "../runtime/record-identity.js";
 import { RuntimeContextError, cloneJson } from "../runtime/runtime-types.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import type { AuthoritySessionAdapter } from "./authority-types.js";
@@ -497,7 +498,12 @@ export class AuthorityAccessLifecycleService {
           guid: membershipRecordId,
           object: membership.object,
           schemaVersion: 1,
-          revision: "rev-1",
+          // Minted by the same rule the runtime uses, rather than a constant.
+          // This record is written outside `ObjectStore` (the grant is committed
+          // atomically with its access audit), and a revision that a restarted
+          // process could issue again would be a revision the conflict check
+          // cannot tell apart from a later version of the same record.
+          revision: createRecordRevision(),
           createdAt: now.toISOString(),
           createdBy: userId,
           updatedAt: now.toISOString(),

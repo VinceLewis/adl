@@ -75,6 +75,28 @@ conflict checks, on the persisted-record shape in both PostgreSQL and IndexedDB,
 and on the conformance corpus, which must stop asserting a literal it should
 never have depended on.
 
+### Evidence drift found when executing this phase
+
+Recorded per `learnings/process/phase-execution.md`, which asks that a phase's
+evidence be checked before it is executed and the drift written down rather than
+worked around.
+
+Every point above held except the last one, and it held only in the letter.
+`rev-N` does appear across `conformance/` and the eight named test files, but
+almost all of those occurrences are **seeded inputs** — a `records` block writing
+a revision straight into storage, or an `applicationMetadata` fixture — which are
+legitimate and stay. Exactly one hermetic assertion pinned a revision the runtime
+minted (`tests/record-identity.test.ts:146`). What actually protected the corpus
+was a normaliser rather than the cases: `GENERATED_VALUE_SHAPES` in
+`tests/conformance-suite.test.ts` refuses any case that names a value matching
+`/^rev-\d+$/`, so the corpus was already free of the literal — and, unfixed,
+that guard would have stopped guarding the moment the shape changed.
+
+The scope consequence is that "free the corpus from the literal" was largely
+already done, and the real corpus work is the opposite one: the corpus had no way
+to **restart a runtime**, so a runtime reissuing revisions passed every case. That
+is what this phase adds to the runner.
+
 ### Candidates weighed and not chosen
 
 Recorded with their evidence, per `learnings/process/phase-execution.md`.

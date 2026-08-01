@@ -196,6 +196,51 @@ constraint had stopped being size and become what a case could say.
   case to know that the assertion is about the delete rather than about a
   scenario that was never reachable.
 
+## Key decisions from Phase 61
+
+Phase 52 stopped cases from *naming* a revision. Phase 61 found the thing that
+mattered more: the corpus had no way to describe the situation in which the
+reference runtime's revision minting was actually wrong, so a runtime that
+reissued revisions after a restart passed every case while breaking the
+optimistic-concurrency check the whole sync loop rests on.
+
+- **A restart is a scenario, so the corpus has to be able to say it.**
+  `RuntimeConformanceStep.restartRuntime` rebuilds the `ApplicationRuntime` over
+  the **same storage** before the step runs. That is an ordinary process restart
+  — the authority redeploying, a browser tab reloading — and it was previously
+  unsayable, which is why a counter reset in every constructor survived a corpus
+  of several hundred cases. Generalise the lesson: when a guarantee is about what
+  survives something, the corpus needs a way to *do* that something, or the
+  guarantee is only ever asserted inside the one process that trivially satisfies
+  it.
+- **`readRecordRevisions` reports behaviour, not text.** It answers with
+  `{ writes, distinctRevisions, everyWriteChangedTheRevision, revisionReissued,
+  currentRevisionIsTheLastWritten }` for one record, accumulated from every
+  revision the case's steps saw for it. A case can therefore state "a write
+  changes the revision" and "no revision is ever handed back twice" — the actual
+  contract — without a literal anywhere near it.
+- **It deliberately reports nothing about order.** A revision is opaque and
+  equality-compared (`runtime-semantics#record-revisions`), so a case asserting
+  that revisions increase would pin one implementation's convention as the
+  cross-runtime contract, which is the same mistake as spelling `rev-1` out. The
+  reference runtime happens to carry a sequence; a conforming one minting ULIDs
+  or UUIDs must pass the same cases.
+- **The history matters, not just the last pair.** `revisionReissued` is computed
+  over the whole observed history rather than consecutive pairs, because a
+  reissued revision is a lost update whether or not it came back immediately.
+  `everyWriteChangedTheRevision` is the consecutive-pair question and is a
+  different one.
+- **The generated-value guard has to keep pace with what the runtime mints.**
+  `tests/conformance-suite.test.ts` scans cases for reference-runtime text, and
+  that scan is only as good as its list of shapes. When the minted format
+  changes, the guard changes with it — otherwise it goes on refusing a format
+  nothing produces while admitting the one that is now generated. Note also that
+  the phase document's claim of "41 `rev-N` assertions in `conformance/`" was
+  stale: at the start of Phase 61 the corpus held 25 occurrences, every one of
+  them a literal `records` **seed input** in two model-migration files, which the
+  guard exempts by design. The corpus's real protection was the guard, not the
+  absence of the literal.
+
 ## Gaps the corpus still cannot express
 
 Recorded so a later phase does not have to rediscover them.

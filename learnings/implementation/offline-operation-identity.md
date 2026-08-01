@@ -116,6 +116,46 @@ fix. None was added. The general rule: **before writing code that deletes local
 rows to repair a defect, establish that the defective state exists somewhere that
 survives.** A developer's own browser profile can be cleared per origin.
 
+## Decisions from Phase 61: the caller names the record, never the version
+
+Phase 48 settled that the **client names the record**. Phase 61 settles the other
+half of the same question, because the two identifiers in a record's metadata are
+governed by opposite rules and confusing them is easy:
+
+- **A record id is supplied.** It crosses the trust boundary in a create intent,
+  is shape-checked as untrusted input, and the accepted record comes back under
+  it. The whole point is that the client already holds it.
+- **A revision is never supplied.** No intent field carries one to be adopted,
+  and `AuthorityService` has no path that writes a caller-provided revision. It
+  is minted on **every** write — create, update, transition and delete — by
+  whichever runtime performs that write, which is the device for a local write
+  and the authority for the replayed one. It sits with actor, timestamps,
+  accepted state and scope on the "the caller may not assert this" list that
+  `isValidRecordId`'s own doc comment names.
+
+`baseRevision` is not a counter-example, and it is worth being precise about why.
+An `update`, `delete` or `transition` intent carries the revision the client last
+read. That is a **claim about what it saw**, checked for equality against the
+record's current revision, and never an instruction about the revision the write
+will produce: the authority mints a fresh one for the accepted version and
+returns it. A client that tried to name its own next revision would be asserting
+a version it had not written.
+
+Both sides mint independently, and that is the constraint the rule had to satisfy
+rather than an accident. A device mints a revision for a local write while it
+cannot reach the authority at all — no round trip, no database sequence — and the
+authority mints another when the operation replays. Neither can consult the
+other, so uniqueness has to come from the value's own construction. Phase 61's
+`rev-<sequence>-<uuid>` gets it from the random half; the sequence half only
+keeps the value legible. See [[authority-server]] for the defect this replaced
+and [[storage-backend]] for why persistence is the scope of the guarantee.
+
+The consequence for anything that reconciles: a revision the device minted for a
+local row and the revision the authority returned for the accepted version of
+that same row are **different values**, and always were. The device adopts the
+authority's copy rather than reconciling the two, which is why nothing here ever
+needed to compare a local revision with a remote one.
+
 ## Practical guidance
 
 - The hermetic fake in `tests/authority-sync-client.test.ts` echoed the client's
