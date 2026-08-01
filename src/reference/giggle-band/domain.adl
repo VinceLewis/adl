@@ -189,12 +189,19 @@ OBJECT SetListItem
   FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name
   FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
   FIELD Position NUMBER REQUIRED MIN 1
+  # A set-list item is not just a link to a song: how it is played, whether it
+  # closes the night, and when it was last rehearsed all belong to the item.
+  # These are what make the child collection's inline editor exercise the real
+  # field renderer -- an enum, a boolean and a date beside the song lookup.
+  FIELD Arrangement TEXT DEFAULT Full IN ('Full', 'Acoustic', 'Instrumental')
+  FIELD Encore BOOLEAN DEFAULT false
+  FIELD RehearsedOn DATE
   FIELD Notes TEXT
   SYNC LOCAL_FIRST SCOPE currentContext
 
   VIEW SetListItemList LIST
     CONTEXT REQUIRED Band
-    FIELDS SetList Position Song Notes
+    FIELDS SetList Position Song Arrangement Encore RehearsedOn Notes
     SEARCH Notes
     SORT Position ASC
     ACTIONS create read update delete

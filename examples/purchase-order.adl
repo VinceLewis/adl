@@ -66,7 +66,10 @@ OBJECT PurchaseOrder
     CHILD_COLLECTION Lines HEADING 'Order lines'
       CHILD PurchaseOrderLine PARENT_FIELD PurchaseOrder
       CHILD_VIEW PurchaseOrderLineList
-      OPERATIONS createChild linkExisting updateChild unlink remove reorder
+      # `unlink` is not declarable here: it detaches a child by clearing its
+      # parent lookup, and PurchaseOrderLine.PurchaseOrder is REQUIRED. Removing
+      # a line deletes it.
+      OPERATIONS createChild linkExisting updateChild remove reorder
       STAGED
       ORDER_FIELD Position
       EMPTY_TEXT 'No order lines yet.'

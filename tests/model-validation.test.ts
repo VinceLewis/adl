@@ -328,6 +328,32 @@ END.OBJECT
   });
 
   /*
+   * `unlink` detaches a child by clearing its lookup back to the parent, so a
+   * required parent field can never honour it. The language could declare the
+   * operation and no model with a required parent field could satisfy it, with
+   * nothing saying so until a user clicked the control.
+   */
+  it("refuses unlink on a child collection whose parent field is required", () => {
+    const result = compileAdl(unlinkSource("REQUIRED"));
+
+    expect(result.diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.path])).toEqual([
+      [
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED,
+        "objects[0].views[1].editSections[0].operations",
+      ],
+    ]);
+    expect(result.diagnostics[0]?.message).toBe(
+      "Edit child collection 'Lines' supports 'unlink' but parent field 'Order' on child object 'OrderLine' is required, so a child can never be detached from its parent. Use 'remove' instead, or make the field optional.",
+    );
+  });
+
+  it("accepts unlink when the child may exist without a parent", () => {
+    const result = compileAdl(unlinkSource(""));
+
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  /*
    * A picker that names a candidate field mints children rather than
    * re-parenting them, so every rule that depends on which record the author is
    * choosing changes with it: the source is the candidate object, the section
@@ -2260,6 +2286,41 @@ function createRelationshipPickerPartialModel(): PartialApplicationModel {
       },
     ],
   };
+}
+
+/**
+ * A child collection declaring `unlink`, with the child's lookup back to its
+ * parent required or optional according to the caller. Nothing else differs
+ * between the two cases, so the diagnostic can only come from that one word.
+ */
+function unlinkSource(parentFieldRequired: string): string {
+  return `APP Orders
+  START_VIEW OrderList
+END.APP
+
+OBJECT Order
+  DISPLAY Code
+  FIELD Code TEXT REQUIRED
+
+  VIEW OrderList LIST
+    FIELDS Code
+  END.VIEW
+
+  VIEW OrderForm FORM
+    FIELDS Code
+    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      OPERATIONS createChild updateChild unlink
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT OrderLine
+  DISPLAY Description
+  FIELD Order TEXT ${parentFieldRequired} LOOKUP Order DISPLAY Code
+  FIELD Description TEXT
+END.OBJECT
+`;
 }
 
 /**

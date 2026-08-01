@@ -39,6 +39,30 @@
 > **What remains of this phase is therefore no longer the browser.** The two
 > smaller modelling defects below survive, and the honest question this phase must
 > answer first is whether they still outrank the candidates listed after them.
+>
+> **Evidence re-checked at execution time.** Both amended points were verified
+> closed against the code before this phase ran: `configureChildFieldEditors`
+> exists in `src/ui/components/adl-form-view.ts` and points the draft row and the
+> row editor at `adl-field-renderer`, and `CANDIDATE_FIELD` resolves, validates
+> and is used by the reference app. Both surviving points held exactly as
+> written: `activeEditContainer` still returned `this.activeView.editContainer`,
+> and `unlink` was still listed as a valid operation with nothing checking the
+> parent field.
+>
+> Executing the third point exposed a defect the document did not predict. The
+> **resolver's default operation set was `createChild updateChild unlink`**, so
+> refusing `unlink` against a required parent field refused every child collection
+> that declared no `OPERATIONS` at all — the default was invalid by construction
+> for the common case. The default is therefore now
+> `createChild updateChild remove`, which is a set every model can honour. This is
+> a resolved-model default change and is specified, conformance-pinned and
+> fingerprint-affecting; it is recorded here because the phase document predicted
+> a validator change and the honest fix was a defaults change as well.
+>
+> The two surviving points are small, and they remain the right work: both are
+> defects in a capability people are already given, and closing them costs far
+> less than the smallest candidate that does not exist yet. The candidates below
+> were re-checked and are unchanged; the next phase is planned against them.
 
 ## Objective
 
@@ -252,3 +276,29 @@ derived, whole-list assertion to exactly one owner.
    dependencies, parallel execution plan, tasks, and its own handoff. If no gap
    justifies a further phase, record that conclusion explicitly instead. Then
    verify, commit, and push Phase 60.
+
+## Outcome
+
+Delivered. `docs/phases/phase-61-record-revision-integrity.md` is the handoff.
+
+The handoff was **not** the candidate this document predicted. Writing Phase 60's
+real-PostgreSQL coverage for a batch containing an inline child edit exposed that
+`ObjectStore` mints revisions from a process-local counter that is never
+rehydrated, so a record at `rev-4` comes back as `rev-1` after a restart while
+`AuthorityService` compares revisions for equality alone. That makes a stale
+`baseRevision` silently acceptable, which outranks every candidate listed above.
+Verified independently before it was accepted; the offline dataset scoping
+candidate that would otherwise have been Phase 61 is recorded there in full, with
+its evidence, so it does not need re-deriving.
+
+Two smaller defects were found and fixed inside this phase rather than deferred,
+because both made the phase's own acceptance criteria untrue:
+
+- An untouched empty optional child field was staged as an explicit `null`,
+  because a control that never held a value reads back as `null` while the row
+  has no key for it at all. Closing an editor over no change at all staged a
+  write.
+- The word beside a checkbox was rendered once from the value the field renderer
+  opened on, so ticking `Encore` left a ticked box sitting beside the word "No".
+  The set-list screenshot is what caught it, which is the reason the screenshot
+  inspection step exists.

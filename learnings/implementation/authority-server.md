@@ -22,3 +22,33 @@ PostgreSQL object-storage backend and a transaction that commits accepted
 records, audit entries, and stored outcome together before handling shared
 traffic. Browser queue persistence and policy-shaped remote bootstrap are Phase
 40 work.
+
+## Open: a record revision is only unique within one process
+
+Found while writing Phase 60's real-PostgreSQL coverage for a batch containing an
+inline child edit, and verified independently before being recorded.
+
+`ObjectStore` mints revisions from `private nextRevisionId = 1`
+(`src/runtime/object-store.ts:153`) and never rehydrates it from persisted state.
+A record created and updated three times through one `ApplicationRuntime` reaches
+`rev-4`; a second `ApplicationRuntime` over the **same backend** updates it and it
+comes back as `rev-1`. The value is persisted, so this is durable.
+
+`AuthorityService` compares revisions for equality and nothing else
+(`authority-service.ts:340` for a single intent, `:409` for a batch write). A
+device holding `rev-3`, an authority restart, and three further writes by other
+devices put the record back at `rev-3` as a *different version wearing the same
+name* — and the stale write is then accepted silently. This is the only known
+place in this repository where the platform accepts a write it promises to
+refuse, and it is undetectable after the fact.
+
+Two things to know before touching it:
+
+- **The `rev-N` literal is a contract, not an implementation detail.** It is
+  asserted 41 times in `conformance/` and across eight test files. Nothing parses
+  it numerically, so the value is already opaque in behaviour; the corpus is what
+  has to stop asserting the literal.
+- **The device mints revisions offline**, so any replacement rule has to work
+  with no round trip and no database sequence.
+
+Planned as Phase 61 (`docs/phases/phase-61-record-revision-integrity.md`).

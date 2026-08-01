@@ -1513,7 +1513,13 @@ button:disabled {
   min-width: 0;
 }
 
-.adl-child-row-values span {
+/*
+ * Direct children only. A row being edited holds field renderers rather than
+ * text, and those have spans of their own — a required marker, a policy badge,
+ * a checkbox's Yes/No, a validation message — which are not row cells and must
+ * not be typeset as though they were.
+ */
+.adl-child-row-values > span {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -1523,10 +1529,16 @@ button:disabled {
   gap: var(--adl-space-xs);
 }
 
+/*
+ * Wide enough for the controls the field renderer actually produces. A child
+ * field is a real editor now — a chooser, a date input with its calendar
+ * indicator inset, a select of declared options — and 140px cut the date
+ * control's value off behind its own icon.
+ */
 .adl-child-draft {
   display: grid;
   gap: var(--adl-space-sm);
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 /*
@@ -1542,7 +1554,7 @@ button:disabled {
 .adl-child-editor .adl-child-row-values {
   display: grid;
   gap: var(--adl-space-sm);
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   width: 100%;
 }
 

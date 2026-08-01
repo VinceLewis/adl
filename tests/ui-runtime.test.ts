@@ -182,7 +182,7 @@ describe("browser UI runtime", () => {
 
   it("preserves explicit split-pane CRUD behavior", async () => {
     const model = createBrowserDemoModel();
-    setUserListEditContainer(model, "splitPane");
+    setUserFormEditContainer(model, "splitPane");
 
     const app = await mountApp(model);
 
@@ -203,7 +203,7 @@ describe("browser UI runtime", () => {
 
   it("renders drawer and page edit containers from resolved view metadata", async () => {
     const drawerModel = createBrowserDemoModel();
-    setUserListEditContainer(drawerModel, "drawer");
+    setUserFormEditContainer(drawerModel, "drawer");
     const drawerApp = await mountApp(drawerModel);
 
     requireElement<HTMLTableRowElement>(drawerApp, "tr[data-record-id]").click();
@@ -217,7 +217,7 @@ describe("browser UI runtime", () => {
     document.body.innerHTML = "";
 
     const pageModel = createBrowserDemoModel();
-    setUserListEditContainer(pageModel, "page");
+    setUserFormEditContainer(pageModel, "page");
     const pageApp = await mountApp(pageModel);
 
     requireElement<HTMLTableRowElement>(pageApp, "tr[data-record-id]").click();
@@ -229,6 +229,30 @@ describe("browser UI runtime", () => {
     await flushUi();
     expect(pageApp.querySelector("adl-list-view")).not.toBeNull();
     expect(pageApp.querySelector("adl-form-view")).toBeNull();
+  });
+
+  /*
+   * `EDIT_CONTAINER` describes how a form is presented, so it is read from the
+   * form that opens rather than from whichever view is active. Reading it from
+   * the active view made a declaration on a `FORM` view inert unless that form
+   * view was itself navigated to.
+   */
+  it("resolves the edit container from the form view, not the view it opens from", async () => {
+    const model = createBrowserDemoModel();
+    setUserFormEditContainer(model, "page");
+    // A stale declaration on the list must not govern the form it opens.
+    setUserListEditContainer(model, "drawer");
+
+    const app = await mountApp(model);
+
+    requireElement<HTMLTableRowElement>(app, "tr[data-record-id]").click();
+    await flushUi();
+
+    expect(app.querySelector(".adl-workspace-page adl-form-view")).not.toBeNull();
+    expect(app.querySelector(".adl-edit-container-drawer")).toBeNull();
+    expect(requireElement<HTMLElement>(app, "[data-edit-container]").dataset.editContainer).toBe(
+      "page",
+    );
   });
 
   it("hides lifecycle actions when the shared policy engine denies them", async () => {
@@ -1113,6 +1137,23 @@ function setUserSyncMode(
 
   user.sync = { ...user.sync, mode };
   model.sync = model.sync.map((sync) => (sync.object === "User" ? { ...sync, mode } : sync));
+}
+
+/**
+ * The container belongs to the form that opens, so these tests declare it on
+ * `UserForm` rather than on the list the form is opened from.
+ */
+function setUserFormEditContainer(
+  model: ResolvedApplicationModel,
+  editContainer: "modal" | "drawer" | "page" | "splitPane",
+): void {
+  const user = model.objects.find((candidate) => candidate.name === "User");
+  const formView = user?.views.find((view) => view.name === "UserForm");
+  if (formView === undefined) {
+    throw new Error("Expected UserForm view in browser demo model.");
+  }
+
+  formView.editContainer = editContainer;
 }
 
 function setUserListEditContainer(

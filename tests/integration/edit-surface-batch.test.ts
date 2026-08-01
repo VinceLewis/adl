@@ -20,6 +20,7 @@ import type {
   AuthorityConfiguration,
   AuthorityOperationIntent,
   AuthorityOutcome,
+  JsonValue,
   PlannedObjectWrite,
   PostgresPool,
   PostgresQueryable,
@@ -188,6 +189,44 @@ async function seedBand(applicationId: string, userId: string): Promise<SeededBa
   return { bandId, setListId, songOneId, songTwoId };
 }
 
+/**
+ * An existing child of the seeded set list, accepted authority state before any
+ * batch is submitted.
+ *
+ * An inline child edit is an edit of a row that is already there, so the record
+ * it patches must not be one the same batch created: a batch that both creates
+ * and updates a record proves nothing about editing a child, because the create
+ * would carry the values either way.
+ *
+ * `runtime` is a parameter because revision ids are minted by a counter held on
+ * the writing `ObjectStore`, so every freshly built runtime starts again at
+ * `rev-1`. A caller that seeds a record with one runtime and then edits it with
+ * another can be handed the same revision string twice — see the stale-revision
+ * test, which needs the two to genuinely differ.
+ */
+async function seedItem(
+  applicationId: string,
+  seeded: SeededBand,
+  recordId: string,
+  songId: string,
+  position: number,
+  extra: Record<string, JsonValue> = {},
+  runtime: ApplicationRuntime = serverRuntime(applicationId),
+): Promise<StoredObjectRecord> {
+  return runtime.create(
+    "SetListItem",
+    {
+      Band: seeded.bandId,
+      SetList: seeded.setListId,
+      Song: songId,
+      Position: position,
+      ...extra,
+    },
+    { ...systemContext, selectedContexts: { Band: seeded.bandId } },
+    { recordId },
+  );
+}
+
 /** The revision the authority currently holds, which an update must be planned against. */
 async function authorityRevision(
   applicationId: string,
@@ -300,6 +339,96 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
     // One operation, so exactly one durable verdict for all three writes.
     expect(after.outcomes).toBe(before.outcomes + 1);
     expect(after.audit).toBe(before.audit + 3);
+  });
+
+  /**
+   * Phase 60's inline child edit, which is what a staged batch now actually
+   * carries: a child created beside a child *edited in place*, with values.
+   *
+   * The `updateChild` patch is the part no earlier test covered — every batch
+   * above updates the parent, and a create carries its own values, so neither
+   * shape can show that an edit of an existing child survives the wire, the
+   * planner and a real jsonb round trip. The patch is deliberately mixed: a
+   * required lookup, an enum, a boolean and a date, because `false` and a date
+   * string are exactly the values a projection can quietly lose.
+   *
+   * The three untouched records are asserted whole rather than by count. A
+   * transaction that wrote the right rows and also shifted a sibling would
+   * satisfy every assertion about the two records the batch names.
+   */
+  it("lands an inline child edit beside a child create as one operation", async () => {
+    const seeded = await seedBand(directApp, founderId);
+    await seedItem(directApp, seeded, "item-inline-edited", seeded.songOneId, 1, {
+      Notes: "As rehearsed",
+    });
+    await seedItem(directApp, seeded, "item-inline-bystander", seeded.songTwoId, 2);
+    const editedBefore = await storedRecord(directApp, "SetListItem", "item-inline-edited");
+    const bystanderBefore = await storedRecord(directApp, "SetListItem", "item-inline-bystander");
+    const setListBefore = await storedRecord(directApp, "SetList", seeded.setListId);
+    const songBefore = await storedRecord(directApp, "Song", seeded.songTwoId);
+    const before = await projectionCounts(directApp);
+
+    const outcome = await service().replay(
+      founderToken,
+      batchIntent("op-batch-inline", seeded.bandId, [
+        // Appended past every existing child, so the ordered constraint plans no
+        // sibling shift and "untouched" below means what it says.
+        createItem(seeded, "item-inline-added", seeded.songTwoId, 3),
+        {
+          operation: "update",
+          objectName: "SetListItem",
+          recordId: "item-inline-edited",
+          patch: {
+            Song: seeded.songTwoId,
+            Arrangement: "Acoustic",
+            Encore: true,
+            RehearsedOn: "2026-07-20",
+            Notes: "Half-time feel",
+          },
+          baseRevision: editedBefore?.meta.revision ?? "",
+        },
+      ]),
+    );
+    requireAccepted(outcome);
+    expect(
+      outcome.status === "accepted" ? outcome.records.map((record) => record.meta.guid) : [],
+    ).toEqual(["item-inline-added", "item-inline-edited"]);
+
+    // The edit is persisted, not merely reported: read back out of PostgreSQL.
+    const edited = await storedRecord(directApp, "SetListItem", "item-inline-edited");
+    expect(edited?.values).toMatchObject({
+      Song: seeded.songTwoId,
+      Arrangement: "Acoustic",
+      Encore: true,
+      RehearsedOn: "2026-07-20",
+      Notes: "Half-time feel",
+      // A patch, not a replacement: what the inline editor did not send stands.
+      Position: 1,
+      SetList: seeded.setListId,
+      Band: seeded.bandId,
+    });
+    // And the authority moved the record on, so the next edit of this row has a
+    // revision to be judged against rather than the one the device already held.
+    expect(edited?.meta.revision).not.toBe(editedBefore?.meta.revision);
+
+    expect(
+      (await storedRecord(directApp, "SetListItem", "item-inline-added"))?.values,
+    ).toMatchObject({ Song: seeded.songTwoId, Position: 3, SetList: seeded.setListId });
+
+    // Nothing the batch did not name moved at all — values or revision.
+    expect(await storedRecord(directApp, "SetListItem", "item-inline-bystander")).toEqual(
+      bystanderBefore,
+    );
+    expect(await storedRecord(directApp, "SetList", seeded.setListId)).toEqual(setListBefore);
+    expect(await storedRecord(directApp, "Song", seeded.songTwoId)).toEqual(songBefore);
+
+    const after = await projectionCounts(directApp);
+    // One create, so one new row; the edit changed a row rather than adding one.
+    expect(after.records).toBe(before.records + 1);
+    // One operation covering both writes, and one audit event each — a third
+    // would mean the ordered constraint had planned a shift nobody asked for.
+    expect(after.outcomes).toBe(before.outcomes + 1);
+    expect(after.audit).toBe(before.audit + 2);
   });
 
   /**
@@ -477,6 +606,76 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
   });
 
   /**
+   * The same claim for the row an inline edit actually patches.
+   *
+   * A staged child edit is planned against the child revision the device held
+   * when the form was opened, and a parent form can sit open for a long time.
+   * If a stale child were resolved by overwriting, an inline edit would be the
+   * one write in the system that silently discarded somebody else's — and if it
+   * were resolved *per write*, the child create beside it would still land,
+   * leaving the set list holding half of a change the user never confirmed.
+   */
+  it("makes a stale base revision on the edited child a conflict for the whole batch", async () => {
+    const seeded = await seedBand(directApp, founderId);
+    // One runtime for both writes, deliberately: revisions come from a counter
+    // on the writing store, so seeding with one runtime and editing with a
+    // second hands out `rev-1` twice and the "stale" revision below would in
+    // fact be the current one.
+    const other = serverRuntime(directApp);
+    await seedItem(
+      directApp,
+      seeded,
+      "item-inline-stale",
+      seeded.songOneId,
+      1,
+      { Notes: "As rehearsed" },
+      other,
+    );
+    const stale = await authorityRevision(directApp, "SetListItem", "item-inline-stale");
+    // Another member edits the same row while this device's form is open.
+    await other.update(
+      "SetListItem",
+      "item-inline-stale",
+      { Notes: "Changed on the authority", Encore: true },
+      { ...systemContext, selectedContexts: { Band: seeded.bandId } },
+    );
+    const current = await storedRecord(directApp, "SetListItem", "item-inline-stale");
+    expect(current?.meta.revision).not.toBe(stale);
+    const before = await projectionCounts(directApp);
+
+    const outcome = await service().replay(
+      founderToken,
+      batchIntent("op-batch-inline-stale", seeded.bandId, [
+        createItem(seeded, "item-inline-stale-added", seeded.songTwoId, 2),
+        {
+          operation: "update",
+          objectName: "SetListItem",
+          recordId: "item-inline-stale",
+          patch: { Notes: "Half-time feel", Arrangement: "Acoustic" },
+          baseRevision: stale,
+        },
+      ]),
+    );
+
+    expect(outcome).toMatchObject({
+      status: "manualResolution",
+      operationId: "op-batch-inline-stale",
+      code: "ADL_SYNC_MANUAL_RESOLUTION",
+      recovery: "manual",
+    });
+
+    // The other member's edit stands, whole, including its revision.
+    expect(await storedRecord(directApp, "SetListItem", "item-inline-stale")).toEqual(current);
+    // And the child the same batch was adding is not there: a conflict on one
+    // write of a batch is a conflict for the batch.
+    expect(await storedRecord(directApp, "SetListItem", "item-inline-stale-added")).toBeNull();
+
+    const after = await projectionCounts(directApp);
+    expect(after.records).toBe(before.records);
+    expect(after.audit).toBe(before.audit);
+  });
+
+  /**
    * An infrastructure failure part-way through the commit is not a verdict.
    *
    * The fault is injected on the *second* record insert, so the transaction has
@@ -523,6 +722,68 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
     requireAccepted(await service().replay(founderToken, intent));
     expect(await storedRecord(directApp, "SetListItem", "item-fault-1")).not.toBeNull();
     expect(await storedRecord(directApp, "SetListItem", "item-fault-2")).not.toBeNull();
+  });
+
+  /**
+   * One PostgreSQL transaction across two *different kinds* of write.
+   *
+   * The fault is injected on the statement that applies the inline edit, which
+   * a create and an update issue differently — `insert into` against `update …
+   * set revision` — so by the time it throws the child create has genuinely been
+   * written. Only a real rollback can leave both the new row absent and the
+   * edited row holding its original values and its original revision.
+   */
+  it("rolls a mixed batch back when the inline edit fails after the create was written", async () => {
+    const seeded = await seedBand(directApp, founderId);
+    await seedItem(directApp, seeded, "item-inline-fault", seeded.songOneId, 1, {
+      Notes: "As rehearsed",
+    });
+    const editedBefore = await storedRecord(directApp, "SetListItem", "item-inline-fault");
+    const before = await projectionCounts(directApp);
+
+    let inserts = 0;
+    let updates = 0;
+    const faulty = faultyPool(pool, (sql) => {
+      if (sql.startsWith("insert into adl_authority_records")) {
+        inserts += 1;
+        return false;
+      }
+      if (!sql.startsWith("update adl_authority_records set revision")) return false;
+      updates += 1;
+      return true;
+    });
+
+    const intent = batchIntent("op-batch-inline-fault", seeded.bandId, [
+      createItem(seeded, "item-inline-fault-added", seeded.songTwoId, 2),
+      {
+        operation: "update",
+        objectName: "SetListItem",
+        recordId: "item-inline-fault",
+        patch: { Notes: "Half-time feel", Encore: true },
+        baseRevision: editedBefore?.meta.revision ?? "",
+      },
+    ]);
+    await expect(service(faulty).replay(founderToken, intent)).rejects.toThrow(
+      "injected infrastructure failure",
+    );
+
+    // The transaction really was part-written when it failed.
+    expect(inserts).toBe(1);
+    expect(updates).toBe(1);
+
+    expect(await storedRecord(directApp, "SetListItem", "item-inline-fault-added")).toBeNull();
+    expect(await storedRecord(directApp, "SetListItem", "item-inline-fault")).toEqual(editedBefore);
+    const afterFault = await projectionCounts(directApp);
+    expect(afterFault.records).toBe(before.records);
+    expect(afterFault.audit).toBe(before.audit);
+    // A fault is not a verdict, so the batch stays replayable.
+    expect(afterFault.outcomes).toBe(before.outcomes);
+
+    requireAccepted(await service().replay(founderToken, intent));
+    expect(await storedRecord(directApp, "SetListItem", "item-inline-fault-added")).not.toBeNull();
+    expect(
+      (await storedRecord(directApp, "SetListItem", "item-inline-fault"))?.values,
+    ).toMatchObject({ Notes: "Half-time feel", Encore: true });
   });
 
   /**
@@ -944,5 +1205,125 @@ describe("a staged batch from a real device over the real HTTP edge", () => {
     expect(browser.runtime.syncQueue.getEntries()).toEqual([]);
     expect(await localSyncStatus(browser.runtime, "Song", songId)).toBe("rejected");
     expect(await localSyncStatus(browser.runtime, "SetListItem", itemId)).toBe("rejected");
+  });
+
+  /**
+   * Phase 60's inline child edit from the device's side: a row added and a row
+   * edited in the same open form, committed once and replayed once.
+   *
+   * The edited child is created server-side and pulled down by a bootstrap
+   * first, so the device plans its update against the authority's own revision —
+   * which is what a person opening a set list they did not create actually has.
+   * Phase 58 then has to cover a record the batch *edited* rather than created:
+   * `pending` while it is queued, `synced` once the authority has accepted it,
+   * and the accepted revision written back onto the local copy so the next edit
+   * of the row is not born stale.
+   */
+  it("replays a staged inline child edit as one operation and leaves the edited child synced", async () => {
+    const { browser, seeded, context } = await signedInFounder();
+    await seedItem(deviceApp, seeded, "item-device-edited", seeded.songOneId, 1, {
+      Notes: "As rehearsed",
+    });
+    await browser.connection.bootstrap(context);
+    const editedBefore = await storedRecord(deviceApp, "SetListItem", "item-device-edited");
+    expect(await localSyncStatus(browser.runtime, "SetListItem", "item-device-edited")).toBe(
+      "synced",
+    );
+
+    const offline: RuntimeContext = { ...context, online: false };
+    const store = browser.runtime.objectStore;
+    const staged: PlannedObjectWrite[] = [
+      await store.planCreateForTransaction(
+        "SetListItem",
+        {
+          Band: seeded.bandId,
+          SetList: seeded.setListId,
+          Song: seeded.songTwoId,
+          Position: 2,
+        },
+        offline,
+      ),
+      await store.planUpdateForTransaction(
+        "SetListItem",
+        "item-device-edited",
+        {
+          Arrangement: "Acoustic",
+          Encore: true,
+          RehearsedOn: "2026-07-20",
+          Notes: "Half-time feel",
+        },
+        offline,
+      ),
+    ];
+    const addedId = staged[0]?.record.meta.guid ?? "";
+    expect(addedId).not.toBe("");
+    await commitStagedBatch(browser.runtime, staged, offline, "SetListForm child changes");
+
+    // One queue entry for the add and the edit together, carrying the child
+    // revision the edit was planned against.
+    const replayable = browser.runtime.syncQueue.getReplayable();
+    expect(replayable).toHaveLength(1);
+    expect(replayable[0]?.operation.operation).toBe("batch");
+    expect(
+      replayable[0]?.operation.batch?.writes.map((write) => [write.operation, write.recordId]),
+    ).toEqual([
+      ["create", addedId],
+      ["update", "item-device-edited"],
+    ]);
+    expect(replayable[0]?.operation.batch?.writes[1]?.baseRevision).toBe(
+      editedBefore?.meta.revision,
+    );
+    expect(await localSyncStatus(browser.runtime, "SetListItem", addedId)).toBe("pending");
+    expect(await localSyncStatus(browser.runtime, "SetListItem", "item-device-edited")).toBe(
+      "pending",
+    );
+    // Nothing has crossed the wire yet: the authority still holds the row as it
+    // was, so what lands below lands because of the replay and nothing else.
+    expect(await storedRecord(deviceApp, "SetListItem", "item-device-edited")).toEqual(
+      editedBefore,
+    );
+
+    await browser.connection.synchronize(context);
+
+    const replays = browser.replays();
+    expect(replays).toHaveLength(1);
+    expect(replays[0]?.body).toMatchObject({ kind: "batch" });
+    expect((replays[0]?.body as { writes: unknown[] }).writes).toHaveLength(2);
+    expect(browser.connection.recovery).toEqual([]);
+    expect(browser.runtime.syncQueue.getEntries()).toEqual([]);
+
+    // The edit is in PostgreSQL, with the values the inline editor sent and a
+    // revision that has moved on.
+    const editedAfter = await storedRecord(deviceApp, "SetListItem", "item-device-edited");
+    expect(editedAfter?.values).toMatchObject({
+      Arrangement: "Acoustic",
+      Encore: true,
+      RehearsedOn: "2026-07-20",
+      Notes: "Half-time feel",
+      Song: seeded.songOneId,
+      Position: 1,
+    });
+    expect(editedAfter?.meta.revision).not.toBe(editedBefore?.meta.revision);
+    expect((await storedRecord(deviceApp, "SetListItem", addedId))?.values).toMatchObject({
+      Song: seeded.songTwoId,
+      Position: 2,
+    });
+
+    // Phase 58 across a batch that edited as well as created.
+    for (const recordId of [addedId, "item-device-edited"]) {
+      expect(await localSyncStatus(browser.runtime, "SetListItem", recordId)).toBe("synced");
+    }
+    expect(await browser.runtime.summariseRecordSyncState()).toMatchObject({
+      pending: 0,
+      rejected: 0,
+      conflict: 0,
+    });
+    // The device holds the accepted revision, so a second inline edit of this
+    // row would be planned against the authority's copy rather than refused.
+    const localEdited = await browser.runtime.objectStore.getRecordForSync(
+      "SetListItem",
+      "item-device-edited",
+    );
+    expect(localEdited?.meta.revision).toBe(editedAfter?.meta.revision);
   });
 });

@@ -583,6 +583,13 @@ visible together. ADL source syntax for setting this property is
 `EDIT_CONTAINER modal|drawer|page|splitPane` inside a `VIEW` block; see
 [language#edit-surfaces](language.md).
 
+The renderer takes the hint from the **form view it is about to open**, not from
+the view currently on screen. A form opened from a list, from a row, or by
+navigating to the form view itself is therefore presented the same way, and a
+`FORM` view's own `EDIT_CONTAINER` is not inert. The workspace layout and the
+open/close behaviour read that one value, so what is drawn and what is opened
+cannot disagree.
+
 The implemented presentation model resolves to structured data for:
 
 - view layout hints
@@ -626,6 +633,10 @@ Implemented defaults are explicit in the resolved model:
 - legend include behavior: `present`
 - empty-state text: empty string
 - CRUD edit container: `modal`
+- child collection operations: `createChild`, `updateChild`, and `remove` — the
+  largest set every child collection can honour, since `unlink` needs an optional
+  parent field
+- child collection staged changes: enabled
 
 Implemented validation reports structured diagnostics for invalid references to
 read models, objects, fields, local state, icon maps, known fragment styles,
@@ -641,8 +652,9 @@ presentation defaults and references.
 
 Edit surfaces are covered by `conformance/model/edit-surfaces.json`, which states
 what the ADL syntax resolves to and which declarations are refused — including
-both picker modes, the source each one must be routed at, and every candidate-field
-diagnostic — and `conformance/runtime/edit-surfaces.json`, which states what an
+both picker modes, the source each one must be routed at, every candidate-field
+diagnostic, the default operation set, and the refusal of `unlink` against a
+required parent field — and `conformance/runtime/edit-surfaces.json`, which states what an
 ADL-declared child collection evaluates to, what each picker mode offers and
 excludes, what a staged batch commits, queues and reconciles, and that a staged
 `updateChild` changes only the fields its patch names while one carrying no values

@@ -256,6 +256,13 @@ export async function seedBandReferenceRuntime(
   // The set-list child collection on `SetListForm` is the surface Phase 59 makes
   // declarable, so the demo has to seed enough songs for reordering to mean
   // something: one row cannot be moved anywhere.
+  //
+  // A set-list item is not a bare link to a song, so the seed does not present
+  // one. `Arrangement`, `Encore` and `RehearsedOn` are what make the inline row
+  // editor exercise the real field renderer — an enum, a boolean and a date —
+  // and the demo and the screenshots only show that if the seeded rows carry
+  // values a person would recognise. The second item is deliberately left on its
+  // defaults so the unset case is on screen beside the set ones.
   const firstSetListItem = await runtime.create(
     "SetListItem",
     {
@@ -263,6 +270,9 @@ export async function seedBandReferenceRuntime(
       SetList: firstSetList.meta.guid,
       Song: firstSong.meta.guid,
       Position: 1,
+      Arrangement: "Acoustic",
+      RehearsedOn: "2026-07-05",
+      Notes: "Opens on the acoustic guitar.",
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
@@ -283,6 +293,10 @@ export async function seedBandReferenceRuntime(
       SetList: firstSetList.meta.guid,
       Song: thirdSong.meta.guid,
       Position: 3,
+      Arrangement: "Instrumental",
+      Encore: true,
+      RehearsedOn: "2026-07-06",
+      Notes: "Closes the night as the encore.",
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
@@ -306,6 +320,7 @@ export async function seedBandReferenceRuntime(
       SetList: secondSetList.meta.guid,
       Song: fourthSong.meta.guid,
       Position: 1,
+      RehearsedOn: "2026-07-03",
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );

@@ -73,7 +73,14 @@ Read this before changing browser UI components, runtime/UI policy integration, 
 
 - Keep UI behavior generic over `ResolvedObject` and `ResolvedView`; do not add per-object component forks.
 - CRUD form container decisions come from `ResolvedView.editContainer`, not raw
-  CSS class names or app-specific object checks.
+  CSS class names or app-specific object checks — and specifically from the
+  **form view that opens** (`adl-app.activeEditContainer` reads
+  `this.editFormView.editContainer`), not from whichever view is active.
+  Behaviour and rendering must read that one value: `renderCrudWorkspace` used to
+  render from the view it was handed while every behavioural branch read
+  `activeEditContainer`, so moving only the getter produced a workspace that
+  painted `data-edit-container="splitPane"` while nothing behaved like a split
+  pane. When a value moves, move every reader of it in the same pass.
 - Add new UI workflows through `ApplicationRuntime` first, then expose presentation decisions through the same policy engine.
 - When policy presentation blocks a field, make the UI skip that field in save patches so masked or readonly display values are not written back accidentally.
 - Presentation-language constructs for richer composed screens are documented

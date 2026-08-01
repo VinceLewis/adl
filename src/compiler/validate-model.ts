@@ -454,6 +454,8 @@ export const MODEL_VALIDATION_CODES = {
   VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN: "ADL_VIEW_EDIT_SECTION_ORDER_FIELD_UNKNOWN",
   VIEW_EDIT_SECTION_PARENT_FIELD_INVALID: "ADL_VIEW_EDIT_SECTION_PARENT_FIELD_INVALID",
   VIEW_EDIT_SECTION_PARENT_FIELD_UNKNOWN: "ADL_VIEW_EDIT_SECTION_PARENT_FIELD_UNKNOWN",
+  VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED:
+    "ADL_VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED",
   VIEW_FIELD_UNKNOWN: "ADL_VIEW_FIELD_UNKNOWN",
   VIEW_CONTEXT_MODE_INVALID: "ADL_VIEW_CONTEXT_MODE_INVALID",
   VIEW_CONTEXT_REQUIRED: "ADL_VIEW_CONTEXT_REQUIRED",
@@ -3411,6 +3413,27 @@ function validateViewEditSections(
             MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PARENT_FIELD_INVALID,
             `Edit child collection '${section.name}' parent field '${section.parentField}' must lookup parent object '${parentObject.name}'.`,
             `${sectionPath}.parentField`,
+          ),
+        );
+      }
+
+      /*
+       * `unlink` detaches a child by clearing its lookup back to the parent, so
+       * a required parent field can never honour it: the write the operation
+       * plans is refused by the child object's own validation. The language
+       * could declare it and the model could not satisfy it, with nothing
+       * saying why until a user clicked the control.
+       */
+      if (
+        parentField !== undefined &&
+        parentField.required &&
+        section.operations.includes("unlink")
+      ) {
+        diagnostics.push(
+          diagnostic(
+            MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED,
+            `Edit child collection '${section.name}' supports 'unlink' but parent field '${section.parentField}' on child object '${childObject.name}' is required, so a child can never be detached from its parent. Use 'remove' instead, or make the field optional.`,
+            `${sectionPath}.operations`,
           ),
         );
       }

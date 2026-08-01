@@ -798,7 +798,15 @@ function resolveEditSections(
       childObject: section.childObject,
       parentField: section.parentField,
       ...(section.childView === undefined ? {} : { childView: section.childView }),
-      operations: [...(section.operations ?? ["createChild", "updateChild", "unlink"])],
+      /*
+       * The default set must be one every child collection can honour.
+       * `unlink` clears the child's lookup back to its parent, which a required
+       * parent field -- the common case -- can never accept, so defaulting to
+       * it made the unauthored declaration invalid by construction. `remove`
+       * takes a child out of the collection in a way any model can satisfy, and
+       * is still gated by the child object's `delete` policy.
+       */
+      operations: [...(section.operations ?? ["createChild", "updateChild", "remove"])],
       staged: section.staged ?? true,
       ...(section.orderField === undefined ? {} : { orderField: section.orderField }),
       emptyState: {

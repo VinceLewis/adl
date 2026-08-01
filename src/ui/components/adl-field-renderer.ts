@@ -163,6 +163,32 @@ export class AdlFieldRendererElement extends HTMLElement {
       </div>
     `;
     this.syncRenderedInputValue(field, this._value);
+    this.bindBooleanLabel(field);
+  }
+
+  /**
+   * The word beside a checkbox has to say what the box says.
+   *
+   * It is rendered once from the value the element was given, so a person who
+   * ticked the box sat looking at a ticked box labelled "No" until something
+   * else re-rendered the element — a control contradicting its own state. The
+   * listener is attached after every render and cannot accumulate, because
+   * rendering replaces the input it was attached to.
+   */
+  private bindBooleanLabel(field: ResolvedField): void {
+    if (field.type !== "boolean") {
+      return;
+    }
+
+    const input = this.querySelector<HTMLInputElement>("input[data-field-input]");
+    const label = this.querySelector<HTMLElement>(".adl-checkbox-row > span");
+    if (input === null || label === null) {
+      return;
+    }
+
+    input.addEventListener("change", () => {
+      label.textContent = input.checked ? "Yes" : "No";
+    });
   }
 
   private syncRenderedInputValue(field: ResolvedField, value: JsonValue | undefined): void {
@@ -175,6 +201,10 @@ export class AdlFieldRendererElement extends HTMLElement {
 
     if (field.type === "boolean" && input instanceof HTMLInputElement) {
       input.checked = value === true;
+      const label = this.querySelector<HTMLElement>(".adl-checkbox-row > span");
+      if (label !== null) {
+        label.textContent = input.checked ? "Yes" : "No";
+      }
       return;
     }
 

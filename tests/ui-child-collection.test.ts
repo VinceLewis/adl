@@ -9,7 +9,13 @@ import {
   type RuntimeContext,
   type StoredObjectRecord,
 } from "../src/index.js";
+import {
+  createBandReferenceRuntime,
+  seedBandReferenceRuntime,
+  type BandReferenceSeed,
+} from "../src/reference/band-app.js";
 import { AdlAppElement } from "../src/ui/components/adl-app.js";
+import { AdlListViewElement } from "../src/ui/components/adl-list-view.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
 import type { StageChildOperationDetail } from "../src/ui/types.js";
 
@@ -312,6 +318,89 @@ END.POLICY
 
 POLICY OrderLinePolicy ON OrderLine
   ALLOW * ROLE Clerk
+END.POLICY
+`;
+
+/**
+ * An order whose lines carry a field of every kind a child editor has to get
+ * right: an enum (a text field constrained by `IN`), a boolean, a date, and a
+ * field made readonly by policy rather than by the model.
+ *
+ * A lookup is already covered above. These are the rest of what the phase's
+ * acceptance criterion names, and they are the kinds whose *values* — not merely
+ * whose controls — a bare text input got wrong: a checkbox posts a string, a
+ * declared `DEFAULT` never reaches a blank box, and a field a policy has made
+ * readonly must not be writable at all.
+ */
+const TYPED_CHILD_ORDER_ADL = `
+APP OrderDesk
+  START_VIEW OrderList
+END.APP
+
+ROLE Clerk
+
+OBJECT Order
+  KEY Code
+  DISPLAY Code
+
+  FIELD Code TEXT REQUIRED
+  FIELD Notes TEXT
+
+  VIEW OrderList LIST
+    FIELDS Code Notes
+    SEARCH Code
+    ACTIONS create read update
+  END.VIEW
+
+  VIEW OrderForm FORM
+    FIELDS Code Notes
+    ACTIONS save delete
+    EDIT_CONTAINER page
+    EDIT_SECTION Details HEADING 'Order'
+      FIELDS Code Notes
+    END.EDIT_SECTION
+    CHILD_COLLECTION Lines HEADING 'Lines'
+      CHILD OrderLine PARENT_FIELD Order
+      CHILD_VIEW OrderLineList
+      OPERATIONS createChild updateChild remove reorder
+      STAGED
+      ORDER_FIELD Position
+      EMPTY_TEXT 'No lines yet.'
+    END.CHILD_COLLECTION
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE All CONFLICT Manual
+END.OBJECT
+
+OBJECT OrderLine
+  DISPLAY Sku
+
+  FIELD Order TEXT LOOKUP Order DISPLAY Code
+  FIELD Sku TEXT REQUIRED
+  FIELD Grade TEXT DEFAULT Standard IN ('Standard', 'Express', 'Fragile')
+  FIELD Priority BOOLEAN DEFAULT false
+  FIELD DueOn DATE
+  FIELD Ledger TEXT
+  FIELD Position NUMBER REQUIRED
+
+  CONSTRAINT orderedOrderLines ORDERED PARENT Order POSITION Position REORDER shift COMPACT onDelete
+
+  VIEW OrderLineList LIST
+    FIELDS Sku Grade Priority DueOn Ledger Position
+    SORT Position ASC
+    ACTIONS create read update delete
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE All CONFLICT Manual
+END.OBJECT
+
+POLICY OrderPolicy ON Order
+  ALLOW * ROLE Clerk
+END.POLICY
+
+POLICY OrderLinePolicy ON OrderLine
+  ALLOW * ROLE Clerk
+  READONLY UPDATE FIELD Ledger ROLE Clerk
 END.POLICY
 `;
 
@@ -755,26 +844,18 @@ describe("inline editing of a child row", () => {
   });
 
   /**
-   * DEFECT (failing on purpose — see the report for this task).
+   * A staged inline edit is on the row it changed, before the parent is saved.
    *
-   * A staged inline edit is invisible until the parent is saved. The row closes
-   * and shows the value it had before, with nothing anywhere to say a change is
-   * waiting, so a person who edits a row sees exactly what they saw when the
-   * control did nothing at all — which is the failure mode this whole change
-   * exists to remove.
-   *
-   * It is an omission in the runtime rather than in the browser:
-   * `EditSurfaceRuntime.evaluateStagedChildRows`
-   * (`src/runtime/edit-surface-runtime.ts:535-571`) only turns `createChild` and
-   * `linkExisting` into rows, and `toPersistedChildRow` (line 516) copies
-   * `record.values` untouched, so no staged `updateChild` is ever overlaid on the
-   * row it names. Every other staged operation in this section *is* reflected
-   * before the parent is saved: a staged create and a staged link render as rows,
-   * a staged remove takes its row away, and `adl-form-view.orderedChildRows`
-   * (`src/ui/components/adl-form-view.ts:914-936`) replays staged reorders into
-   * the rendered order. Only `updateChild` is dropped.
-   *
-   * Not fixed here: this task owns tests only.
+   * Every other staged operation in a collection is already visible that early —
+   * a create and a link render as rows, a remove takes its row away, and
+   * `orderedChildRows` replays a reorder into the rendered order — so an edit
+   * that left the old value on screen was the one change a person could make and
+   * see no trace of, which is the "the button did nothing" impression inline
+   * editing exists to remove. `EditSurfaceRuntime.toPersistedChildRow` overlays
+   * it onto the row's values while leaving `record` at what storage holds, and
+   * the row editor re-opens on the overlay rather than on the record — otherwise
+   * re-opening a staged row and closing it would stage a second edit undoing the
+   * first.
    */
   it("shows a staged inline edit on the row it changed", async () => {
     const seeded = await seedInlineOrders();
@@ -937,6 +1018,567 @@ describe("inline editing of a child row", () => {
     // position would be a second source of truth for the same thing.
     expect(childEditorSlots(reread, row)).toEqual(["Product", "Note"]);
     expect(childDraftSlots(reread)).toEqual(["Product", "Note"]);
+  });
+});
+
+/**
+ * Child fields that are not text boxes.
+ *
+ * The draft row and the row editor both render through `adl-field-renderer`
+ * against the *child* object, so what is proved here is that the platform's own
+ * control follows the declared field in both surfaces, and — the part a rendered
+ * control alone does not give — that the value each control reads back is the
+ * value the model says it is: a boolean, not the string a checkbox posts; an
+ * ISO date; the declared option, not free text.
+ */
+describe("child fields of every declared kind", () => {
+  beforeEach(() => {
+    defineAdlComponents();
+    document.body.innerHTML = "";
+    globalThis.localStorage?.clear();
+    globalThis.sessionStorage?.clear();
+    globalThis.history.replaceState({}, "", "/");
+  });
+
+  it("renders an enum child field as a select of the declared options in both surfaces", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 0);
+    openRowEditor(app, 0);
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const editor = requireElement<HTMLSelectElement>(
+      childEditorField(reread, row, "Grade"),
+      "[data-field-input]",
+    );
+    // The declared `IN` list, in the order it was declared, and the row's own
+    // value chosen. A text input offered none of that and accepted anything.
+    expect(optionLabels(editor)).toEqual(["Standard", "Express", "Fragile"]);
+    expect(editor.value).toBe("Express");
+
+    const draft = requireElement<HTMLSelectElement>(
+      childDraftField(reread, "Grade"),
+      "[data-field-input]",
+    );
+    expect(optionLabels(draft)).toEqual(["Standard", "Express", "Fragile"]);
+    // A new child starts at the field's declared `DEFAULT`, exactly as the
+    // parent create form does. A blank draft that then wrote its blank back was
+    // a way to lose a default by not touching it.
+    expect(draft.value).toBe("Standard");
+  });
+
+  it("renders a boolean as a checkbox and a date as a date control in both surfaces", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 0);
+    openRowEditor(app, 0);
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const priority = requireElement<HTMLInputElement>(
+      childEditorField(reread, row, "Priority"),
+      "[data-field-input]",
+    );
+    expect(priority.type).toBe("checkbox");
+    expect(priority.checked).toBe(true);
+
+    const dueOn = requireElement<HTMLInputElement>(
+      childEditorField(reread, row, "DueOn"),
+      "[data-field-input]",
+    );
+    expect(dueOn.type).toBe("date");
+    expect(dueOn.value).toBe("2026-08-09");
+
+    const draftPriority = requireElement<HTMLInputElement>(
+      childDraftField(reread, "Priority"),
+      "[data-field-input]",
+    );
+    expect(draftPriority.type).toBe("checkbox");
+    // `DEFAULT false`, so the box starts clear.
+    expect(draftPriority.checked).toBe(false);
+    expect(
+      requireElement<HTMLInputElement>(childDraftField(reread, "DueOn"), "[data-field-input]").type,
+    ).toBe("date");
+  });
+
+  it("stages a real boolean, an ISO date and the chosen option from a row editor", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+    const staged = captureStagedOperations(app);
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 1);
+    const lineId = childRecordId(section, 1);
+    openRowEditor(app, 1);
+    await flushUi();
+
+    setChildControlValue(app, "Lines", row, "Grade", "Fragile");
+    toggleChildCheckbox(app, "Lines", row, "Priority", true);
+    setChildControlValue(app, "Lines", row, "DueOn", "2026-09-01");
+    clickRowEditControl(app, "Lines", row, "save");
+    await flushUi();
+
+    expect(staged).toHaveLength(1);
+    expect(staged[0]?.childId).toBe(lineId);
+    // Values, not strings of values. `Priority` is the boolean `true` rather
+    // than "on" or "true", which is what a raw form control posts and what a
+    // hand-rolled child input used to collect.
+    expect(staged[0]?.values).toEqual({
+      Grade: "Fragile",
+      Priority: true,
+      DueOn: "2026-09-01",
+    });
+    expect(typeof staged[0]?.values?.Priority).toBe("boolean");
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+    await flushUi();
+
+    expect(await storedTypedLines(seeded)).toEqual([
+      ["Amp", "Express", true, "2026-08-09", 1],
+      ["Cable", "Fragile", true, "2026-09-01", 2],
+    ]);
+  });
+
+  /*
+   * `Cable` carries no `DueOn` at all, so its date control opens empty and reads
+   * back as `null` while the row has no key for it. Comparing those raw made
+   * every untouched optional field a change, which is how an edit of one field
+   * staged a patch of nulls over fields nobody touched — and how closing an
+   * editor without changing anything staged a write.
+   */
+  it("keeps an untouched empty optional field out of the patch", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+    const staged = captureStagedOperations(app);
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 1);
+    openRowEditor(app, 1);
+    await flushUi();
+
+    setChildControlValue(app, "Lines", row, "Grade", "Fragile");
+    clickRowEditControl(app, "Lines", row, "save");
+    await flushUi();
+
+    expect(staged).toHaveLength(1);
+    expect(staged[0]?.values).toEqual({ Grade: "Fragile" });
+
+    // And an editor closed over no change at all stages nothing.
+    openRowEditor(app, 1);
+    await flushUi();
+    clickRowEditControl(
+      app,
+      "Lines",
+      rowId(requireElement(app, "[data-child-section='Lines']"), 1),
+      "save",
+    );
+    await flushUi();
+
+    expect(staged).toHaveLength(1);
+  });
+
+  /*
+   * The word beside a checkbox is the only thing on the row that says what the
+   * box means, and it was rendered once from the value the element opened on.
+   * Ticking `Encore` therefore left a ticked box sitting beside the word "No",
+   * which the set-list screenshot caught.
+   */
+  it("keeps the word beside a checkbox agreeing with the box", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 1);
+    openRowEditor(app, 1);
+    await flushUi();
+
+    const priority = childEditorField(
+      requireElement<HTMLElement>(app, "[data-child-section='Lines']"),
+      row,
+      "Priority",
+    );
+    expect(requireElement<HTMLElement>(priority, ".adl-checkbox-row > span").textContent).toBe(
+      "No",
+    );
+
+    toggleChildCheckbox(app, "Lines", row, "Priority", true);
+
+    expect(requireElement<HTMLElement>(priority, ".adl-checkbox-row > span").textContent).toBe(
+      "Yes",
+    );
+  });
+
+  it("stages a real boolean and the declared default from the draft row", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+    const staged = captureStagedOperations(app);
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    setChildDraftValue(app, "Lines", "Sku", "Stand");
+    toggleChildDraftCheckbox(app, "Lines", "Priority", true);
+    setChildDraftValue(app, "Lines", "DueOn", "2026-10-02");
+    requireElement<HTMLButtonElement>(
+      app,
+      "button[data-child-action='createChild'][data-child-section='Lines']",
+    ).click();
+    await flushUi();
+
+    // `Grade` was never touched and still carries its declared default, while
+    // `Ledger` was never touched, has no default, and is therefore absent rather
+    // than sent as a blank.
+    expect(staged.map((detail) => [detail.operation, detail.values])).toEqual([
+      ["createChild", { Sku: "Stand", Grade: "Standard", Priority: true, DueOn: "2026-10-02" }],
+    ]);
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+    await flushUi();
+
+    expect(await storedTypedLines(seeded)).toEqual([
+      ["Amp", "Express", true, "2026-08-09", 1],
+      ["Cable", "Standard", false, "", 2],
+      ["Stand", "Standard", true, "2026-10-02", 3],
+    ]);
+  });
+
+  /**
+   * A row that already carries a staged edit shows it, so re-opening the row has
+   * to open on what is shown. Opening on the stored record instead put the old
+   * value back into a control the collector diffs against the shown one, so
+   * closing the editor without touching anything staged a second edit undoing
+   * the first — a save that reverted the change the person had just made.
+   */
+  it("re-opens a row on the edit already staged for it", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+    const staged = captureStagedOperations(app);
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    openRowEditor(app, 0);
+    await flushUi();
+    setChildControlValue(app, "Lines", rowId(section, 0), "Grade", "Fragile");
+    clickRowEditControl(app, "Lines", rowId(section, 0), "save");
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    expect(childRowValues(reread)[0]?.[1]).toBe("Fragile");
+
+    openRowEditor(app, 0);
+    await flushUi();
+
+    const reopened = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(reopened, 0);
+    expect(
+      requireElement<HTMLSelectElement>(
+        childEditorField(reopened, row, "Grade"),
+        "[data-field-input]",
+      ).value,
+    ).toBe("Fragile");
+
+    clickRowEditControl(app, "Lines", row, "save");
+    await flushUi();
+
+    expect(staged.map((detail) => detail.values)).toEqual([{ Grade: "Fragile" }]);
+  });
+
+  it("honours a policy-driven readonly on a child field and keeps it out of the patch", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+    const staged = captureStagedOperations(app);
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 0);
+    openRowEditor(app, 0);
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const ledger = childEditorField(reread, row, "Ledger");
+    // The policy says READONLY UPDATE on this field, so the editor renders it as
+    // readonly and says so, rather than offering a box whose value the runtime
+    // would then refuse.
+    expect(ledger.dataset.fieldEffect).toBe("readonly");
+    expect(
+      requireElement<HTMLInputElement>(ledger, "[data-field-input]").hasAttribute("readonly"),
+    ).toBe(true);
+    expect(ledger.querySelector(".adl-field-badge")?.textContent?.trim()).toBe("Readonly");
+
+    // The same policy is silent about create, so the draft row's copy of the
+    // field is writable: presentation follows the declaration per mode rather
+    // than being a property of the field.
+    expect(childDraftField(reread, "Ledger").dataset.fieldEffect).toBe("allow");
+
+    // Even forced into the DOM, a readonly field contributes nothing: the
+    // renderer refuses to read it back, so the patch cannot carry it.
+    requireElement<HTMLInputElement>(ledger, "[data-field-input]").value = "tampered";
+    setChildControlValue(app, "Lines", row, "Grade", "Fragile");
+    clickRowEditControl(app, "Lines", row, "save");
+    await flushUi();
+
+    expect(staged.map((detail) => detail.values)).toEqual([{ Grade: "Fragile" }]);
+  });
+
+  /**
+   * A closed child row and the child object's own list are the same records
+   * rendered by two components, so they must agree. `adl-list-view` writes a
+   * boolean as Yes/No; a child row wrote `String(value)`, so the same field read
+   * "Yes" in one place and "true" in the other.
+   */
+  it("renders a closed child row exactly as adl-list-view renders the same record", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    expect(childRowValues(section)).toEqual([
+      ["Amp", "Express", "Yes", "2026-08-09", "L-1", "1"],
+      ["Cable", "Standard", "No", "", "L-2", "2"],
+    ]);
+
+    expect(await listViewCells(seeded)).toEqual(childRowValues(section));
+  });
+
+  it("does not treat a child select or checkbox as a change to the parent record", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    const drafts: unknown[] = [];
+    app.addEventListener("adl-draft-record", (event) => {
+      drafts.push((event as CustomEvent).detail);
+    });
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 0);
+    openRowEditor(app, 0);
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    // Neither control is focused first. A click on a checkbox does not move
+    // focus to it on every platform, so a guard that asked only where focus was
+    // let the toggle re-render the form and wipe the open row.
+    setChildControlValue(app, "Lines", row, "Grade", "Fragile");
+    toggleChildCheckbox(app, "Lines", row, "Priority", false);
+    setChildDraftValue(app, "Lines", "Sku", "Stand");
+    await flushUi();
+
+    expect(drafts).toEqual([]);
+
+    // Still open, and still holding every entry made in it.
+    const settled = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    expect(childRow(settled, 0).classList.contains("adl-child-editor")).toBe(true);
+    expect(
+      requireElement<HTMLSelectElement>(
+        childEditorField(settled, row, "Grade"),
+        "[data-field-input]",
+      ).value,
+    ).toBe("Fragile");
+    expect(
+      requireElement<HTMLInputElement>(
+        childEditorField(settled, row, "Priority"),
+        "[data-field-input]",
+      ).checked,
+    ).toBe(false);
+    expect(
+      requireElement<HTMLInputElement>(childDraftField(settled, "Sku"), "[data-field-input]").value,
+    ).toBe("Stand");
+  });
+
+  it("never folds a child field into the parent record's own patch", async () => {
+    const seeded = await seedTypedOrders();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    const saves: Record<string, unknown>[] = [];
+    app.addEventListener("adl-save-record", (event) => {
+      saves.push((event as CustomEvent<{ values: Record<string, unknown> }>).detail.values);
+    });
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    const row = rowId(section, 0);
+    openRowEditor(app, 0);
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    setChildControlValue(app, "Lines", row, "Grade", "Fragile");
+    toggleChildCheckbox(app, "Lines", row, "Priority", false);
+    setChildDraftValue(app, "Lines", "Sku", "Stand");
+
+    setParentFieldValue(app, "Notes", "Second");
+    await flushUi();
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+    await flushUi();
+
+    // The parent's patch is the parent's fields. Child editors are
+    // `adl-field-renderer`s too, and an unscoped collector folded their values
+    // into the order — writing `Grade` and `Sku` onto the `Order`.
+    expect(saves).toEqual([{ Notes: "Second" }]);
+
+    const order = await findOrder(seeded, "ORD-1");
+    expect(Object.keys(order.values).sort()).toEqual(["Code", "Notes"]);
+    expect(order.values.Notes).toBe("Second");
+  });
+});
+
+/**
+ * The same surfaces against the Giggle Band model rather than a fixture.
+ *
+ * A set-list item is the reference application's child with fields of its own —
+ * a song lookup, an arrangement enum, an encore flag and a rehearsal date — so
+ * this is the acceptance criterion read literally: the declared collection, the
+ * declared child view, and the real policies behind them.
+ */
+describe("the Giggle Band set list's own child fields", () => {
+  beforeEach(() => {
+    defineAdlComponents();
+    document.body.innerHTML = "";
+    globalThis.localStorage?.clear();
+    globalThis.sessionStorage?.clear();
+    globalThis.history.replaceState({}, "", "/");
+  });
+
+  it("renders every set-list item field through the platform field renderer", async () => {
+    const { app, seed } = await openFirstSetList();
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Songs']");
+    const row = rowId(section, 0);
+    openRowEditor(app, 0, "Songs");
+    await flushUi();
+    // The song chooser loads its options through the policy-enforcing
+    // `runtime.search`, so it fills in on a later turn.
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Songs']");
+    // `Position` is the section's order field and has its own controls, and
+    // `SetList` is the parent the section filters on.
+    expect(childEditorSlots(reread, row)).toEqual([
+      "Song",
+      "Arrangement",
+      "Encore",
+      "RehearsedOn",
+      "Notes",
+    ]);
+
+    const song = requireElement<HTMLSelectElement>(
+      childEditorField(reread, row, "Song"),
+      "[data-field-input]",
+    );
+    // Every song in the band's library, by title, loaded through the
+    // policy-enforcing `runtime.search` — not a box asking for a record guid.
+    expect(optionLabels(song)).toEqual(
+      [seed.firstSong, seed.secondSong, seed.thirdSong, seed.fourthSong].map((record) =>
+        String(record.values.Title),
+      ),
+    );
+    expect(song.value).toBe(seed.firstSong.meta.guid);
+
+    const arrangement = requireElement<HTMLSelectElement>(
+      childEditorField(reread, row, "Arrangement"),
+      "[data-field-input]",
+    );
+    expect(optionLabels(arrangement)).toEqual(["Full", "Acoustic", "Instrumental"]);
+
+    expect(
+      requireElement<HTMLInputElement>(
+        childEditorField(reread, row, "Encore"),
+        "[data-field-input]",
+      ).type,
+    ).toBe("checkbox");
+    expect(
+      requireElement<HTMLInputElement>(
+        childEditorField(reread, row, "RehearsedOn"),
+        "[data-field-input]",
+      ).type,
+    ).toBe("date");
+  });
+
+  it("carries the edited arrangement, encore flag and rehearsal date into the staged batch", async () => {
+    const { app, seed } = await openFirstSetList();
+    const staged = captureStagedOperations(app);
+    seed.runtime.syncQueue.clear();
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Songs']");
+    const row = rowId(section, 0);
+    openRowEditor(app, 0, "Songs");
+    await flushUi();
+
+    setChildControlValue(app, "Songs", row, "Arrangement", "Instrumental");
+    toggleChildCheckbox(app, "Songs", row, "Encore", true);
+    setChildControlValue(app, "Songs", row, "RehearsedOn", "2026-08-09");
+    clickRowEditControl(app, "Songs", row, "save");
+    await flushUi();
+
+    // The chosen option, a real boolean and an ISO date. `Song` and `Notes` were
+    // rendered, hold values and were not touched, so the patch does not carry
+    // them.
+    expect(staged.map((detail) => detail.values)).toEqual([
+      { Arrangement: "Instrumental", Encore: true, RehearsedOn: "2026-08-09" },
+    ]);
+    // Nothing is written until the parent is saved.
+    expect(seed.runtime.syncQueue.getEntries()).toEqual([]);
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+    await flushUi();
+
+    const item = await seed.runtime.read(
+      "SetListItem",
+      seed.firstSetListItem.meta.guid,
+      seed.firstBandContext,
+    );
+    expect(item?.values).toMatchObject({
+      Arrangement: "Instrumental",
+      Encore: true,
+      RehearsedOn: "2026-08-09",
+    });
+
+    // One transaction carrying the child write, not a write of its own.
+    const entries = seed.runtime.syncQueue.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.operation.operation).toBe("batch");
+  });
+
+  it("shows the edited encore flag and date on the closed row", async () => {
+    const { app } = await openFirstSetList();
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Songs']");
+    const row = rowId(section, 0);
+    // The declared child view's fields, in order: Position, Song, Arrangement,
+    // Encore, RehearsedOn, Notes. `Encore` had never been set on this item, so
+    // it reads as the word for its default rather than as an empty cell.
+    const before = childRowValues(section)[0] ?? [];
+    expect(before[3]).toBe("No");
+
+    openRowEditor(app, 0, "Songs");
+    await flushUi();
+
+    toggleChildCheckbox(app, "Songs", row, "Encore", true);
+    setChildControlValue(app, "Songs", row, "RehearsedOn", "2026-08-09");
+    clickRowEditControl(app, "Songs", row, "save");
+    await flushUi();
+
+    const reread = requireElement<HTMLElement>(app, "[data-child-section='Songs']");
+    // Only what was edited changed, the staged edit is on the row before the
+    // parent is saved, and the boolean reads as a word rather than as `true` —
+    // which is how `adl-list-view` renders the same field of the same record.
+    expect(childRowValues(reread)[0]).toEqual(
+      before.map((cell, index) => (index === 3 ? "Yes" : index === 4 ? "2026-08-09" : cell)),
+    );
   });
 });
 
@@ -1175,6 +1817,135 @@ async function seedInlineOrders(): Promise<SeededCatalogue> {
   return { model, runtime, products };
 }
 
+/** An order holding two lines whose fields cover every kind a child can have. */
+async function seedTypedOrders(): Promise<SeededOrders> {
+  const { model } = compileOrderModel(TYPED_CHILD_ORDER_ADL);
+  const runtime = new ApplicationRuntime(model);
+
+  const order = await runtime.create("Order", { Code: "ORD-1", Notes: "First" }, seedContext);
+  await runtime.create(
+    "OrderLine",
+    {
+      Order: order.meta.guid,
+      Sku: "Amp",
+      Grade: "Express",
+      Priority: true,
+      DueOn: "2026-08-09",
+      Ledger: "L-1",
+      Position: 1,
+    },
+    seedContext,
+  );
+  await runtime.create(
+    "OrderLine",
+    {
+      Order: order.meta.guid,
+      Sku: "Cable",
+      Grade: "Standard",
+      Priority: false,
+      Ledger: "L-2",
+      Position: 2,
+    },
+    seedContext,
+  );
+
+  return { model, runtime };
+}
+
+/** Every line as `[sku, grade, priority, due date, position]`. */
+async function storedTypedLines(
+  seeded: SeededOrders,
+): Promise<[string, string, boolean, string, number][]> {
+  const lines = await seeded.runtime.search(
+    "OrderLine",
+    { sort: [{ field: "Position", direction: "asc" }] },
+    seedContext,
+  );
+  return lines.map((line): [string, string, boolean, string, number] => [
+    String(line.values.Sku),
+    String(line.values.Grade),
+    line.values.Priority === true,
+    line.values.DueOn === undefined || line.values.DueOn === null ? "" : String(line.values.DueOn),
+    Number(line.values.Position),
+  ]);
+}
+
+/**
+ * The same child records rendered by `adl-list-view`, cell by cell.
+ *
+ * Mounted directly rather than navigated to, so the comparison is between the
+ * two components and nothing else. A child row and the child object's own list
+ * are the same model shown twice and must not disagree about what a value reads
+ * as.
+ */
+async function listViewCells(seeded: SeededOrders): Promise<string[][]> {
+  const object = seeded.model.objects.find((candidate) => candidate.name === "OrderLine");
+  const view = object?.views.find((candidate) => candidate.name === "OrderLineList");
+  if (object === undefined || view === undefined) {
+    throw new Error("The typed fixture has no OrderLine list view.");
+  }
+
+  const list = document.createElement("adl-list-view") as AdlListViewElement;
+  document.body.append(list);
+  list.runtime = seeded.runtime;
+  list.object = object;
+  list.view = view;
+  list.context = clerkContext;
+  list.records = await seeded.runtime.search(
+    "OrderLine",
+    { sort: [{ field: "Position", direction: "asc" }] },
+    clerkContext,
+  );
+  await flushUi();
+
+  const cells = [...list.querySelectorAll<HTMLTableRowElement>("tr[data-record-id]")].map((row) =>
+    [...row.querySelectorAll("td:not(.adl-list-sync-cell)")].map(labelText),
+  );
+  list.remove();
+  return cells;
+}
+
+interface SeededSetList {
+  app: AdlAppElement;
+  seed: BandReferenceSeed;
+}
+
+/**
+ * The Giggle Band reference application, open on the first set list's form.
+ *
+ * Driven the way a person reaches it — the shell's own navigation, then the row
+ * — so what is under test is the declared surface rather than a form element
+ * configured by hand.
+ */
+async function openFirstSetList(): Promise<SeededSetList> {
+  const runtime = createBandReferenceRuntime();
+  const seed = await seedBandReferenceRuntime(runtime);
+
+  const app = document.createElement("adl-app") as AdlAppElement;
+  app.model = runtime.model;
+  app.runtime = runtime;
+  app.context = { ...seed.firstBandContext, channel: "ui" };
+  document.body.append(app);
+  await app.whenReady();
+  await flushUi();
+
+  requireElement<HTMLButtonElement>(app, "[data-view-nav='SetListList']").click();
+  await flushUi();
+  await flushUi();
+
+  const row = [...app.querySelectorAll<HTMLTableRowElement>("tr[data-record-id]")].find(
+    (candidate) => candidate.dataset.recordId === seed.firstSetList.meta.guid,
+  );
+  if (row === undefined) {
+    throw new Error(`No set-list row. Rows: ${app.textContent ?? ""}`);
+  }
+  row.click();
+  await flushUi();
+  await flushUi();
+
+  return { app, seed };
+}
+
 /** Every line of the seeded order as `[product name, note, position]`. */
 async function storedLines(seeded: SeededCatalogue): Promise<[string, string, number][]> {
   const names = new Map([...seeded.products].map(([name, id]) => [id, name]));
@@ -1286,10 +2057,10 @@ function childDraftSlots(section: HTMLElement): (string | undefined)[] {
  * Types into one field of an open row editor.
  *
  * A child field is an `adl-field-renderer`, so the value goes on the control the
- * renderer reads back through `getValue()`. Focus is load-bearing rather than
- * decorative: the form decides whether an input belongs to the parent draft or to
- * a surface it owns by asking where focus is, and without it a parent draft
- * change would recreate the form and wipe what is being typed.
+ * renderer reads back through `getValue()`. Focus is set because typing into a
+ * field is what this stands for, and a focused control is the case the form's
+ * ownership guard used to handle *only*; `setChildControlValue` below deliberately
+ * does not focus, which is the case it used to get wrong.
  */
 function setChildEditorValue(
   app: AdlAppElement,
@@ -1306,6 +2077,98 @@ function setChildEditorValue(
   input.focus();
   input.value = value;
   input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/**
+ * Sets a control in an open row editor, exactly as a person operating it would.
+ *
+ * Nothing is focused first, on purpose. A `<select>` raises `change` from the
+ * control that changed and a click on a checkbox does not move focus to it on
+ * every platform, so a form that decided ownership from `document.activeElement`
+ * alone read these as parent draft changes — which re-renders the form and wipes
+ * the row being edited. Each helper re-queries, because the surface is rebuilt
+ * whole on every render and a reference taken before one is detached.
+ */
+function setChildControlValue(
+  app: AdlAppElement,
+  sectionName: string,
+  row: string,
+  fieldName: string,
+  value: string,
+): void {
+  setControlValue(childEditorControl(app, sectionName, row, fieldName), value);
+}
+
+function toggleChildCheckbox(
+  app: AdlAppElement,
+  sectionName: string,
+  row: string,
+  fieldName: string,
+  checked: boolean,
+): void {
+  toggleCheckbox(childEditorControl(app, sectionName, row, fieldName), checked);
+}
+
+function setChildDraftValue(
+  app: AdlAppElement,
+  sectionName: string,
+  fieldName: string,
+  value: string,
+): void {
+  setControlValue(childDraftControl(app, sectionName, fieldName), value);
+}
+
+function toggleChildDraftCheckbox(
+  app: AdlAppElement,
+  sectionName: string,
+  fieldName: string,
+  checked: boolean,
+): void {
+  toggleCheckbox(childDraftControl(app, sectionName, fieldName), checked);
+}
+
+/** Sets a value on a parent field, which *is* a parent draft change. */
+function setParentFieldValue(app: AdlAppElement, fieldName: string, value: string): void {
+  const input = requireElement<HTMLInputElement>(
+    requireElement<HTMLElement>(app, `adl-field-renderer[data-field-slot='${fieldName}']`),
+    "[data-field-input]",
+  );
+  input.focus();
+  setControlValue(input, value);
+}
+
+function childEditorControl(
+  app: AdlAppElement,
+  sectionName: string,
+  row: string,
+  fieldName: string,
+): HTMLInputElement | HTMLSelectElement {
+  const section = requireElement<HTMLElement>(app, `[data-child-section='${sectionName}']`);
+  return requireElement(childEditorField(section, row, fieldName), "[data-field-input]");
+}
+
+function childDraftControl(
+  app: AdlAppElement,
+  sectionName: string,
+  fieldName: string,
+): HTMLInputElement | HTMLSelectElement {
+  const section = requireElement<HTMLElement>(app, `[data-child-section='${sectionName}']`);
+  return requireElement(childDraftField(section, fieldName), "[data-field-input]");
+}
+
+function setControlValue(control: HTMLInputElement | HTMLSelectElement, value: string): void {
+  control.value = value;
+  control.dispatchEvent(new Event("input", { bubbles: true }));
+  control.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function toggleCheckbox(control: HTMLInputElement | HTMLSelectElement, checked: boolean): void {
+  if (!(control instanceof HTMLInputElement) || control.type !== "checkbox") {
+    throw new Error("Expected a checkbox control.");
+  }
+
+  control.checked = checked;
+  control.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function optionLabels(select: HTMLSelectElement): string[] {

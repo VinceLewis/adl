@@ -72,19 +72,14 @@ export class AdlFormViewElement extends HTMLElement {
 
   /**
    * Parent-form input becomes parent draft state, and a parent draft change
-   * re-renders the whole app — which recreates this element. Anything typed into
-   * a surface this element owns must therefore be excluded, or it is wiped as it
-   * is typed. The picker was already guarded for exactly this reason; child row
-   * editors and the child draft row need the same guard, and the draft row not
-   * having had it is why typing into it was lost.
+   * re-renders the whole app — which recreates this element. Anything entered
+   * into a surface this element owns must therefore be excluded, or it is wiped
+   * as it is entered. The picker was already guarded for exactly this reason;
+   * child row editors and the child draft row need the same guard, and the draft
+   * row not having had it is why typing into it was lost.
    */
-  private readonly handleFormInput = (): void => {
-    const activeElement = document.activeElement;
-    if (
-      activeElement instanceof HTMLElement &&
-      activeElement.closest(".adl-relationship-picker, .adl-child-editor, .adl-child-draft") !==
-        null
-    ) {
+  private readonly handleFormInput = (event: Event): void => {
+    if (isChildSurfaceEvent(event)) {
       return;
     }
 
@@ -601,7 +596,18 @@ export class AdlFormViewElement extends HTMLElement {
     )) {
       const field = renderer.field;
       const value = renderer.getValue();
-      if (field === undefined || value === undefined || jsonEquals(current[field.name], value)) {
+      /*
+       * An optional field the record never carried reads back as `null` from an
+       * empty control, and the row has no key for it at all. Comparing those
+       * raw would make every untouched empty field a change, so an otherwise
+       * empty Save staged a patch of nulls over fields nobody touched. Absent
+       * and empty are the same state here.
+       */
+      if (
+        field === undefined ||
+        value === undefined ||
+        jsonEquals(current[field.name] ?? null, value)
+      ) {
         continue;
       }
       values[field.name] = value;
@@ -645,15 +651,24 @@ export class AdlFormViewElement extends HTMLElement {
         }
 
         const rowId = renderer.dataset.childEditorRow;
-        const record =
-          rowId === undefined ? undefined : section.rows.find((row) => row.id === rowId)?.record;
+        const row = rowId === undefined ? undefined : section.rows.find((row) => row.id === rowId);
+        const record = row?.record;
         const mode = rowId === undefined ? "create" : "edit";
         renderer.runtime = this._runtime;
         renderer.object = childObject;
         renderer.context = this._context;
         renderer.field = field;
         renderer.mode = mode;
-        renderer.value = record?.values[field.name];
+        // A row editor opens on the row's *displayed* values, which is the record
+        // with any staged edit of it already overlaid, and is what
+        // `collectChildEditorValues` diffs against. Reading `record.values`
+        // instead showed a row that already carried a staged edit at its stored
+        // value, so re-opening and saving it staged a second edit undoing the
+        // first. A draft row has no row at all, so it opens on the declared
+        // default exactly as the parent create form does — without it a field
+        // with a `DEFAULT` rendered blank and then wrote a blank over it.
+        renderer.value =
+          row === undefined ? this.childDraftValue(childObject, field) : row.values[field.name];
         renderer.presentation = resolveFieldPresentation({
           runtime: this._runtime,
           object: childObject,
@@ -665,6 +680,18 @@ export class AdlFormViewElement extends HTMLElement {
         renderer.issues = [];
       }
     }
+  }
+
+  /** What an unfilled draft field starts at, mirroring `getFieldValue`. */
+  private childDraftValue(
+    childObject: ResolvedObject,
+    field: ResolvedField,
+  ): JsonValue | undefined {
+    if (childObject.lifecycle?.stateField === field.name) {
+      return getInitialLifecycleState(childObject);
+    }
+
+    return field.defaultValue;
   }
 
   private childCollectionSection(
@@ -1324,10 +1351,13 @@ export class AdlFormViewElement extends HTMLElement {
     )) {
       const field = renderer.field;
       const value = renderer.getValue();
-      // An untouched optional field is omitted rather than sent as an empty
-      // string: the old bare-input path sent `""` for every blank box, which is
-      // a value, and a different one from "not supplied".
-      if (field === undefined || value === undefined || value === "") {
+      // An untouched optional field is omitted rather than sent as a blank: the
+      // old bare-input path sent `""` for every empty box, which is a value, and
+      // a different one from "not supplied". The field renderer reads an empty
+      // optional control back as `null`, which is a value too — and one that
+      // would overwrite the field's declared `DEFAULT` with nothing on a create.
+      // A `false` from an unticked checkbox is not blankness and is kept.
+      if (field === undefined || value === undefined || value === null || value === "") {
         continue;
       }
       values[field.name] = value;
@@ -1427,6 +1457,35 @@ function childActionLabel(operation: EditChildOperationKind): string {
   return CHILD_ACTION_LABELS[operation];
 }
 
+/**
+ * Every surface this element owns whose entry belongs to it rather than to the
+ * parent record's draft.
+ */
+const CHILD_SURFACE_SELECTOR = ".adl-relationship-picker, .adl-child-editor, .adl-child-draft";
+
+/**
+ * Whether an `input` or `change` event came from one of those surfaces.
+ *
+ * The event's own target is asked first and focus only as a fallback. A
+ * `<select>` and a checkbox raise `change` from the control that changed, and a
+ * click on a checkbox does not move focus to it on every platform — so a guard
+ * that consulted `document.activeElement` alone read a toggle inside a child row
+ * editor as a parent draft change, which re-rendered the form and wiped the row
+ * being edited. The fallback stays for events raised by something other than the
+ * control itself.
+ */
+function isChildSurfaceEvent(event: Event): boolean {
+  const target = event.target;
+  if (target instanceof HTMLElement && target.closest(CHILD_SURFACE_SELECTOR) !== null) {
+    return true;
+  }
+
+  const activeElement = document.activeElement;
+  return (
+    activeElement instanceof HTMLElement && activeElement.closest(CHILD_SURFACE_SELECTOR) !== null
+  );
+}
+
 function childRowKey(sectionName: string, rowId: string): string {
   return `${sectionName}\u0000${rowId}`;
 }
@@ -1438,6 +1497,14 @@ function childLookupLabelKey(field: ResolvedField, recordId: string): string {
 function formatChildValue(value: JsonValue | undefined): string {
   if (value === undefined || value === null) {
     return "";
+  }
+
+  // The same rendering `adl-list-view` gives the same field. A child row and the
+  // child object's own list are the same model shown twice, so a boolean reading
+  // "Yes" in one and "true" in the other would be the component talking about
+  // itself rather than about the record.
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
   }
 
   if (Array.isArray(value) || typeof value === "object") {

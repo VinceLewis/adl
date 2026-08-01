@@ -184,18 +184,20 @@ would have.
   A picker may now name a `CANDIDATE_FIELD`, which turns it from one that links
   into one that **creates**: the candidates become that field's lookup target,
   and each choice mints a child naming it. See "Minting pickers" below.
-- **`unlink` is undeclarable for a required parent field.** `planStagedOperation`
-  patches `{parentField: null}`, so a child whose lookup back to its parent is
-  `REQUIRED` can never honour it. The language can declare the operation; that
-  model cannot satisfy it. Nothing refuses it at compile time yet.
+- ~~**`unlink` is undeclarable for a required parent field.**~~ **Closed.**
+  `planStagedOperation` patches `{parentField: null}`, so a child whose lookup
+  back to its parent is `REQUIRED` can never honour it. The language could
+  declare the operation and that model could not satisfy it. See
+  "Refusing an operation no model can satisfy" below.
 
 Two smaller ones worth knowing:
 
-- **`editContainer` is read from the _active_ view, not from the edit form
-  view.** `adl-app.activeEditContainer` returns `this.activeView.editContainer`,
-  so `EDIT_CONTAINER` on a `FORM` view is inert unless that form view is itself
-  navigated to. The reference app declares it on both the list and the form so
-  the two entry points agree.
+- ~~**`editContainer` is read from the _active_ view, not from the edit form
+  view.**~~ **Closed.** `adl-app.activeEditContainer` returned
+  `this.activeView.editContainer`, so `EDIT_CONTAINER` on a `FORM` view was inert
+  unless that form view was itself navigated to. It now reads
+  `this.editFormView.editContainer`. See "The container belongs to the form"
+  below.
 - **Child rows rendered raw lookup guids.** `adl-list-view` resolves a `LOOKUP`
   column to its display value and the child-row renderer did not, so the same
   column showed a name in one place and `song-26121e9b-…` in another. The
@@ -287,11 +289,80 @@ Three consequences that are easy to get wrong:
   and reordering has its own controls, so an editable position would be a second
   source of truth for the same value in the same row.
 
+Two more that only appeared once a child had fields worth editing:
+
+- **Absent and empty are the same state, and comparing them raw is not.** A
+  control for an optional field the record never carried reads back as `null`,
+  while the row has no key for that field at all, so `collectChildEditorValues`
+  saw a change in every untouched empty field: editing one field staged a patch
+  of nulls over fields nobody touched, and closing an editor over no change at
+  all staged a write. Compare `current[field.name] ?? null` against the control's
+  value. The draft row has the same shape and needs the same treatment — there,
+  skipping `null` is also what stops a blank control overwriting a declared
+  `DEFAULT`.
+- **A control that states its own value has to keep stating it.** The word beside
+  a checkbox is rendered from the value `adl-field-renderer` was given, so
+  ticking the box left a ticked box beside the word "No" until something
+  re-rendered the element. It is now updated on `change` and by
+  `syncRenderedInputValue`, so both a person's tick and a programmatic value
+  agree with it. This was caught by inspecting the set-list screenshot, not by
+  any DOM test, which is the argument for that step existing.
+
 Watch the attribute names. Row action buttons carry `data-child-action-row`
 while the row element alone keeps `data-child-row`; putting the same attribute on
 both made `[data-child-row]` match nine elements instead of three, which a test
 caught only because it counted. The same trap had already appeared with
 `data-child-section`.
+
+## Refusing an operation no model can satisfy
+
+`unlink` detaches a child by patching its lookup back to the parent to null, so a
+`REQUIRED` parent field can never honour it — and a required parent field is the
+overwhelmingly common case, including the reference app's.
+`ADL_VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED` now refuses the declaration
+at compile time, naming the field and the remedy.
+
+The interesting part is what writing that check exposed. **The resolver's default
+operation set was `createChild updateChild unlink`**, so the first run of the new
+diagnostic refused every child collection in the repository that declared no
+`OPERATIONS` at all — including the example the language documentation ships. The
+default was invalid by construction for the common case, and had been since Phase
+59; nothing noticed because nothing checked.
+
+The default is now `createChild updateChild remove`. Two rules come out of this:
+
+- **A default must be a set every model can honour.** A default that only some
+  models can satisfy is not a default, it is an undeclared precondition. This is
+  the same reasoning that makes `compileAdl` omit an unauthored `editSections`
+  rather than send `[]`.
+- **`remove` is the right substitute, not "nothing".** It takes a child out of
+  the collection in a way any model can satisfy, and it is still gated by the
+  child object's `delete` policy action, so making it the default grants nobody
+  anything policy did not already allow. Dropping removal from the default
+  instead would have made the unauthored collection unable to shrink.
+
+Expect this change to move every model's fingerprint that relies on the default,
+for the reason `DEFAULT_OPERATION_LOG_OPERATIONS` does: the resolved model's
+content genuinely changed.
+
+## The container belongs to the form
+
+`EDIT_CONTAINER` describes how a form is presented, so it is read from the form
+that opens, never from whichever view happens to be active. `activeEditContainer`
+returns `this.editFormView.editContainer`, and `renderCrudWorkspace` renders from
+the same value.
+
+That second half is the part that bites. Behaviour read `activeEditContainer`
+while rendering read the parameter it was passed — `view.editContainer` — so
+changing only the getter produced a workspace that painted itself
+`data-edit-container="splitPane"` while every branch that decides what to do with
+a split pane disagreed. **When a value moves, move every reader of it in the same
+pass**; a rendering path that describes a mode nothing implements is worse than
+the original defect, because it looks correct.
+
+A consequence worth stating plainly: `EDIT_CONTAINER` on a `LIST` view no longer
+governs the form that list opens. Declaring it there is not an error — a list may
+itself be opened as an edit surface — but it is not how a list controls its form.
 
 ## Practical guidance
 

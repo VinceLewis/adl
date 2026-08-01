@@ -977,7 +977,7 @@ const orderEditSurfaceAdl = [
   "    EDIT_CONTAINER page",
   "    CHILD_COLLECTION Lines HEADING 'Lines'",
   "      CHILD OrderLine PARENT_FIELD Order",
-  "      OPERATIONS createChild updateChild unlink",
+  "      OPERATIONS createChild updateChild remove",
   "      EMPTY_TEXT 'No lines yet.'",
   "    END.CHILD_COLLECTION",
   "  END.VIEW",
@@ -1099,7 +1099,7 @@ describe("evaluateEditSurface", () => {
     const result = await runConformanceCase(
       surface({
         sections: [
-          { name: "Lines", operations: ["createChild", "linkExisting", "updateChild", "unlink"] },
+          { name: "Lines", operations: ["createChild", "linkExisting", "updateChild", "remove"] },
         ],
       } as unknown as JsonValue),
     );

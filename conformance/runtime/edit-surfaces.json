@@ -21,7 +21,7 @@
         "    CHILD_COLLECTION Lines HEADING 'Lines'",
         "      CHILD OrderLine PARENT_FIELD Order",
         "      CHILD_VIEW OrderLineList",
-        "      OPERATIONS createChild linkExisting updateChild unlink remove reorder",
+        "      OPERATIONS createChild linkExisting updateChild remove reorder",
         "      ORDER_FIELD Position",
         "      EMPTY_TEXT 'No lines yet.'",
         "      PICKER LinePicker",
@@ -212,14 +212,7 @@
               "parentField": "Order",
               "childView": "OrderLineList",
               "fields": ["Description", "Position"],
-              "operations": [
-                "createChild",
-                "linkExisting",
-                "updateChild",
-                "unlink",
-                "remove",
-                "reorder"
-              ],
+              "operations": ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
               "staged": true,
               "orderField": "Position",
               "emptyState": {

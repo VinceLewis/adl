@@ -73,8 +73,13 @@ already-deleted conflict.
 
 Generic browser CRUD rendering is list-first by default. Object list views show
 the list/table as the primary surface. Row selection and create controls open a
-form using the resolved view's `editContainer` hint: `modal`, `drawer`, `page`,
-or `splitPane`. Saving, cancelling, closing, deleting, or completing a
+form using the `editContainer` hint of the **form view being opened**: `modal`,
+`drawer`, `page`, or `splitPane`. The hint is read from that view rather than from
+whichever view is active, so a container declared on a `FORM` view governs that
+form from every entry point and a container declared on the `LIST` view does not
+override it. The container the runtime opens and the container the renderer draws
+are read from the same value, so presentation and behaviour cannot disagree.
+Saving, cancelling, closing, deleting, or completing a
 lifecycle transition from a non-split container returns to the originating list
 context. `splitPane` keeps the list and form visible together and may select the
 first available row, preserving the earlier dense workflow as an explicit
@@ -232,8 +237,14 @@ section's, and one whose operation the section does not list.
 
 - `linkExisting` re-parents the named child, patching the declared parent field to
   this parent.
-- `unlink` patches that same field to null.
-- `remove` deletes the named child.
+- `unlink` patches that same field to null. It is therefore declarable only where
+  that field is optional; a section that lists it against a required parent field
+  is refused at compile time with
+  `ADL_VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED`, because the patch it plans
+  would be rejected by the child object's own validation on every attempt.
+- `remove` deletes the named child, and is subject to the child object's `delete`
+  policy action. It is what a collection over a required parent field uses
+  instead of `unlink`, and it is in the default operation set for that reason.
 - `reorder` patches the section's `orderField` to the staged position, and is
   refused when the section declares no order field or the operation carries no
   position.

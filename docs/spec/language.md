@@ -257,10 +257,10 @@ appear on the primary source, may not name a later source, and may not appear in
 a `UNION` read model.
 
 Generic CRUD views also resolve an `editContainer` hint with values `modal`,
-`drawer`, `page`, or `splitPane`. This is currently supported in
-JSON/TypeScript partial models and resolved-model fixtures, not ADL source
-syntax. In source-authored apps, normal object lists therefore use the platform
-default `modal` container until explicit syntax is added.
+`drawer`, `page`, or `splitPane`, declared in source with `EDIT_CONTAINER` inside
+a `VIEW` block. The hint in force is the one on the **form view that opens**, not
+the one on whichever view is active, so a view that declares none uses the
+platform default `modal`. See [Edit Surfaces](#edit-surfaces).
 
 ## Composed View Presentation
 
@@ -351,7 +351,11 @@ and [runtime-semantics#staged-child-changes](runtime-semantics.md) for what a
 runtime does with them.
 
 `EDIT_CONTAINER modal|drawer|page|splitPane` chooses where a create or edit form
-opens. The default is `modal`.
+opens. The default is `modal`. The declaration that governs is the one on the
+**form view that opens**, not the one on whichever view happens to be active: a
+form is presented the same way wherever it was opened from, so declaring the
+container on a `FORM` view is what controls that form, and declaring it on a
+`LIST` view does not control the form that list opens.
 
 `EDIT_SECTION Name ... END.EDIT_SECTION` declares a field group. It accepts
 `HEADING 'text'` — on the header line or on its own line — and `FIELDS`. A
@@ -369,7 +373,17 @@ records edited inside the parent's form:
   collection works in: the columns its rows display and, minus the `ORDER_FIELD`,
   the inputs its draft row and its row editor offer.
 - `OPERATIONS createChild linkExisting updateChild unlink remove reorder` — any
-  subset, in any order. The default is `createChild updateChild unlink`.
+  subset, in any order. The default is `createChild updateChild remove`, because
+  the default has to be a set every child collection can honour and `unlink` is
+  not one: it detaches a child by patching `PARENT_FIELD` to null, which a
+  required parent field — the common case — can never accept. `remove` deletes
+  the child instead, and is still gated by the child object's `delete` policy
+  action. Declaring `unlink` where the `PARENT_FIELD` is `REQUIRED` is refused
+  with `ADL_VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED` against
+  `<view>.editSections[i].operations`, naming the field: the language could
+  declare the operation and the model could never satisfy it, so without the
+  diagnostic the failure would first appear as a control that looks available and
+  fails at the write. Use `remove`, or make the parent field optional.
 - `STAGED` (or `STAGED false`) — whether child changes are held until the parent
   is saved. The bare word means `true`, which is the default.
 - `ORDER_FIELD <field>` — the child field carrying position. Required when
@@ -430,7 +444,9 @@ OBJECT Order
     CHILD_COLLECTION Lines HEADING 'Lines'
       CHILD OrderLine PARENT_FIELD Order
       CHILD_VIEW OrderLineList
-      OPERATIONS createChild linkExisting updateChild unlink remove reorder
+      # `unlink` would need `OrderLine.Order` to be optional, because it detaches
+      # a line by clearing that field. `remove` deletes the line instead.
+      OPERATIONS createChild linkExisting updateChild remove reorder
       STAGED
       ORDER_FIELD Position
       EMPTY_TEXT 'No lines yet.'

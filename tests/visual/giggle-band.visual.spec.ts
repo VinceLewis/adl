@@ -117,6 +117,11 @@ test.describe("Giggle Band visual smoke", () => {
     // A lookup column shows the song's title, not its record id. The child-row
     // renderer resolves lookups asynchronously, so this also waits for it.
     await expect(songs).toContainText("Neon Map");
+    // A set-list item is not a bare link to a song. The seeded arrangement and
+    // rehearsal date are on screen beside it, which is what makes the collection
+    // worth editing in place at all.
+    await expect(songs).toContainText("Acoustic");
+    await expect(songs).toContainText("Closes the night as the encore.");
     // One control adds songs, and it opens a chooser rather than asking anyone to
     // type a record id. Its presence is also the visible proof that a
     // context-scoped child's create is permitted: the control renders only when
@@ -165,6 +170,34 @@ test.describe("Giggle Band visual smoke", () => {
     await expect(editor).toBeVisible();
     const songChooser = editor.locator("adl-field-renderer[data-child-field-slot='Song'] select");
     await expect(songChooser).toBeVisible();
+    /*
+     * Every kind of child field the platform renders, in one row: the `IN`
+     * validator is a select, the boolean a checkbox, the date a date control.
+     * This is the capture the phase turns on — a child collection whose children
+     * have fields of their own, rendered by the same path as a parent form's,
+     * on desktop and on mobile.
+     */
+    const arrangement = editor.locator(
+      "adl-field-renderer[data-child-field-slot='Arrangement'] select",
+    );
+    await expect(arrangement).toBeVisible();
+    await expect(arrangement.locator("option")).toContainText([
+      "Choose Arrangement",
+      "Full",
+      "Acoustic",
+      "Instrumental",
+    ]);
+    await arrangement.selectOption("Acoustic");
+    const encore = editor.locator(
+      "adl-field-renderer[data-child-field-slot='Encore'] input[type='checkbox']",
+    );
+    await expect(encore).toBeVisible();
+    await encore.check();
+    const rehearsedOn = editor.locator(
+      "adl-field-renderer[data-child-field-slot='RehearsedOn'] input",
+    );
+    await expect(rehearsedOn).toHaveAttribute("type", "date");
+    await rehearsedOn.fill("2026-07-22");
     const notes = editor.locator("adl-field-renderer[data-child-field-slot='Notes'] input");
     await notes.fill("Encore candidate");
     await expectNoDocumentHorizontalOverflow(page);
@@ -179,9 +212,16 @@ test.describe("Giggle Band visual smoke", () => {
     await expect(page.locator(".adl-message-area")).toContainText("SetList saved.");
 
     await page.locator("tr[data-record-id]").filter({ hasText: "August headline" }).click();
-    await expect(
-      page.locator("section.adl-child-section[data-child-section='Songs'] [data-child-row]").nth(3),
-    ).toContainText("Encore candidate");
+    const editedRow = page
+      .locator("section.adl-child-section[data-child-section='Songs'] [data-child-row]")
+      .nth(3);
+    await expect(editedRow).toContainText("Encore candidate");
+    // The enum and the date the inline editor carried are committed and on
+    // screen; the row is no longer the bare song-plus-position it was minted as.
+    await expect(editedRow).toContainText("Acoustic");
+    await expect(editedRow).toContainText("2026-07-22");
+    // The boolean reads the way the child object's own list reads it.
+    await expect(editedRow).toContainText("Yes");
 
     await expectAppReady(page);
     await expectNoDocumentHorizontalOverflow(page);

@@ -314,11 +314,14 @@ must do with them.
 ## View Presentation
 
 Resolved views include `editContainer`, a renderer-neutral CRUD presentation
-hint with values `modal`, `drawer`, `page`, and `splitPane`. Browser runtimes
-use it when a list row or create control opens an object form. The default is
-`modal`, making normal CRUD views list-first. `splitPane` preserves the older
-dense back-office list/form layout as an explicit option. ADL source syntax for
-choosing it is `EDIT_CONTAINER`; see [language#edit-surfaces](language.md).
+hint with values `modal`, `drawer`, `page`, and `splitPane`. When a list row or
+create control opens an object form, the hint that applies is the one on the
+**form view being opened**, not the one on the view the caller was looking at, so
+a container declared on a form governs that form from every entry point. The
+default is `modal`, making normal CRUD views list-first. `splitPane` preserves the
+older dense back-office list/form layout as an explicit option. ADL source syntax
+for choosing it is `EDIT_CONTAINER`; see
+[language#edit-surfaces](language.md).
 
 Resolved views also include `editSections`. The default is one `fields` section
 derived from `view.fields`. A view may instead declare explicit field sections
@@ -327,8 +330,19 @@ child lookup field that points at the parent object, an optional child view whos
 fields the collection displays and edits, supported operations, staged-change
 behavior, optional order field, and empty-state text. The implemented child operation names are
 `createChild`, `linkExisting`, `updateChild`, `unlink`, `remove`, and
-`reorder`. The defaults are `createChild`, `updateChild` and `unlink` for
+`reorder`. The defaults are `createChild`, `updateChild` and `remove` for
 operations, staged changes enabled, and empty empty-state text.
+
+The default operation set has to be one every child collection can honour.
+`unlink` detaches a child by patching its parent lookup to null, so a child whose
+lookup back to its parent is required — the common case — can never satisfy it,
+and defaulting to it made the unauthored declaration invalid by construction.
+`remove` deletes the child instead, and is still gated by the child object's
+`delete` policy action. Validation refuses `unlink` wherever it could never
+commit: a collection whose declared parent field is required and whose operations
+include `unlink` is reported as
+`ADL_VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED` against
+`<view>.editSections[i].operations`, naming the field.
 
 A child collection may declare a renderer-neutral `picker`:
 

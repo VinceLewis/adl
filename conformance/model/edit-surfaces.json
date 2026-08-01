@@ -20,7 +20,7 @@
         "    CHILD_COLLECTION Lines HEADING 'Lines'",
         "      CHILD OrderLine PARENT_FIELD Order",
         "      CHILD_VIEW OrderLineList",
-        "      OPERATIONS createChild linkExisting updateChild unlink remove reorder",
+        "      OPERATIONS createChild linkExisting updateChild remove reorder",
         "      STAGED",
         "      ORDER_FIELD Position",
         "      EMPTY_TEXT 'No lines yet.'",
@@ -140,6 +140,74 @@
         "END.OBJECT"
       ]
     },
+    "unlinkOnRequiredParentField": {
+      "adl": [
+        "APP 'Unlink On Required Parent Field'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      OPERATIONS createChild updateChild unlink",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    },
+    "unlinkOnOptionalParentField": {
+      "adl": [
+        "APP 'Unlink On Optional Parent Field'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "      OPERATIONS createChild updateChild unlink",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    },
+    "childCollectionWithoutOperations": {
+      "adl": [
+        "APP 'Child Collection Without Operations'",
+        "END.APP",
+        "",
+        "OBJECT Order",
+        "  FIELD Code TEXT REQUIRED",
+        "",
+        "  VIEW OrderForm FORM",
+        "    FIELDS Code",
+        "    CHILD_COLLECTION Lines",
+        "      CHILD OrderLine PARENT_FIELD Order",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT OrderLine",
+        "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
+        "  FIELD Description TEXT REQUIRED",
+        "END.OBJECT"
+      ]
+    },
     "pickerWithoutLinkExisting": {
       "adl": [
         "APP 'Picker Without Link'",
@@ -152,7 +220,7 @@
         "    FIELDS Code",
         "    CHILD_COLLECTION Lines",
         "      CHILD OrderLine PARENT_FIELD Order",
-        "      OPERATIONS createChild updateChild unlink",
+        "      OPERATIONS createChild updateChild remove",
         "      PICKER LinePicker",
         "        SOURCE OBJECT OrderLine",
         "        DISPLAY Description",
@@ -403,7 +471,7 @@
         "    FIELDS Code",
         "    CHILD_COLLECTION Lines",
         "      CHILD OrderLine PARENT_FIELD Order",
-        "      OPERATIONS createChild linkExisting unlink",
+        "      OPERATIONS createChild linkExisting remove",
         "      PICKER LinePicker",
         "        SOURCE OBJECT OrderLine",
         "        DISPLAY Nickname",
@@ -475,14 +543,7 @@
             "childObject": "OrderLine",
             "parentField": "Order",
             "childView": "OrderLineList",
-            "operations": [
-              "createChild",
-              "linkExisting",
-              "updateChild",
-              "unlink",
-              "remove",
-              "reorder"
-            ],
+            "operations": ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
             "staged": true,
             "orderField": "Position",
             "emptyState": { "text": "No lines yet." },
@@ -518,6 +579,20 @@
       }
     },
     {
+      "id": "edit-surface.language.default-operations.001",
+      "title": "A child collection that declares no operations defaults to creating, updating and removing a child, never to unlinking one",
+      "specRef": "resolved-model#view-presentation",
+      "operation": "resolveModel",
+      "modelRef": "childCollectionWithoutOperations",
+      "input": { "select": ["objects.0.views.0.editSections.0.operations"] },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editSections.0.operations": ["createChild", "updateChild", "remove"]
+        }
+      }
+    },
+    {
       "id": "edit-surface.language.origins.001",
       "title": "An authored edit container and child collection are reported as source, a default container as a platform default",
       "specRef": "runtime-semantics#inspection",
@@ -542,14 +617,7 @@
             },
             {
               "path": "objects[0].views[0].editSections[1].operations",
-              "value": [
-                "createChild",
-                "linkExisting",
-                "updateChild",
-                "unlink",
-                "remove",
-                "reorder"
-              ],
+              "value": ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
               "origin": "source"
             },
             {
@@ -641,6 +709,32 @@
           }
         ]
       }
+    },
+    {
+      "id": "edit-surface.validation.unlink-required-parent-field.001",
+      "title": "A child collection supporting unlink against a required parent field is refused, and the diagnostic names the field that can never be cleared",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "unlinkOnRequiredParentField",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_EDIT_SECTION_UNLINK_PARENT_FIELD_REQUIRED",
+            "message": "Edit child collection 'Lines' supports 'unlink' but parent field 'Order' on child object 'OrderLine' is required, so a child can never be detached from its parent. Use 'remove' instead, or make the field optional.",
+            "path": "objects[0].views[0].editSections[0].operations"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.language.unlink-optional-parent-field.001",
+      "title": "The same collection validates clean when the parent field is optional, because then the detachment the operation plans is a write the child can accept",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "unlinkOnOptionalParentField",
+      "expected": { "ok": true, "result": [] }
     },
     {
       "id": "edit-surface.validation.picker-link-operation.001",

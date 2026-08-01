@@ -1389,8 +1389,14 @@ export class AdlAppElement extends HTMLElement {
     }
   }
 
+  /*
+   * The container belongs to the form that opens, not to whichever view is
+   * active. Reading it from `activeView` made `EDIT_CONTAINER` on a `FORM` view
+   * inert unless that form view was itself navigated to, so a list that opened
+   * the form governed how the form was presented.
+   */
   private get activeEditContainer(): EditContainerMode {
-    return this.activeView.editContainer;
+    return this.editFormView.editContainer;
   }
 
   private closeEditContainer(clearMessages: boolean): void {
@@ -1473,7 +1479,7 @@ export class AdlAppElement extends HTMLElement {
                   </div>
                 `
                 : readModel === undefined
-                  ? this.renderCrudWorkspace(view)
+                  ? this.renderCrudWorkspace()
                   : `
                   <div class="adl-dashboard-workspace">
                     <adl-dashboard-view></adl-dashboard-view>
@@ -1809,8 +1815,10 @@ export class AdlAppElement extends HTMLElement {
     };
   }
 
-  private renderCrudWorkspace(view: ResolvedView): string {
-    const editContainer = view.editContainer;
+  private renderCrudWorkspace(): string {
+    // Rendering and behaviour must agree about which container is in force, so
+    // both read it from the form that opens rather than from the active view.
+    const editContainer = this.activeEditContainer;
 
     if (editContainer === "splitPane") {
       return `

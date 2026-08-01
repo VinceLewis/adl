@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AuthoritySyncClient,
   PolicyDeniedError,
@@ -751,8 +751,18 @@ describe("band reference app runtime", () => {
     expect(songs.parentField).toBe("SetList");
     expect(songs.orderField).toBe("Position");
     // `CHILD_VIEW SetListItemList` chooses the child columns, and the parent
-    // field is never one of them.
-    expect(songs.fields.map((field) => field.name)).toEqual(["Position", "Song", "Notes"]);
+    // field is never one of them. A set-list item is not a bare link to a song:
+    // the arrangement, the encore flag and the rehearsal date belong to the item
+    // and are what make this collection's inline editor an enum, a boolean and a
+    // date beside the song chooser.
+    expect(songs.fields.map((field) => field.name)).toEqual([
+      "Position",
+      "Song",
+      "Arrangement",
+      "Encore",
+      "RehearsedOn",
+      "Notes",
+    ]);
     expect(songs.rows.map((row) => row.values.Position)).toEqual([1, 2, 3]);
     expect(
       songs.rows.map((row) =>
@@ -1122,6 +1132,194 @@ describe("band reference browser demo", () => {
     expect(section.textContent).not.toContain(seeded.firstSetList.meta.guid);
   });
 
+  /*
+   * The phase's acceptance criterion, in the browser, against the real Giggle
+   * Band model rather than a fixture.
+   *
+   * A set-list item has fields of its own — a song lookup, an enum, a boolean, a
+   * date and a note — so this is the case the platform's field renderer exists
+   * for. A person adds a song by choosing it, edits the row in place, and every
+   * one of those changes reaches storage as one transaction and one queued
+   * `batch`. No record id is typed anywhere.
+   */
+  it("adds a chosen song and edits set-list rows in place inside one staged batch", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const app = await mountBandApp(seeded);
+
+    await openSetList(app, seeded.firstSetList.meta.guid);
+    // The staged batch as the runtime receives it: the DOM event a picker emits
+    // names the chosen candidates, and it is the form that turns each of them
+    // into a child create carrying the declared candidate field.
+    const applyStaged = vi.spyOn(seeded.runtime, "applyStagedChildChanges");
+    // Cleared after the seed's own writes, so every queue assertion below
+    // describes exactly what saving this form did.
+    seeded.runtime.syncQueue.clear();
+    const loggedBefore = seeded.runtime.operationLog.getOperations().length;
+
+    // Adding a song is choosing one. Slow Tide is the only song in the library
+    // that this set list does not already hold, so it is the only candidate.
+    openChildPicker(app, "Songs");
+    await flushUi();
+    const picker = requireElement<HTMLElement>(app, ".adl-relationship-picker");
+    // Labelled by the picker's declared `DISPLAY Title Composer`, so a person
+    // chooses a song rather than a record id.
+    expect(
+      [...picker.querySelectorAll(".adl-relationship-picker-row span")].map((element) =>
+        element.textContent?.trim(),
+      ),
+    ).toEqual(["Slow Tide - The Alphas"]);
+    requireElement<HTMLInputElement>(picker, "input[data-picker-candidate]").checked = true;
+    requireElement<HTMLButtonElement>(app, "button[data-picker-action='add']").click();
+    await flushUi();
+
+    // And editing an item is editing the row. The first row is Neon Map, seeded
+    // acoustic with a rehearsal date and a note; the note and the song are left
+    // alone so the staged patch can be shown to carry neither.
+    const firstRow = childRowIdAt(app, "Songs", 0);
+    openChildRowEditor(app, "Songs", 0);
+    await flushUi();
+    await flushUi();
+    setChildEditorValue(app, "Songs", firstRow, "Arrangement", "Instrumental");
+    setChildEditorValue(app, "Songs", firstRow, "Encore", true);
+    setChildEditorValue(app, "Songs", firstRow, "RehearsedOn", "2026-07-20");
+    clickChildRowEditControl(app, "Songs", firstRow, "save");
+    await flushUi();
+
+    // Staged, not written: nothing has reached storage or the queue yet.
+    expect(applyStaged).not.toHaveBeenCalled();
+    expect(seeded.runtime.syncQueue.getEntries()).toEqual([]);
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+    await flushUi();
+
+    // The chosen song crosses as a value in the declared candidate field, never
+    // as a `childId`, which would have named the song's record as though it were
+    // a set-list item. The inline edit carries only the three fields that
+    // changed: the song and the note it never touched stay out of the patch.
+    expect(
+      (applyStaged.mock.calls[0]?.[0].stagedChanges ?? []).map((operation) => [
+        operation.operation,
+        operation.childId,
+        operation.values,
+      ]),
+    ).toEqual([
+      ["createChild", undefined, { Song: seeded.fourthSong.meta.guid }],
+      [
+        "updateChild",
+        seeded.firstSetListItem.meta.guid,
+        { Arrangement: "Instrumental", Encore: true, RehearsedOn: "2026-07-20" },
+      ],
+    ]);
+
+    // One local transaction: two records written, and one `batch` logged over
+    // them. A create and an edit that each wrote on their own would log two.
+    const logged = seeded.runtime.operationLog.getOperations().slice(loggedBefore);
+    expect(logged.filter((operation) => operation.operation === "batch")).toHaveLength(1);
+    expect(logged.filter((operation) => operation.operation !== "batch")).toHaveLength(2);
+
+    // And one queued operation for the whole thing.
+    const entries = seeded.runtime.syncQueue.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.operation.operation).toBe("batch");
+    expect(
+      entries[0]?.operation.batch?.writes.map((write) => [write.operation, write.objectName]),
+    ).toEqual([
+      ["create", "SetListItem"],
+      ["update", "SetListItem"],
+    ]);
+    expect(entries[0]?.operation.batch?.writes[1]).toMatchObject({
+      recordId: seeded.firstSetListItem.meta.guid,
+      patch: { Arrangement: "Instrumental", Encore: true, RehearsedOn: "2026-07-20" },
+    });
+
+    const items = await storedSetListItems(seeded, seeded.firstSetList.meta.guid);
+    expect(items.map((item) => [item.values.Position, item.values.Arrangement])).toEqual([
+      [1, "Instrumental"],
+      [2, "Full"],
+      [3, "Instrumental"],
+      // Appended, and on the declared defaults: the picker mints the child, it
+      // does not invent values for it.
+      [4, "Full"],
+    ]);
+    expect(items[0]?.values).toMatchObject({
+      Song: seeded.firstSong.meta.guid,
+      Encore: true,
+      RehearsedOn: "2026-07-20",
+      // Untouched by an edit that never named them.
+      Notes: "Opens on the acoustic guitar.",
+    });
+    expect(items[3]?.values).toMatchObject({
+      Song: seeded.fourthSong.meta.guid,
+      Encore: false,
+    });
+
+    /*
+     * Now the row the person just added, edited in place the same way. A staged
+     * create has no record for an edit to name, so this is the flow: the song is
+     * chosen, saved, and the item it minted is then filled in.
+     */
+    await openSetList(app, seeded.firstSetList.meta.guid);
+    seeded.runtime.syncQueue.clear();
+    applyStaged.mockClear();
+    const loggedBeforeEdit = seeded.runtime.operationLog.getOperations().length;
+
+    const addedRow = childRowIdAt(app, "Songs", 3);
+    expect(childRecordIdAt(app, "Songs", 3)).toBe(items[3]?.meta.guid);
+    openChildRowEditor(app, "Songs", 3);
+    await flushUi();
+    await flushUi();
+    setChildEditorValue(app, "Songs", addedRow, "Arrangement", "Acoustic");
+    setChildEditorValue(app, "Songs", addedRow, "Encore", true);
+    setChildEditorValue(app, "Songs", addedRow, "RehearsedOn", "2026-07-22");
+    // Every field of a freshly minted item is filled in here, including the
+    // note, because a minted child carries only the song that was chosen. What
+    // the patch must not carry is the song itself, which nothing touched.
+    setChildEditorValue(app, "Songs", addedRow, "Notes", "Added from the song picker.");
+    clickChildRowEditControl(app, "Songs", addedRow, "save");
+    await flushUi();
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+    await flushUi();
+
+    expect(
+      (applyStaged.mock.calls[0]?.[0].stagedChanges ?? []).map((operation) => [
+        operation.operation,
+        operation.childId,
+        operation.values,
+      ]),
+    ).toEqual([
+      [
+        "updateChild",
+        items[3]?.meta.guid,
+        {
+          Arrangement: "Acoustic",
+          Encore: true,
+          RehearsedOn: "2026-07-22",
+          Notes: "Added from the song picker.",
+        },
+      ],
+    ]);
+
+    const afterEdit = seeded.runtime.operationLog.getOperations().slice(loggedBeforeEdit);
+    expect(afterEdit.filter((operation) => operation.operation === "batch")).toHaveLength(1);
+    expect(afterEdit.filter((operation) => operation.operation !== "batch")).toHaveLength(1);
+    const editEntries = seeded.runtime.syncQueue.getEntries();
+    expect(editEntries).toHaveLength(1);
+    expect(editEntries[0]?.operation.operation).toBe("batch");
+
+    const edited = await storedSetListItems(seeded, seeded.firstSetList.meta.guid);
+    expect(edited[3]?.values).toMatchObject({
+      Song: seeded.fourthSong.meta.guid,
+      Position: 4,
+      Arrangement: "Acoustic",
+      Encore: true,
+      RehearsedOn: "2026-07-22",
+      Notes: "Added from the song picker.",
+    });
+  });
+
   it("renders event records as plain save/delete forms without lifecycle actions", async () => {
     const seeded = await createSeededBandReferenceRuntime();
     const app = document.createElement("adl-app") as AdlAppElement;
@@ -1316,6 +1514,143 @@ async function createPendingInvitation(
     },
     contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid),
   );
+}
+
+async function mountBandApp(
+  seeded: Awaited<ReturnType<typeof createSeededBandReferenceRuntime>>,
+): Promise<AdlAppElement> {
+  const app = document.createElement("adl-app") as AdlAppElement;
+  app.model = seeded.model;
+  app.runtime = seeded.runtime;
+  app.context = { ...seeded.firstBandContext, channel: "ui" };
+  document.body.append(app);
+  await app.whenReady();
+  await flushUi();
+  return app;
+}
+
+/** Reaches the ADL-declared edit surface the way the shell offers it. */
+async function openSetList(app: AdlAppElement, recordId: string): Promise<void> {
+  navigateWithDrawer(app, "SetListForm");
+  await flushUi();
+  await waitForText(app, "August headline");
+  requireElement<HTMLTableRowElement>(app, `tr[data-record-id='${recordId}']`).click();
+  await flushUi();
+  await flushUi();
+}
+
+/**
+ * Clicks the section's one picker control.
+ *
+ * Exactly one, because a minting picker replaces the draft row rather than
+ * joining it: two ways to add, one of them requiring a typed record id, is worse
+ * than one that works.
+ */
+function openChildPicker(app: AdlAppElement, sectionName: string): void {
+  const controls = [
+    ...app.querySelectorAll<HTMLButtonElement>(`button[data-picker-open='${sectionName}']`),
+  ];
+  if (controls.length !== 1) {
+    throw new Error(
+      `Expected exactly one control opening the '${sectionName}' picker, found ${controls.length}.`,
+    );
+  }
+
+  controls[0]?.click();
+}
+
+function childRowAt(app: AdlAppElement, sectionName: string, index: number): HTMLElement {
+  const section = requireElement<HTMLElement>(app, `[data-child-section='${sectionName}']`);
+  const row = [...section.querySelectorAll<HTMLElement>(".adl-child-row")][index];
+  if (row === undefined) {
+    throw new Error(`No child row at index ${index} in section '${sectionName}'.`);
+  }
+
+  return row;
+}
+
+function childRowIdAt(app: AdlAppElement, sectionName: string, index: number): string {
+  const id = childRowAt(app, sectionName, index).dataset.childRow;
+  if (id === undefined) {
+    throw new Error(`Child row ${index} carries no row id.`);
+  }
+
+  return id;
+}
+
+function childRecordIdAt(app: AdlAppElement, sectionName: string, index: number): string {
+  const id = childRowAt(app, sectionName, index).dataset.childId;
+  if (id === undefined) {
+    throw new Error(`Child row ${index} names no persisted record.`);
+  }
+
+  return id;
+}
+
+/** The row's `Edit` control, which opens the row rather than staging anything. */
+function openChildRowEditor(app: AdlAppElement, sectionName: string, index: number): void {
+  requireElement<HTMLButtonElement>(
+    childRowAt(app, sectionName, index),
+    "button[data-child-action='updateChild']",
+  ).click();
+}
+
+function clickChildRowEditControl(
+  app: AdlAppElement,
+  sectionName: string,
+  row: string,
+  kind: "save" | "cancel",
+): void {
+  requireElement<HTMLButtonElement>(
+    app,
+    `button[data-child-edit='${kind}'][data-child-section='${sectionName}'][data-child-action-row='${row}']`,
+  ).click();
+}
+
+/**
+ * Types into one field of an open row editor.
+ *
+ * A child field is an `adl-field-renderer`, so the value goes on the control the
+ * renderer reads back through `getValue()` — a select for the enum, a checkbox
+ * for the boolean, a date control for the date. Focus is load-bearing rather
+ * than decorative: the form decides whether an input belongs to the parent draft
+ * or to a surface it owns by asking where focus is, and without it a parent
+ * draft change would recreate the form and wipe what is being typed.
+ */
+function setChildEditorValue(
+  app: AdlAppElement,
+  sectionName: string,
+  row: string,
+  fieldName: string,
+  value: string | boolean,
+): void {
+  const section = requireElement<HTMLElement>(app, `[data-child-section='${sectionName}']`);
+  const input = requireElement<HTMLInputElement | HTMLSelectElement>(
+    requireElement<HTMLElement>(
+      section,
+      `adl-field-renderer[data-child-editor='${sectionName}'][data-child-editor-row='${row}'][data-child-field-slot='${fieldName}']`,
+    ),
+    "[data-field-input]",
+  );
+
+  input.focus();
+  if (typeof value === "boolean") {
+    (input as HTMLInputElement).checked = value;
+  } else {
+    input.value = value;
+  }
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+async function storedSetListItems(
+  seeded: Awaited<ReturnType<typeof createSeededBandReferenceRuntime>>,
+  setListId: string,
+) {
+  const items = await seeded.runtime.search("SetListItem", undefined, seeded.firstBandContext);
+  return items
+    .filter((item) => item.values.SetList === setListId)
+    .sort((left, right) => Number(left.values.Position) - Number(right.values.Position));
 }
 
 async function flushUi(): Promise<void> {

@@ -161,7 +161,7 @@ describe("compileAdl", () => {
         childObject: "PurchaseOrderLine",
         parentField: "PurchaseOrder",
         childView: "PurchaseOrderLineList",
-        operations: ["createChild", "linkExisting", "updateChild", "unlink", "remove", "reorder"],
+        operations: ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
         staged: true,
         orderField: "Position",
         emptyState: { text: "No order lines yet." },
@@ -265,7 +265,9 @@ END.READ_MODEL
       kind: "childCollection",
       childObject: "OrderLine",
       parentField: "Order",
-      operations: ["createChild", "updateChild", "unlink"],
+      // The default operation set is one every child collection can honour:
+      // `unlink` would be impossible against a required parent field.
+      operations: ["createChild", "updateChild", "remove"],
       staged: false,
       emptyState: { text: "" },
     });
