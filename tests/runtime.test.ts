@@ -21,6 +21,7 @@ import type {
   PersistedApplicationMetadata,
   PersistedObjectRecord,
   ReadModelSourceScope,
+  ResolvedExpression,
   ResolvedObject,
   RuntimeContext,
   StoredObjectRecord,
@@ -851,6 +852,153 @@ describe("ApplicationRuntime", () => {
         .filter((record) => record.objectName === "PurchaseOrder")
         .map((record) => record.recordId),
     ).toEqual([bySupplier.meta.guid]);
+  });
+
+  /**
+   * Phase 64. A sync scope selects a context; a window and a predicate bound how
+   * much of it a device keeps. Before this they were alternatives — a window was
+   * refused on any scope but `recent` — so "my records, recent" could only be
+   * had by widening from one user's records to every available context's.
+   */
+  it("bounds a current-user sync scope by a declared window", async () => {
+    const seeded = await createBoundedUserScopeRuntime({
+      window: { field: "Date", days: 30 },
+    });
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(seeded.alexContext);
+    const entries = dataset.records.filter((record) => record.objectName === "TimeEntry");
+
+    expect(new Set(entries.map((record) => record.recordId))).toEqual(
+      new Set([
+        seeded.alexRecent.meta.guid,
+        seeded.alexMiddle.meta.guid,
+        seeded.alexOldest.meta.guid,
+      ]),
+    );
+    // The scope still selects the context half: none of Blake's records are here.
+    expect(entries.map((record) => record.reasons)).toEqual(
+      entries.map(() => [{ kind: "objectSync", mode: "localFirst", scope: "currentUser" }]),
+    );
+    // And the window still bounds it: the entry outside the day span is gone.
+    expect(entries.map((record) => record.recordId)).not.toContain(
+      seeded.alexOutsideWindow.meta.guid,
+    );
+  });
+
+  /**
+   * The defect this phase was most likely to introduce. `LIMIT` ranks records
+   * against each other, and the candidate set used to be filtered by available
+   * contexts regardless of the declared scope — invisible while a limit could
+   * only accompany `recent`, whose context half is exactly that. Ranking one
+   * user's records against every other user's would leave Alex holding Blake's
+   * newest entries and none of their own.
+   */
+  it("ranks a declared limit within the object's own context scope, not across users", async () => {
+    const seeded = await createBoundedUserScopeRuntime({
+      window: { field: "Date", days: 30, limit: 2 },
+    });
+
+    const alexDataset = await seeded.runtime.evaluateOfflineDataset(seeded.alexContext);
+    const blakeDataset = await seeded.runtime.evaluateOfflineDataset(seeded.blakeContext);
+
+    // Blake's entries are all newer than Alex's, so a limit ranked across users
+    // would give Alex an empty dataset and Blake the same two records twice.
+    expect(
+      alexDataset.records
+        .filter((record) => record.objectName === "TimeEntry")
+        .map((record) => record.recordId),
+    ).toEqual([seeded.alexRecent.meta.guid, seeded.alexMiddle.meta.guid].sort());
+    expect(
+      blakeDataset.records
+        .filter((record) => record.objectName === "TimeEntry")
+        .map((record) => record.recordId),
+    ).toEqual([seeded.blakeRecent.meta.guid, seeded.blakeMiddle.meta.guid].sort());
+  });
+
+  it("applies a window and a predicate declared on the same sync scope", async () => {
+    const seeded = await createBoundedUserScopeRuntime({
+      window: { field: "Date", days: 30 },
+      predicate: {
+        kind: "binary",
+        operator: "==",
+        left: { kind: "field", field: "Billable" },
+        right: { kind: "literal", value: true },
+      },
+    });
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(seeded.alexContext);
+    const entries = dataset.records.filter((record) => record.objectName === "TimeEntry");
+
+    // `alexMiddle` is inside the window and fails the predicate; `alexOutsideWindow`
+    // satisfies the predicate and falls outside the window. Both bounds are
+    // declared, so both must pass.
+    expect(entries.map((record) => record.recordId)).toEqual(
+      [seeded.alexRecent.meta.guid, seeded.alexOldest.meta.guid].sort(),
+    );
+  });
+
+  /**
+   * Phase 63's rule, re-proven now that a bound no longer implies a scope: a
+   * read-model source widens the *context* an object is held for and never the
+   * bound. Blake's entry reaches Alex's device through a cross-user source, and
+   * an entry outside the window reaches it by no route at all.
+   */
+  it("keeps a bound on a current-user scope gating every route into the dataset", async () => {
+    const seeded = await createBoundedUserScopeRuntime({
+      window: { field: "Date", days: 30 },
+      withCrossUserReadModel: true,
+    });
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(seeded.alexContext);
+    const entries = new Map(
+      dataset.records
+        .filter((record) => record.objectName === "TimeEntry")
+        .map((record) => [record.recordId, record.reasons] as const),
+    );
+
+    expect(entries.get(seeded.blakeRecent.meta.guid)).toEqual([
+      {
+        kind: "readModelSource",
+        readModel: "TeamTimeEntries",
+        source: "entry",
+        sourceScope: "all",
+        mode: "localFirst",
+        boundedBy: "window",
+      },
+    ]);
+    expect(entries.has(seeded.alexOutsideWindow.meta.guid)).toBe(false);
+    expect(entries.has(seeded.blakeOutsideWindow.meta.guid)).toBe(false);
+  });
+
+  /**
+   * A limit ranks an object's own selection. A record another route admits is
+   * not ranked against that selection, because evicting it would make a limit
+   * narrow the context — which no bound may do. Blake's entries are held by the
+   * cross-user source alone, and Alex's `LIMIT 2` does not evict them.
+   */
+  it("does not rank records another route admits against the object's own limit", async () => {
+    const seeded = await createBoundedUserScopeRuntime({
+      window: { field: "Date", days: 30, limit: 2 },
+      withCrossUserReadModel: true,
+    });
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(seeded.alexContext);
+    const entries = dataset.records
+      .filter((record) => record.objectName === "TimeEntry")
+      .map((record) => record.recordId);
+
+    expect(new Set(entries)).toEqual(
+      new Set([
+        seeded.alexRecent.meta.guid,
+        seeded.alexMiddle.meta.guid,
+        seeded.blakeRecent.meta.guid,
+        seeded.blakeMiddle.meta.guid,
+        seeded.blakeOldest.meta.guid,
+      ]),
+    );
+    // Alex's own oldest entry is inside the window and still evicted by the
+    // limit, so the limit has not simply stopped applying.
+    expect(entries).not.toContain(seeded.alexOldest.meta.guid);
   });
 
   it("denies writes and transitions outside the selected object scope", async () => {
@@ -2079,6 +2227,173 @@ function createBandDatasetPartialModel(options: {
         scope: options.readModelSourceScope,
       })),
     })),
+  };
+}
+
+interface BoundedUserScopeOptions {
+  window?: { field: string; days?: number; limit?: number };
+  predicate?: ResolvedExpression;
+  withCrossUserReadModel?: boolean;
+}
+
+/**
+ * A model whose bounded object declares a *context* scope of `currentUser` and,
+ * independently, a bound. Phase 62 could not express this at all, and the pair
+ * is what every Phase 64 dataset test needs: two users' records, so a limit that
+ * ranks across users is visible, and one record each side of the day span.
+ */
+function createBoundedUserScopePartialModel(
+  options: BoundedUserScopeOptions,
+): PartialApplicationModel {
+  return {
+    app: { name: "BoundedUserScope" },
+    roles: [{ name: "Member" }],
+    policies: [
+      {
+        name: "UserPolicy",
+        object: "User",
+        rules: [
+          {
+            name: "allowMemberAllUserOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Member"] },
+            action: "*",
+          },
+        ],
+      },
+      {
+        name: "TimeEntryPolicy",
+        object: "TimeEntry",
+        rules: [
+          {
+            name: "allowMemberAllTimeEntryOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Member"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+    objects: [
+      {
+        name: "User",
+        businessKey: "Email",
+        displayField: "Name",
+        fields: [
+          { name: "Name", type: "text", required: true },
+          { name: "Email", type: "text", required: true },
+        ],
+        sync: { mode: "localFirst", scope: "currentUser" },
+      },
+      {
+        name: "TimeEntry",
+        displayField: "Title",
+        fields: [
+          {
+            name: "User",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "User", displayField: "Name" },
+          },
+          { name: "Date", type: "date", required: true },
+          { name: "Title", type: "text", required: true },
+          { name: "Billable", type: "boolean", defaultValue: true },
+        ],
+        sync: {
+          mode: "localFirst",
+          scope: "currentUser",
+          ...(options.window === undefined ? {} : { window: options.window }),
+          ...(options.predicate === undefined ? {} : { predicate: options.predicate }),
+        },
+      },
+    ],
+    ...(options.withCrossUserReadModel === true
+      ? {
+          readModels: [
+            {
+              name: "TeamTimeEntries",
+              sources: [{ name: "entry", object: "TimeEntry", scope: "all" }],
+              fields: [
+                { name: "Title", source: "entry", field: "Title" },
+                { name: "Date", source: "entry", field: "Date" },
+              ],
+            },
+          ],
+        }
+      : {}),
+  } as PartialApplicationModel;
+}
+
+async function createBoundedUserScopeRuntime(options: BoundedUserScopeOptions): Promise<{
+  runtime: ApplicationRuntime;
+  alexContext: RuntimeContext;
+  blakeContext: RuntimeContext;
+  alexRecent: StoredObjectRecord;
+  alexMiddle: StoredObjectRecord;
+  alexOldest: StoredObjectRecord;
+  alexOutsideWindow: StoredObjectRecord;
+  blakeRecent: StoredObjectRecord;
+  blakeMiddle: StoredObjectRecord;
+  blakeOldest: StoredObjectRecord;
+  blakeOutsideWindow: StoredObjectRecord;
+}> {
+  const runtime = new ApplicationRuntime(
+    resolveApplicationModel(createBoundedUserScopePartialModel(options)),
+  );
+  const seedContext: RuntimeContext = {
+    userId: "seed-1",
+    roles: ["Member"],
+    channel: "api",
+    now: fixedNow,
+  };
+
+  const alex = await runtime.create(
+    "User",
+    { Name: "Alex", Email: "alex@example.com" },
+    seedContext,
+  );
+  const blake = await runtime.create(
+    "User",
+    { Name: "Blake", Email: "blake@example.com" },
+    seedContext,
+  );
+
+  const entry = async (
+    user: StoredObjectRecord,
+    date: string,
+    title: string,
+    billable: boolean,
+  ): Promise<StoredObjectRecord> =>
+    runtime.create(
+      "TimeEntry",
+      { User: user.meta.guid, Date: date, Title: title, Billable: billable },
+      seedContext,
+    );
+
+  // Blake's entries are all newer than Alex's. `fixedNow` is 2026-07-07, so
+  // everything dated in June is inside a 30-day window and the January entries
+  // are outside it.
+  const alexOutsideWindow = await entry(alex, "2026-01-05", "Alex January", true);
+  const alexOldest = await entry(alex, "2026-06-10", "Alex oldest", true);
+  const alexMiddle = await entry(alex, "2026-06-11", "Alex middle", false);
+  const alexRecent = await entry(alex, "2026-06-12", "Alex recent", true);
+  const blakeOutsideWindow = await entry(blake, "2026-01-06", "Blake January", true);
+  const blakeOldest = await entry(blake, "2026-06-20", "Blake oldest", true);
+  const blakeMiddle = await entry(blake, "2026-06-21", "Blake middle", true);
+  const blakeRecent = await entry(blake, "2026-06-22", "Blake recent", true);
+
+  return {
+    runtime,
+    alexContext: { userId: alex.meta.guid, roles: ["Member"], channel: "api", now: fixedNow },
+    blakeContext: { userId: blake.meta.guid, roles: ["Member"], channel: "api", now: fixedNow },
+    alexRecent,
+    alexMiddle,
+    alexOldest,
+    alexOutsideWindow,
+    blakeRecent,
+    blakeMiddle,
+    blakeOldest,
+    blakeOutsideWindow,
   };
 }
 

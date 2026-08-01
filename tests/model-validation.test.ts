@@ -700,7 +700,14 @@ END.OBJECT
     ).toContain("SCOPE custom WHERE");
   });
 
-  it("refuses a sync predicate on a scope that does not select by one", () => {
+  /**
+   * Phase 64. Phase 62 refused a predicate on any scope but `custom` and a
+   * window on any scope but `recent`, which made a scope and a bound alternatives
+   * rather than a pair — "my records, recent" was unsayable. A scope selects a
+   * context; a window and a predicate bound how much of it a device keeps. Both
+   * are now legal alongside any scope, and legal together.
+   */
+  it("accepts a sync predicate on a scope that is not custom", () => {
     const resolved = resolveApplicationModel({
       ...validPartialModel,
       objects: [
@@ -708,7 +715,7 @@ END.OBJECT
           ...validPartialModel.objects[0],
           sync: {
             mode: "localFirst",
-            scope: "all",
+            scope: "currentContext",
             predicate: {
               kind: "binary",
               operator: "==",
@@ -720,20 +727,10 @@ END.OBJECT
       ],
     } as PartialApplicationModel);
 
-    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
-      expect.arrayContaining([
-        MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_SCOPE_INVALID,
-        MODEL_VALIDATION_CODES.SYNC_PREDICATE_SCOPE_INVALID,
-      ]),
-    );
+    expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
-  /**
-   * Only `recent` consults a window, so declaring one anywhere else resolved a
-   * value the runtime never read. That is the same silence this phase exists to
-   * remove, so it is refused rather than ignored.
-   */
-  it("refuses a sync window on a scope that does not select by one", () => {
+  it("accepts a sync window on a scope that is not recent", () => {
     const resolved = resolveApplicationModel({
       ...validPartialModel,
       objects: [
@@ -741,8 +738,54 @@ END.OBJECT
           ...validPartialModel.objects[0],
           sync: {
             mode: "localFirst",
-            scope: "currentContext",
-            window: { field: "_updatedAt", days: 7 },
+            scope: "currentUser",
+            window: { field: "_updatedAt", days: 90, limit: 50 },
+          },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
+  it("accepts a sync window and a predicate declared on the same scope", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: {
+            mode: "localFirst",
+            scope: "currentUser",
+            window: { field: "_updatedAt", days: 30 },
+            predicate: {
+              kind: "binary",
+              operator: "==",
+              left: { kind: "field", field: "Name" },
+              right: { kind: "literal", value: "open" },
+            },
+          },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
+  /**
+   * Retiring the scope-pairing refusals must not retire the window's own field,
+   * type, day and limit validation, which says nothing about the scope.
+   */
+  it("still validates a window declared on a scope other than recent", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: {
+            mode: "localFirst",
+            scope: "currentUser",
+            window: { field: "Name", days: 0 },
           },
         },
       ],
@@ -750,8 +793,10 @@ END.OBJECT
 
     expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
       expect.arrayContaining([
-        MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_SCOPE_INVALID,
-        MODEL_VALIDATION_CODES.SYNC_WINDOW_SCOPE_INVALID,
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL,
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_DAYS_INVALID,
+        MODEL_VALIDATION_CODES.SYNC_WINDOW_FIELD_NOT_TEMPORAL,
+        MODEL_VALIDATION_CODES.SYNC_WINDOW_DAYS_INVALID,
       ]),
     );
   });

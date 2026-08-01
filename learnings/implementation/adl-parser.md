@@ -94,6 +94,20 @@ Read this before changing the ADL lexer, parser, AST-to-partial-model compiler, 
   [[edit-surface-language]] for the same split, and
   [[offline-dataset-runtime]] for what the clauses mean.
 
+## Why Phase 64 needed no parser change at all
+
+Phase 64 made a `WINDOW` and a `WHERE` legal alongside any sync scope, and
+`parser.ts` was not touched. `parseSync` reads its options in a loop with no
+ordering and no cross-checking — a clause's legality was never encoded here — so
+the whole language change was the *removal* of two refusals in
+`validate-model.ts`.
+
+This is the concrete payoff of the rule above, and it is worth the discipline
+elsewhere. Had the parser refused a `WINDOW` after `SCOPE currentUser`, the same
+change would have meant new syntax, new parser tests, and a second place for the
+two rules to disagree. When adding a clause, parse the shape and let the
+validator decide whether the combination means anything.
+
 ## Practical guidance
 
 - Keep parser syntax declarative. Unsupported procedural keywords such as `FETCH`, `STORE`, `LOOP`, `SET`, `DART.INLINE`, and `SQL.INTO` should remain rejected.

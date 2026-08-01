@@ -27,7 +27,13 @@ interface DatasetEvaluationState {
   context: RuntimeContext;
   availableContextIds: Map<string, string[]>;
   availableContextRoles: RuntimeContextRole[];
-  recentLimitRecordIds: Map<string, Set<string>>;
+  /**
+   * Per object, the record ids that survive its declared `LIMIT`. A limit ranks
+   * records against each other, so unlike every other part of a bound it cannot
+   * be decided one record at a time; it is computed once per evaluation and
+   * consulted per record.
+   */
+  windowLimitRecordIds: Map<string, Set<string>>;
 }
 
 interface ActivePersistedObjectRecord {
@@ -162,14 +168,25 @@ export class OfflineDatasetService {
       context,
       availableContextIds,
       availableContextRoles: uniqueContextRoleEntries(availableContextRoles),
-      recentLimitRecordIds: new Map(),
+      windowLimitRecordIds: new Map(),
     };
-    state.recentLimitRecordIds = this.computeRecentLimitRecordIds(activeRecords, state);
+    state.windowLimitRecordIds = this.computeWindowLimitRecordIds(activeRecords, state);
 
     return state;
   }
 
-  private computeRecentLimitRecordIds(
+  /**
+   * A `LIMIT` keeps the newest N of the records a device would otherwise hold,
+   * so the set it ranks has to be the set the object's own scope selects. When a
+   * limit could only accompany `recent` this was invisible: `recent` selects by
+   * available contexts, which is what the candidate filter used. Once a limit can
+   * accompany `currentUser`, using the available-context matcher regardless would
+   * rank one user's records against every other user's and quietly evict records
+   * their owner is entitled to hold. The candidates are therefore filtered by the
+   * object's *declared* context scope, via the same matcher that decides its
+   * `objectSync` reason.
+   */
+  private computeWindowLimitRecordIds(
     activeRecords: ActivePersistedObjectRecord[],
     state: DatasetEvaluationState,
   ): Map<string, Set<string>> {
@@ -177,11 +194,7 @@ export class OfflineDatasetService {
 
     for (const object of this.model.objects) {
       const window = object.sync.window;
-      if (
-        object.sync.mode === "onlineRequired" ||
-        object.sync.scope !== "recent" ||
-        window?.limit === undefined
-      ) {
+      if (object.sync.mode === "onlineRequired" || window?.limit === undefined) {
         continue;
       }
 
@@ -189,8 +202,8 @@ export class OfflineDatasetService {
         .filter((entry) => entry.objectName === object.name)
         .filter(
           (entry) =>
-            this.recordMatchesAvailableObjectContext(object, entry.record, state) &&
-            this.recordMatchesRecentDays(object, entry.record, window, state),
+            this.recordMatchesSyncScope(object, entry.record, state) &&
+            this.recordMatchesWindowDays(object, entry.record, window, state),
         )
         .sort((left, right) => {
           const leftDate = getSyncWindowDate(object, left.record, window);
@@ -234,34 +247,87 @@ export class OfflineDatasetService {
   }
 
   /**
-   * The part of a sync scope that says *how much* of an object a device keeps,
-   * as opposed to which context it keeps it for. Only `recent` and `custom`
-   * declare one; every other scope is context-only and bounds nothing.
+   * The declared bound says *how much* of an object a device keeps, as opposed
+   * to which context it keeps it for. A window and a predicate are independent
+   * of the scope and of each other: either may accompany any scope, both may
+   * accompany the same one, and when both are declared both must pass. So this
+   * gates on what the model *declares*, not on the scope word — the scope word
+   * only ever implied a bound because `recent` resolves a default window.
    */
   private recordSatisfiesDeclaredBound(
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
   ): boolean {
-    switch (object.sync.scope) {
-      case "recent":
-        return this.recordMatchesRecentWindow(object, record, state);
-      case "custom":
-        return this.recordMatchesCustomPredicate(object, record, state);
-      default:
-        return true;
+    if (!this.recordSatisfiesRankableBound(object, record, state)) {
+      return false;
     }
+
+    return this.recordSatisfiesWindowLimit(object, record, state);
   }
 
-  private declaredBoundKind(object: ResolvedObject): "window" | "predicate" | undefined {
-    switch (object.sync.scope) {
-      case "recent":
-        return "window";
-      case "custom":
-        return "predicate";
-      default:
-        return undefined;
+  /**
+   * Every part of the declared bound that can be decided from one record alone:
+   * the day span and the predicate. A `LIMIT` is deliberately not here, because
+   * it ranks records against each other and so cannot be evaluated until the
+   * whole candidate set is known — and the candidate set is built from this.
+   */
+  private recordSatisfiesRankableBound(
+    object: ResolvedObject,
+    record: StoredObjectRecord,
+    state: DatasetEvaluationState,
+  ): boolean {
+    const window = object.sync.window;
+    if (window !== undefined && !this.recordMatchesWindowDays(object, record, window, state)) {
+      return false;
     }
+
+    if (object.sync.predicate !== undefined || object.sync.scope === "custom") {
+      return this.recordMatchesCustomPredicate(object, record, state);
+    }
+
+    return true;
+  }
+
+  /**
+   * A `LIMIT` keeps the newest N records of the object's *own* selection. A
+   * record reaching the device by another route — a read-model source widening
+   * the context — is not ranked against that selection and is not evicted by it.
+   * Ranking it would make a limit narrow the context, which Phase 63 reserved to
+   * nothing at all: a source may widen an object's context, and the bound it may
+   * not widen is the day span and the predicate, both of which are decided per
+   * record above and do gate every route.
+   */
+  private recordSatisfiesWindowLimit(
+    object: ResolvedObject,
+    record: StoredObjectRecord,
+    state: DatasetEvaluationState,
+  ): boolean {
+    const limitedIds = state.windowLimitRecordIds.get(object.name);
+    if (limitedIds === undefined || limitedIds.has(record.meta.guid)) {
+      return true;
+    }
+
+    return !this.recordMatchesSyncScope(object, record, state);
+  }
+
+  private declaredBoundKind(
+    object: ResolvedObject,
+  ): "window" | "predicate" | "windowAndPredicate" | undefined {
+    const hasWindow = object.sync.window !== undefined;
+    // `custom` counts as declaring a predicate even when one is somehow absent:
+    // the scope still bounds the object, by selecting nothing at all.
+    const hasPredicate = object.sync.predicate !== undefined || object.sync.scope === "custom";
+
+    if (hasWindow && hasPredicate) {
+      return "windowAndPredicate";
+    }
+
+    if (hasWindow) {
+      return "window";
+    }
+
+    return hasPredicate ? "predicate" : undefined;
   }
 
   private getObjectSyncReasons(
@@ -327,9 +393,11 @@ export class OfflineDatasetService {
         return this.recordMatchesCurrentObjectContext(object, record, state.context);
       case "allAvailableContexts":
         return this.recordMatchesAvailableObjectContext(object, record, state);
-      // The window and the predicate halves of these two scopes are checked once
-      // for every route in `recordSatisfiesDeclaredBound`, so what is left here
-      // is the context half alone.
+      // `recent` and `custom` are retained spellings for available contexts plus
+      // a bound — a default 30-day window and a required predicate respectively.
+      // The bound half of each is declared, not implied by the scope word, and
+      // is checked once for every route in `recordSatisfiesDeclaredBound`, so
+      // what is left here is the context half alone.
       case "recent":
       case "custom":
         return this.recordMatchesAvailableObjectContext(object, record, state);
@@ -566,21 +634,7 @@ export class OfflineDatasetService {
     );
   }
 
-  private recordMatchesRecentWindow(
-    object: ResolvedObject,
-    record: StoredObjectRecord,
-    state: DatasetEvaluationState,
-  ): boolean {
-    const window = object.sync.window;
-    if (window === undefined || !this.recordMatchesRecentDays(object, record, window, state)) {
-      return false;
-    }
-
-    const limitedIds = state.recentLimitRecordIds.get(object.name);
-    return limitedIds === undefined || limitedIds.has(record.meta.guid);
-  }
-
-  private recordMatchesRecentDays(
+  private recordMatchesWindowDays(
     object: ResolvedObject,
     record: StoredObjectRecord,
     window: ResolvedSyncWindow,

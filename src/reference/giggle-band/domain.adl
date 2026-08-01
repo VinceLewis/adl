@@ -102,7 +102,7 @@ OBJECT Event
   FIELD VenueName TEXT
   FIELD VenueLocation TEXT
   FIELD Notes TEXT
-  SYNC LOCAL_FIRST SCOPE recent WINDOW Date 90 DAYS LIMIT 200
+  SYNC LOCAL_FIRST SCOPE currentContext WINDOW Date 90 DAYS LIMIT 200
 
   VIEW BandEventList LIST
     CONTEXT REQUIRED Band
@@ -126,7 +126,7 @@ OBJECT Availability
   FIELD Date DATE REQUIRED
   FIELD Status TEXT REQUIRED IN ('Available', 'Unavailable')
   FIELD Notes TEXT
-  SYNC LOCAL_FIRST SCOPE currentUser
+  SYNC LOCAL_FIRST SCOPE currentUser WINDOW Date 90 DAYS LIMIT 400
 
   VIEW MyAvailabilityList LIST
     FIELDS Date Status Notes

@@ -129,8 +129,12 @@ export type RuntimeOfflineDatasetReason =
        * *context* an object is held for; it never widens how much of the object
        * a device keeps. Without this a reader could not tell a dashboard that is
        * short offline from one that is wrong.
+       *
+       * A window and a predicate are independent of each other and of the sync
+       * scope, so an object may declare both; `windowAndPredicate` says so
+       * rather than naming whichever was checked first.
        */
-      boundedBy?: "window" | "predicate";
+      boundedBy?: "window" | "predicate" | "windowAndPredicate";
     };
 
 export interface RuntimeOfflineDatasetRecord {

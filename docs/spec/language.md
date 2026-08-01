@@ -144,7 +144,19 @@ strategy. Everything else on the line decides what a device holds.
 `all`. What each one selects is specified under
 [Offline Datasets](runtime-semantics.md#offline-datasets).
 
-`WINDOW` bounds how much of a `recent` scope a device keeps:
+`SCOPE` says which records a device keeps; `WINDOW` and `WHERE` say how much of
+them. They are independent, so either may accompany any scope and both may
+accompany the same one:
+
+```text
+SYNC LOCAL_FIRST SCOPE currentUser WINDOW Date 90 DAYS LIMIT 400
+SYNC LOCAL_FIRST SCOPE currentContext WHERE Status == 'open'
+SYNC LOCAL_FIRST SCOPE currentUser WINDOW SpentOn 30 DAYS WHERE Status == 'open'
+```
+
+When both are declared, both must pass.
+
+`WINDOW` bounds how much of a scope a device keeps:
 
 ```text
 WINDOW [<field>] [<days> DAYS] [LIMIT <count>]
@@ -157,12 +169,16 @@ it is for `OFFLINE_GRACE`, so a bare number can never be read as the wrong unit
 if another unit is ever added. `LIMIT` keeps that many records, newest first,
 from among those already inside the day span.
 
-A window is only consulted by `SCOPE recent`. Declaring one on any other scope is
-a validation error, not a silently ignored clause. `SCOPE recent` with no window
-resolves to 30 days over `_updatedAt`, which is what a model that declares no
-window has always meant.
+`LIMIT` ranks an object's own selection: a record another route holds — a read
+model sourcing the object across contexts — is not ranked against it and is not
+evicted by it. The day span and the predicate bound every route.
 
-`WHERE` gives `SCOPE custom` the predicate it selects by:
+`SCOPE recent` with no window resolves to 30 days over `_updatedAt`, which is
+what a model that declares no window has always meant. It is the one scope that
+*implies* a window; every other scope bounds nothing unless the model says so.
+
+`WHERE` gives a scope a predicate to select by, and gives `SCOPE custom` the one
+it cannot do without:
 
 ```adl
 SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId
@@ -170,9 +186,9 @@ SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId
 
 It is an ordinary [expression](#expressions) over the object's own fields and
 `RUNTIME.userId` / `RUNTIME.now`, not a second dialect, and it must resolve to
-boolean. `SCOPE custom` without a predicate is a validation error, and a
-predicate on any other scope is too: a declared scope must be one the runtime can
-honour, so neither half may be declared without the other.
+boolean. `SCOPE custom` without a predicate is a validation error: a declared
+scope must be one the runtime can honour, and `custom` selects by a predicate and
+by nothing else.
 
 ## Context Grants
 

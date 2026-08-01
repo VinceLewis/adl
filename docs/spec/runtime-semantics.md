@@ -747,9 +747,12 @@ defines.
 
 ### What each sync scope selects
 
-An object's declared sync scope decides which of its records a device keeps. The
-scopes are exhaustive: every one of them selects by a rule the runtime evaluates,
-and none of them is accepted in a form the runtime cannot honour.
+An object's declared sync scope decides **which context** its records are kept
+for. A declared window and a declared predicate decide **how much** of them a
+device keeps. The two are independent: either bound may accompany any scope, both
+may accompany the same one, and when both are declared a record must satisfy
+both. The scopes are exhaustive: every one of them selects by a rule the runtime
+evaluates, and none of them is accepted in a form the runtime cannot honour.
 
 | Scope | Selects |
 | --- | --- |
@@ -757,23 +760,33 @@ and none of them is accepted in a form the runtime cannot honour.
 | `currentUser`, `assignedToUser`, `ownedByUser` | records whose lookup to the user object holds the signed-in user, within an available context |
 | `currentContext` | records in the selected business context only |
 | `allAvailableContexts` | records in every business context available to the device |
-| `recent` | records in an available context that also fall inside the declared window |
-| `custom` | records in an available context for which the declared predicate evaluates to `true` |
+| `recent` | records in an available context, with a window defaulted to 30 days over `_updatedAt` |
+| `custom` | records in an available context, with a predicate that is required rather than optional |
 
-A window narrows `recent` and nothing else. It names a date or datetime field, an
-optional day span measured back from the runtime context's current moment, and an
-optional limit that keeps only that many records, newest first. A record whose
-window field is absent or is not a readable date falls outside the window. When
-`recent` is declared with no window at all, the runtime derives one of 30 days
-over `_updatedAt`, so a bare `SCOPE recent` still selects a bounded set.
+`recent` and `custom` are the two scopes that imply a bound. `recent` is a
+spelling for available contexts plus a window the runtime derives when the model
+declares none, so a bare `SCOPE recent` still selects a bounded set. `custom` is
+a spelling for available contexts plus a predicate that may not be omitted; that
+is a validation refusal, not a runtime one. Neither is a different kind of scope
+from the others, and neither is required in order to declare a bound.
 
-A predicate applies to `custom` and nothing else. It is an ordinary expression
-evaluated against the record's own field values and the runtime context, so the
-same records and the same model produce different datasets for different
-signed-in users. A predicate that does not evaluate against a given record — a
-type mismatch, say — excludes that record rather than failing the whole dataset,
-the same way an unreadable window date does. `custom` may not be declared without
-a predicate; that is a validation refusal, not a runtime one.
+A window names a date or datetime field, an optional day span measured back from
+the runtime context's current moment, and an optional limit that keeps only that
+many records, newest first. A record whose window field is absent or is not a
+readable date falls outside the window.
+
+A limit ranks an object's *own* selection. A record another route holds — a read
+model sourcing the object across contexts — is not ranked against that selection
+and is not evicted by it, because a bound may narrow how much of an object a
+device keeps and may never narrow which contexts it is kept for. The day span and
+the predicate are decided one record at a time and do gate every route.
+
+A predicate is an ordinary expression evaluated against the record's own field
+values and the runtime context, so the same records and the same model produce
+different datasets for different signed-in users. A predicate that does not
+evaluate against a given record — a type mismatch, say — excludes that record
+rather than failing the whole dataset, the same way an unreadable window date
+does.
 
 ### What a read-model source may widen
 
@@ -787,20 +800,23 @@ difference is between saying *which context* an object is held for and saying
   admits a record whose object is scoped to a single context. This is deliberate:
   narrowing it would make a declared cross-context dashboard silently empty
   offline.
-- A read-model source **never widens a declared bound**. A `recent` window and a
-  `custom` predicate say how much of an object a device keeps at all, and no
+- A read-model source **never widens a declared bound**. A declared window and a
+  declared predicate say how much of an object a device keeps at all, and no
   source can say otherwise, because a source has no way to declare a bound of its
   own. A record outside its object's window, or failing its object's predicate, is
   not in the offline dataset by any route, however many read models source it.
+  A `LIMIT` is the one part of a bound a source is not measured against, for the
+  reason given above: ranking a sourced record against the object's own selection
+  would make a bound narrow a context, which nothing may do.
 
 The bound is therefore evaluated once per record and gates every reason, rather
 than being one disjunct among them. A record excluded by the bound reports no
 reasons at all, including no read-model source reason.
 
 When a record is held and its object declares a bound, every read-model source
-reason for it carries `boundedBy`, naming `window` or `predicate`. That is what
-distinguishes a dashboard that is deliberately short offline from one that is
-wrong.
+reason for it carries `boundedBy`, naming `window`, `predicate`, or
+`windowAndPredicate` when the object declares both. That is what distinguishes a
+dashboard that is deliberately short offline from one that is wrong.
 
 Dataset membership remains separate from authorization throughout. Widening or
 bounding what a device holds never widens or narrows what its user may read.

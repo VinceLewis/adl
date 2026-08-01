@@ -49,32 +49,6 @@
         "END.OBJECT"
       ]
     },
-    "windowOnScopeThatIgnoresIt": {
-      "adl": [
-        "APP 'Window On Scope That Ignores It'",
-        "END.APP",
-        "",
-        "OBJECT Gig",
-        "  DISPLAY Title",
-        "  FIELD Title TEXT REQUIRED",
-        "  FIELD GigDate DATE REQUIRED",
-        "  SYNC LOCAL_FIRST SCOPE currentContext WINDOW GigDate 14 DAYS",
-        "END.OBJECT"
-      ]
-    },
-    "predicateOnScopeThatIgnoresIt": {
-      "adl": [
-        "APP 'Predicate On Scope That Ignores It'",
-        "END.APP",
-        "",
-        "OBJECT Gig",
-        "  DISPLAY Title",
-        "  FIELD Title TEXT REQUIRED",
-        "  FIELD Status TEXT REQUIRED",
-        "  SYNC LOCAL_FIRST SCOPE all WHERE Status == 'open'",
-        "END.OBJECT"
-      ]
-    },
     "customPredicateOverAFieldThatDoesNotExist": {
       "adl": [
         "APP 'Custom Predicate Over A Field That Does Not Exist'",
@@ -97,6 +71,34 @@
         "  FIELD Title TEXT REQUIRED",
         "  FIELD Status TEXT REQUIRED",
         "  SYNC LOCAL_FIRST SCOPE custom WHERE Status",
+        "END.OBJECT"
+      ]
+    },
+    "composedOfflineBounds": {
+      "adl": [
+        "APP 'Composed Offline Bounds'",
+        "END.APP",
+        "",
+        "OBJECT Shift",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD ShiftDate DATE REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE currentUser WINDOW ShiftDate 90 DAYS LIMIT 50",
+        "END.OBJECT",
+        "",
+        "OBJECT Ticket",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE currentContext WHERE Status == 'open'",
+        "END.OBJECT",
+        "",
+        "OBJECT Invoice",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  FIELD IssuedOn DATE REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE currentUser WINDOW IssuedOn 30 DAYS WHERE Status == 'open'",
         "END.OBJECT"
       ]
     }
@@ -133,10 +135,7 @@
       "operation": "resolveModel",
       "modelRef": "declaredOfflineScopes",
       "input": {
-        "select": [
-          "objects.1.sync.window.field",
-          "objects.1.sync.window.days"
-        ]
+        "select": ["objects.1.sync.window.field", "objects.1.sync.window.days"]
       },
       "expected": {
         "ok": true,
@@ -153,10 +152,7 @@
       "operation": "resolveModel",
       "modelRef": "declaredOfflineScopes",
       "input": {
-        "select": [
-          "objects.3.sync.window.field",
-          "objects.3.sync.window.limit"
-        ]
+        "select": ["objects.3.sync.window.field", "objects.3.sync.window.limit"]
       },
       "expected": {
         "ok": true,
@@ -195,11 +191,96 @@
       }
     },
     {
+      "id": "offline.scope.language.window-on-a-context-scope.001",
+      "title": "A WINDOW declared alongside a currentUser scope reaches the resolved model",
+      "specRef": "language#offline-dataset-scope",
+      "operation": "resolveModel",
+      "modelRef": "composedOfflineBounds",
+      "input": {
+        "select": [
+          "objects.0.sync.scope",
+          "objects.0.sync.window.field",
+          "objects.0.sync.window.days",
+          "objects.0.sync.window.limit"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.sync.scope": "currentUser",
+          "objects.0.sync.window.field": "ShiftDate",
+          "objects.0.sync.window.days": 90,
+          "objects.0.sync.window.limit": 50
+        }
+      }
+    },
+    {
+      "id": "offline.scope.language.predicate-on-a-context-scope.001",
+      "title": "A WHERE predicate declared alongside a currentContext scope reaches the resolved model",
+      "specRef": "language#offline-dataset-scope",
+      "operation": "resolveModel",
+      "modelRef": "composedOfflineBounds",
+      "input": {
+        "select": [
+          "objects.1.sync.scope",
+          "objects.1.sync.predicate.operator",
+          "objects.1.sync.predicate.left.field",
+          "objects.1.sync.predicate.right.value"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.1.sync.scope": "currentContext",
+          "objects.1.sync.predicate.operator": "==",
+          "objects.1.sync.predicate.left.field": "Status",
+          "objects.1.sync.predicate.right.value": "open"
+        }
+      }
+    },
+    {
+      "id": "offline.scope.language.window-and-predicate-together.001",
+      "title": "A window and a predicate declared on the same scope both reach the resolved model",
+      "specRef": "language#offline-dataset-scope",
+      "operation": "resolveModel",
+      "modelRef": "composedOfflineBounds",
+      "input": {
+        "select": [
+          "objects.2.sync.scope",
+          "objects.2.sync.window.field",
+          "objects.2.sync.window.days",
+          "objects.2.sync.predicate.left.field",
+          "objects.2.sync.predicate.right.value"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.2.sync.scope": "currentUser",
+          "objects.2.sync.window.field": "IssuedOn",
+          "objects.2.sync.window.days": 30,
+          "objects.2.sync.predicate.left.field": "Status",
+          "objects.2.sync.predicate.right.value": "open"
+        }
+      }
+    },
+    {
       "id": "offline.scope.validation.declared-scopes-are-clean.001",
       "title": "Every declared offline scope in the corpus model validates clean",
       "specRef": "resolved-model#validation",
       "operation": "validateModel",
       "modelRef": "declaredOfflineScopes",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "offline.scope.validation.bounds-compose-with-any-scope.001",
+      "title": "A window and a predicate declared alongside a context scope validate clean",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "composedOfflineBounds",
       "expected": {
         "ok": true,
         "result": []
@@ -223,50 +304,6 @@
             "severity": "error",
             "code": "ADL_SYNC_PREDICATE_MISSING",
             "path": "sync[0].scope"
-          }
-        ]
-      }
-    },
-    {
-      "id": "offline.scope.validation.window-scope-invalid.001",
-      "title": "A sync window declared on a scope that does not select by one is refused",
-      "specRef": "resolved-model#validation",
-      "operation": "validateModel",
-      "modelRef": "windowOnScopeThatIgnoresIt",
-      "expected": {
-        "ok": true,
-        "result": [
-          {
-            "severity": "error",
-            "code": "ADL_OBJECT_SYNC_WINDOW_SCOPE_INVALID",
-            "path": "objects[0].sync.window"
-          },
-          {
-            "severity": "error",
-            "code": "ADL_SYNC_WINDOW_SCOPE_INVALID",
-            "path": "sync[0].window"
-          }
-        ]
-      }
-    },
-    {
-      "id": "offline.scope.validation.predicate-scope-invalid.001",
-      "title": "A sync predicate declared on a scope that does not select by one is refused",
-      "specRef": "resolved-model#validation",
-      "operation": "validateModel",
-      "modelRef": "predicateOnScopeThatIgnoresIt",
-      "expected": {
-        "ok": true,
-        "result": [
-          {
-            "severity": "error",
-            "code": "ADL_OBJECT_SYNC_PREDICATE_SCOPE_INVALID",
-            "path": "objects[0].sync.predicate"
-          },
-          {
-            "severity": "error",
-            "code": "ADL_SYNC_PREDICATE_SCOPE_INVALID",
-            "path": "sync[0].predicate"
           }
         ]
       }

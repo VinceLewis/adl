@@ -37,6 +37,20 @@ Read this before changing object sync modes, runtime write gating, sync queue be
   state which half each of its parts belongs to. See
   [[offline-dataset-runtime]] and [[read-model-runtime]].
 
+## Key decisions from Phase 64
+
+- The two halves above are not just separable, they are **independently
+  declarable**. A `SCOPE` selects context only; a `WINDOW` and a `WHERE` are
+  bounds that may accompany any scope and each other. `recent` and `custom`
+  remain as spellings that imply a bound, and are otherwise ordinary scopes.
+- The runtime enforces the bound on **presence**, not on the scope value. When
+  adding anything that reads `sync.window` or `sync.predicate`, do not reintroduce
+  a `switch (sync.scope)`: it is what made "my records, recent" unsayable for two
+  phases.
+- A `LIMIT` is the one bound that ranks records against each other, so it applies
+  only within the object's own declared scope. See [[offline-dataset-runtime]] for
+  why that is not a hole in the Phase 63 rule.
+
 ## Practical guidance
 
 - Keep future production sync, remote replay, and persisted sync queues as runtime services or dedicated persistence concerns. Do not add sync protocol state to `ObjectStorageBackend` unless it is pure record metadata.

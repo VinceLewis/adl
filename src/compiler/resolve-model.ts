@@ -667,6 +667,11 @@ function resolveSyncWindow(
     };
   }
 
+  // A window may accompany any scope, so this is not "the scope that has a
+  // window" — it is the one scope that *implies* one. `recent` is retained as a
+  // spelling for available-contexts plus a default 30-day window over
+  // `_updatedAt`, which is what a bare `SCOPE recent` has always meant. Every
+  // other scope bounds nothing unless the model says so.
   return scope === "recent" ? { field: "_updatedAt", days: 30 } : undefined;
 }
 

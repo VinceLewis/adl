@@ -151,9 +151,9 @@ Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, 
 - `implementation/expression-language.md`
 
 Before tasks that change an object's declared sync scope, the `SYNC ... WINDOW`
-or `SYNC ... WHERE` clauses, what a `recent` window or a `custom` predicate
-selects, or anything that would let a model declare an offline scope the runtime
-does not honour, also read:
+or `SYNC ... WHERE` clauses, what a declared window, limit or predicate selects,
+how a bound composes with a scope, or anything that would let a model declare an
+offline scope the runtime does not honour, also read:
 
 - `implementation/offline-dataset-runtime.md`
 - `implementation/sync-policy.md`
@@ -278,7 +278,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/context-ui-navigation.md`: read before changing context selectors, view navigation, context-aware dashboard rendering, or browser UI calls for context-scoped objects.
 - `implementation/read-model-runtime.md`: read before changing read-model execution, read-model-backed dashboards, read-model source scopes, or offline dataset work that depends on read-model inputs — it carries the Phase 63 rule that a source scope widens an object's context but never its declared offline bound.
 - `implementation/computed-fields-and-read-model-expressions.md`: read before changing computed fields, read shaping, write validation, read-model projection expressions, or conformance coverage for derived values.
-- `implementation/offline-dataset-runtime.md`: read before changing context-aware offline dataset selection, dataset-limited local reads, the `SYNC ... WINDOW` / `SYNC ... WHERE` clauses, or future remote sync planning — it carries the Phase 62 rule that no offline scope may be declarable in a form the runtime ignores, and the finding that `recent` and `custom` replace context scoping rather than narrowing it.
+- `implementation/offline-dataset-runtime.md`: read before changing context-aware offline dataset selection, dataset-limited local reads, the `SYNC ... WINDOW` / `SYNC ... WHERE` clauses, or future remote sync planning — it carries the Phase 62 rule that no offline scope may be declarable in a form the runtime ignores, and the Phase 64 rule that a scope selects a context while a window and a predicate are independent bounds that may accompany any scope, enforced by presence rather than by the scope value.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification.
 - `implementation/policy-engine.md`: read before changing policy evaluation, policy conditions, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output.
 - `implementation/expression-language.md`: read before changing `ResolvedExpression`, expression evaluation, parser expression syntax, policy conditions, predicate validators, command preconditions, computed fields, decision tables, lifecycle guards, or read-model expressions.

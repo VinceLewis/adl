@@ -76,15 +76,28 @@ describe("band reference app model", () => {
       }),
     );
     expect(syncByObject.get("User")).toMatchObject({ mode: "localFirst", scope: "currentUser" });
-    // Phase 62: the event history is the one part of this model that grows
-    // without bound, so it is the one part that declares how much of itself a
+    // The event history grows without bound, so it declares how much of itself a
     // device keeps. The window is authored in `domain.adl`, not defaulted —
     // before Phase 62 a `.adl` file could not say this at all, and `recent`
     // meant a hard-coded 30 days over `_updatedAt`.
+    //
+    // Phase 64 returned the *context* half to `currentContext`. Phase 62 had
+    // widened it to `recent` for one reason only: a window was refused on any
+    // other scope, so the bound could be had only by paying for it in context.
+    // Nothing about this model ever wanted every available band's events held by
+    // the object's own scope, and `HomeUpcomingEvents` already asks for the
+    // cross-band ones by the route that means it.
     expect(syncByObject.get("Event")).toMatchObject({
       mode: "localFirst",
-      scope: "recent",
+      scope: "currentContext",
       window: { field: "Date", days: 90, limit: 200 },
+    });
+    // The object that actually needed a bound and could not have one: one record
+    // per user per date, growing for as long as the user keeps using the app.
+    expect(syncByObject.get("Availability")).toMatchObject({
+      mode: "localFirst",
+      scope: "currentUser",
+      window: { field: "Date", days: 90, limit: 400 },
     });
     expect(syncByObject.get("Band")).toMatchObject({
       mode: "localFirst",
@@ -521,7 +534,7 @@ describe("band reference app runtime", () => {
       eventRecords.find((record) => record.recordId === seeded.firstEvent.meta.guid)?.reasons,
     ).toEqual(
       expect.arrayContaining([
-        { kind: "objectSync", mode: "localFirst", scope: "recent" },
+        { kind: "objectSync", mode: "localFirst", scope: "currentContext" },
         {
           kind: "readModelSource",
           readModel: "HomeUpcomingEvents",
@@ -534,6 +547,23 @@ describe("band reference app runtime", () => {
         },
       ]),
     );
+    // Phase 64. `Event` is back to `SCOPE currentContext`, so the second band's
+    // event is no longer held by the object's own scope while the first band is
+    // selected — it is here because `HomeUpcomingEvents` declares a cross-band
+    // input, which is the route that actually wants it. Under Phase 62's `recent`
+    // this record carried an `objectSync` reason it had never asked for.
+    expect(
+      eventRecords.find((record) => record.recordId === seeded.secondEvent.meta.guid)?.reasons,
+    ).toEqual([
+      {
+        kind: "readModelSource",
+        readModel: "HomeUpcomingEvents",
+        source: "event",
+        sourceScope: "allAvailableContexts",
+        mode: "localFirst",
+        boundedBy: "window",
+      },
+    ]);
     expect(invitationRecords).toEqual([]);
     expect(eventSearch.map((record) => record.meta.guid)).toEqual([
       seeded.firstEvent.meta.guid,
@@ -586,8 +616,10 @@ describe("band reference app runtime", () => {
    * bandmate's `Availability` into the founder's dataset, and
    * `learnings/implementation/offline-dataset-runtime.md` records that run.
    * Phase 63 bounds what a source may widen, so this guards the half it must
-   * not touch: `Availability` declares no window and no predicate, so its
-   * cross-context admission is unchanged.
+   * not touch. Phase 64 gave `Availability` the window it always needed, which
+   * makes this guard sharper rather than weaker: the bandmate's record is inside
+   * that window and its admission is unchanged, and the reason now says it was
+   * bounded.
    */
   it("still admits a bandmate's availability through a cross-context read-model source", async () => {
     const seeded = await createSeededBandReferenceRuntime();
@@ -614,11 +646,52 @@ describe("band reference app runtime", () => {
           readModel: "BandMemberAvailability",
           source: "availability",
           sourceScope: "all",
+          // The bandmate's record is not selected by `Availability`'s own
+          // `currentUser` scope, so this source is its only route; the declared
+          // window still gated it, and the reason says so.
+          boundedBy: "window",
         }),
       ]),
     );
-    // No declared bound on Availability, so nothing to report one.
-    expect(row?.reasons.every((reason) => !("boundedBy" in reason))).toBe(true);
+    expect(row?.reasons.some((reason) => reason.kind === "objectSync")).toBe(false);
+  });
+
+  /**
+   * Phase 64. `Availability` grows by one record per user per date and could not
+   * be bounded before, because a window was refused on `currentUser` and moving
+   * it to `recent` would have widened it from one user's records to every
+   * available band's. The bound and the context scope are now independent.
+   */
+  it("keeps availability outside the declared window off the device by every route", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const ancient = await seeded.runtime.create(
+      "Availability",
+      {
+        User: seeded.musician.meta.guid,
+        Date: "2019-04-02",
+        Status: "Available",
+        Notes: "Seven years outside the declared 90-day window.",
+      },
+      seeded.musicianContext,
+    );
+    const bandmateAncient = await seeded.runtime.create(
+      "Availability",
+      {
+        User: seeded.guest.meta.guid,
+        Date: "2019-04-03",
+        Status: "Available",
+      },
+      { ...seeded.musicianContext, userId: seeded.guest.meta.guid },
+    );
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(seeded.musicianContext);
+    const availability = dataset.records.filter((record) => record.objectName === "Availability");
+
+    expect(availability.map((record) => record.recordId)).not.toContain(ancient.meta.guid);
+    // And the cross-context source does not put the bandmate's back, which is
+    // the Phase 63 rule holding on an object that could not declare a bound then.
+    expect(availability.map((record) => record.recordId)).not.toContain(bandmateAncient.meta.guid);
+    expect(availability.map((record) => record.recordId)).toContain(seeded.availability.meta.guid);
   });
 
   it("requires availability self-service writes to target the runtime user", async () => {

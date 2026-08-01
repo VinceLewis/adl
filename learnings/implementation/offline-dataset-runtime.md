@@ -50,6 +50,11 @@ model, and from no `.adl` file at all.
 
 ### `recent` replaces context scoping rather than narrowing it
 
+> **Superseded by Phase 64.** A bound now composes with any scope, so "my
+> records, recent" is sayable and `Availability` declares it. The finding below
+> is kept because it is what made Phase 64 necessary and it still describes what
+> `recent` and `custom` mean.
+
 Worth knowing before planning any further dataset work: `recent` evaluates as
 `availableContexts && window`, and `custom` as `availableContexts && predicate`.
 Neither composes with `currentUser` or `currentContext` — the scopes are a flat
@@ -120,6 +125,69 @@ what they declared, it is specified in
 everything when executed online. If a future phase needs a dashboard to reach
 past its object's bound, that is a source-level bound declaration and it should
 reuse the Phase 62 `WINDOW` shape rather than reopening this rule.
+
+## Key decisions from Phase 64
+
+Phase 62's own note below — "`recent` replaces context scoping rather than
+narrowing it" — was the unfinished delivery, and this closed it. **A sync scope
+selects a context; a window and a predicate are independent bounds that may
+accompany any scope, and each other.**
+
+- The two scope-pairing refusals are gone, and their four
+  `MODEL_VALIDATION_CODES` entries with them: a code no rule can emit is dead
+  surface. `custom` without a predicate is still refused — that direction of the
+  Phase 62 rule is intact, because `custom` selects by a predicate and nothing
+  else. Window field/type/day/limit validation is unchanged.
+- The runtime gates on a bound's **presence**, not on the scope word.
+  `recordSatisfiesDeclaredBound` checks the window if one is declared and the
+  predicate if one is, and both when both are. `recent` and `custom` are retained
+  as spellings and resolve to exactly the models they did before, including the
+  `objectSync` reason still reporting `scope: "recent"`.
+- `resolveSyncWindow` is now the only place a scope still implies a bound: a bare
+  `SCOPE recent` still derives 30 days over `_updatedAt`. Normalising `recent`
+  away into `allAvailableContexts` plus a window was considered and refused —
+  it would change resolved values, the model fingerprint and every `objectSync`
+  reason for no behavioural gain.
+
+### A limit ranks a selection, so it is the one bound a source is not measured against
+
+The defect the phase predicted, and the shape of it was not the predicted shape.
+`computeRecentLimitRecordIds` picked limit candidates with
+`recordMatchesAvailableObjectContext` regardless of the declared scope — invisible
+while a limit could only accompany `recent`, whose context half is exactly that.
+On a `currentUser` object it would rank one user's records against every other
+user's. Fixed by filtering candidates through `recordMatchesSyncScope`, the same
+matcher that decides the object's `objectSync` reason.
+
+That fix raises a question the phase document did not: what happens to a record
+another route holds, which is therefore not a candidate? Excluding it would have
+been the literal reading of "the bound gates every route", and it is wrong — it
+would have emptied `BandMemberAvailabilityBoard` offline the moment `Availability`
+took a limit, and broken the phase's own acceptance criterion that a cross-context
+source still admits another user's `Availability`. **A limit is evaluated only
+against records the object's own scope selects.** The day span and the predicate
+are per-record and still gate every route; a limit is a ranking, and ranking a
+sourced record against a selection it is not part of would make a bound narrow a
+context, which Phase 63 reserved to nothing at all.
+
+`boundedBy` gained `windowAndPredicate` for the case an object declares both.
+
+### The reference app compromise, resolved both ways
+
+`Availability` took `SCOPE currentUser WINDOW Date 90 DAYS LIMIT 400` — the bound
+it needed and could not have. Its `Date` is a future-dated calendar date and the
+day span only excludes records *older* than the span, so the limit is what bounds
+the direction this object actually grows; the span bounds the history.
+
+`Event` went back to `SCOPE currentContext WINDOW Date 90 DAYS LIMIT 200`.
+Phase 62 had widened it to `recent` for one reason only — a window was refused on
+any other scope — and nothing about the model ever wanted every available band's
+events held by the object's own scope. `HomeUpcomingEvents` declares
+`SOURCE event OBJECT Event SCOPE allAvailableContexts`, so the cross-band events
+are still held, by the route that means it, with `boundedBy: "window"` on the
+reason. This is the general shape worth remembering: when an object's scope was
+widened to buy something unrelated, narrowing it back is safe exactly when a read
+model already asks for the widened set deliberately.
 
 ## A recorded gap that turned out not to exist
 

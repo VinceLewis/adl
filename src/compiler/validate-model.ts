@@ -280,14 +280,12 @@ export const MODEL_VALIDATION_CODES = {
   OBJECT_SYNC_PREDICATE_MISSING: "ADL_OBJECT_SYNC_PREDICATE_MISSING",
   OBJECT_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID:
     "ADL_OBJECT_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID",
-  OBJECT_SYNC_PREDICATE_SCOPE_INVALID: "ADL_OBJECT_SYNC_PREDICATE_SCOPE_INVALID",
   OBJECT_SYNC_PREDICATE_TYPE: "ADL_OBJECT_SYNC_PREDICATE_TYPE",
   OBJECT_SYNC_SCOPE_INVALID: "ADL_OBJECT_SYNC_SCOPE_INVALID",
   OBJECT_SYNC_WINDOW_DAYS_INVALID: "ADL_OBJECT_SYNC_WINDOW_DAYS_INVALID",
   OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL: "ADL_OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL",
   OBJECT_SYNC_WINDOW_FIELD_UNKNOWN: "ADL_OBJECT_SYNC_WINDOW_FIELD_UNKNOWN",
   OBJECT_SYNC_WINDOW_LIMIT_INVALID: "ADL_OBJECT_SYNC_WINDOW_LIMIT_INVALID",
-  OBJECT_SYNC_WINDOW_SCOPE_INVALID: "ADL_OBJECT_SYNC_WINDOW_SCOPE_INVALID",
   POLICY_ACTION_INVALID: "ADL_POLICY_ACTION_INVALID",
   POLICY_DEFAULT_EFFECT_INVALID: "ADL_POLICY_DEFAULT_EFFECT_INVALID",
   POLICY_DUPLICATE: "ADL_POLICY_DUPLICATE",
@@ -447,14 +445,12 @@ export const MODEL_VALIDATION_CODES = {
   SYNC_PREDICATE_INVALID: "ADL_SYNC_PREDICATE_INVALID",
   SYNC_PREDICATE_MISSING: "ADL_SYNC_PREDICATE_MISSING",
   SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID: "ADL_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID",
-  SYNC_PREDICATE_SCOPE_INVALID: "ADL_SYNC_PREDICATE_SCOPE_INVALID",
   SYNC_PREDICATE_TYPE: "ADL_SYNC_PREDICATE_TYPE",
   SYNC_SCOPE_INVALID: "ADL_SYNC_SCOPE_INVALID",
   SYNC_WINDOW_DAYS_INVALID: "ADL_SYNC_WINDOW_DAYS_INVALID",
   SYNC_WINDOW_FIELD_NOT_TEMPORAL: "ADL_SYNC_WINDOW_FIELD_NOT_TEMPORAL",
   SYNC_WINDOW_FIELD_UNKNOWN: "ADL_SYNC_WINDOW_FIELD_UNKNOWN",
   SYNC_WINDOW_LIMIT_INVALID: "ADL_SYNC_WINDOW_LIMIT_INVALID",
-  SYNC_WINDOW_SCOPE_INVALID: "ADL_SYNC_WINDOW_SCOPE_INVALID",
   THEME_BASE_SELF_REFERENCE: "ADL_THEME_BASE_SELF_REFERENCE",
   THEME_BASE_CYCLE: "ADL_THEME_BASE_CYCLE",
   THEME_BASE_UNKNOWN: "ADL_THEME_BASE_UNKNOWN",
@@ -2692,9 +2688,7 @@ function validateObjectSyncPolicy(
   }
 
   validateSyncScopeSelection(object.sync, object, `${objectPath}.sync`, diagnostics, {
-    windowScope: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_SCOPE_INVALID,
     predicateMissing: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_MISSING,
-    predicateScope: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_SCOPE_INVALID,
     predicateInvalid: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_INVALID,
     predicateField: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_FIELD_UNKNOWN,
     predicateRuntime: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID,
@@ -7522,9 +7516,7 @@ function validateSyncPolicy(
   }
 
   validateSyncScopeSelection(sync, object, syncPath, diagnostics, {
-    windowScope: MODEL_VALIDATION_CODES.SYNC_WINDOW_SCOPE_INVALID,
     predicateMissing: MODEL_VALIDATION_CODES.SYNC_PREDICATE_MISSING,
-    predicateScope: MODEL_VALIDATION_CODES.SYNC_PREDICATE_SCOPE_INVALID,
     predicateInvalid: MODEL_VALIDATION_CODES.SYNC_PREDICATE_INVALID,
     predicateField: MODEL_VALIDATION_CODES.SYNC_PREDICATE_FIELD_UNKNOWN,
     predicateRuntime: MODEL_VALIDATION_CODES.SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID,
@@ -7533,11 +7525,17 @@ function validateSyncPolicy(
 }
 
 /**
- * A declared offline scope has to be one the runtime can honour. `custom`
- * selects by a declared predicate and by nothing else, so declaring it without
- * one is refused here rather than silently selecting no records on every
- * device; and a `WINDOW` is only consulted by `recent`, so declaring one
- * anywhere else is refused rather than silently ignored.
+ * A sync scope selects *which context* an object is held for. A window and a
+ * predicate are independent bounds saying *how much* of it a device keeps, and
+ * either may accompany any scope: `SCOPE currentUser WINDOW Date 90 DAYS` is a
+ * legal and useful thing to say. Phase 62 tied each bound to the one scope that
+ * consulted it, which made "my records, recent" unsayable; Phase 64 untied them
+ * and the runtime now gates on a bound's presence rather than on the scope word.
+ *
+ * What survives is the other direction of the same rule — a declared scope must
+ * be one the runtime can honour. `custom` selects by a declared predicate and by
+ * nothing else, so declaring it without one is still refused here rather than
+ * silently selecting no records on every device.
  */
 function validateSyncScopeSelection(
   sync: ResolvedObjectSyncPolicy,
@@ -7545,25 +7543,13 @@ function validateSyncScopeSelection(
   syncPath: string,
   diagnostics: Diagnostic[],
   codes: {
-    windowScope: ModelValidationCode;
     predicateMissing: ModelValidationCode;
-    predicateScope: ModelValidationCode;
     predicateInvalid: ModelValidationCode;
     predicateField: ModelValidationCode;
     predicateRuntime: ModelValidationCode;
     predicateType: ModelValidationCode;
   },
 ): void {
-  if (sync.window !== undefined && sync.scope !== "recent") {
-    diagnostics.push(
-      diagnostic(
-        codes.windowScope,
-        `Object '${object.name}' declares a sync window with scope '${String(sync.scope)}'; only scope 'recent' selects records by a window.`,
-        `${syncPath}.window`,
-      ),
-    );
-  }
-
   if (sync.scope === "custom" && sync.predicate === undefined) {
     diagnostics.push(
       diagnostic(
@@ -7576,16 +7562,6 @@ function validateSyncScopeSelection(
 
   if (sync.predicate === undefined) {
     return;
-  }
-
-  if (sync.scope !== "custom") {
-    diagnostics.push(
-      diagnostic(
-        codes.predicateScope,
-        `Object '${object.name}' declares a sync predicate with scope '${String(sync.scope)}'; only scope 'custom' selects records by a predicate.`,
-        `${syncPath}.predicate`,
-      ),
-    );
   }
 
   const predicateType = validateExpression(
