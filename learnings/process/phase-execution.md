@@ -28,11 +28,20 @@ Phases 44, 45 and the original Phase 46 were each planned as "the next demonstra
 
 From Phase 46 onward, a next-phase handoff must justify its phase as the highest-value remaining gap **repository-wide**, not merely the next gap in the subsystem the current phase touched. If a higher-value gap exists elsewhere, say so and re-sequence. Phase numbers must continue to equal execution order, so re-sequencing means renumbering the affected documents.
 
-## The Rolling Handoff Was Paused After Phase 63
+## The Rolling Handoff Stopped At Phase 63
 
-**Do not write `docs/phases/phase-64-*.md` without being asked.** Phase 63's task
-7 requires a next-phase handoff; it was deliberately not done, on the user's
-explicit instruction, and that is a decision rather than an omission.
+**Phase 64 is the last planned phase. Do not write a Phase 65.**
+
+Phase 63's task 7 required a next-phase handoff and it was deliberately not
+written, on the user's explicit instruction. Phase 64
+(`docs/phases/phase-64-composable-offline-scope.md`) was then seeded separately,
+by request, as a **terminal** phase: it finishes the offline-scoping work Phase
+62 began and carries no handoff of its own. It is ready to execute.
+
+After Phase 64 lands, the repository stops. The next phase, if there is one,
+comes from the user after they have used the system, scoped the next
+application, and named concrete features or defects. It is not to be derived
+from the code.
 
 The reason, recorded so it is not re-litigated from scratch. The brief's own plan
 (`ADL_Codex_Implementation_Brief_v2.md` §17) defines Phases 0–11, and §18's MVP
