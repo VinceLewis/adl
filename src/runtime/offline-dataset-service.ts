@@ -9,6 +9,7 @@ import type {
   StoredObjectRecord,
 } from "../model/resolved-model.js";
 import { contextWithoutSelectedBusinessContext, getSelectedContextId } from "./context-scope.js";
+import { evaluateExpressionAsBoolean } from "./expression-evaluator.js";
 import type { RuntimeContextService } from "./context-service.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import type { ObjectStorageBackend } from "./object-storage-backend.js";
@@ -285,8 +286,51 @@ export class OfflineDatasetService {
           this.recordMatchesRecentWindow(object, record, state)
         );
       case "custom":
-        return false;
+        return (
+          this.recordMatchesAvailableObjectContext(object, record, state) &&
+          this.recordMatchesCustomPredicate(object, record, state)
+        );
     }
+  }
+
+  /**
+   * A `custom` scope selects by its declared predicate and by nothing else.
+   * Validation refuses the scope without one, so an undefined predicate here
+   * means the model reached the runtime unvalidated; that selects nothing
+   * rather than everything, because a dataset is what leaves the authority's
+   * reach and over-inclusion is the worse failure.
+   */
+  private recordMatchesCustomPredicate(
+    object: ResolvedObject,
+    record: StoredObjectRecord,
+    state: DatasetEvaluationState,
+  ): boolean {
+    const predicate = object.sync.predicate;
+    if (predicate === undefined) {
+      this.logger.debug("OfflineDatasetService custom sync scope has no predicate", {
+        object: object.name,
+      });
+      return false;
+    }
+
+    const result = evaluateExpressionAsBoolean(predicate, {
+      values: record.values,
+      context: state.context,
+    });
+
+    if (!result.ok) {
+      // An expression that cannot be evaluated against this record excludes it,
+      // the same way an unparseable window date does. It is a record-level
+      // outcome, not a model-level one, so it must not fail the whole dataset.
+      this.logger.debug("OfflineDatasetService custom sync predicate did not evaluate", {
+        object: object.name,
+        recordId: record.meta.guid,
+        code: result.error.code,
+      });
+      return false;
+    }
+
+    return result.value.value === true;
   }
 
   private recordMatchesReadModelSource(

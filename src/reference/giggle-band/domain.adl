@@ -102,7 +102,7 @@ OBJECT Event
   FIELD VenueName TEXT
   FIELD VenueLocation TEXT
   FIELD Notes TEXT
-  SYNC LOCAL_FIRST SCOPE currentContext
+  SYNC LOCAL_FIRST SCOPE recent WINDOW Date 90 DAYS LIMIT 200
 
   VIEW BandEventList LIST
     CONTEXT REQUIRED Band
@@ -238,11 +238,10 @@ OBJECT DevicePreference
   FIELD User TEXT REQUIRED LOOKUP User DISPLAY Name
   FIELD SelectedBand TEXT LOOKUP Band DISPLAY Name
   FIELD LastOpenedView TEXT
-  FIELD OfflineHomeLimit NUMBER DEFAULT 30 MIN 1
   SYNC LOCAL_PRIVATE SCOPE currentUser
 
   VIEW DevicePreferenceList LIST
-    FIELDS SelectedBand LastOpenedView OfflineHomeLimit
+    FIELDS SelectedBand LastOpenedView
     SEARCH LastOpenedView
     ACTIONS create read update delete
   END.VIEW

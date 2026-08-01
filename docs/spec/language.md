@@ -64,11 +64,12 @@ END.APP
   required. It defaults to `30 DAYS`. The unit word is required, so a bare
   number can never be read as the wrong unit if another unit is added later.
 
-`OFFLINE_GRACE` is a **sync-policy** declaration, not an identity one. ADL
-already models sync mode, conflict policy and offline dataset windows, and this
-belongs in that family; it never declares how a credential is verified, which
-remains deployment configuration. Three properties follow from that and are part
-of the language contract:
+`OFFLINE_GRACE` is a **sync-policy** declaration, not an identity one. ADL models
+sync mode, conflict policy and offline dataset scope in the same family — see
+[Offline Dataset Scope](#offline-dataset-scope) — and this belongs with them; it
+never declares how a credential is verified, which remains deployment
+configuration. Three properties follow from that and are part of the language
+contract:
 
 - It gates **sync only**. Local reads and local-first writes work offline
   indefinitely, inside the grace and outside it.
@@ -119,6 +120,59 @@ and sync checks as an authored one — a sibling the caller may not write fails 
 whole transaction rather than moving silently. Because more than one write is
 involved, a model that opts into either mode requires a storage backend that
 supports transactions; a backend that does not refuses before anything persists.
+
+## Offline Dataset Scope
+
+An object's `SYNC` declaration says how its records reach the authority and which
+of them a device keeps offline:
+
+```adl
+SYNC LOCAL_FIRST SCOPE currentContext
+SYNC LOCAL_FIRST SCOPE recent WINDOW Date 90 DAYS LIMIT 200
+SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId
+SYNC ONLINE_REQUIRED SCOPE currentContext CONFLICT serverWins
+```
+
+`MODE` may be written before the mode word for readability. The mode is one of
+`LOCAL_FIRST`, `CACHE_READONLY`, `ONLINE_REQUIRED` and `LOCAL_PRIVATE`; it
+decides writes and delivery, not dataset membership, and is specified under
+[Sync Modes](runtime-semantics.md#sync-modes). `CONFLICT` names the conflict
+strategy. Everything else on the line decides what a device holds.
+
+`SCOPE` is one of `all`, `currentUser`, `assignedToUser`, `ownedByUser`,
+`currentContext`, `allAvailableContexts`, `recent` and `custom`. It defaults to
+`all`. What each one selects is specified under
+[Offline Datasets](runtime-semantics.md#offline-datasets).
+
+`WINDOW` bounds how much of a `recent` scope a device keeps:
+
+```text
+WINDOW [<field>] [<days> DAYS] [LIMIT <count>]
+```
+
+Each part is optional and the order is fixed, but a `WINDOW` with no parts at all
+is a parse error rather than a no-op. The field names a date or datetime field
+and defaults to `_updatedAt`. The unit word after the day count is required, as
+it is for `OFFLINE_GRACE`, so a bare number can never be read as the wrong unit
+if another unit is ever added. `LIMIT` keeps that many records, newest first,
+from among those already inside the day span.
+
+A window is only consulted by `SCOPE recent`. Declaring one on any other scope is
+a validation error, not a silently ignored clause. `SCOPE recent` with no window
+resolves to 30 days over `_updatedAt`, which is what a model that declares no
+window has always meant.
+
+`WHERE` gives `SCOPE custom` the predicate it selects by:
+
+```adl
+SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId
+```
+
+It is an ordinary [expression](#expressions) over the object's own fields and
+`RUNTIME.userId` / `RUNTIME.now`, not a second dialect, and it must resolve to
+boolean. `SCOPE custom` without a predicate is a validation error, and a
+predicate on any other scope is too: a declared scope must be one the runtime can
+honour, so neither half may be declared without the other.
 
 ## Context Grants
 

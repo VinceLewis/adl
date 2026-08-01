@@ -845,11 +845,21 @@ export type ThemeTokenName =
   | "fontFamily"
   | "logoUrl";
 
+export interface SyncWindowDeclarationAst {
+  kind: "SyncWindowDeclaration";
+  field?: string;
+  days?: number;
+  limit?: number;
+  range: SourceRange;
+}
+
 export interface SyncDeclarationAst {
   kind: "SyncDeclaration";
   object?: string;
   mode: SyncMode;
   scope?: SyncScope;
+  window?: SyncWindowDeclarationAst;
+  predicate?: ResolvedExpression;
   conflict?: ConflictStrategy;
   range: SourceRange;
 }

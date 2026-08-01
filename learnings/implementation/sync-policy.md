@@ -14,6 +14,19 @@ Read this before changing object sync modes, runtime write gating, sync queue be
 - `onlineRequired` blocks local writes only when `RuntimeContext.online === false`. Phase 53 settled what an allowed one then does: it is queued and delivered, with the failure to deliver made visible.
 - Browser UI presentation uses `runtime.syncPolicy` to mark fields readonly, hide blocked write actions, and display compact sync state labels.
 
+## Key decisions from Phase 62
+
+- Sync **mode** and sync **scope** answer different questions and are enforced in
+  different places. Mode decides whether a write is allowed and whether it is
+  delivered; `SyncPolicyService` is its gate. Scope decides only which records a
+  device keeps offline; `OfflineDatasetService` is its only consumer. Nothing
+  outside those two services and the compiler reads `sync.scope`, which is why
+  changing the reference app's `Event` scope in Phase 62 could not affect policy,
+  reads or rendering.
+- Scope is now fully declarable from ADL source, including the `recent` window
+  and the `custom` predicate, and no scope may be declared in a form the runtime
+  ignores. See [[offline-dataset-runtime]] and [[adl-parser]].
+
 ## Practical guidance
 
 - Keep future production sync, remote replay, and persisted sync queues as runtime services or dedicated persistence concerns. Do not add sync protocol state to `ObjectStorageBackend` unless it is pure record metadata.

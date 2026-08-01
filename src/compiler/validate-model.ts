@@ -96,6 +96,7 @@ import type {
   ResolvedShellControl,
   ResolvedShellNavItem,
   ResolvedShellVisibility,
+  ResolvedObjectSyncPolicy,
   ResolvedSyncPolicy,
   ResolvedSyncWindow,
   ResolvedTheme,
@@ -274,11 +275,19 @@ export const MODEL_VALIDATION_CODES = {
   OBJECT_SCOPE_FIELD_UNKNOWN: "ADL_OBJECT_SCOPE_FIELD_UNKNOWN",
   OBJECT_SYNC_CONFLICT_INVALID: "ADL_OBJECT_SYNC_CONFLICT_INVALID",
   OBJECT_SYNC_MODE_INVALID: "ADL_OBJECT_SYNC_MODE_INVALID",
+  OBJECT_SYNC_PREDICATE_FIELD_UNKNOWN: "ADL_OBJECT_SYNC_PREDICATE_FIELD_UNKNOWN",
+  OBJECT_SYNC_PREDICATE_INVALID: "ADL_OBJECT_SYNC_PREDICATE_INVALID",
+  OBJECT_SYNC_PREDICATE_MISSING: "ADL_OBJECT_SYNC_PREDICATE_MISSING",
+  OBJECT_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID:
+    "ADL_OBJECT_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID",
+  OBJECT_SYNC_PREDICATE_SCOPE_INVALID: "ADL_OBJECT_SYNC_PREDICATE_SCOPE_INVALID",
+  OBJECT_SYNC_PREDICATE_TYPE: "ADL_OBJECT_SYNC_PREDICATE_TYPE",
   OBJECT_SYNC_SCOPE_INVALID: "ADL_OBJECT_SYNC_SCOPE_INVALID",
   OBJECT_SYNC_WINDOW_DAYS_INVALID: "ADL_OBJECT_SYNC_WINDOW_DAYS_INVALID",
   OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL: "ADL_OBJECT_SYNC_WINDOW_FIELD_NOT_TEMPORAL",
   OBJECT_SYNC_WINDOW_FIELD_UNKNOWN: "ADL_OBJECT_SYNC_WINDOW_FIELD_UNKNOWN",
   OBJECT_SYNC_WINDOW_LIMIT_INVALID: "ADL_OBJECT_SYNC_WINDOW_LIMIT_INVALID",
+  OBJECT_SYNC_WINDOW_SCOPE_INVALID: "ADL_OBJECT_SYNC_WINDOW_SCOPE_INVALID",
   POLICY_ACTION_INVALID: "ADL_POLICY_ACTION_INVALID",
   POLICY_DEFAULT_EFFECT_INVALID: "ADL_POLICY_DEFAULT_EFFECT_INVALID",
   POLICY_DUPLICATE: "ADL_POLICY_DUPLICATE",
@@ -434,11 +443,18 @@ export const MODEL_VALIDATION_CODES = {
   SYNC_CONFLICT_INVALID: "ADL_SYNC_CONFLICT_INVALID",
   SYNC_MODE_INVALID: "ADL_SYNC_MODE_INVALID",
   SYNC_OBJECT_UNKNOWN: "ADL_SYNC_OBJECT_UNKNOWN",
+  SYNC_PREDICATE_FIELD_UNKNOWN: "ADL_SYNC_PREDICATE_FIELD_UNKNOWN",
+  SYNC_PREDICATE_INVALID: "ADL_SYNC_PREDICATE_INVALID",
+  SYNC_PREDICATE_MISSING: "ADL_SYNC_PREDICATE_MISSING",
+  SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID: "ADL_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID",
+  SYNC_PREDICATE_SCOPE_INVALID: "ADL_SYNC_PREDICATE_SCOPE_INVALID",
+  SYNC_PREDICATE_TYPE: "ADL_SYNC_PREDICATE_TYPE",
   SYNC_SCOPE_INVALID: "ADL_SYNC_SCOPE_INVALID",
   SYNC_WINDOW_DAYS_INVALID: "ADL_SYNC_WINDOW_DAYS_INVALID",
   SYNC_WINDOW_FIELD_NOT_TEMPORAL: "ADL_SYNC_WINDOW_FIELD_NOT_TEMPORAL",
   SYNC_WINDOW_FIELD_UNKNOWN: "ADL_SYNC_WINDOW_FIELD_UNKNOWN",
   SYNC_WINDOW_LIMIT_INVALID: "ADL_SYNC_WINDOW_LIMIT_INVALID",
+  SYNC_WINDOW_SCOPE_INVALID: "ADL_SYNC_WINDOW_SCOPE_INVALID",
   THEME_BASE_SELF_REFERENCE: "ADL_THEME_BASE_SELF_REFERENCE",
   THEME_BASE_CYCLE: "ADL_THEME_BASE_CYCLE",
   THEME_BASE_UNKNOWN: "ADL_THEME_BASE_UNKNOWN",
@@ -2674,6 +2690,16 @@ function validateObjectSyncPolicy(
       limit: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_LIMIT_INVALID,
     });
   }
+
+  validateSyncScopeSelection(object.sync, object, `${objectPath}.sync`, diagnostics, {
+    windowScope: MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_SCOPE_INVALID,
+    predicateMissing: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_MISSING,
+    predicateScope: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_SCOPE_INVALID,
+    predicateInvalid: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_INVALID,
+    predicateField: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_FIELD_UNKNOWN,
+    predicateRuntime: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID,
+    predicateType: MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_TYPE,
+  });
 }
 
 function validatePolicy(
@@ -7482,13 +7508,107 @@ function validateSyncPolicy(
   }
 
   const object = indexes.objectsByName.get(sync.object)?.item;
-  if (sync.window !== undefined && object !== undefined) {
+  if (object === undefined) {
+    return;
+  }
+
+  if (sync.window !== undefined) {
     validateSyncWindow(sync.window, object, `${syncPath}.window`, diagnostics, {
       field: MODEL_VALIDATION_CODES.SYNC_WINDOW_FIELD_UNKNOWN,
       fieldType: MODEL_VALIDATION_CODES.SYNC_WINDOW_FIELD_NOT_TEMPORAL,
       days: MODEL_VALIDATION_CODES.SYNC_WINDOW_DAYS_INVALID,
       limit: MODEL_VALIDATION_CODES.SYNC_WINDOW_LIMIT_INVALID,
     });
+  }
+
+  validateSyncScopeSelection(sync, object, syncPath, diagnostics, {
+    windowScope: MODEL_VALIDATION_CODES.SYNC_WINDOW_SCOPE_INVALID,
+    predicateMissing: MODEL_VALIDATION_CODES.SYNC_PREDICATE_MISSING,
+    predicateScope: MODEL_VALIDATION_CODES.SYNC_PREDICATE_SCOPE_INVALID,
+    predicateInvalid: MODEL_VALIDATION_CODES.SYNC_PREDICATE_INVALID,
+    predicateField: MODEL_VALIDATION_CODES.SYNC_PREDICATE_FIELD_UNKNOWN,
+    predicateRuntime: MODEL_VALIDATION_CODES.SYNC_PREDICATE_RUNTIME_PROPERTY_INVALID,
+    predicateType: MODEL_VALIDATION_CODES.SYNC_PREDICATE_TYPE,
+  });
+}
+
+/**
+ * A declared offline scope has to be one the runtime can honour. `custom`
+ * selects by a declared predicate and by nothing else, so declaring it without
+ * one is refused here rather than silently selecting no records on every
+ * device; and a `WINDOW` is only consulted by `recent`, so declaring one
+ * anywhere else is refused rather than silently ignored.
+ */
+function validateSyncScopeSelection(
+  sync: ResolvedObjectSyncPolicy,
+  object: ResolvedObject,
+  syncPath: string,
+  diagnostics: Diagnostic[],
+  codes: {
+    windowScope: ModelValidationCode;
+    predicateMissing: ModelValidationCode;
+    predicateScope: ModelValidationCode;
+    predicateInvalid: ModelValidationCode;
+    predicateField: ModelValidationCode;
+    predicateRuntime: ModelValidationCode;
+    predicateType: ModelValidationCode;
+  },
+): void {
+  if (sync.window !== undefined && sync.scope !== "recent") {
+    diagnostics.push(
+      diagnostic(
+        codes.windowScope,
+        `Object '${object.name}' declares a sync window with scope '${String(sync.scope)}'; only scope 'recent' selects records by a window.`,
+        `${syncPath}.window`,
+      ),
+    );
+  }
+
+  if (sync.scope === "custom" && sync.predicate === undefined) {
+    diagnostics.push(
+      diagnostic(
+        codes.predicateMissing,
+        `Object '${object.name}' declares sync scope 'custom' without a predicate; declare 'SCOPE custom WHERE <expression>', or use scope 'currentUser', 'currentContext', 'allAvailableContexts', 'recent' or 'all'.`,
+        `${syncPath}.scope`,
+      ),
+    );
+  }
+
+  if (sync.predicate === undefined) {
+    return;
+  }
+
+  if (sync.scope !== "custom") {
+    diagnostics.push(
+      diagnostic(
+        codes.predicateScope,
+        `Object '${object.name}' declares a sync predicate with scope '${String(sync.scope)}'; only scope 'custom' selects records by a predicate.`,
+        `${syncPath}.predicate`,
+      ),
+    );
+  }
+
+  const predicateType = validateExpression(
+    sync.predicate,
+    `${syncPath}.predicate`,
+    indexByName(object.fields),
+    {
+      invalid: codes.predicateInvalid,
+      field: codes.predicateField,
+      runtime: codes.predicateRuntime,
+      type: codes.predicateType,
+    },
+    diagnostics,
+  );
+
+  if (predicateType !== "boolean" && predicateType !== "unknown") {
+    diagnostics.push(
+      diagnostic(
+        codes.predicateType,
+        `Object '${object.name}' sync predicate must resolve to boolean, not ${predicateType}.`,
+        `${syncPath}.predicate`,
+      ),
+    );
   }
 }
 

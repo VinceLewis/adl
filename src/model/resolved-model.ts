@@ -1320,6 +1320,14 @@ export interface ResolvedSyncPolicy {
   mode: SyncMode;
   scope: SyncScope;
   window?: ResolvedSyncWindow;
+  /**
+   * The record predicate a `custom` sync scope selects by. It is an ordinary
+   * `ResolvedExpression` evaluated against the record's own values and the
+   * runtime context, not a second expression dialect. Only `custom` carries
+   * one, and `custom` may not be declared without one: a scope the runtime
+   * cannot honour is refused at validation rather than left to select nothing.
+   */
+  predicate?: ResolvedExpression;
   conflict: ConflictStrategy;
 }
 
@@ -2309,6 +2317,7 @@ export interface PartialSyncPolicyModel {
   mode?: SyncMode;
   scope?: SyncScope;
   window?: PartialSyncWindowModel;
+  predicate?: ResolvedExpression;
   conflict?: ConflictStrategy;
 }
 

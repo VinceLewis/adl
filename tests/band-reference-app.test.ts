@@ -76,9 +76,15 @@ describe("band reference app model", () => {
       }),
     );
     expect(syncByObject.get("User")).toMatchObject({ mode: "localFirst", scope: "currentUser" });
+    // Phase 62: the event history is the one part of this model that grows
+    // without bound, so it is the one part that declares how much of itself a
+    // device keeps. The window is authored in `domain.adl`, not defaulted —
+    // before Phase 62 a `.adl` file could not say this at all, and `recent`
+    // meant a hard-coded 30 days over `_updatedAt`.
     expect(syncByObject.get("Event")).toMatchObject({
       mode: "localFirst",
-      scope: "currentContext",
+      scope: "recent",
+      window: { field: "Date", days: 90, limit: 200 },
     });
     expect(syncByObject.get("Band")).toMatchObject({
       mode: "localFirst",
@@ -515,7 +521,7 @@ describe("band reference app runtime", () => {
       eventRecords.find((record) => record.recordId === seeded.firstEvent.meta.guid)?.reasons,
     ).toEqual(
       expect.arrayContaining([
-        { kind: "objectSync", mode: "localFirst", scope: "currentContext" },
+        { kind: "objectSync", mode: "localFirst", scope: "recent" },
         {
           kind: "readModelSource",
           readModel: "HomeUpcomingEvents",

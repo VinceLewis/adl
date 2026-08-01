@@ -72,6 +72,28 @@ Read this before changing the ADL lexer, parser, AST-to-partial-model compiler, 
   resolve to a view with no editable fields at all. See
   [[edit-surface-language]].
 
+## Key decisions from Phase 62
+
+- `SYNC` gained two clauses: `WINDOW [<field>] [<n> DAYS] [LIMIT <n>]` and
+  `WHERE <expression>`. Both are parsed inside the existing `parseSync` option
+  loop, so they may appear in any order alongside `SCOPE` and `CONFLICT`.
+- `WHERE` parses with `parseExpressionUntil(SYNC_OPTION_WORDS)` rather than to
+  end of line, so a `CONFLICT` following the predicate on the same line is not
+  swallowed by the expression. Any new option word on a line that can also carry
+  an expression must be added to that stop set.
+- `WINDOW`'s optional leading field name is distinguished from `14 DAYS` and
+  `LIMIT 5` by token kind plus a `SYNC_WINDOW_NON_FIELD_WORDS` set, not by
+  lookahead. A field name is any identifier or quoted string that is not one of
+  those words, which is why `_updatedAt` works and `LIMIT` cannot be a field
+  name here.
+- The unit word after the day count is required, matching `OFFLINE_GRACE
+  <days> DAYS`. Follow that precedent for any future numeric clause.
+- The parser produces syntax; it does not decide meaning. Whether a `WINDOW` or
+  a `WHERE` is *allowed* on a given scope is a `validate-model.ts` refusal, so a
+  JSON `PartialApplicationModel` is held to the same rule. See
+  [[edit-surface-language]] for the same split, and
+  [[offline-dataset-runtime]] for what the clauses mean.
+
 ## Practical guidance
 
 - Keep parser syntax declarative. Unsupported procedural keywords such as `FETCH`, `STORE`, `LOOP`, `SET`, `DART.INLINE`, and `SQL.INTO` should remain rejected.

@@ -44,6 +44,7 @@ import type {
   ShellTopBarDeclarationAst,
   ShellVisibilityDeclarationAst,
   SyncDeclarationAst,
+  SyncWindowDeclarationAst,
   ThemeDeclarationAst,
   ViewDeclarationAst,
 } from "../parser/ast.js";
@@ -87,6 +88,7 @@ import type {
   PartialShellTopBarModel,
   PartialShellVisibilityModel,
   PartialSyncPolicyModel,
+  PartialSyncWindowModel,
   PartialThemeModel,
   PartialViewModel,
   PartialViewContextModel,
@@ -1041,9 +1043,7 @@ function themeToPartial(theme: ThemeDeclarationAst): PartialThemeModel {
 function syncToPartial(sync: SyncDeclarationAst): PartialSyncPolicyModel {
   return {
     object: sync.object ?? "",
-    mode: sync.mode,
-    ...(sync.scope === undefined ? {} : { scope: sync.scope }),
-    ...(sync.conflict === undefined ? {} : { conflict: sync.conflict }),
+    ...objectSyncToPartial(sync),
   };
 }
 
@@ -1051,7 +1051,17 @@ function objectSyncToPartial(sync: SyncDeclarationAst): Omit<PartialSyncPolicyMo
   return {
     mode: sync.mode,
     ...(sync.scope === undefined ? {} : { scope: sync.scope }),
+    ...(sync.window === undefined ? {} : { window: syncWindowToPartial(sync.window) }),
+    ...(sync.predicate === undefined ? {} : { predicate: sync.predicate }),
     ...(sync.conflict === undefined ? {} : { conflict: sync.conflict }),
+  };
+}
+
+function syncWindowToPartial(window: SyncWindowDeclarationAst): PartialSyncWindowModel {
+  return {
+    ...(window.field === undefined ? {} : { field: window.field }),
+    ...(window.days === undefined ? {} : { days: window.days }),
+    ...(window.limit === undefined ? {} : { limit: window.limit }),
   };
 }
 

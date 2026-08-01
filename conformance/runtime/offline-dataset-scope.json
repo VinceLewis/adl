@@ -1,0 +1,260 @@
+{
+  "version": 1,
+  "models": {
+    "declaredOfflineScopeRuntime": {
+      "adl": [
+        "APP 'Declared Offline Scope Runtime'",
+        "END.APP",
+        "",
+        "ROLE Admin",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD GigDate DATE REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE recent WINDOW GigDate 7 DAYS",
+        "END.OBJECT",
+        "",
+        "OBJECT Task",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  FIELD Owner TEXT",
+        "  SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId",
+        "END.OBJECT",
+        "",
+        "POLICY GigPolicy ON Gig",
+        "  RULE allowGig ALLOW * ROLE Admin",
+        "END.POLICY",
+        "",
+        "POLICY TaskPolicy ON Task",
+        "  RULE allowTask ALLOW * ROLE Admin",
+        "END.POLICY"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "offline.scope.runtime.declared-window.001",
+      "title": "A window declared in ADL source bounds the offline dataset by its own field, not by the 30 day default",
+      "specRef": "runtime-semantics#what-each-sync-scope-selects",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "declaredOfflineScopeRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "inside",
+          "objectName": "Gig",
+          "values": {
+            "Title": "Inside the declared window",
+            "GigDate": "2026-07-14"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "outside",
+          "objectName": "Gig",
+          "values": {
+            "Title": "Outside the declared window but inside the default one",
+            "GigDate": "2026-07-01"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Gig",
+              "recordId": "$inside",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "recent"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.scope.runtime.custom-predicate.001",
+      "title": "A custom sync scope selects the records its declared predicate matches",
+      "specRef": "runtime-semantics#what-each-sync-scope-selects",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "declaredOfflineScopeRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "matching",
+          "objectName": "Task",
+          "values": {
+            "Title": "Open and mine",
+            "Status": "open",
+            "Owner": "admin-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "wrongStatus",
+          "objectName": "Task",
+          "values": {
+            "Title": "Mine but closed",
+            "Status": "closed",
+            "Owner": "admin-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "wrongOwner",
+          "objectName": "Task",
+          "values": {
+            "Title": "Open but somebody else's",
+            "Status": "open",
+            "Owner": "admin-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Task",
+              "recordId": "$matching",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "custom"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.scope.runtime.custom-predicate-per-device.001",
+      "title": "The same custom scope selects different records for a different signed-in user",
+      "specRef": "runtime-semantics#what-each-sync-scope-selects",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "declaredOfflineScopeRuntime",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "firstUserTask",
+          "objectName": "Task",
+          "values": {
+            "Title": "Open and the first user's",
+            "Status": "open",
+            "Owner": "admin-1"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "secondUserTask",
+          "objectName": "Task",
+          "values": {
+            "Title": "Open and the second user's",
+            "Status": "open",
+            "Owner": "admin-2"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": ["Admin"],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-2",
+          "roles": ["Admin"],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Task",
+              "recordId": "$secondUserTask",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "custom"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -647,6 +647,10 @@ function resolveObjectSync(
     mode: input?.mode ?? defaults.mode,
     scope,
     ...(window === undefined ? {} : { window }),
+    // The predicate is carried through untouched: a `custom` scope has no
+    // default record selection to fall back on, which is why validation refuses
+    // the scope without one rather than resolving a permissive stand-in.
+    ...(input?.predicate === undefined ? {} : { predicate: input.predicate }),
     conflict: input?.conflict ?? defaults.conflict,
   };
 }
@@ -1835,6 +1839,7 @@ function stripObjectFromSync(
     ...(input.mode === undefined ? {} : { mode: input.mode }),
     ...(input.scope === undefined ? {} : { scope: input.scope }),
     ...(input.window === undefined ? {} : { window: input.window }),
+    ...(input.predicate === undefined ? {} : { predicate: input.predicate }),
     ...(input.conflict === undefined ? {} : { conflict: input.conflict }),
   };
 }

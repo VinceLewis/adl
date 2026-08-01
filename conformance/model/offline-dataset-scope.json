@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "models": {
+    "declaredOfflineScopes": {
+      "adl": [
+        "APP 'Declared Offline Scopes'",
+        "END.APP",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  FIELD Owner TEXT",
+        "  FIELD GigDate DATE REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE recent WINDOW GigDate 14 DAYS LIMIT 50",
+        "END.OBJECT",
+        "",
+        "OBJECT Note",
+        "  DISPLAY Body",
+        "  FIELD Body TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE recent",
+        "END.OBJECT",
+        "",
+        "OBJECT Task",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  FIELD Owner TEXT",
+        "  SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId",
+        "END.OBJECT",
+        "",
+        "OBJECT Receipt",
+        "  DISPLAY Body",
+        "  FIELD Body TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE recent WINDOW LIMIT 5",
+        "END.OBJECT"
+      ]
+    },
+    "customScopeWithoutPredicate": {
+      "adl": [
+        "APP 'Custom Scope Without Predicate'",
+        "END.APP",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE custom",
+        "END.OBJECT"
+      ]
+    },
+    "windowOnScopeThatIgnoresIt": {
+      "adl": [
+        "APP 'Window On Scope That Ignores It'",
+        "END.APP",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD GigDate DATE REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE currentContext WINDOW GigDate 14 DAYS",
+        "END.OBJECT"
+      ]
+    },
+    "predicateOnScopeThatIgnoresIt": {
+      "adl": [
+        "APP 'Predicate On Scope That Ignores It'",
+        "END.APP",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE all WHERE Status == 'open'",
+        "END.OBJECT"
+      ]
+    },
+    "customPredicateOverAFieldThatDoesNotExist": {
+      "adl": [
+        "APP 'Custom Predicate Over A Field That Does Not Exist'",
+        "END.APP",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open'",
+        "END.OBJECT"
+      ]
+    },
+    "customPredicateThatIsNotBoolean": {
+      "adl": [
+        "APP 'Custom Predicate That Is Not Boolean'",
+        "END.APP",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Status TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE custom WHERE Status",
+        "END.OBJECT"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "offline.scope.language.window.001",
+      "title": "A WINDOW declared in ADL source reaches the resolved sync window",
+      "specRef": "language#offline-dataset-scope",
+      "operation": "resolveModel",
+      "modelRef": "declaredOfflineScopes",
+      "input": {
+        "select": [
+          "objects.0.sync.scope",
+          "objects.0.sync.window.field",
+          "objects.0.sync.window.days",
+          "objects.0.sync.window.limit"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.sync.scope": "recent",
+          "objects.0.sync.window.field": "GigDate",
+          "objects.0.sync.window.days": 14,
+          "objects.0.sync.window.limit": 50
+        }
+      }
+    },
+    {
+      "id": "offline.scope.language.window-default.001",
+      "title": "A recent scope declared in ADL source without a window still derives the 30 day default",
+      "specRef": "language#offline-dataset-scope",
+      "operation": "resolveModel",
+      "modelRef": "declaredOfflineScopes",
+      "input": {
+        "select": [
+          "objects.1.sync.window.field",
+          "objects.1.sync.window.days"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.1.sync.window.field": "_updatedAt",
+          "objects.1.sync.window.days": 30
+        }
+      }
+    },
+    {
+      "id": "offline.scope.language.window-partial.001",
+      "title": "A WINDOW declaring only a limit keeps the default window field",
+      "specRef": "language#offline-dataset-scope",
+      "operation": "resolveModel",
+      "modelRef": "declaredOfflineScopes",
+      "input": {
+        "select": [
+          "objects.3.sync.window.field",
+          "objects.3.sync.window.limit"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.3.sync.window.field": "_updatedAt",
+          "objects.3.sync.window.limit": 5
+        }
+      }
+    },
+    {
+      "id": "offline.scope.language.custom-predicate.001",
+      "title": "A custom scope predicate declared in ADL source reaches the resolved model as an ordinary expression",
+      "specRef": "language#offline-dataset-scope",
+      "operation": "resolveModel",
+      "modelRef": "declaredOfflineScopes",
+      "input": {
+        "select": [
+          "objects.2.sync.scope",
+          "objects.2.sync.predicate.operator",
+          "objects.2.sync.predicate.left.left.field",
+          "objects.2.sync.predicate.left.right.value",
+          "objects.2.sync.predicate.right.left.field",
+          "objects.2.sync.predicate.right.right.property"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.2.sync.scope": "custom",
+          "objects.2.sync.predicate.operator": "and",
+          "objects.2.sync.predicate.left.left.field": "Status",
+          "objects.2.sync.predicate.left.right.value": "open",
+          "objects.2.sync.predicate.right.left.field": "Owner",
+          "objects.2.sync.predicate.right.right.property": "userId"
+        }
+      }
+    },
+    {
+      "id": "offline.scope.validation.declared-scopes-are-clean.001",
+      "title": "Every declared offline scope in the corpus model validates clean",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "declaredOfflineScopes",
+      "expected": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "id": "offline.scope.validation.custom-predicate-missing.001",
+      "title": "A custom sync scope declared without a predicate is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "customScopeWithoutPredicate",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_SYNC_PREDICATE_MISSING",
+            "path": "objects[0].sync.scope"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_SYNC_PREDICATE_MISSING",
+            "path": "sync[0].scope"
+          }
+        ]
+      }
+    },
+    {
+      "id": "offline.scope.validation.window-scope-invalid.001",
+      "title": "A sync window declared on a scope that does not select by one is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "windowOnScopeThatIgnoresIt",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_SYNC_WINDOW_SCOPE_INVALID",
+            "path": "objects[0].sync.window"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_SYNC_WINDOW_SCOPE_INVALID",
+            "path": "sync[0].window"
+          }
+        ]
+      }
+    },
+    {
+      "id": "offline.scope.validation.predicate-scope-invalid.001",
+      "title": "A sync predicate declared on a scope that does not select by one is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "predicateOnScopeThatIgnoresIt",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_SYNC_PREDICATE_SCOPE_INVALID",
+            "path": "objects[0].sync.predicate"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_SYNC_PREDICATE_SCOPE_INVALID",
+            "path": "sync[0].predicate"
+          }
+        ]
+      }
+    },
+    {
+      "id": "offline.scope.validation.custom-predicate-field-unknown.001",
+      "title": "A custom sync predicate over a field that does not exist is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "customPredicateOverAFieldThatDoesNotExist",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_SYNC_PREDICATE_FIELD_UNKNOWN",
+            "path": "objects[0].sync.predicate.left.field"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_SYNC_PREDICATE_FIELD_UNKNOWN",
+            "path": "sync[0].predicate.left.field"
+          }
+        ]
+      }
+    },
+    {
+      "id": "offline.scope.validation.custom-predicate-type.001",
+      "title": "A custom sync predicate that does not resolve to boolean is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "customPredicateThatIsNotBoolean",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_OBJECT_SYNC_PREDICATE_TYPE",
+            "path": "objects[0].sync.predicate"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_SYNC_PREDICATE_TYPE",
+            "path": "sync[0].predicate"
+          }
+        ]
+      }
+    }
+  ]
+}

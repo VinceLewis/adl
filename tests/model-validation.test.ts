@@ -668,6 +668,145 @@ END.OBJECT
     );
   });
 
+  /**
+   * Phase 62. `custom` was declarable, resolvable and validatable, and selected
+   * nothing on every device without saying so — the same class of defect Phase
+   * 60 closed for `unlink`. It now selects by a declared predicate, and the
+   * scope without one is refused at validation rather than at the UI, so a JSON
+   * partial model is refused as firmly as an ADL source file.
+   */
+  it("refuses a custom sync scope declared without a predicate", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: { mode: "localFirst", scope: "custom" },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    const diagnostics = validateApplicationModel(resolved);
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_MISSING,
+        MODEL_VALIDATION_CODES.SYNC_PREDICATE_MISSING,
+      ]),
+    );
+    expect(
+      diagnostics.find(
+        (diagnostic) => diagnostic.code === MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_MISSING,
+      )?.message,
+    ).toContain("SCOPE custom WHERE");
+  });
+
+  it("refuses a sync predicate on a scope that does not select by one", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: {
+            mode: "localFirst",
+            scope: "all",
+            predicate: {
+              kind: "binary",
+              operator: "==",
+              left: { kind: "field", field: "Name" },
+              right: { kind: "literal", value: "open" },
+            },
+          },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_SCOPE_INVALID,
+        MODEL_VALIDATION_CODES.SYNC_PREDICATE_SCOPE_INVALID,
+      ]),
+    );
+  });
+
+  /**
+   * Only `recent` consults a window, so declaring one anywhere else resolved a
+   * value the runtime never read. That is the same silence this phase exists to
+   * remove, so it is refused rather than ignored.
+   */
+  it("refuses a sync window on a scope that does not select by one", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: {
+            mode: "localFirst",
+            scope: "currentContext",
+            window: { field: "_updatedAt", days: 7 },
+          },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_WINDOW_SCOPE_INVALID,
+        MODEL_VALIDATION_CODES.SYNC_WINDOW_SCOPE_INVALID,
+      ]),
+    );
+  });
+
+  it("reports expression diagnostics for a custom sync predicate", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: {
+            mode: "localFirst",
+            scope: "custom",
+            predicate: {
+              kind: "binary",
+              operator: "==",
+              left: { kind: "field", field: "NotAField" },
+              right: { kind: "literal", value: "open" },
+            },
+          },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.SYNC_PREDICATE_FIELD_UNKNOWN,
+      ]),
+    );
+  });
+
+  it("refuses a custom sync predicate that does not resolve to boolean", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: [
+        {
+          ...validPartialModel.objects[0],
+          sync: {
+            mode: "localFirst",
+            scope: "custom",
+            predicate: { kind: "field", field: "Name" },
+          },
+        },
+      ],
+    } as PartialApplicationModel);
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.OBJECT_SYNC_PREDICATE_TYPE,
+        MODEL_VALIDATION_CODES.SYNC_PREDICATE_TYPE,
+      ]),
+    );
+  });
+
   it("reports expression diagnostics for policy conditions and predicate validators", () => {
     const resolved = resolveApplicationModel({
       app: { name: "ExpressionDiagnostics" },

@@ -343,7 +343,6 @@ export async function seedBandReferenceRuntime(
       User: musician.meta.guid,
       SelectedBand: firstBand.meta.guid,
       LastOpenedView: "HomeDashboard",
-      OfflineHomeLimit: 20,
     },
     musicianContext,
   );

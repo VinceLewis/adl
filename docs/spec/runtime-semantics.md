@@ -745,6 +745,41 @@ Dataset ordering is not contractual. Records are returned grouped by object, but
 the order within an object depends on record ids, whose shape no specification
 defines.
 
+### What each sync scope selects
+
+An object's declared sync scope decides which of its records a device keeps. The
+scopes are exhaustive: every one of them selects by a rule the runtime evaluates,
+and none of them is accepted in a form the runtime cannot honour.
+
+| Scope | Selects |
+| --- | --- |
+| `all` | every record in a business context available to the device |
+| `currentUser`, `assignedToUser`, `ownedByUser` | records whose lookup to the user object holds the signed-in user, within an available context |
+| `currentContext` | records in the selected business context only |
+| `allAvailableContexts` | records in every business context available to the device |
+| `recent` | records in an available context that also fall inside the declared window |
+| `custom` | records in an available context for which the declared predicate evaluates to `true` |
+
+A window narrows `recent` and nothing else. It names a date or datetime field, an
+optional day span measured back from the runtime context's current moment, and an
+optional limit that keeps only that many records, newest first. A record whose
+window field is absent or is not a readable date falls outside the window. When
+`recent` is declared with no window at all, the runtime derives one of 30 days
+over `_updatedAt`, so a bare `SCOPE recent` still selects a bounded set.
+
+A predicate applies to `custom` and nothing else. It is an ordinary expression
+evaluated against the record's own field values and the runtime context, so the
+same records and the same model produce different datasets for different
+signed-in users. A predicate that does not evaluate against a given record — a
+type mismatch, say — excludes that record rather than failing the whole dataset,
+the same way an unreadable window date does. `custom` may not be declared without
+a predicate; that is a validation refusal, not a runtime one.
+
+A read-model source scope can still admit a record its object's own sync scope
+excludes, because a dashboard declaring a cross-context input is asking for
+exactly that. A window therefore bounds an object's own scope, not every route
+by which one of its records can reach a device.
+
 ## Inspection
 
 `explainResolvedModel` returns the resolved model plus origin entries for

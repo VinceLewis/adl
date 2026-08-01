@@ -765,6 +765,94 @@ describe("ApplicationRuntime", () => {
     });
   });
 
+  /**
+   * Phase 62. `custom` used to return `false` unconditionally, so a model that
+   * declared it compiled, validated, and held zero records on every device
+   * without saying so. It now selects by its declared predicate, evaluated as
+   * an ordinary `ResolvedExpression` against the record's own values and the
+   * runtime context — not a second expression dialect.
+   */
+  it("selects offline dataset records by a declared custom sync predicate", async () => {
+    const runtime = new ApplicationRuntime(
+      resolveApplicationModel({
+        ...runtimePartialModel,
+        objects: runtimePartialModel.objects.map((object) =>
+          object.name === "PurchaseOrder"
+            ? {
+                ...object,
+                sync: {
+                  mode: "localFirst",
+                  scope: "custom",
+                  predicate: {
+                    kind: "binary",
+                    operator: "or",
+                    left: {
+                      kind: "binary",
+                      operator: "==",
+                      left: { kind: "field", field: "Supplier" },
+                      right: { kind: "literal", value: "Acme" },
+                    },
+                    right: {
+                      kind: "binary",
+                      operator: "==",
+                      left: { kind: "field", field: "InternalNotes" },
+                      right: { kind: "runtime", property: "userId" },
+                    },
+                  },
+                },
+              }
+            : object,
+        ),
+      } as PartialApplicationModel),
+    );
+
+    const bySupplier = await runtime.create(
+      "PurchaseOrder",
+      { PONumber: "PO-1", Supplier: "Acme", Value: 10, Status: "Draft" },
+      adminContext,
+    );
+    const byRuntimeUser = await runtime.create(
+      "PurchaseOrder",
+      {
+        PONumber: "PO-2",
+        Supplier: "Globex",
+        Value: 20,
+        Status: "Draft",
+        InternalNotes: adminContext.userId,
+      },
+      adminContext,
+    );
+    await runtime.create(
+      "PurchaseOrder",
+      { PONumber: "PO-3", Supplier: "Initech", Value: 30, Status: "Draft" },
+      adminContext,
+    );
+
+    const dataset = await runtime.evaluateOfflineDataset(adminContext);
+    const orders = dataset.records.filter((record) => record.objectName === "PurchaseOrder");
+
+    expect(new Set(orders.map((record) => record.recordId))).toEqual(
+      new Set([bySupplier.meta.guid, byRuntimeUser.meta.guid]),
+    );
+    expect(orders[0]?.reasons).toEqual([
+      { kind: "objectSync", mode: "localFirst", scope: "custom" },
+    ]);
+
+    // The predicate is evaluated against the runtime context of the device
+    // asking, so a different signed-in user holds a different dataset from the
+    // same records and the same model.
+    const otherUserDataset = await runtime.evaluateOfflineDataset({
+      ...adminContext,
+      userId: "admin-2",
+    });
+
+    expect(
+      otherUserDataset.records
+        .filter((record) => record.objectName === "PurchaseOrder")
+        .map((record) => record.recordId),
+    ).toEqual([bySupplier.meta.guid]);
+  });
+
   it("denies writes and transitions outside the selected object scope", async () => {
     const seeded = await createSeededBandRuntime();
 

@@ -450,6 +450,18 @@ function explainObjectDefaults(
                 : "Sync window was supplied by the source model.",
           },
         ]),
+    ...(object.sync.predicate === undefined
+      ? []
+      : [
+          {
+            path: `${objectPath}.sync.predicate`,
+            value: object.sync.predicate as unknown as JsonValue,
+            // A custom scope has no default predicate to derive: it is always
+            // authored, because validation refuses the scope without one.
+            origin: "source" as const,
+            note: "Custom sync scope selects records by this authored predicate.",
+          },
+        ]),
     ...object.fields.flatMap((field, fieldIndex) => {
       const sourceField = source?.fields?.find((item) => item.name === field.name);
       const fieldPath = `${objectPath}.fields[${fieldIndex}]`;

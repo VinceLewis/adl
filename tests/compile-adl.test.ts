@@ -340,6 +340,102 @@ END.OBJECT
     ]);
   });
 
+  it("carries a declared SYNC WINDOW from ADL source into the resolved model", () => {
+    const result = compileAdl(`APP DatasetWindows
+END.APP
+
+OBJECT Gig
+  FIELD Title TEXT REQUIRED
+  FIELD GigDate DATE REQUIRED
+  SYNC LOCAL_FIRST SCOPE recent WINDOW GigDate 14 DAYS LIMIT 50
+END.OBJECT
+
+OBJECT Note
+  FIELD Body TEXT REQUIRED
+  SYNC LOCAL_FIRST SCOPE recent WINDOW 7 DAYS
+END.OBJECT
+
+OBJECT Receipt
+  FIELD Body TEXT REQUIRED
+  SYNC LOCAL_FIRST SCOPE recent WINDOW LIMIT 5
+END.OBJECT
+
+OBJECT Ledger
+  FIELD Body TEXT REQUIRED
+  SYNC LOCAL_FIRST SCOPE recent
+END.OBJECT
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.model.objects.map((object) => [object.name, object.sync.window])).toEqual([
+      ["Gig", { field: "GigDate", days: 14, limit: 50 }],
+      // An omitted field still falls back to `_updatedAt`, so a window may
+      // declare only the part the author cares about.
+      ["Note", { field: "_updatedAt", days: 7 }],
+      ["Receipt", { field: "_updatedAt", limit: 5 }],
+      // The 30-day default for an undeclared window is unchanged: every
+      // existing model must resolve exactly as it did before Phase 62.
+      ["Ledger", { field: "_updatedAt", days: 30 }],
+    ]);
+  });
+
+  it("carries a declared custom SYNC predicate from ADL source into the resolved model", () => {
+    const result = compileAdl(`APP DatasetPredicates
+END.APP
+
+OBJECT Task
+  FIELD Title TEXT REQUIRED
+  FIELD Status TEXT REQUIRED
+  FIELD Owner TEXT
+  SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId CONFLICT clientWins
+END.OBJECT
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.model.objects[0]?.sync).toEqual({
+      mode: "localFirst",
+      scope: "custom",
+      predicate: {
+        kind: "binary",
+        operator: "and",
+        left: {
+          kind: "binary",
+          operator: "==",
+          left: { kind: "field", field: "Status" },
+          right: { kind: "literal", value: "open" },
+        },
+        right: {
+          kind: "binary",
+          operator: "==",
+          left: { kind: "field", field: "Owner" },
+          right: { kind: "runtime", property: "userId" },
+        },
+      },
+      // The predicate stops before CONFLICT rather than swallowing it.
+      conflict: "clientWins",
+    });
+  });
+
+  it("rejects a malformed SYNC WINDOW naming the option that was wrong", () => {
+    const objectWith = (sync: string): string =>
+      `APP DatasetWindows\nEND.APP\n\nOBJECT Gig\n  FIELD Title TEXT REQUIRED\n  FIELD GigDate DATE REQUIRED\n  ${sync}\nEND.OBJECT\n`;
+
+    expect(() => compileAdl(objectWith("SYNC LOCAL_FIRST SCOPE recent WINDOW"))).toThrow(
+      /SYNC WINDOW field name, day count followed by DAYS, or LIMIT/,
+    );
+    // The unit word is required, following OFFLINE_GRACE, so a bare number can
+    // never be read as the wrong unit if a second unit is ever added.
+    expect(() => compileAdl(objectWith("SYNC LOCAL_FIRST SCOPE recent WINDOW GigDate 14"))).toThrow(
+      /SYNC WINDOW unit/,
+    );
+    expect(() =>
+      compileAdl(objectWith("SYNC LOCAL_FIRST SCOPE recent WINDOW LIMIT 5 GigDate 3 DAYS")),
+    ).toThrow(/SYNC option SCOPE, WINDOW, WHERE, CONFLICT, or end of line/);
+    expect(() => compileAdl(objectWith("SYNC LOCAL_FIRST SCOPE custom WHERE"))).toThrow(
+      /Expected expression/,
+    );
+  });
+
   it("enforces parser-generated inline lifecycle action policies at runtime", async () => {
     const result = compileAdl(`APP TicketDesk
   START_VIEW TicketList

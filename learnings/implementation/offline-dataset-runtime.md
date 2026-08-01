@@ -13,7 +13,66 @@ Read this before changing context-aware offline dataset selection, dataset-limit
 - `localPrivate` records are eligible for local datasets according to their declared sync scope, but they are still excluded from the sync queue by existing sync policy behavior.
 - `allAvailableContexts` dataset evaluation resolves membership-derived context roles with the selected context removed for that business context. This lets cross-context read-model dependencies include all available context records without turning context roles into global roles.
 - `currentContext` dataset evaluation uses the selected context only. If no relevant context is selected, context-scoped records do not match.
-- `custom` sync scope has no runtime evaluator yet and contributes no records by default. A future phase should define a backend-neutral custom dataset expression before using it for real app behavior.
+- `custom` sync scope had no runtime evaluator and contributed no records. **Phase 62 closed this** — see below.
+
+## Key decisions from Phase 62
+
+Phase 62's subject was not the runtime, which already worked, but the language,
+which could not reach it. `ResolvedSyncWindow` had carried `field`, `days` and
+`limit` since Phase 16 and `OfflineDatasetService` had honoured all three, but
+`Parser.parseSync` accepted only `MODE`, `SCOPE` and `CONFLICT`. A window was
+reachable from a TypeScript `PartialApplicationModel` and from a JSON conformance
+model, and from no `.adl` file at all.
+
+- `SYNC ... WINDOW [<field>] [<n> DAYS] [LIMIT <n>]` is now declarable. Each part
+  is optional, the order is fixed, and a bare `WINDOW` with no parts is a parse
+  error rather than a no-op. The unit word after the day count is required,
+  following `OFFLINE_GRACE`.
+- `SYNC ... SCOPE custom WHERE <expression>` is now declarable. The predicate is
+  an ordinary `ResolvedExpression` over the object's own fields plus
+  `RUNTIME.userId` / `RUNTIME.now`, evaluated by the existing
+  `evaluateExpressionAsBoolean` against `record.values` and the dataset's runtime
+  context. It is not a second expression dialect, and adding it needed no new
+  evaluator.
+- **A declared scope must be one the runtime can honour, in both directions.**
+  `custom` without a predicate and a predicate on any other scope are both
+  validation refusals; so is a `WINDOW` on any scope but `recent`, because only
+  `recent` ever consulted one. The refusals live in `validateApplicationModel`,
+  not in the parser, so a JSON partial model is refused exactly as firmly as ADL
+  source. This is the Phase 60 `unlink` rule applied to sync scope.
+- A record whose predicate fails to evaluate is excluded and logged, not fatal —
+  the same record-level treatment an unreadable window date already got. A
+  `custom` scope whose predicate is somehow absent at runtime also selects
+  nothing: a dataset is what leaves the authority's reach, so over-inclusion is
+  the worse failure to default to.
+- The 30-day `_updatedAt` default for a bare `SCOPE recent` is unchanged, and
+  every existing `.adl` file resolves to exactly the model it did before.
+
+### `recent` replaces context scoping rather than narrowing it
+
+Worth knowing before planning any further dataset work: `recent` evaluates as
+`availableContexts && window`, and `custom` as `availableContexts && predicate`.
+Neither composes with `currentUser` or `currentContext` — the scopes are a flat
+enumeration, not a scope plus modifiers. So **"my records, recent" is currently
+unsayable**, and that constrained this phase's reference-app change:
+`Availability` is `SCOPE currentUser` and had to stay that way, because moving it
+to `recent` for the sake of a window would have silently widened it from one
+user's records to every available context's.
+
+`Event` took the window instead (`SCOPE recent WINDOW Date 90 DAYS LIMIT 200`),
+which does widen it from `currentContext` to all available contexts — deliberate,
+because `HomeUpcomingEvents` already declares
+`SOURCE event OBJECT Event SCOPE allAvailableContexts`, so the dashboard was
+already asking for those records by another route. Note the consequence: that
+read-model source admits an event the window excludes, so the window bounds the
+object's own scope and not every route into the dataset. That is the
+over-inclusion already recorded below, not a new defect.
+
+`DevicePreference.OfflineHomeLimit` is gone. It was a field a model author
+invented because a per-device offline limit could not be declared, and nothing
+ever read it. The model-declared window replaces it. A genuine per-device
+*override* of a model-declared window remains a separate capability that no
+evidence yet asks for.
 
 ## A recorded gap that turned out not to exist
 
