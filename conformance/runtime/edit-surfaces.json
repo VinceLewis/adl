@@ -1551,6 +1551,436 @@
       }
     },
     {
+      "id": "edit-surface.staged.update-child-patch.001",
+      "title": "A staged updateChild carries a patch, changes only the fields it names, and commits inside the same batch entry as the other child changes",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "brass",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Brass",
+            "Position": 2
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "parentRecordId": {
+          "$ref": "order.meta.guid"
+        },
+        "stagedChanges": [
+          {
+            "id": "strings",
+            "section": "Lines",
+            "operation": "updateChild",
+            "childObject": "OrderLine",
+            "childId": {
+              "$ref": "strings.meta.guid"
+            },
+            "values": {
+              "Description": "Nylon strings"
+            }
+          },
+          {
+            "id": "picks",
+            "section": "Lines",
+            "operation": "createChild",
+            "childObject": "OrderLine",
+            "values": {
+              "Description": "Picks"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "applied",
+            "applied": [
+              {
+                "operationId": "strings",
+                "operation": "updateChild",
+                "childObject": "OrderLine",
+                "recordId": "$strings"
+              },
+              {
+                "operationId": "picks",
+                "operation": "createChild",
+                "childObject": "OrderLine",
+                "recordId": "$picks"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Order",
+              "operation": "create",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "create",
+              "recordId": "$strings"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "create",
+              "recordId": "$brass"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "batch",
+              "recordId": "$strings",
+              "mode": "localFirst",
+              "batch": {
+                "writes": [
+                  {
+                    "operation": "update",
+                    "objectName": "OrderLine",
+                    "recordId": "$strings",
+                    "patch": {
+                      "Description": "Nylon strings"
+                    }
+                  },
+                  {
+                    "operation": "create",
+                    "objectName": "OrderLine",
+                    "recordId": "$picks",
+                    "values": {
+                      "Description": "Picks",
+                      "Position": 3,
+                      "Order": "$order"
+                    }
+                  }
+                ],
+                "records": [
+                  {
+                    "objectName": "OrderLine",
+                    "recordId": "$strings"
+                  },
+                  {
+                    "objectName": "OrderLine",
+                    "recordId": "$picks"
+                  }
+                ]
+              }
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order",
+              "values": {
+                "Code": "A-1"
+              }
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$brass",
+              "values": {
+                "Order": "$order",
+                "Description": "Brass",
+                "Position": 2
+              }
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$picks",
+              "values": {
+                "Order": "$order",
+                "Description": "Picks",
+                "Position": 3
+              }
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "values": {
+                "Order": "$order",
+                "Description": "Nylon strings",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.update-child-empty-patch.001",
+      "title": "A staged updateChild carrying an empty patch is refused, and takes the whole batch down with it so the create beside it neither writes nor queues",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "parentRecordId": {
+          "$ref": "order.meta.guid"
+        },
+        "stagedChanges": [
+          {
+            "id": "picks",
+            "section": "Lines",
+            "operation": "createChild",
+            "childObject": "OrderLine",
+            "values": {
+              "Description": "Picks"
+            }
+          },
+          {
+            "id": "noChange",
+            "section": "Lines",
+            "operation": "updateChild",
+            "childObject": "OrderLine",
+            "childId": {
+              "$ref": "strings.meta.guid"
+            },
+            "values": {}
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "refused",
+            "code": "ADL_RUNTIME_VALIDATION_FAILED",
+            "issues": [
+              {
+                "code": "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Order",
+              "operation": "create",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "create",
+              "recordId": "$strings"
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "deleted": false,
+              "values": {
+                "Description": "Strings",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.update-child-empty-patch.002",
+      "title": "The same refusal when the staged updateChild omits values altogether, so no caller reaches the write of nothing by spelling it differently",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": {
+            "Code": "A-1"
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "parentRecordId": {
+          "$ref": "order.meta.guid"
+        },
+        "stagedChanges": [
+          {
+            "id": "noChange",
+            "section": "Lines",
+            "operation": "updateChild",
+            "childObject": "OrderLine",
+            "childId": {
+              "$ref": "strings.meta.guid"
+            }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "refused",
+            "code": "ADL_RUNTIME_VALIDATION_FAILED",
+            "issues": [
+              {
+                "code": "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED"
+              }
+            ]
+          },
+          "queue": [
+            {
+              "objectName": "Order",
+              "operation": "create",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "operation": "create",
+              "recordId": "$strings"
+            }
+          ],
+          "records": [
+            {
+              "objectName": "Order",
+              "recordId": "$order"
+            },
+            {
+              "objectName": "OrderLine",
+              "recordId": "$strings",
+              "deleted": false,
+              "values": {
+                "Description": "Strings",
+                "Position": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
       "id": "edit-surface.staged.operation-not-permitted.001",
       "title": "A staged operation the collection does not declare is refused by the runtime, not merely hidden by a renderer",
       "specRef": "runtime-semantics#staged-child-changes",

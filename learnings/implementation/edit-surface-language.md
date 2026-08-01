@@ -20,7 +20,7 @@ else.
 
 The Giggle Band reference app showed the cost: `SetListItem` carries an `ORDERED`
 constraint scoped to its parent set list, and the app edited set-list items
-through a *separate list view* because it could not declare them inside the set
+through a _separate list view_ because it could not declare them inside the set
 list. The ordered-collection runtime that reorders them was built for a surface
 the language could not express.
 
@@ -69,7 +69,7 @@ END.VIEW
 ### Decisions
 
 - **`EDIT_SECTION`, not `SECTION`.** A view's `SECTION` already means a composed
-  *presentation* section, and one view may declare both. Two different things
+  _presentation_ section, and one view may declare both. Two different things
   could not share one keyword without one of them changing meaning by position.
   This is why the wrapping-`EDIT`-block alternative was rejected: it would have
   bought back the shorter keyword at the price of a second nesting level on every
@@ -80,7 +80,7 @@ END.VIEW
 - **The flag directives default to true when written bare** (`STAGED`,
   `EXCLUDE_LINKED`), because the resolved-model defaults are `true` and the bare
   word has to read as English. The explicit `STAGED false` form exists only
-  because turning one *off* is otherwise unsayable.
+  because turning one _off_ is otherwise unsayable.
 - **Underscored keywords only; no dotted aliases.** `READ_MODEL`/`READ.MODEL` and
   `ICON_MAP`/`ICON.MAP` accept both for historical reasons. New keywords accept
   the underscore form alone, which also keeps `END.CHILD_COLLECTION` unambiguous.
@@ -106,7 +106,7 @@ END.VIEW
   in the operation log for local history and queues exactly one entry for the
   whole batch, reusing the `queue` flag Phase 57 added to `recordOperation`
   rather than adding a second code path.
-- **A command crosses the wire as its *input*; a batch crosses as its *writes*.**
+- **A command crosses the wire as its _input_; a batch crosses as its _writes_.**
   That is the only real difference between the kinds, and it follows from the
   model: the authority can re-execute a command because the command is declared,
   and there is nothing to re-execute for a batch. It is a difference in payload,
@@ -132,7 +132,7 @@ END.VIEW
   the reason `MAX_COMMAND_RECORD_IDS` does: one request must not be able to ask
   the authority to plan an unbounded transaction, and the body-size limit alone
   would still allow a very large one. Each write is shape-checked at the edge
-  *and* in the service, because neither layer may assume the other ran.
+  _and_ in the service, because neither layer may assume the other ran.
 - **The batch is labelled after the parent.** A queue entry carries one object's
   sync declaration and is filed under a representative record — for a staged
   batch, a child. Without a label, a refused set-list edit would be presented to
@@ -172,15 +172,15 @@ would have.
   hole and would have failed the required-field check and the object-scope gate.
   Both now seed the scope value from the caller's own selection — the rule
   `applySelectedScopeToCreateValues` already applies to top-level creates,
-  applied where a *child* create is made: inside a parent form, where nothing
+  applied where a _child_ create is made: inside a parent form, where nothing
   asks for a context the user selected before opening it. **The prediction and
   the write must be seeded identically**; a policy patch that describes a write
   the runtime does not make is worse than no check.
-- ~~**A picker's candidates are existing *child* records, not the thing a user
+- ~~**A picker's candidates are existing _child_ records, not the thing a user
   thinks they are picking.**~~ **Closed.** `linkExisting` plans
   `planUpdate(child, {parentField: parent})`, so a linking picker's source must
   be the child object — which made "add a song to this set list" inexpressible
-  and left adding a child meaning *typing a record guid into a bare text box*.
+  and left adding a child meaning _typing a record guid into a bare text box_.
   A picker may now name a `CANDIDATE_FIELD`, which turns it from one that links
   into one that **creates**: the candidates become that field's lookup target,
   and each choice mints a child naming it. See "Minting pickers" below.
@@ -191,7 +191,7 @@ would have.
 
 Two smaller ones worth knowing:
 
-- **`editContainer` is read from the *active* view, not from the edit form
+- **`editContainer` is read from the _active_ view, not from the edit form
   view.** `adl-app.activeEditContainer` returns `this.activeView.editContainer`,
   so `EDIT_CONTAINER` on a `FORM` view is inert unless that form view is itself
   navigated to. The reference app declares it on both the list and the form so
@@ -231,7 +231,7 @@ END.PICKER
   Requiring `linkExisting` of a minting picker would have refused the very
   declaration the feature exists to allow.
 - **`EXCLUDE_LINKED` means a different thing in each mode.** Linking excludes
-  child records already under this parent. Minting excludes the *candidates*
+  child records already under this parent. Minting excludes the _candidates_
   those children already name — a song already in the set list is what must not
   be offered, and the set-list item's own id would not identify it. Candidates
   named by staged creates in the same session are excluded too, or ticking the
@@ -243,13 +243,55 @@ END.PICKER
   caller-supplied position still wins. Without this a required `ORDER_FIELD`
   simply refused the write, so "add" was unusable on exactly the collections that
   most want it.
-- **The browser stages the candidate as a *value*, never as `childId`.** Staging
+- **The browser stages the candidate as a _value_, never as `childId`.** Staging
   it as `childId` would have named a child record that does not exist yet and, in
   the same breath, named the song's record as though it were one.
 - **A minting picker suppresses the bare child draft row**, and the section
   header renders one control that opens the picker — "Add" when minting, "Link"
   when linking. Two ways to add, one of them requiring a typed record id, is
   worse than one that works.
+
+## Inline child editing
+
+Two defects closed together, because neither could be fixed alone.
+
+- **`Edit` opened nothing and wrote nothing.** It dispatched `updateChild` with
+  no values, so the runtime planned an empty patch — a control that looked
+  enabled, did nothing a person would recognise as editing, and still burned a
+  revision and a queue entry on every click. Clicking it now _opens_ the row;
+  `Save` stages `updateChild` carrying only the fields that actually changed, and
+  stages nothing when nothing did; `Cancel` discards without dispatching. The
+  runtime refuses an empty patch outright, so no caller can reintroduce it.
+- **Child fields bypassed the field renderer.** The draft row emitted a bare
+  `<input>` per field, consulting neither `field.lookup` nor `field.type` beyond
+  number, nor validators or readonly — so the same field was a chooser on the
+  parent form and a box you typed a record id into one section below.
+  `configureChildFieldEditors` now points both the draft row and the row editor
+  at `adl-field-renderer` and `resolveFieldPresentation` against the **child**
+  object, which is what makes them behave identically.
+
+Three consequences that are easy to get wrong:
+
+- **`collectValues()` had to be scoped.** It selected every `adl-field-renderer`
+  in the component, so the moment children had renderers their values were folded
+  into the _parent_ record's patch. It now selects
+  `adl-field-renderer[data-field-slot]`, and the child surfaces use their own
+  attributes.
+- **Typing into a child surface must not re-render the parent form.** Parent
+  input becomes parent draft state, and a draft change re-renders the app, which
+  recreates this element — wiping what is being typed. The picker was already
+  guarded for exactly this reason; the draft row was not, which is why typing
+  into it used to be lost. The guard now covers `.adl-relationship-picker`,
+  `.adl-child-editor` and `.adl-child-draft`.
+- **The `ORDER_FIELD` is excluded from both surfaces.** A new child is appended
+  and reordering has its own controls, so an editable position would be a second
+  source of truth for the same value in the same row.
+
+Watch the attribute names. Row action buttons carry `data-child-action-row`
+while the row element alone keeps `data-child-row`; putting the same attribute on
+both made `[data-child-row]` match nine elements instead of three, which a test
+caught only because it counted. The same trap had already appeared with
+`data-child-section`.
 
 ## Practical guidance
 

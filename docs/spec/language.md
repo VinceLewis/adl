@@ -365,14 +365,18 @@ records edited inside the parent's form:
 - `CHILD <object> PARENT_FIELD <field>` — both required. The child object alone
   does not say which of its lookups points back at this parent, and inferring one
   would silently pick a field when a child has two.
-- `CHILD_VIEW <view>` — an optional view on the child object, for the columns the
-  rows display.
+- `CHILD_VIEW <view>` — an optional view on the child object, for the fields the
+  collection works in: the columns its rows display and, minus the `ORDER_FIELD`,
+  the inputs its draft row and its row editor offer.
 - `OPERATIONS createChild linkExisting updateChild unlink remove reorder` — any
   subset, in any order. The default is `createChild updateChild unlink`.
 - `STAGED` (or `STAGED false`) — whether child changes are held until the parent
   is saved. The bare word means `true`, which is the default.
 - `ORDER_FIELD <field>` — the child field carrying position. Required when
-  `reorder` is among the operations.
+  `reorder` is among the operations. A new child is appended and reordering has
+  its own controls, so this field is left out of the collection's editable
+  surfaces rather than offered as an input; see
+  [ui-language-addendum#implementation-notes](ui-language-addendum.md).
 - `EMPTY_TEXT 'text'` — what to show when the collection is empty.
 - `PICKER ... END.PICKER` — see below.
 

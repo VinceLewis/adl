@@ -61,12 +61,29 @@ export class AdlFormViewElement extends HTMLElement {
    */
   private lookupLabels = new Map<string, string>();
   private pendingLookupLabels = new Set<string>();
+  /**
+   * Rows currently open for inline editing, keyed section-and-row.
+   *
+   * Held on the element rather than dispatched upward because opening an editor
+   * changes nothing about the record: nothing is staged until the row is saved,
+   * so a cancelled edit leaves no trace anywhere.
+   */
+  private editingChildRows = new Set<string>();
 
+  /**
+   * Parent-form input becomes parent draft state, and a parent draft change
+   * re-renders the whole app — which recreates this element. Anything typed into
+   * a surface this element owns must therefore be excluded, or it is wiped as it
+   * is typed. The picker was already guarded for exactly this reason; child row
+   * editors and the child draft row need the same guard, and the draft row not
+   * having had it is why typing into it was lost.
+   */
   private readonly handleFormInput = (): void => {
     const activeElement = document.activeElement;
     if (
       activeElement instanceof HTMLElement &&
-      activeElement.closest(".adl-relationship-picker") !== null
+      activeElement.closest(".adl-relationship-picker, .adl-child-editor, .adl-child-draft") !==
+        null
     ) {
       return;
     }
@@ -151,6 +168,13 @@ export class AdlFormViewElement extends HTMLElement {
       return;
     }
 
+    const editControl = target.closest<HTMLButtonElement>("button[data-child-edit]");
+    if (editControl !== null) {
+      event.stopPropagation();
+      this.handleChildEditControl(editControl);
+      return;
+    }
+
     const pickerOpen = target.closest<HTMLButtonElement>("button[data-picker-open]");
     if (pickerOpen !== null) {
       event.stopPropagation();
@@ -194,6 +218,17 @@ export class AdlFormViewElement extends HTMLElement {
 
     if (operation === "linkExisting" && action.dataset.childId === undefined) {
       void this.openRelationshipPicker(sectionName);
+      return;
+    }
+
+    // Opening an editor, not staging a change. This used to dispatch
+    // `updateChild` with no values at all, which planned a patch of nothing: a
+    // control that looked enabled, wrote nothing a person would recognise as an
+    // edit, and still burned a revision and a queue entry.
+    const rowId = action.dataset.childActionRow;
+    if (operation === "updateChild" && rowId !== undefined) {
+      this.editingChildRows.add(childRowKey(sectionName, rowId));
+      this.render();
       return;
     }
 
@@ -418,6 +453,7 @@ export class AdlFormViewElement extends HTMLElement {
     `;
 
     this.configureFields(fields);
+    this.configureChildFieldEditors();
     this.configureActions();
     this.queueChildLookupLabelLoads();
   }
@@ -506,6 +542,129 @@ export class AdlFormViewElement extends HTMLElement {
         ${this.renderChildDraft(section)}
       </section>
     `;
+  }
+
+  /**
+   * Applies or abandons one open row editor.
+   *
+   * A save stages `updateChild` carrying only the fields that actually changed,
+   * and stages nothing at all when none did — the write of nothing this control
+   * used to produce unconditionally. The staged operation then commits inside the
+   * same batch as every other child change, so an inline edit is not a second
+   * write path.
+   */
+  private handleChildEditControl(control: HTMLButtonElement): void {
+    const sectionName = control.dataset.childSection;
+    const rowId = control.dataset.childActionRow;
+    if (sectionName === undefined || rowId === undefined) {
+      return;
+    }
+
+    this.editingChildRows.delete(childRowKey(sectionName, rowId));
+    if (control.dataset.childEdit !== "save") {
+      this.render();
+      return;
+    }
+
+    const section = this.childCollectionSection(sectionName);
+    const row = section?.rows.find((candidate) => candidate.id === rowId);
+    const childId = control.dataset.childId;
+    const childObject = control.dataset.childObject;
+    const values = this.collectChildEditorValues(sectionName, rowId, row?.values ?? {});
+    if (
+      row === undefined ||
+      childId === undefined ||
+      childObject === undefined ||
+      Object.keys(values).length === 0
+    ) {
+      this.render();
+      return;
+    }
+
+    this.dispatchEvent(
+      new CustomEvent<StageChildOperationDetail>("adl-stage-child-operation", {
+        bubbles: true,
+        detail: { section: sectionName, operation: "updateChild", childObject, childId, values },
+      }),
+    );
+  }
+
+  /** Only what changed, so an untouched field is never written back over itself. */
+  private collectChildEditorValues(
+    sectionName: string,
+    rowId: string,
+    current: Record<string, JsonValue>,
+  ): Record<string, JsonValue> {
+    const values: Record<string, JsonValue> = {};
+    for (const renderer of this.querySelectorAll<AdlFieldRendererElement>(
+      `adl-field-renderer[data-child-editor="${cssEscape(sectionName)}"][data-child-editor-row="${cssEscape(rowId)}"]`,
+    )) {
+      const field = renderer.field;
+      const value = renderer.getValue();
+      if (field === undefined || value === undefined || jsonEquals(current[field.name], value)) {
+        continue;
+      }
+      values[field.name] = value;
+    }
+    return values;
+  }
+
+  /**
+   * Points every child editor at the *child* object.
+   *
+   * This is the whole of what makes a child field behave like a parent field: a
+   * lookup becomes a chooser loaded through the policy-enforcing `runtime.search`,
+   * a date becomes a date control, an enum a select, and readonly and validators
+   * apply. Rendering them as bare text inputs is what made a child's lookup
+   * column a box you had to type a record id into.
+   */
+  private configureChildFieldEditors(): void {
+    if (this._runtime === undefined || this._context === undefined) {
+      return;
+    }
+
+    for (const section of this._editSurface?.sections ?? []) {
+      if (section.kind !== "childCollection") {
+        continue;
+      }
+
+      const childObject = this._runtime.model.objects.find(
+        (object) => object.name === section.childObject,
+      );
+      if (childObject === undefined) {
+        continue;
+      }
+
+      for (const renderer of this.querySelectorAll<AdlFieldRendererElement>(
+        `adl-field-renderer[data-child-editor="${cssEscape(section.name)}"], adl-field-renderer[data-child-draft-section="${cssEscape(section.name)}"]`,
+      )) {
+        const fieldName = renderer.dataset.childFieldSlot;
+        const field = section.fields.find((candidate) => candidate.name === fieldName);
+        if (field === undefined) {
+          continue;
+        }
+
+        const rowId = renderer.dataset.childEditorRow;
+        const record =
+          rowId === undefined ? undefined : section.rows.find((row) => row.id === rowId)?.record;
+        const mode = rowId === undefined ? "create" : "edit";
+        renderer.runtime = this._runtime;
+        renderer.object = childObject;
+        renderer.context = this._context;
+        renderer.field = field;
+        renderer.mode = mode;
+        renderer.value = record?.values[field.name];
+        renderer.presentation = resolveFieldPresentation({
+          runtime: this._runtime,
+          object: childObject,
+          field,
+          context: this._context,
+          mode,
+          ...(record === undefined ? {} : { record }),
+        });
+        renderer.issues = [];
+      }
+    }
   }
 
   private childCollectionSection(
@@ -621,10 +780,11 @@ export class AdlFormViewElement extends HTMLElement {
     const reorderable =
       isSectionReorderable(section) && orderIndex >= 0 && reorderAction?.visible === true;
     const childId = row.record?.meta.guid ?? row.id;
+    const editing = this.editingChildRows.has(childRowKey(section.name, row.id));
 
     return `
       <div
-        class="adl-child-row${reorderable ? " adl-child-row-reorderable" : ""}"
+        class="adl-child-row${reorderable ? " adl-child-row-reorderable" : ""}${editing ? " adl-child-editor" : ""}"
         data-child-row="${escapeHtml(row.id)}"
         data-child-section="${escapeHtml(section.name)}"
         data-child-object="${escapeHtml(section.childObject)}"
@@ -634,15 +794,38 @@ export class AdlFormViewElement extends HTMLElement {
       >
         ${reorderable ? this.renderReorderControls(section, row, orderIndex, orderedCount, reorderAction?.enabled === true) : ""}
         <div class="adl-child-row-values">
-          ${section.fields
-            .map(
-              (field) =>
-                `<span>${escapeHtml(this.formatChildCell(field, row.values[field.name]))}</span>`,
-            )
-            .join("")}
+          ${
+            editing
+              ? section.fields
+                  .filter((field) => field.name !== section.orderField)
+                  .map(
+                    (field) => `<adl-field-renderer
+                        class="adl-child-editor-field"
+                        data-child-field-slot="${escapeHtml(field.name)}"
+                        data-child-editor="${escapeHtml(section.name)}"
+                        data-child-editor-row="${escapeHtml(row.id)}"
+                      ></adl-field-renderer>`,
+                  )
+                  .join("")
+              : section.fields
+                  .map(
+                    (field) =>
+                      `<span>${escapeHtml(this.formatChildCell(field, row.values[field.name]))}</span>`,
+                  )
+                  .join("")
+          }
         </div>
         <div class="adl-child-row-actions">
+          ${
+            editing
+              ? `<button type="button" data-child-edit="save" data-child-section="${escapeHtml(section.name)}" data-child-object="${escapeHtml(section.childObject)}" data-child-id="${escapeHtml(childId)}" data-child-action-row="${escapeHtml(row.id)}">Save</button>
+                 <button type="button" data-child-edit="cancel" data-child-section="${escapeHtml(section.name)}" data-child-action-row="${escapeHtml(row.id)}">Cancel</button>`
+              : ""
+          }
           ${row.actions
+            // While the row is open its own Edit control is redundant — Save and
+            // Cancel are the only moves — but Remove stays available.
+            .filter((action) => !(editing && action.operation === "updateChild"))
             // `reorder` has its own controls; rendering it here too would offer a
             // button that carries no target position.
             .filter((action) => action.visible && action.operation !== "reorder")
@@ -653,6 +836,7 @@ export class AdlFormViewElement extends HTMLElement {
                   data-child-action="${escapeHtml(action.operation)}"
                   data-child-section="${escapeHtml(section.name)}"
                   data-child-object="${escapeHtml(section.childObject)}"
+                  data-child-action-row="${escapeHtml(row.id)}"
                   ${
                     row.source === "staged"
                       ? `data-staged-operation-id="${escapeHtml(row.stagedOperationId ?? "")}"`
@@ -822,8 +1006,11 @@ export class AdlFormViewElement extends HTMLElement {
 
   private renderChildDraft(section: RuntimeEditChildCollectionSection): string {
     // Suppressed when a minting picker exists: choosing a candidate is how a
-    // child is added there, and the draft row's bare inputs would ask the person
-    // to type by hand the very record the picker exists to let them choose.
+    // child is added there, so a draft row beside it would be a second way to do
+    // the same thing — and one that cannot honour `EXCLUDE_LINKED`, because it
+    // offers the field's whole lookup target rather than what is not already
+    // held. (Its inputs are no longer the reason: they go through the platform
+    // field renderer now, as the row editor's do.)
     if (
       !section.operations.includes("createChild") ||
       section.picker?.candidateField !== undefined
@@ -834,17 +1021,13 @@ export class AdlFormViewElement extends HTMLElement {
     return `
       <div class="adl-child-draft" data-child-draft="${escapeHtml(section.name)}">
         ${section.fields
+          .filter((field) => field.name !== section.orderField)
           .map(
-            (field) => `
-              <label>
-                <span>${escapeHtml(titleCaseIdentifier(field.name))}</span>
-                <input
-                  type="${field.type === "number" ? "number" : "text"}"
-                  data-child-draft-field="${escapeHtml(field.name)}"
-                  data-child-draft-section="${escapeHtml(section.name)}"
-                />
-              </label>
-            `,
+            (field) => `<adl-field-renderer
+                class="adl-child-editor-field"
+                data-child-field-slot="${escapeHtml(field.name)}"
+                data-child-draft-section="${escapeHtml(section.name)}"
+              ></adl-field-renderer>`,
           )
           .join("")}
       </div>
@@ -1108,7 +1291,12 @@ export class AdlFormViewElement extends HTMLElement {
   private collectValues(): Record<string, JsonValue> {
     const values: Record<string, JsonValue> = {};
 
-    for (const renderer of this.querySelectorAll<AdlFieldRendererElement>("adl-field-renderer")) {
+    // Scoped to the parent's own slots. Child row and draft editors are
+    // `adl-field-renderer`s too, and an unscoped query folded their values into
+    // the parent record's patch.
+    for (const renderer of this.querySelectorAll<AdlFieldRendererElement>(
+      "adl-field-renderer[data-field-slot]",
+    )) {
       const field = renderer.field;
       if (field === undefined) {
         continue;
@@ -1131,17 +1319,18 @@ export class AdlFormViewElement extends HTMLElement {
 
   private collectChildDraftValues(sectionName: string): Record<string, JsonValue> {
     const values: Record<string, JsonValue> = {};
-    for (const input of this.querySelectorAll<HTMLInputElement>(
-      `input[data-child-draft-section="${cssEscape(sectionName)}"]`,
+    for (const renderer of this.querySelectorAll<AdlFieldRendererElement>(
+      `adl-field-renderer[data-child-draft-section="${cssEscape(sectionName)}"]`,
     )) {
-      const fieldName = input.dataset.childDraftField;
-      if (fieldName === undefined) {
+      const field = renderer.field;
+      const value = renderer.getValue();
+      // An untouched optional field is omitted rather than sent as an empty
+      // string: the old bare-input path sent `""` for every blank box, which is
+      // a value, and a different one from "not supplied".
+      if (field === undefined || value === undefined || value === "") {
         continue;
       }
-      const field = this._editSurface?.sections
-        .find((section) => section.kind === "childCollection" && section.name === sectionName)
-        ?.fields.find((candidate) => candidate.name === fieldName);
-      values[fieldName] = field?.type === "number" ? Number(input.value) : input.value;
+      values[field.name] = value;
     }
     return values;
   }
@@ -1236,6 +1425,10 @@ const CHILD_ACTION_LABELS: Record<EditChildOperationKind, string> = {
 
 function childActionLabel(operation: EditChildOperationKind): string {
   return CHILD_ACTION_LABELS[operation];
+}
+
+function childRowKey(sectionName: string, rowId: string): string {
+  return `${sectionName}\u0000${rowId}`;
 }
 
 function childLookupLabelKey(field: ResolvedField, recordId: string): string {

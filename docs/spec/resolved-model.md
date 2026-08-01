@@ -323,9 +323,9 @@ choosing it is `EDIT_CONTAINER`; see [language#edit-surfaces](language.md).
 Resolved views also include `editSections`. The default is one `fields` section
 derived from `view.fields`. A view may instead declare explicit field sections
 and `childCollection` sections. Child collections name the child object, the
-child lookup field that points at the parent object, an optional child view for
-display fields, supported operations, staged-change behavior, optional order
-field, and empty-state text. The implemented child operation names are
+child lookup field that points at the parent object, an optional child view whose
+fields the collection displays and edits, supported operations, staged-change
+behavior, optional order field, and empty-state text. The implemented child operation names are
 `createChild`, `linkExisting`, `updateChild`, `unlink`, `remove`, and
 `reorder`. The defaults are `createChild`, `updateChild` and `unlink` for
 operations, staged changes enabled, and empty empty-state text.

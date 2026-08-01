@@ -21,15 +21,24 @@
 > yet. The alternatives are recorded below with their evidence so a later phase
 > does not re-derive them.
 >
-> **Amendment, made before this phase was executed.** The single worst part of
-> the above — that adding a child meant typing a record guid — was closed
-> immediately after Phase 59 was pushed, because it made the shipped surface
-> unusable rather than merely rough. A `PICKER` may now name a `CANDIDATE_FIELD`,
-> which turns it from one that re-parents existing children into one that
-> **creates** them from a chosen related record; the Giggle Band set list adds
-> songs by choosing them, appended to the end and ready to reorder, with no id
-> typed anywhere. What that fix did **not** close is recorded in the evidence
-> below and remains this phase's scope.
+> **Amendment, made before this phase was executed.** Everything above about a
+> person being unable to _operate_ the surface was closed immediately after Phase
+> 59 was pushed, because it made a shipped capability unusable rather than merely
+> rough. Two fixes, in order:
+>
+> 1. A `PICKER` may name a `CANDIDATE_FIELD`, which turns it from one that
+>    re-parents existing children into one that **creates** them from a chosen
+>    related record. The set list adds songs by choosing them, appended and ready
+>    to reorder, with no id typed anywhere.
+> 2. The row `Edit` control opens a real inline editor instead of staging a patch
+>    of nothing, and both it and the child draft row now render through the
+>    platform's field renderer against the child object — so a child's lookup is a
+>    chooser, exactly as it is on the parent form. The runtime refuses an empty
+>    patch so the write-of-nothing cannot return.
+>
+> **What remains of this phase is therefore no longer the browser.** The two
+> smaller modelling defects below survive, and the honest question this phase must
+> answer first is whether they still outrank the candidates listed after them.
 
 ## Objective
 
@@ -41,28 +50,10 @@ rather than as bare text inputs, and an inline edit path that carries values.
 
 Every point below was checked against the code while writing this document.
 
-- **Adding a child by choosing a related record is now possible; adding one by
-  filling in its own fields is still not.** A minting picker covers the
-  set-list-and-song shape, where the child is little more than a link plus a
-  position. It does nothing for a child a person must actually describe — an
-  order line with a quantity and a discount, an invoice row with a date. That
-  child still goes through the draft row below.
-- **Child draft fields bypass the field renderer entirely.**
-  `AdlFormViewElement.renderChildDraft` (`src/ui/components/adl-form-view.ts:802`)
-  maps every child field to
-  `<input type="${field.type === "number" ? "number" : "text"}">`. It consults
-  `field.lookup`, `field.validators`, `field.readonly`, enum values and every
-  non-number `field.type` not at all. The parent form's own fields go through
-  `adl-field-renderer`, which loads lookup options with `runtime.search` against
-  the target object (`src/ui/components/adl-field-renderer.ts:99,197-233`) and
-  applies `resolveFieldPresentation`. The same field is a select in one half of
-  the form and a raw text box in the other.
-- **The consequence was visible in this repository's own screenshots**, and is
-  now visible only where a minting picker does not apply. The first Phase 59
-  desktop capture of `SetListForm` showed the child draft row as `Position`,
-  `Song`, `Notes` — three empty text inputs, with `SetListItem.Song` a
-  `LOOKUP Song` field, so adding a song meant typing `song-26121e9b-…`. That row
-  is suppressed there now; it is still what any other child collection gets.
+- ~~**Child draft fields bypass the field renderer entirely.**~~ **Closed by the
+  amendment above.** `configureChildFieldEditors` points the draft row and the row
+  editor at `adl-field-renderer` and `resolveFieldPresentation` against the child
+  object.
 - **The row `Edit` button stages a write of nothing.**
   `handleChildClick` dispatches `updateChild` with `{section, operation,
 childObject, childId}` and no `values`

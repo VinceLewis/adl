@@ -644,7 +644,9 @@ what the ADL syntax resolves to and which declarations are refused — including
 both picker modes, the source each one must be routed at, and every candidate-field
 diagnostic — and `conformance/runtime/edit-surfaces.json`, which states what an
 ADL-declared child collection evaluates to, what each picker mode offers and
-excludes, and what a staged batch commits, queues and reconciles.
+excludes, what a staged batch commits, queues and reconciles, and that a staged
+`updateChild` changes only the fields its patch names while one carrying no values
+is refused and takes the rest of its batch with it.
 
 ## Implementation Notes
 
@@ -737,6 +739,45 @@ that fails at any one change leaves none of them written and none queued. ADL
 source syntax is `EDIT_CONTAINER`, `EDIT_SECTION` and `CHILD_COLLECTION`; see
 [language#edit-surfaces](language.md).
 
+A child collection has two editable surfaces: the **draft row**, which a section
+supporting `createChild` renders below its rows, and the **row editor**, which
+opens in place over one existing row. Both render the section's fields through the
+same platform field renderer the parent form uses, resolved against the **child**
+object rather than the parent — so a child field behaves exactly as it would on
+its own form. A `LOOKUP` field is a chooser rather than a box to type a record id
+into; a date, number or boolean field gets its own control; a field constrained to
+a declared set of values is a select; required fields are marked; and readonly
+fields and field-level read and write policy resolve through the same
+`resolveFieldPresentation` the parent form uses. The chooser's candidate records
+are loaded through `ApplicationRuntime.search` on the lookup's target object, so
+read policy and context scoping apply to them; the browser must not obtain
+candidate records by any other route.
+
+The section's `orderField` is excluded from both surfaces. A new child is
+appended, and reordering has its own controls, so a typed position would be a
+second source of truth for the same thing.
+
+A persisted row's `updateChild` action is labelled `Edit` and **opens the row
+editor**; it writes nothing and stages nothing by itself. The open row's own
+`Edit` control is replaced by `Save` and `Cancel` while `Remove` stays available,
+and its reorder controls are unaffected.
+
+- `Save` stages one `updateChild` naming that child and carrying **only the fields
+  whose values differ** from the row's current ones, and stages **nothing at all**
+  when nothing differs.
+- `Cancel` discards the editor and stages nothing.
+
+Either way the editor closes. Nothing about a row's record changes until the
+staged change is applied, so a cancelled edit leaves no trace. A staged
+`updateChild` is then committed and queued inside the same batch as the section's
+other child changes — an inline edit is not a second write path — and the runtime
+independently refuses a staged `updateChild` carrying no values, so the empty
+write is unreachable however a caller reaches the runtime. See
+[runtime-semantics#staged-child-changes](runtime-semantics.md).
+
+Only persisted rows offer `Edit`. A staged row has no record yet and carries the
+staged-removal control alone.
+
 Child collection sections can declare relationship pickers. The generic browser
 renderer opens a modal picker, supports single-select or multi-select candidate
 choices, and renders empty candidate states as neutral empty states. Candidate
@@ -761,11 +802,11 @@ candidate's, because for a minting picker those are different objects. A chosen
 candidate is staged as a _value_ of the new child rather than as a child id: the
 child does not exist yet, and the candidate's record is not one.
 
-The bare child draft row — the inline inputs a section otherwise renders for
+The child draft row — the inline inputs a section otherwise renders for
 `createChild` — is suppressed when a minting picker exists, and so is the separate
 `Add` button that submits it. Choosing a candidate is how a child is added there,
-and asking a person to type by hand the record the picker exists to let them
-choose would be a second, worse way to do the same thing. A section with a linking
+so a draft row beside it would be a second control doing the same job, and the two
+could disagree about which candidates are still available. A section with a linking
 picker that also supports `createChild` still renders both: its `Link` control and
 its draft row do different things.
 

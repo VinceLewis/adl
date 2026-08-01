@@ -478,7 +478,9 @@ export class EditSurfaceRuntime {
             .filter(
               (record) => record.values[input.section.parentField] === input.record?.meta.guid,
             )
-            .map((record) => this.toPersistedChildRow(record, input.section, input.context));
+            .map((record) =>
+              this.toPersistedChildRow(record, input.section, input.context, input.stagedChanges),
+            );
     const stagedRows = await this.evaluateStagedChildRows(
       input.section,
       input.stagedChanges,
@@ -517,13 +519,38 @@ export class EditSurfaceRuntime {
     record: StoredObjectRecord,
     section: ResolvedEditChildCollectionSection,
     context: RuntimeContext,
+    stagedChanges: RuntimeStagedChildOperation[] = [],
   ): RuntimeEditChildRow {
     const childObject = this.index.getObject(section.childObject);
+    /*
+     * A staged edit is shown on the row it changes, not held back until the
+     * parent is saved.
+     *
+     * Every other staged operation in a collection is already visible before the
+     * save — a create and a link render as staged rows, a remove drops its row,
+     * a reorder moves it — so an edit that left the old value on screen was the
+     * one change a person could make and see no trace of. That is the same "the
+     * button did nothing" impression inline editing exists to remove. It went
+     * unnoticed because `updateChild` carried no values to show until now.
+     *
+     * The overlay is display only: `record` still holds what storage holds, so
+     * nothing downstream mistakes a staged edit for a committed one.
+     */
+    const staged = stagedChanges.filter(
+      (operation) =>
+        operation.section === section.name &&
+        operation.operation === "updateChild" &&
+        operation.childId === record.meta.guid,
+    );
+
     return {
       id: record.meta.guid,
       source: "persisted",
       record,
-      values: cloneJson(record.values),
+      values: staged.reduce<Record<string, JsonValue>>(
+        (values, operation) => ({ ...values, ...cloneJson(operation.values ?? {}) }),
+        cloneJson(record.values),
+      ),
       actions: section.operations
         .filter((operation) => operation !== "createChild" && operation !== "linkExisting")
         .map((operation) =>
@@ -745,12 +772,19 @@ export class EditSurfaceRuntime {
     }
 
     if (operation.operation === "updateChild") {
-      return this.dataSource.planUpdate(
-        section.childObject,
-        operation.childId,
-        operation.values ?? {},
-        context,
-      );
+      const patch = operation.values ?? {};
+      // A patch of nothing is not an edit. The browser's row `Edit` control used
+      // to stage exactly this — it carried no values at all — so a button that
+      // did nothing a person would recognise still burned a revision and a queue
+      // entry on every click. Refused here so no caller can reintroduce it.
+      if (Object.keys(patch).length === 0) {
+        throw unsupportedOperation(
+          operation,
+          `Staged update operation '${operation.id}' carries no values to change.`,
+        );
+      }
+
+      return this.dataSource.planUpdate(section.childObject, operation.childId, patch, context);
     }
 
     if (operation.operation === "reorder") {

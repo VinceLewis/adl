@@ -157,6 +157,32 @@ test.describe("Giggle Band visual smoke", () => {
     await expect(savedRows.nth(3)).toContainText("Slow Tide");
     await expect(savedRows.nth(3)).toHaveAttribute("data-child-row-position", "4");
 
+    // Editing a row in place. `Edit` opens the row with the platform's real field
+    // controls — the `Song` lookup is a chooser, not a box to type an id into —
+    // and Save stages only what changed, committing inside the same batch.
+    await savedRows.nth(3).locator("button[data-child-action='updateChild']").click();
+    const editor = page.locator(".adl-child-row.adl-child-editor");
+    await expect(editor).toBeVisible();
+    const songChooser = editor.locator("adl-field-renderer[data-child-field-slot='Song'] select");
+    await expect(songChooser).toBeVisible();
+    const notes = editor.locator("adl-field-renderer[data-child-field-slot='Notes'] input");
+    await notes.fill("Encore candidate");
+    await expectNoDocumentHorizontalOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`giggle-${testInfo.project.name}-set-list-row-edit.png`),
+      fullPage: true,
+    });
+
+    await editor.locator("button[data-child-edit='save']").click();
+    await expect(page.locator(".adl-child-row.adl-child-editor")).toHaveCount(0);
+    await page.locator("button[data-action-name='save']").click();
+    await expect(page.locator(".adl-message-area")).toContainText("SetList saved.");
+
+    await page.locator("tr[data-record-id]").filter({ hasText: "August headline" }).click();
+    await expect(
+      page.locator("section.adl-child-section[data-child-section='Songs'] [data-child-row]").nth(3),
+    ).toContainText("Encore candidate");
+
     await expectAppReady(page);
     await expectNoDocumentHorizontalOverflow(page);
     await expectNoVisibleElementOverflow(page);

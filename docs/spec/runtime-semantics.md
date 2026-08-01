@@ -224,6 +224,28 @@ so they land after the existing children and after each other rather than all
 claiming one slot. A caller-supplied position still wins, and is then subject to
 the ordinary ordered-collection expansion below.
 
+The other staged operations are planned from the child record they name, which
+every one of them except `createChild` must supply; a staged operation carrying no
+`childId` is refused with `ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED`, as is one
+naming a section the view does not declare, one whose child object is not the
+section's, and one whose operation the section does not list.
+
+- `linkExisting` re-parents the named child, patching the declared parent field to
+  this parent.
+- `unlink` patches that same field to null.
+- `remove` deletes the named child.
+- `reorder` patches the section's `orderField` to the staged position, and is
+  refused when the section declares no order field or the operation carries no
+  position.
+- `updateChild` **carries a patch**: the values it names are the fields it
+  changes, and every other field of the child is left exactly as it was. A staged
+  `updateChild` carrying no values is not an edit and is refused with
+  `ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED` — the refusal is at the runtime,
+  so a caller cannot spend a revision and a queue entry on a write that changes
+  nothing. Being a staged operation, an accepted one is committed and queued
+  inside the same batch as the section's other child changes rather than as a
+  write of its own.
+
 Applying a staged batch is a **single transaction**. Every staged operation is
 planned first — running exactly the policy, validation, lifecycle, scope,
 constraint and sync checks the direct write APIs run — and all of the planned

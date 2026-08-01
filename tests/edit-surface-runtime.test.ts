@@ -365,8 +365,8 @@ describe("parent-child edit surfaces", () => {
 
     requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
     await flushUi();
-    fillInput(app, "adl-field-renderer[data-field-name='Title'] input", "Cancelled");
-    fillInput(app, "input[data-child-draft-field='Title']", "Discarded child");
+    fillInput(app, "adl-field-renderer[data-field-slot='Title'] [data-field-input]", "Cancelled");
+    fillChildField(app, "SetLists", "Title", "Discarded child");
     requireElement<HTMLButtonElement>(app, "button[data-child-action='createChild']").click();
     await flushUi();
     expect(app.textContent).toContain("Discarded child");
@@ -377,8 +377,8 @@ describe("parent-child edit surfaces", () => {
 
     requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
     await flushUi();
-    fillInput(app, "adl-field-renderer[data-field-name='Title'] input", "Saved");
-    fillInput(app, "input[data-child-draft-field='Title']", "Saved child");
+    fillInput(app, "adl-field-renderer[data-field-slot='Title'] [data-field-input]", "Saved");
+    fillChildField(app, "SetLists", "Title", "Saved child");
     requireElement<HTMLButtonElement>(app, "button[data-child-action='createChild']").click();
     await flushUi();
     requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
@@ -398,7 +398,11 @@ describe("parent-child edit surfaces", () => {
 
     requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
     await flushUi();
-    fillInput(app, "adl-field-renderer[data-field-name='Title'] input", "With linked sets");
+    fillInput(
+      app,
+      "adl-field-renderer[data-field-slot='Title'] [data-field-input]",
+      "With linked sets",
+    );
     // One header control opens the picker, and a linking picker labels it
     // "Link" because the records it offers already exist.
     const open = requireElement<HTMLButtonElement>(app, "button[data-picker-open='SetLists']");
@@ -811,6 +815,79 @@ describe("staged child changes the model does not permit", () => {
   });
 
   /**
+   * A patch of nothing is not an edit.
+   *
+   * The browser's row `Edit` control used to stage exactly this — `updateChild`
+   * carrying no values at all — so a control that looked enabled wrote nothing a
+   * person would recognise and still burned a revision and a queue entry on every
+   * click. The browser no longer produces it, but the runtime is the enforcement
+   * point: a hidden or corrected control is not a check, and any other caller
+   * could reintroduce the same write of nothing.
+   *
+   * Both shapes are refused, because both are what "no values" looks like on the
+   * wire: the field omitted, and the field present but empty.
+   */
+  const emptyPatchShapes: Array<[string, Record<string, never> | undefined]> = [
+    ["an omitted values map", undefined],
+    ["an empty values map", {}],
+  ];
+
+  for (const [label, values] of emptyPatchShapes) {
+    it(`refuses a staged update carrying ${label}, without applying the batch`, async () => {
+      const { runtime, eventId } = await eventWithRuntime();
+      const setList = await runtime.create(
+        "SetList",
+        { Event: eventId, Title: "Main set", Position: 1 },
+        adminContext,
+      );
+      runtime.syncQueue.clear();
+
+      await expect(
+        runtime.applyStagedChildChanges({
+          objectName: "Event",
+          viewName: "EventForm",
+          parentRecordId: eventId,
+          context: adminContext,
+          stagedChanges: [
+            {
+              id: "valid",
+              section: "SetLists",
+              operation: "createChild",
+              childObject: "SetList",
+              values: { Title: "Opening set" },
+            },
+            {
+              id: "empty-update",
+              section: "SetLists",
+              operation: "updateChild",
+              childObject: "SetList",
+              childId: setList.meta.guid,
+              ...(values === undefined ? {} : { values }),
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        code: "ADL_RUNTIME_VALIDATION_FAILED",
+        issues: [
+          expect.objectContaining({
+            code: "ADL_RUNTIME_EDIT_CHILD_OPERATION_UNSUPPORTED",
+            message: expect.stringContaining("carries no values to change"),
+          }),
+        ],
+      });
+
+      // The whole batch is refused: the create beside it never landed, the child
+      // it named is byte-for-byte what it was, and its revision did not move — a
+      // no-op write that still bumped the revision is the specific damage here.
+      const stored = await runtime.search("SetList", {}, adminContext);
+      expect(stored.map((record) => record.values.Title)).toEqual(["Main set"]);
+      expect(stored[0]?.values).toEqual(setList.values);
+      expect(stored[0]?.meta.revision).toBe(setList.meta.revision);
+      expect(runtime.syncQueue.getEntries()).toEqual([]);
+    });
+  }
+
+  /**
    * The duplicate-link refusal, now proved to take the rest of the batch with
    * it. Two staged links to the same child would otherwise have committed the
    * create beside them before the duplicate was noticed.
@@ -1176,10 +1253,40 @@ async function mountApp(
   return app;
 }
 
+/**
+ * Types into a rendered control.
+ *
+ * Focus is set first because it is load-bearing rather than decorative: the form
+ * decides whether an input belongs to the parent draft or to a surface it owns
+ * by asking where focus is, and a test that never focuses would drive a path no
+ * person can reach.
+ */
 function fillInput(root: ParentNode, selector: string, value: string): void {
   const input = requireElement<HTMLInputElement>(root, selector);
+  input.focus();
   input.value = value;
   input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/**
+ * Types into one field of a child collection's draft row.
+ *
+ * The draft row is no longer a strip of bare `input[data-child-draft-field]`
+ * boxes: every field is an `adl-field-renderer` pointed at the *child* object, so
+ * a lookup is a chooser and a date is a date control. The value therefore goes on
+ * the control the renderer reads back through `getValue()`.
+ */
+function fillChildField(
+  root: ParentNode,
+  sectionName: string,
+  fieldName: string,
+  value: string,
+): void {
+  fillInput(
+    root,
+    `adl-field-renderer[data-child-draft-section='${sectionName}'][data-child-field-slot='${fieldName}'] [data-field-input]`,
+    value,
+  );
 }
 
 async function flushUi(): Promise<void> {

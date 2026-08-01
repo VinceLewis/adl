@@ -1529,6 +1529,28 @@ button:disabled {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
+/*
+ * An open row editor. It shares the draft row's column behaviour so the fields
+ * of a row being edited and a row being added line up rather than reading as two
+ * different surfaces, and it is tinted so an open row is obviously distinct from
+ * the settled ones around it.
+ */
+.adl-child-row.adl-child-editor {
+  background: var(--adl-color-surface-muted, rgba(16, 24, 40, 0.04));
+}
+
+.adl-child-editor .adl-child-row-values {
+  display: grid;
+  gap: var(--adl-space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  width: 100%;
+}
+
+.adl-child-editor-field {
+  display: block;
+  min-width: 0;
+}
+
 .adl-relationship-picker {
   align-items: center;
   background: rgba(16, 24, 40, 0.42);
