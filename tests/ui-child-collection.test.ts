@@ -121,6 +121,105 @@ const RESTRICTED_ORDER_ADL = ORDER_ADL.replace(
 `,
 );
 
+/**
+ * The same order form, except that a line is added by choosing a `Product`
+ * rather than by re-parenting an existing `OrderLine`. `CANDIDATE_FIELD` names
+ * the child field the chosen product's id lands in, which is what makes "add a
+ * product to this order" expressible at all.
+ */
+const MINTING_ORDER_ADL = `
+APP OrderDesk
+  START_VIEW OrderList
+END.APP
+
+ROLE Clerk
+
+OBJECT Order
+  KEY Code
+  DISPLAY Code
+
+  FIELD Code TEXT REQUIRED
+  FIELD Notes TEXT
+
+  VIEW OrderList LIST
+    FIELDS Code Notes
+    SEARCH Code
+    ACTIONS create read update
+  END.VIEW
+
+  VIEW OrderForm FORM
+    FIELDS Code Notes
+    ACTIONS save delete
+    EDIT_CONTAINER page
+    EDIT_SECTION Details HEADING 'Order'
+      FIELDS Code Notes
+    END.EDIT_SECTION
+    CHILD_COLLECTION Lines HEADING 'Lines'
+      CHILD OrderLine PARENT_FIELD Order
+      CHILD_VIEW OrderLineList
+      OPERATIONS createChild updateChild remove reorder
+      STAGED
+      ORDER_FIELD Position
+      EMPTY_TEXT 'No lines yet.'
+      PICKER ProductPicker
+        SOURCE OBJECT Product
+        CANDIDATE_FIELD Product
+        SELECTION multiple
+        DISPLAY Name
+        SEARCH Name
+        SORT Name ASC
+        EXCLUDE_LINKED
+        EMPTY_TEXT 'Every product is already on this order.'
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE All CONFLICT Manual
+END.OBJECT
+
+OBJECT Product
+  DISPLAY Name
+
+  FIELD Name TEXT REQUIRED
+
+  VIEW ProductList LIST
+    FIELDS Name
+    SEARCH Name
+    ACTIONS create read update delete
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE All CONFLICT Manual
+END.OBJECT
+
+OBJECT OrderLine
+  FIELD Order TEXT LOOKUP Order DISPLAY Code
+  FIELD Product TEXT REQUIRED LOOKUP Product DISPLAY Name
+  FIELD Position NUMBER REQUIRED
+
+  CONSTRAINT orderedOrderLines ORDERED PARENT Order POSITION Position REORDER shift COMPACT onDelete
+
+  VIEW OrderLineList LIST
+    FIELDS Product Position
+    SORT Position ASC
+    ACTIONS create read update delete
+  END.VIEW
+
+  SYNC LOCAL_FIRST SCOPE All CONFLICT Manual
+END.OBJECT
+
+POLICY OrderPolicy ON Order
+  ALLOW * ROLE Clerk
+END.POLICY
+
+POLICY ProductPolicy ON Product
+  ALLOW * ROLE Clerk
+END.POLICY
+
+POLICY OrderLinePolicy ON OrderLine
+  ALLOW * ROLE Clerk
+END.POLICY
+`;
+
 const seedContext: RuntimeContext = {
   userId: "seed-clerk",
   roles: ["Clerk"],
@@ -223,7 +322,7 @@ describe("ADL-declared child collections in the browser", () => {
     const app = await mountApp(seeded);
     await openOrder(app, "ORD-1");
 
-    requireElement<HTMLButtonElement>(app, "button[data-child-action='linkExisting']").click();
+    openPicker(app);
     await flushUi();
 
     const picker = requireElement<HTMLElement>(app, ".adl-relationship-picker");
@@ -368,7 +467,7 @@ describe("ADL-declared child collections in the browser", () => {
     const app = await mountApp(seeded);
     await openOrder(app, "ORD-1");
 
-    requireElement<HTMLButtonElement>(app, "button[data-child-action='linkExisting']").click();
+    openPicker(app);
     await flushUi();
     requireElement<HTMLInputElement>(app, "input[data-picker-candidate]").checked = true;
     requireElement<HTMLButtonElement>(app, "button[data-picker-action='add']").click();
@@ -388,6 +487,81 @@ describe("ADL-declared child collections in the browser", () => {
     await flushUi();
 
     expect(await linkedSkus(seeded)).toEqual(["Amp", "Cable", "Mic", "Spare"]);
+  });
+
+  /**
+   * A minting picker is the way a child is added, so the header carries one
+   * control and the bare draft row is gone. The draft row asked the person to
+   * type the chosen record's id into a text box, which is the defect
+   * `CANDIDATE_FIELD` exists to close.
+   */
+  it("offers a single Add control and no draft row when the picker mints children", async () => {
+    const seeded = await seedCatalogue();
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    const section = requireElement<HTMLElement>(app, "[data-child-section='Lines']");
+    // One control, and it is the one that opens the picker: a minting picker
+    // labels it "Add" because the record the person chooses does not exist as a
+    // child yet.
+    expect(sectionActionLabels(section)).toEqual(["Add"]);
+    const controls = [...section.querySelectorAll<HTMLButtonElement>("button[data-picker-open]")];
+    expect(controls.map(labelText)).toEqual(["Add"]);
+    expect(section.querySelector("[data-child-draft]")).toBeNull();
+    expect(section.querySelectorAll("input[data-child-draft-field]")).toHaveLength(0);
+  });
+
+  it("stages createChild operations carrying the chosen candidate and writes nothing until save", async () => {
+    const seeded = await seedCatalogue();
+    const applyStaged = vi.spyOn(seeded.runtime, "applyStagedChildChanges");
+    const app = await mountApp(seeded);
+    await openOrder(app, "ORD-1");
+
+    openPicker(app);
+    await flushUi();
+
+    const picker = requireElement<HTMLElement>(app, ".adl-relationship-picker");
+    // Amp is already on the order. Exclusion compares the product each existing
+    // line *names*, so the line's own id never enters into it.
+    expect(
+      [...picker.querySelectorAll(".adl-relationship-picker-row span")].map(labelText),
+    ).toEqual(["Cable", "Mic"]);
+
+    for (const candidate of picker.querySelectorAll<HTMLInputElement>(
+      "input[data-picker-candidate]",
+    )) {
+      candidate.checked = true;
+    }
+    requireElement<HTMLButtonElement>(app, "button[data-picker-action='add']").click();
+    await flushUi();
+
+    // Staged, not written: the order still holds only the line it was seeded
+    // with.
+    expect(await orderedProducts(seeded)).toEqual([["Amp", 1]]);
+
+    requireElement<HTMLButtonElement>(app, "button[data-action-name='save']").click();
+    await flushUi();
+    await flushUi();
+
+    // Each ticked product produced a `createChild` carrying that product's id in
+    // the declared candidate field — never a `childId`, which would have named
+    // the product's record as though it were the line's.
+    const staged = applyStaged.mock.calls[0]?.[0].stagedChanges ?? [];
+    expect(
+      staged.map((operation) => [operation.operation, operation.childObject, operation.values]),
+    ).toEqual([
+      ["createChild", "OrderLine", { Product: productId(seeded, "Cable") }],
+      ["createChild", "OrderLine", { Product: productId(seeded, "Mic") }],
+    ]);
+    expect(staged.every((operation) => operation.childId === undefined)).toBe(true);
+
+    // Nothing supplied a position, so the runtime appended each new line to the
+    // end of the ordered collection in the order the products were chosen.
+    expect(await orderedProducts(seeded)).toEqual([
+      ["Amp", 1],
+      ["Cable", 2],
+      ["Mic", 3],
+    ]);
   });
 });
 
@@ -429,6 +603,71 @@ async function seedOrders(source = ORDER_ADL): Promise<SeededOrders> {
   await runtime.create("OrderLine", { Sku: "Spare", Position: 1 }, seedContext);
 
   return { model, runtime };
+}
+
+interface SeededCatalogue extends SeededOrders {
+  products: Map<string, string>;
+}
+
+/** An order holding one line for `Amp`, in a catalogue of three products. */
+async function seedCatalogue(): Promise<SeededCatalogue> {
+  const { model } = compileOrderModel(MINTING_ORDER_ADL);
+  const runtime = new ApplicationRuntime(model);
+
+  const order = await runtime.create("Order", { Code: "ORD-1", Notes: "First" }, seedContext);
+  const products = new Map<string, string>();
+  for (const name of ["Amp", "Cable", "Mic"]) {
+    const product = await runtime.create("Product", { Name: name }, seedContext);
+    products.set(name, product.meta.guid);
+  }
+  await runtime.create(
+    "OrderLine",
+    { Order: order.meta.guid, Product: products.get("Amp") ?? "", Position: 1 },
+    seedContext,
+  );
+
+  return { model, runtime, products };
+}
+
+function productId(seeded: SeededCatalogue, name: string): string {
+  const id = seeded.products.get(name);
+  if (id === undefined) {
+    throw new Error(`No seeded product '${name}'.`);
+  }
+  return id;
+}
+
+/** The products this order's lines name, in position order. */
+async function orderedProducts(seeded: SeededCatalogue): Promise<[string, number][]> {
+  const names = new Map([...seeded.products].map(([name, id]) => [id, name]));
+  const lines = await seeded.runtime.search(
+    "OrderLine",
+    { sort: [{ field: "Position", direction: "asc" }] },
+    seedContext,
+  );
+  return lines.map((line): [string, number] => [
+    names.get(String(line.values.Product)) ?? String(line.values.Product),
+    Number(line.values.Position),
+  ]);
+}
+
+/**
+ * Clicks the section's one picker control.
+ *
+ * Exactly one, because the header used to carry a separate Link and Add pair
+ * and a second control would mean the two entry points had come back apart.
+ */
+function openPicker(app: AdlAppElement, section = "Lines"): void {
+  const controls = [
+    ...app.querySelectorAll<HTMLButtonElement>(`button[data-picker-open='${section}']`),
+  ];
+  if (controls.length !== 1) {
+    throw new Error(
+      `Expected exactly one control opening the '${section}' picker, found ${controls.length}.`,
+    );
+  }
+
+  controls[0]?.click();
 }
 
 async function mountApp(seeded: SeededOrders): Promise<AdlAppElement> {
@@ -479,12 +718,17 @@ function childRowValues(section: HTMLElement): string[][] {
   );
 }
 
+/**
+ * Every control in the section header, however it is wired.
+ *
+ * The control that opens a picker carries `data-picker-open` rather than
+ * `data-child-action`, so selecting only the latter would silently stop seeing
+ * the picker control instead of reporting that it had gone.
+ */
 function sectionActionLabels(section: HTMLElement): string[] {
-  return [
-    ...section.querySelectorAll<HTMLButtonElement>(
-      ".adl-child-section-actions button[data-child-action]",
-    ),
-  ].map(labelText);
+  return [...section.querySelectorAll<HTMLButtonElement>(".adl-child-section-actions button")].map(
+    labelText,
+  );
 }
 
 function rowActionLabels(section: HTMLElement): string[][] {

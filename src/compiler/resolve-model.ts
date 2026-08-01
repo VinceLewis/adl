@@ -820,6 +820,10 @@ function resolveRelationshipPicker(
     name: input.name ?? `${section.name}Picker`,
     sourceKind,
     source: input.source ?? (sourceKind === "object" ? section.childObject : ""),
+    // Present only when the picker mints children rather than linking them. It
+    // is not defaulted: which field receives the candidate is a modelling
+    // decision, and guessing it would silently pick one when a child has two.
+    ...(input.candidateField === undefined ? {} : { candidateField: input.candidateField }),
     selection: input.selection ?? "multiple",
     displayFields: [...(input.displayFields ?? [])],
     searchFields: [...(input.searchFields ?? [])],

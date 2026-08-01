@@ -800,6 +800,20 @@ export interface ResolvedRelationshipPicker {
   name: string;
   sourceKind: RelationshipPickerSourceKind;
   source: string;
+  /**
+   * The child field that receives the chosen candidate's record id, which turns
+   * the picker from one that *links* into one that *creates*.
+   *
+   * Without it a picker offers existing child records and sets their parent
+   * field — "move a set-list item into this set list". With it the candidates are
+   * a related object and each choice mints a new child naming it — "add this
+   * song to this set list", which is the operation a person actually performs and
+   * which was previously inexpressible.
+   *
+   * The candidates are then the field's own lookup target, so what is offered is
+   * decided by the model rather than by the picker's source alone.
+   */
+  candidateField?: string;
   selection: RelationshipPickerSelectionMode;
   displayFields: string[];
   searchFields: string[];
@@ -1882,6 +1896,7 @@ export interface PartialRelationshipPickerModel {
   name?: string;
   sourceKind?: RelationshipPickerSourceKind;
   source?: string;
+  candidateField?: string;
   selection?: RelationshipPickerSelectionMode;
   displayFields?: string[];
   searchFields?: string[];

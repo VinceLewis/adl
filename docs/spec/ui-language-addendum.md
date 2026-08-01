@@ -640,9 +640,11 @@ ordering, semantic statuses, legends, empty states, and inspect output for
 presentation defaults and references.
 
 Edit surfaces are covered by `conformance/model/edit-surfaces.json`, which states
-what the ADL syntax resolves to and which declarations are refused, and
-`conformance/runtime/edit-surfaces.json`, which states what an ADL-declared child
-collection evaluates to and what a staged batch commits, queues and reconciles.
+what the ADL syntax resolves to and which declarations are refused — including
+both picker modes, the source each one must be routed at, and every candidate-field
+diagnostic — and `conformance/runtime/edit-surfaces.json`, which states what an
+ADL-declared child collection evaluates to, what each picker mode offers and
+excludes, and what a staged batch commits, queues and reconciles.
 
 ## Implementation Notes
 
@@ -664,7 +666,8 @@ Parser/compiler support is implemented for the smallest useful subset:
 12. edit surfaces: `EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION` with
     `CHILD ... PARENT_FIELD`, `CHILD_VIEW`, `OPERATIONS`, `STAGED`,
     `ORDER_FIELD` and `EMPTY_TEXT`, and a nested `PICKER` with `SOURCE`,
-    `SELECTION`, `DISPLAY`, `SEARCH`, `SORT`, `EXCLUDE_LINKED` and `EMPTY_TEXT`
+    `CANDIDATE_FIELD`, `SELECTION`, `DISPLAY`, `SEARCH`, `SORT`,
+    `EXCLUDE_LINKED` and `EMPTY_TEXT`
 
 Unsupported source constructs include `SELECT`, `CONTEXT_SELECTOR`, arbitrary
 CSS, raw SVG, framework component names, host callbacks, procedural render
@@ -734,16 +737,41 @@ that fails at any one change leaves none of them written and none queued. ADL
 source syntax is `EDIT_CONTAINER`, `EDIT_SECTION` and `CHILD_COLLECTION`; see
 [language#edit-surfaces](language.md).
 
-Child collection sections can declare relationship pickers for `linkExisting`
-operations. The generic browser renderer opens a modal picker, supports
-single-select or multi-select candidate choices, renders empty candidate states
-as neutral empty states, and stages selected child ids back through the existing
-`linkExisting` child-operation flow. Picker candidate sources may be the child
-object or a read model containing the child object. Candidate loading goes
-through `ApplicationRuntime.evaluateRelationshipPicker`, so policy and context
-scoping apply before search text, already-linked exclusion, and picker ordering.
-ADL source syntax is the `PICKER` block inside `CHILD_COLLECTION`; see
+Child collection sections can declare relationship pickers. The generic browser
+renderer opens a modal picker, supports single-select or multi-select candidate
+choices, and renders empty candidate states as neutral empty states. Candidate
+loading goes through `ApplicationRuntime.evaluateRelationshipPicker`, so policy
+and context scoping apply before search text, already-linked exclusion, and picker
+ordering. ADL source syntax is the `PICKER` block inside `CHILD_COLLECTION`; see
 [language#edit-surfaces](language.md).
+
+A section with a picker renders **one** header control that opens it, and the
+picker's mode decides everything about that control:
+
+- when the picker names a `candidateField` it mints, the control is labelled
+  `Add`, and it is shown and enabled by the section's `createChild` action;
+- otherwise it links, the control is labelled `Link`, and it is shown and enabled
+  by the section's `linkExisting` action.
+
+Confirming the picker stages one child operation per chosen candidate: a
+`createChild` carrying the candidate's id in the declared candidate field for a
+minting picker, and a `linkExisting` naming the chosen child for a linking one.
+The staged operation always names the section's own child object, never the
+candidate's, because for a minting picker those are different objects. A chosen
+candidate is staged as a _value_ of the new child rather than as a child id: the
+child does not exist yet, and the candidate's record is not one.
+
+The bare child draft row — the inline inputs a section otherwise renders for
+`createChild` — is suppressed when a minting picker exists, and so is the separate
+`Add` button that submits it. Choosing a candidate is how a child is added there,
+and asking a person to type by hand the record the picker exists to let them
+choose would be a second, worse way to do the same thing. A section with a linking
+picker that also supports `createChild` still renders both: its `Link` control and
+its draft row do different things.
+
+Presentation is not enforcement here. The runtime refuses a staged operation the
+collection does not declare whatever the renderer showed, and the child object's
+own policy, scope, constraints and sync mode still decide every write.
 
 The generic browser shell renders application navigation through a hamburger
 drawer from resolved shell nav metadata rather than exposing a raw view selector

@@ -330,22 +330,31 @@ field, and empty-state text. The implemented child operation names are
 `reorder`. The defaults are `createChild`, `updateChild` and `unlink` for
 operations, staged changes enabled, and empty empty-state text.
 
-Child collections that support `linkExisting` may declare a renderer-neutral
-`picker`:
+A child collection may declare a renderer-neutral `picker`:
 
 - `sourceKind`: `object` or `readModel`
-- `source`: child object name for object sources, or read-model name for
-  read-model sources
+- `source`: object name for object sources, or read-model name for read-model
+  sources
+- `candidateField`: optional. Present only when choosing a candidate **creates** a
+  child naming it rather than re-parenting an existing child. It is a lookup field
+  of the child object, and it is never defaulted or inferred — which of a child's
+  lookups a picker fills is a modelling decision.
 - `selection`: `single` or `multiple`
 - `displayFields`, `searchFields`, and `sort` over candidate fields
 - `excludeAlreadyLinked`, which defaults to true
 - picker `emptyState.text`
 
-Object picker sources must be the child object. Read-model picker sources must
-include the child object as one source so each candidate can resolve to a
-deterministic child record id. These declarations are renderer-neutral; they
-describe edit composition and relationship intent, not browser components or
-storage tables.
+`candidateField` decides both which operation the collection must support and
+which object the source must name. A picker without it links, requires
+`linkExisting` among the collection's operations, and its candidates are child
+records. A picker with it mints, requires `createChild`, and its candidates are
+records of the field's lookup target. Object picker sources must be that
+candidate object; read-model picker sources must include it as one source, so each
+candidate resolves to a deterministic record id of it. `source` itself defaults to
+the child object, which is the linking answer, so a minting picker over a
+different object must declare its source. These declarations are
+renderer-neutral; they describe edit composition and relationship intent, not
+browser components or storage tables.
 
 Edit sections, child collections and pickers are declarable in ADL source; see
 [language#edit-surfaces](language.md) for the syntax and

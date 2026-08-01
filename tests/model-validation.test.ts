@@ -324,9 +324,157 @@ END.OBJECT
         (diagnostic) =>
           diagnostic.code === MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
       )?.message,
-    ).toBe(
-      "Relationship picker 'LinesPicker' object source 'Order' must be child object 'OrderLine'.",
+    ).toBe("Relationship picker 'LinesPicker' object source 'Order' must be 'OrderLine'.");
+  });
+
+  /*
+   * A picker that names a candidate field mints children rather than
+   * re-parenting them, so every rule that depends on which record the author is
+   * choosing changes with it: the source is the candidate object, the section
+   * must permit `createChild`, and the field itself must be a lookup that can
+   * hold the chosen record's id.
+   */
+  it("resolves a minting relationship picker and routes its source at the candidate object", () => {
+    const result = compileAdl(mintingPickerSource("        SOURCE OBJECT Song"));
+
+    expect(result.diagnostics).toEqual([]);
+
+    const section = result.model?.objects
+      .find((object) => object.name === "SetList")
+      ?.views.find((view) => view.name === "SetListForm")?.editSections[0];
+    if (section?.kind !== "childCollection") {
+      throw new Error("Expected a resolved child collection section.");
+    }
+
+    expect(section.picker).toMatchObject({
+      name: "SongPicker",
+      sourceKind: "object",
+      source: "Song",
+      candidateField: "Song",
+      selection: "multiple",
+      excludeAlreadyLinked: true,
+    });
+  });
+
+  it("accepts a read model source that includes the candidate object", () => {
+    const result = compileAdl(mintingPickerSource("        SOURCE READ_MODEL SongCatalogue"));
+
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  /*
+   * Without a candidate field the source must be the child object; with one it
+   * must be what that field looks up. Declaring the child object under a minting
+   * picker is therefore now the error, and this pins that the routing swapped
+   * rather than simply loosened.
+   */
+  it("refuses a minting picker whose object source is the child object", () => {
+    const result = compileAdl(mintingPickerSource("        SOURCE OBJECT SetListItem"));
+
+    expect(
+      result.diagnostics.map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.path,
+        diagnostic.message,
+      ]),
+    ).toEqual([
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        "objects[0].views[1].editSections[0].picker.source",
+        "Relationship picker 'SongPicker' object source 'SetListItem' must be 'Song'.",
+      ],
+    ]);
+  });
+
+  it("refuses a minting picker whose read model omits the candidate object", () => {
+    const result = compileAdl(
+      mintingPickerSource("        SOURCE READ_MODEL SetListItemCatalogue"),
     );
+
+    expect(
+      result.diagnostics.map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.path,
+        diagnostic.message,
+      ]),
+    ).toEqual([
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
+        "objects[0].views[1].editSections[0].picker.source",
+        "Relationship picker 'SongPicker' read model 'SetListItemCatalogue' must include 'Song' as a source.",
+      ],
+    ]);
+  });
+
+  it("reports an unknown candidate field on the child object", () => {
+    const result = compileAdl(
+      mintingPickerSource("        SOURCE OBJECT Song", { candidateField: "Nowhere" }),
+    );
+
+    expect(
+      result.diagnostics.map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.path,
+        diagnostic.message,
+      ]),
+    ).toEqual([
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_CANDIDATE_FIELD_UNKNOWN,
+        "objects[0].views[1].editSections[0].picker.candidateField",
+        "Relationship picker 'SongPicker' references unknown candidate field 'Nowhere' on child object 'SetListItem'.",
+      ],
+    ]);
+  });
+
+  /*
+   * The picker writes a chosen record's id into this field, so a field that is
+   * not a lookup could hold the id but would never say what it points at.
+   */
+  it("reports a candidate field that is not a lookup", () => {
+    const result = compileAdl(
+      mintingPickerSource("        SOURCE OBJECT Song", { candidateField: "Notes" }),
+    );
+
+    expect(
+      result.diagnostics.map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.path,
+        diagnostic.message,
+      ]),
+    ).toEqual([
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_CANDIDATE_FIELD_INVALID,
+        "objects[0].views[1].editSections[0].picker.candidateField",
+        "Relationship picker 'SongPicker' candidate field 'Notes' must be a lookup field, because the picker writes a chosen record's id into it.",
+      ],
+    ]);
+  });
+
+  /*
+   * A minting picker's confirm dispatches `createChild`, so requiring
+   * `linkExisting` of it would refuse the declaration this exists to allow —
+   * and permitting neither would leave the picker unable to do anything.
+   */
+  it("requires createChild of a minting picker's section, not linkExisting", () => {
+    const result = compileAdl(
+      mintingPickerSource("        SOURCE OBJECT Song", {
+        operations: "OPERATIONS linkExisting updateChild remove reorder",
+      }),
+    );
+
+    expect(
+      result.diagnostics.map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.path,
+        diagnostic.message,
+      ]),
+    ).toEqual([
+      [
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_CREATE_OPERATION_REQUIRED,
+        "objects[0].views[1].editSections[0].picker.name",
+        "Relationship picker 'SongPicker' names candidate field 'Song', so edit child collection 'Items' must support createChild.",
+      ],
+    ]);
   });
 
   /*
@@ -2112,4 +2260,70 @@ function createRelationshipPickerPartialModel(): PartialApplicationModel {
       },
     ],
   };
+}
+
+/**
+ * A set list whose songs are added by choosing a `Song`, not by re-parenting an
+ * existing `SetListItem`. The picker's `SOURCE` line, candidate field and
+ * section operations vary per case so each rule can be broken on its own.
+ */
+function mintingPickerSource(
+  sourceLine: string,
+  overrides: { candidateField?: string; operations?: string } = {},
+): string {
+  const candidateField = overrides.candidateField ?? "Song";
+  const operations = overrides.operations ?? "OPERATIONS createChild updateChild remove reorder";
+
+  return `APP SetLists
+  START_VIEW SetListList
+END.APP
+
+OBJECT SetList
+  DISPLAY Name
+  FIELD Name TEXT REQUIRED
+
+  VIEW SetListList LIST
+    FIELDS Name
+  END.VIEW
+
+  VIEW SetListForm FORM
+    FIELDS Name
+    CHILD_COLLECTION Items
+      CHILD SetListItem PARENT_FIELD SetList
+      ${operations}
+      ORDER_FIELD Position
+      PICKER SongPicker
+${sourceLine}
+        CANDIDATE_FIELD ${candidateField}
+        SELECTION multiple
+        EXCLUDE_LINKED
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT SetListItem
+  DISPLAY Notes
+  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name
+  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
+  FIELD Position NUMBER REQUIRED
+  FIELD Notes TEXT
+END.OBJECT
+
+OBJECT Song
+  DISPLAY Title
+  FIELD Title TEXT REQUIRED
+  FIELD Composer TEXT
+END.OBJECT
+
+READ_MODEL SongCatalogue
+  SOURCE song OBJECT Song SCOPE all
+  FIELD Title FROM song.Title
+END.READ_MODEL
+
+READ_MODEL SetListItemCatalogue
+  SOURCE item OBJECT SetListItem SCOPE all
+  FIELD Position FROM item.Position
+END.READ_MODEL
+`;
 }

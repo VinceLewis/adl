@@ -581,15 +581,27 @@ export class AdlAppElement extends HTMLElement {
       );
       this.stagedChildChanges = [
         ...retained,
-        ...childIds.map((childId) => ({
-          id: `child-${Date.now()}-${this.nextStagedChildSequence()}`,
-          section: detail.section,
-          operation: detail.operation,
-          childObject: detail.childObject,
-          ...(childId === undefined ? {} : { childId }),
-          ...(detail.values === undefined ? {} : { values: detail.values }),
-          ...(detail.position === undefined ? {} : { position: detail.position }),
-        })),
+        ...childIds.map((childId) => {
+          // A chosen candidate is a *value* of the new child, not the child's own
+          // id. Staging it as `childId` would name a set-list item that does not
+          // exist yet and, worse, would name the song's record as though it were
+          // one.
+          const candidate =
+            detail.candidateField === undefined || childId === undefined
+              ? undefined
+              : { [detail.candidateField]: childId };
+          const values =
+            candidate === undefined ? detail.values : { ...(detail.values ?? {}), ...candidate };
+          return {
+            id: `child-${Date.now()}-${this.nextStagedChildSequence()}`,
+            section: detail.section,
+            operation: detail.operation,
+            childObject: detail.childObject,
+            ...(childId === undefined || candidate !== undefined ? {} : { childId }),
+            ...(values === undefined ? {} : { values }),
+            ...(detail.position === undefined ? {} : { position: detail.position }),
+          };
+        }),
       ];
     }
 

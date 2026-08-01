@@ -124,25 +124,26 @@ describe("band reference app model", () => {
         childObject: "SetListItem",
         parentField: "SetList",
         childView: "SetListItemList",
-        operations: ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
+        operations: ["createChild", "updateChild", "remove", "reorder"],
         staged: true,
         orderField: "Position",
         emptyState: { text: "No songs in this set list yet." },
         picker: {
-          name: "SetListItemPicker",
-          // `SetListItem` is the child object, so the picker's candidates are
-          // existing set-list items rather than songs: `linkExisting` sets the
-          // child's parent field, and validation requires an object source to
-          // be the child object and a read-model source to include it.
-          sourceKind: "readModel",
-          source: "SetListItemsByPosition",
+          name: "SongPicker",
+          // The candidates are Songs, not set-list items: `CANDIDATE_FIELD Song`
+          // makes each choice mint a `SetListItem` naming that song. That is why
+          // the source is `Song` — for a minting picker the source must be the
+          // candidate field's lookup target, not the child object.
+          sourceKind: "object",
+          source: "Song",
+          candidateField: "Song",
           selection: "multiple",
-          displayFields: ["SongTitle", "SetListName"],
-          searchFields: ["SongTitle", "SetListName"],
-          sort: [{ field: "SongTitle", direction: "asc" }],
+          displayFields: ["Title", "Composer"],
+          searchFields: ["Title", "Composer"],
+          sort: [{ field: "Title", direction: "asc" }],
           excludeAlreadyLinked: true,
           emptyState: {
-            text: "Every set-list item in this band is already in this set list.",
+            text: "Every song in the library is already in this set list.",
           },
         },
       },
@@ -212,7 +213,6 @@ describe("band reference app runtime", () => {
       // rest. Both are stated so a regression in either direction is caught.
     ).toEqual([
       ["createChild", true, true],
-      ["linkExisting", true, true],
       ["updateChild", false, false],
       ["remove", false, false],
       ["reorder", false, false],
@@ -243,8 +243,9 @@ describe("band reference app runtime", () => {
           operation: "createChild",
           childObject: "SetListItem",
           // Deliberately no `Band`: the child form never asks for a context the
-          // user selected before opening the parent at all.
-          values: { Song: seeded.thirdSong.meta.guid, Position: 4 },
+          // user selected before opening the parent at all. Slow Tide is the one
+          // song not already in this set list, so the exclusion guard permits it.
+          values: { Song: seeded.fourthSong.meta.guid, Position: 4 },
         },
       ],
     });
@@ -256,6 +257,59 @@ describe("band reference app runtime", () => {
     );
     expect(created?.values.Band).toBe(seeded.firstBand.meta.guid);
     expect(created?.values.SetList).toBe(seeded.firstSetList.meta.guid);
+  });
+
+  /*
+   * The picker excludes songs already in the set list, but a picker is a *read* a
+   * renderer performs. A caller that skips it must be refused too, or the
+   * exclusion the model declares is enforced only by the UI — which this
+   * repository's rules forbid as the sole enforcement point.
+   */
+  it("refuses a staged song the set list already holds, and a duplicate within one batch", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const context: RuntimeContext = { ...seeded.firstBandContext, channel: "ui" };
+    const staged = (id: string, song: string) => ({
+      id,
+      section: "Songs",
+      operation: "createChild" as const,
+      childObject: "SetListItem",
+      values: { Song: song },
+    });
+
+    await expect(
+      seeded.runtime.applyStagedChildChanges({
+        objectName: "SetList",
+        viewName: "SetListForm",
+        parentRecordId: seeded.firstSetList.meta.guid,
+        context,
+        // Neon Map is already in this set list.
+        stagedChanges: [staged("staged-1", seeded.firstSong.meta.guid)],
+      }),
+    ).rejects.toMatchObject({
+      issues: [expect.objectContaining({ code: "ADL_RUNTIME_RELATIONSHIP_PICKER_DUPLICATE" })],
+    });
+
+    await expect(
+      seeded.runtime.applyStagedChildChanges({
+        objectName: "SetList",
+        viewName: "SetListForm",
+        parentRecordId: seeded.secondSetList.meta.guid,
+        context,
+        // The same song twice in one batch, neither of them already present.
+        stagedChanges: [
+          staged("staged-1", seeded.firstSong.meta.guid),
+          staged("staged-2", seeded.firstSong.meta.guid),
+        ],
+      }),
+    ).rejects.toMatchObject({
+      issues: [expect.objectContaining({ code: "ADL_RUNTIME_RELATIONSHIP_PICKER_DUPLICATE" })],
+    });
+
+    // Refused before anything was written, as every staged-batch refusal is.
+    const items = await seeded.runtime.executeReadModel("SetListItemsByPosition", context);
+    expect(
+      items.rows.filter((row) => row.values.SetListName === "Rehearsal running order"),
+    ).toHaveLength(1);
   });
 
   it("resolves one user as Admin in one band and Member in another", async () => {
@@ -747,7 +801,12 @@ describe("band reference app runtime", () => {
     ]);
   });
 
-  it("offers set-list items from other set lists to the declared relationship picker", async () => {
+  /*
+   * What a person actually does: open a set list, press Add, and choose songs.
+   * The picker offers songs — not set-list items — and never offers one that is
+   * already in this set list.
+   */
+  it("offers only songs that are not already in the set list", async () => {
     const seeded = await createSeededBandReferenceRuntime();
     const context: RuntimeContext = { ...seeded.firstBandContext, channel: "ui" };
 
@@ -759,12 +818,61 @@ describe("band reference app runtime", () => {
       recordId: seeded.firstSetList.meta.guid,
     });
 
-    expect(picker.picker.sourceKind).toBe("readModel");
-    expect(picker.picker.source).toBe("SetListItemsByPosition");
-    // `EXCLUDE_LINKED` removes the three items already in this set list, so the
-    // only candidate is the one belonging to the other set list in this band.
-    expect(picker.candidates.map((candidate) => candidate.values.SongTitle)).toEqual(["Slow Tide"]);
+    expect(picker.picker.sourceKind).toBe("object");
+    expect(picker.picker.source).toBe("Song");
+    expect(picker.picker.candidateField).toBe("Song");
+    expect(picker.picker.selection).toBe("multiple");
+    // Neon Map, Late Signal and Harbour Lights are already in this set list;
+    // `EXCLUDE_LINKED` compares the *songs* the existing items name, not the
+    // items' own ids, so exactly the remaining library is offered.
+    expect(picker.candidates.map((candidate) => candidate.values.Title)).toEqual(["Slow Tide"]);
+    expect(picker.candidates.every((candidate) => !candidate.alreadyLinked)).toBe(true);
     expect(picker.diagnostics).toEqual([]);
+  });
+
+  it("adds chosen songs to the end of the set list in one transaction", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const context: RuntimeContext = { ...seeded.firstBandContext, channel: "ui" };
+
+    // Exactly what the browser stages when two candidates are ticked: a create
+    // per song, carrying the song and nothing else. No position is supplied —
+    // appending is the platform's job, not the caller's.
+    await seeded.runtime.applyStagedChildChanges({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      // The other set list, which holds one song, so there are candidates to add.
+      parentRecordId: seeded.secondSetList.meta.guid,
+      context,
+      stagedChanges: [
+        {
+          id: "staged-1",
+          section: "Songs",
+          operation: "createChild",
+          childObject: "SetListItem",
+          values: { Song: seeded.thirdSong.meta.guid },
+        },
+        {
+          id: "staged-2",
+          section: "Songs",
+          operation: "createChild",
+          childObject: "SetListItem",
+          values: { Song: seeded.firstSong.meta.guid },
+        },
+      ],
+    });
+
+    const items = await seeded.runtime.executeReadModel("SetListItemsByPosition", context);
+    expect(
+      items.rows
+        .filter((row) => row.values.SetListName === "Rehearsal running order")
+        .map((row) => [row.values.Position, row.values.SongTitle]),
+    ).toEqual([
+      [1, "Slow Tide"],
+      // Appended after the existing song, and after each other, in the order
+      // they were chosen — ready to be reordered.
+      [2, "Harbour Lights"],
+      [3, "Neon Map"],
+    ]);
   });
 
   it("enforces scoped uniqueness and ordered set-list positions", async () => {

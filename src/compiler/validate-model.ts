@@ -420,6 +420,10 @@ export const MODEL_VALIDATION_CODES = {
   READ_MODEL_SOURCE_SCOPE_INVALID: "ADL_READ_MODEL_SOURCE_SCOPE_INVALID",
   READ_MODEL_SORT_FIELD_UNKNOWN: "ADL_READ_MODEL_SORT_FIELD_UNKNOWN",
   READ_MODEL_STRATEGY_INVALID: "ADL_READ_MODEL_STRATEGY_INVALID",
+  RELATIONSHIP_PICKER_CANDIDATE_FIELD_INVALID: "ADL_RELATIONSHIP_PICKER_CANDIDATE_FIELD_INVALID",
+  RELATIONSHIP_PICKER_CANDIDATE_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_CANDIDATE_FIELD_UNKNOWN",
+  RELATIONSHIP_PICKER_CREATE_OPERATION_REQUIRED:
+    "ADL_RELATIONSHIP_PICKER_CREATE_OPERATION_REQUIRED",
   RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_DISPLAY_FIELD_UNKNOWN",
   RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED: "ADL_RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED",
   RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN: "ADL_RELATIONSHIP_PICKER_SEARCH_FIELD_UNKNOWN",
@@ -3484,7 +3488,31 @@ function validateRelationshipPicker(
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
-  if (!section.operations.includes("linkExisting")) {
+  /*
+   * A picker naming a candidate field creates children; one without links
+   * existing ones. They therefore need different operations declared, and
+   * requiring `linkExisting` of a minting picker would refuse the very
+   * declaration this exists to allow.
+   */
+  const candidateTarget = validateRelationshipPickerCandidateField(
+    picker,
+    pickerPath,
+    childObject,
+    diagnostics,
+  );
+  const mints = picker.candidateField !== undefined;
+
+  if (mints && !section.operations.includes("createChild")) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_CREATE_OPERATION_REQUIRED,
+        `Relationship picker '${picker.name}' names candidate field '${String(picker.candidateField)}', so edit child collection '${section.name}' must support createChild.`,
+        `${pickerPath}.name`,
+      ),
+    );
+  }
+
+  if (!mints && !section.operations.includes("linkExisting")) {
     diagnostics.push(
       diagnostic(
         MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED,
@@ -3520,14 +3548,14 @@ function validateRelationshipPicker(
       ? validateObjectRelationshipPickerSource(
           picker,
           pickerPath,
-          childObject,
+          mints ? candidateTarget : childObject.name,
           indexes,
           diagnostics,
         )
       : validateReadModelRelationshipPickerSource(
           picker,
           pickerPath,
-          childObject,
+          mints ? candidateTarget : childObject.name,
           indexes,
           diagnostics,
         );
@@ -3582,10 +3610,55 @@ function validateRelationshipPicker(
   }
 }
 
-function validateObjectRelationshipPickerSource(
+/**
+ * The child field a minting picker writes its chosen candidate into, and the
+ * object those candidates must therefore come from.
+ *
+ * Returns the field's lookup target, or `undefined` when there is nothing sound
+ * to check the source against — either because the picker links rather than
+ * mints, or because the field itself is already wrong and reporting a second
+ * failure about its target would only bury the first.
+ */
+function validateRelationshipPickerCandidateField(
   picker: ResolvedRelationshipPicker,
   pickerPath: string,
   childObject: ResolvedObject,
+  diagnostics: Diagnostic[],
+): string | undefined {
+  if (picker.candidateField === undefined) {
+    return undefined;
+  }
+
+  const field = childObject.fields.find((candidate) => candidate.name === picker.candidateField);
+  if (field === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_CANDIDATE_FIELD_UNKNOWN,
+        `Relationship picker '${picker.name}' references unknown candidate field '${picker.candidateField}' on child object '${childObject.name}'.`,
+        `${pickerPath}.candidateField`,
+      ),
+    );
+    return undefined;
+  }
+
+  if (field.lookup === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_CANDIDATE_FIELD_INVALID,
+        `Relationship picker '${picker.name}' candidate field '${field.name}' must be a lookup field, because the picker writes a chosen record's id into it.`,
+        `${pickerPath}.candidateField`,
+      ),
+    );
+    return undefined;
+  }
+
+  return field.lookup.targetObject;
+}
+
+function validateObjectRelationshipPickerSource(
+  picker: ResolvedRelationshipPicker,
+  pickerPath: string,
+  requiredObjectName: string | undefined,
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): Set<string> | undefined {
@@ -3601,11 +3674,11 @@ function validateObjectRelationshipPickerSource(
     return undefined;
   }
 
-  if (source.name !== childObject.name) {
+  if (requiredObjectName !== undefined && source.name !== requiredObjectName) {
     diagnostics.push(
       diagnostic(
         MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
-        `Relationship picker '${picker.name}' object source '${picker.source}' must be child object '${childObject.name}'.`,
+        `Relationship picker '${picker.name}' object source '${picker.source}' must be '${requiredObjectName}'.`,
         `${pickerPath}.source`,
       ),
     );
@@ -3617,7 +3690,7 @@ function validateObjectRelationshipPickerSource(
 function validateReadModelRelationshipPickerSource(
   picker: ResolvedRelationshipPicker,
   pickerPath: string,
-  childObject: ResolvedObject,
+  requiredObjectName: string | undefined,
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): Set<string> | undefined {
@@ -3633,11 +3706,14 @@ function validateReadModelRelationshipPickerSource(
     return undefined;
   }
 
-  if (!readModel.sources.some((source) => source.object === childObject.name)) {
+  if (
+    requiredObjectName !== undefined &&
+    !readModel.sources.some((source) => source.object === requiredObjectName)
+  ) {
     diagnostics.push(
       diagnostic(
         MODEL_VALIDATION_CODES.RELATIONSHIP_PICKER_SOURCE_UNKNOWN,
-        `Relationship picker '${picker.name}' read model '${picker.source}' must include child object '${childObject.name}' as a source.`,
+        `Relationship picker '${picker.name}' read model '${picker.source}' must include '${requiredObjectName}' as a source.`,
         `${pickerPath}.source`,
       ),
     );

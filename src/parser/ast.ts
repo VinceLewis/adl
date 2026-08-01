@@ -484,6 +484,7 @@ export interface RelationshipPickerDeclarationAst {
   name: string;
   sourceKind?: RelationshipPickerSourceKind;
   source?: string;
+  candidateField?: string;
   selection?: RelationshipPickerSelectionMode;
   displayFields: string[];
   searchFields: string[];

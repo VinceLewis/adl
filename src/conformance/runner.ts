@@ -29,6 +29,8 @@ import type {
   RuntimeApplyStagedChildResult,
   RuntimeEditSection,
   RuntimeEditSurface,
+  RuntimeRelationshipPickerResult,
+  RuntimeRelationshipPickerSummary,
 } from "../runtime/edit-surface-runtime.js";
 import { createConformanceStorage } from "./storage-behaviours.js";
 import type { ConformanceStorageBehaviour } from "./storage-behaviours.js";
@@ -322,6 +324,7 @@ export interface RuntimeConformanceCase extends ConformanceCaseBase {
     | "executeReadModel"
     | "evaluatePresentationView"
     | "evaluateEditSurface"
+    | "evaluateRelationshipPicker"
     | "applyStagedChildChanges"
     | "evaluateOfflineDataset"
     | "syncWrite"
@@ -460,6 +463,17 @@ export type RuntimeConformanceInput =
       stagedChanges?: ConformanceStagedChildOperation[];
       context: JsonRuntimeContext;
     }
+  // `evaluateRelationshipPicker`: what one child collection's picker offers, for
+  // this parent, given whatever the caller has staged but not yet saved.
+  | {
+      objectName: string;
+      viewName: string;
+      sectionName: string;
+      recordId?: JsonValue;
+      stagedChanges?: ConformanceStagedChildOperation[];
+      query?: { text?: string; limit?: number };
+      context: JsonRuntimeContext;
+    }
   // `applyStagedChildChanges`: a staged batch committed against an existing
   // parent, reported together with the queue and the storage it left behind.
   | {
@@ -540,6 +554,31 @@ type EditSurfaceOperationInput = {
   mode: "create" | "edit";
   recordId?: JsonValue;
   stagedChanges?: ConformanceStagedChildOperation[];
+  context: JsonRuntimeContext;
+};
+
+/**
+ * One child collection's picker, evaluated for a parent record.
+ *
+ * Separate from `evaluateEditSurface` because the two answer different
+ * questions. The surface reports the picker's *declaration*; only this reports
+ * what it actually offers, and the offer is where the two picker modes diverge:
+ * a linking picker's candidates are the child records themselves, while a
+ * minting picker's are records of whatever its candidate field looks up. Without
+ * it a runtime could report a `candidateField` faithfully and still offer the
+ * wrong object's records.
+ *
+ * `stagedChanges` is part of the input because exclusion is about the editing
+ * session and not only about storage: a candidate a staged create already names
+ * must not be offered a second time before the parent is ever saved.
+ */
+type RelationshipPickerOperationInput = {
+  objectName: string;
+  viewName: string;
+  sectionName: string;
+  recordId?: JsonValue;
+  stagedChanges?: ConformanceStagedChildOperation[];
+  query?: { text?: string; limit?: number };
   context: JsonRuntimeContext;
 };
 
@@ -1616,7 +1655,12 @@ async function reportPersistedRecords(
         // discard it. Stating the licence without being able to state its
         // absence would make the rule unfalsifiable.
         ...(persisted.record.meta.syncRejectedCreate === true ? { syncRejectedCreate: true } : {}),
-        values: persisted.record.values,
+        // Lookup values go through the alias table like every other id. Without
+        // it a case could see *that* a child was written but never *what it
+        // names*, and what a child names is the whole of a minting picker's
+        // guarantee — a runtime that stored the chosen candidate's id in the
+        // wrong field, or stored the child's own, would be indistinguishable.
+        values: normaliseRecordIds(persisted.record.values, state),
       }))
       .sort(
         (left, right) =>
@@ -1792,6 +1836,22 @@ async function runRuntimeOperation(
         },
       );
     }
+    case "evaluateRelationshipPicker": {
+      const typed = input as RelationshipPickerOperationInput;
+      return runtime.evaluateRelationshipPicker({
+        objectName: typed.objectName,
+        viewName: typed.viewName,
+        sectionName: typed.sectionName,
+        context: parseContext(typed.context),
+        ...(typed.recordId === undefined
+          ? {}
+          : { recordId: requireText(typed.recordId, "relationship picker recordId") }),
+        ...(typed.stagedChanges === undefined
+          ? {}
+          : { stagedChanges: typed.stagedChanges.map((staged) => ({ ...staged })) }),
+        ...(typed.query === undefined ? {} : { query: { ...typed.query } }),
+      });
+    }
     case "evaluateOfflineDataset": {
       const typed = input as Extract<RuntimeConformanceInput, { context: JsonRuntimeContext }>;
       return runtime.evaluateOfflineDataset(parseContext(typed.context));
@@ -1930,6 +1990,10 @@ function normaliseRuntimeResult(value: unknown, state: RunState): JsonValue {
 
   if (isEditSurface(value)) {
     return normaliseEditSurface(value, state);
+  }
+
+  if (isRelationshipPickerResult(value)) {
+    return normaliseRelationshipPickerResult(value, state);
   }
 
   if (Array.isArray(value) && value.every(isRecord)) {
@@ -2076,21 +2140,7 @@ function normaliseEditSection(section: RuntimeEditSection, state: RunState): Jso
     staged: section.staged,
     ...(section.orderField === undefined ? {} : { orderField: section.orderField }),
     emptyState: section.emptyState,
-    ...(section.picker === undefined
-      ? {}
-      : {
-          picker: {
-            name: section.picker.name,
-            sourceKind: section.picker.sourceKind,
-            source: section.picker.source,
-            selection: section.picker.selection,
-            displayFields: [...section.picker.displayFields],
-            searchFields: [...section.picker.searchFields],
-            sort: section.picker.sort.map((sort) => ({ ...sort })),
-            excludeAlreadyLinked: section.picker.excludeAlreadyLinked,
-            emptyState: section.picker.emptyState,
-          },
-        }),
+    ...(section.picker === undefined ? {} : { picker: normalisePickerSummary(section.picker) }),
     rows: section.rows.map((row) => ({
       id: aliasForRecordId(row.id, state),
       source: row.source,
@@ -2105,6 +2155,76 @@ function normaliseEditSection(section: RuntimeEditSection, state: RunState): Jso
       operation: action.operation,
       visible: action.visible,
       enabled: action.enabled,
+    })),
+  } as unknown as JsonValue;
+}
+
+/**
+ * A picker as declared, reported identically wherever it appears.
+ *
+ * `candidateField` is present only on a minting picker, and its presence is the
+ * whole of the difference a renderer sees: it is what decides whether choosing a
+ * candidate stages `createChild` or `linkExisting`. Omitting it here would leave
+ * the two modes indistinguishable in every evaluated result, so a runtime could
+ * resolve the field correctly and then hand renderers a summary that lost it.
+ */
+function normalisePickerSummary(picker: RuntimeRelationshipPickerSummary): JsonValue {
+  return {
+    name: picker.name,
+    sourceKind: picker.sourceKind,
+    source: picker.source,
+    ...(picker.candidateField === undefined ? {} : { candidateField: picker.candidateField }),
+    selection: picker.selection,
+    displayFields: [...picker.displayFields],
+    searchFields: [...picker.searchFields],
+    sort: picker.sort.map((sort) => ({ ...sort })),
+    excludeAlreadyLinked: picker.excludeAlreadyLinked,
+    emptyState: picker.emptyState,
+  } as unknown as JsonValue;
+}
+
+function isRelationshipPickerResult(value: unknown): value is RuntimeRelationshipPickerResult {
+  return (
+    isObject(value) &&
+    typeof value.object === "string" &&
+    typeof value.view === "string" &&
+    typeof value.section === "string" &&
+    isObject(value.picker) &&
+    Array.isArray(value.candidates)
+  );
+}
+
+/**
+ * What a picker offered, reduced to the choice a person is being given.
+ *
+ * A candidate's id goes through the alias table because it is a record the case
+ * seeded — for a minting picker, deliberately a record of a *different* object
+ * from the collection's children, which is exactly what the alias makes
+ * assertable. Diagnostic messages are dropped for the reason
+ * `normaliseEditSurface` drops them: an empty picker's message is the model's
+ * own `EMPTY_TEXT`, so asserting it would pin one case's prose rather than the
+ * rule that produced it.
+ */
+function normaliseRelationshipPickerResult(
+  result: RuntimeRelationshipPickerResult,
+  state: RunState,
+): JsonValue {
+  return {
+    object: result.object,
+    view: result.view,
+    section: result.section,
+    picker: normalisePickerSummary(result.picker),
+    candidates: result.candidates.map((candidate) => ({
+      id: aliasForRecordId(candidate.id, state),
+      label: candidate.label,
+      values: normaliseRecordIds(candidate.values, state),
+      source: normaliseRecordIds(candidate.source, state),
+      alreadyLinked: candidate.alreadyLinked,
+    })),
+    diagnostics: result.diagnostics.map((diagnostic) => ({
+      severity: diagnostic.severity,
+      code: diagnostic.code,
+      ...(diagnostic.section === undefined ? {} : { section: diagnostic.section }),
     })),
   } as unknown as JsonValue;
 }

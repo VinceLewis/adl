@@ -20,17 +20,33 @@
 > That is a larger, more concrete loss than any capability that does not exist
 > yet. The alternatives are recorded below with their evidence so a later phase
 > does not re-derive them.
+>
+> **Amendment, made before this phase was executed.** The single worst part of
+> the above — that adding a child meant typing a record guid — was closed
+> immediately after Phase 59 was pushed, because it made the shipped surface
+> unusable rather than merely rough. A `PICKER` may now name a `CANDIDATE_FIELD`,
+> which turns it from one that re-parents existing children into one that
+> **creates** them from a chosen related record; the Giggle Band set list adds
+> songs by choosing them, appended to the end and ready to reorder, with no id
+> typed anywhere. What that fix did **not** close is recorded in the evidence
+> below and remains this phase's scope.
 
 ## Objective
 
-Make a declared child collection usable by a person: child fields rendered by the
-platform's real field renderer rather than as bare text inputs, an inline edit
-path that carries values, and a picker that can offer a related object.
+Make a declared child collection usable by a person for children that have
+fields of their own: child fields rendered by the platform's real field renderer
+rather than as bare text inputs, and an inline edit path that carries values.
 
 ## Evidence and Dependency
 
 Every point below was checked against the code while writing this document.
 
+- **Adding a child by choosing a related record is now possible; adding one by
+  filling in its own fields is still not.** A minting picker covers the
+  set-list-and-song shape, where the child is little more than a link plus a
+  position. It does nothing for a child a person must actually describe — an
+  order line with a quantity and a discount, an invoice row with a date. That
+  child still goes through the draft row below.
 - **Child draft fields bypass the field renderer entirely.**
   `AdlFormViewElement.renderChildDraft` (`src/ui/components/adl-form-view.ts:802`)
   maps every child field to
@@ -41,28 +57,25 @@ Every point below was checked against the code while writing this document.
   the target object (`src/ui/components/adl-field-renderer.ts:99,197-233`) and
   applies `resolveFieldPresentation`. The same field is a select in one half of
   the form and a raw text box in the other.
-- **The consequence is visible in this repository's own screenshots.** The Phase
-  59 desktop capture of `SetListForm` shows the child draft row as `Position`,
-  `Song`, `Notes` — three empty text inputs. `SetListItem.Song` is
-  `TEXT REQUIRED LOOKUP Song DISPLAY Title`, so adding a song means typing
-  `song-26121e9b-…`.
+- **The consequence was visible in this repository's own screenshots**, and is
+  now visible only where a minting picker does not apply. The first Phase 59
+  desktop capture of `SetListForm` showed the child draft row as `Position`,
+  `Song`, `Notes` — three empty text inputs, with `SetListItem.Song` a
+  `LOOKUP Song` field, so adding a song meant typing `song-26121e9b-…`. That row
+  is suppressed there now; it is still what any other child collection gets.
 - **The row `Edit` button stages a write of nothing.**
   `handleChildClick` dispatches `updateChild` with `{section, operation,
-  childObject, childId}` and no `values`
+childObject, childId}` and no `values`
   (`src/ui/components/adl-form-view.ts`), and `planStagedOperation` calls
   `planUpdate(child, operation.values ?? {}, context)`. There is no inline child
   edit surface at all; the control exists, is enabled, and does nothing a user
   would recognise as editing.
-- **A picker can only offer the child object itself.**
-  `validateObjectRelationshipPickerSource` requires `source.name ===
-  childObject.name` and `validateReadModelRelationshipPickerSource` requires the
-  read model to list the child object as a source (`src/compiler/validate-model.ts`,
-  `grep -a`). That is correct for `linkExisting`, which plans
-  `planUpdate(child, {parentField: parent})` — but it means "pick a Song and add
-  it to this set list" is inexpressible. The reference app had to point its picker
-  at `READ_MODEL SetListItemsByPosition`, so it offers *existing set-list items
-  from other set lists*, which is a real operation but not the one the surface is
-  for.
+- ~~**A picker can only offer the child object itself.**~~ **Closed by the
+  amendment above.** `CANDIDATE_FIELD` routes a picker's source at the field's
+  lookup target, adds `ADL_RELATIONSHIP_PICKER_CANDIDATE_FIELD_UNKNOWN`,
+  `_CANDIDATE_FIELD_INVALID` and `_CREATE_OPERATION_REQUIRED`, and makes
+  `EXCLUDE_LINKED` compare the candidates existing children name rather than the
+  children's own ids.
 - **`unlink` is declarable where it can never commit.** `planStagedOperation`
   patches `{parentField: null}`, so a child whose lookup back to its parent is
   `REQUIRED` — the overwhelmingly common case, and the reference app's — can never
@@ -87,7 +100,7 @@ Recorded with their evidence, per `learnings/process/phase-execution.md`.
   Re-verified: `grep -ran 'action: "import"' src/` and
   `grep -ran 'channel: "import"' src/` both return nothing, while `PolicyAction`
   includes `"import"` (`src/model/resolved-model.ts:123`) and `RuntimeChannel`
-  includes it (`:133`). Real, and the strongest *capability* candidate — but it
+  includes it (`:133`). Real, and the strongest _capability_ candidate — but it
   governs bulk ingestion, which does not exist, so nobody is currently prevented
   from doing anything they can otherwise do. Closing it means designing a feature;
   this phase repairs one people are already given.
@@ -109,12 +122,10 @@ Recorded with their evidence, per `learnings/process/phase-execution.md`.
 - Render child draft and inline-edit fields through the same path the parent form
   uses, so a lookup is a picker, a date is a date control, a boolean is a
   checkbox, an enum is a select, and validators, readonly and policy-driven field
-  presentation all apply.
+  presentation all apply. This is now the phase's centre of gravity: the minting
+  picker handles the link-shaped child, and this handles every other kind.
 - An inline child edit that carries values: `updateChild` must stage a real patch,
   and the row must offer a way to produce one.
-- Let a picker offer a **related** object and mint the child record from the
-  chosen candidate — the "pick a Song, get a SetListItem" operation — without
-  weakening the existing `linkExisting` source rules.
 - Refuse `unlink` at compile time when the child's parent field is `REQUIRED`,
   with a diagnostic that says why.
 - Resolve `editContainer` from the view that actually opens, not from whichever
@@ -147,27 +158,23 @@ Recorded with their evidence, per `learnings/process/phase-execution.md`.
   and readonly all honoured.
 - An inline child edit that produces a real patch and commits inside the staged
   batch.
-- A picker that can offer a related object and mint the child record, declarable
-  in ADL, validated, and specified.
 - A compile-time diagnostic refusing `unlink` on a required parent field.
 - `editContainer` resolved from the opening view.
-- Conformance cases for the new picker mode and the diagnostic; specification
-  updates in `docs/spec/language.md`, `docs/spec/resolved-model.md`,
+- Conformance cases for the inline edit and the diagnostic; specification updates
+  in `docs/spec/language.md`, `docs/spec/resolved-model.md`,
   `docs/spec/runtime-semantics.md` and `docs/spec/ui-language-addendum.md`.
-- Real-PostgreSQL integration coverage for a batch containing a minted-from-picker
-  child.
+- Real-PostgreSQL integration coverage for a batch containing an inline child
+  edit.
 - Learnings updates in `implementation/edit-surface-language.md` and
   `implementation/browser-ui-runtime.md`.
 
 ## Acceptance Criteria
 
-- A song is added to a set list in the browser by choosing it from a list, with
-  no record id typed anywhere, and the resulting write commits inside the staged
-  batch.
+- A child with fields of its own — a lookup, a date, a boolean, an enum — is
+  added in the browser with no record id typed anywhere, and the write commits
+  inside the staged batch.
 - A child row is edited in place, the edit carries the changed values, and
   cancelling the parent form discards it.
-- A picker declared against a related object mints a correctly-scoped child
-  record and discloses nothing a normal runtime read would not.
 - A model declaring `unlink` on a required parent field fails to compile, with a
   diagnostic naming the field.
 - `EDIT_CONTAINER` declared on a form view governs that form wherever it is
@@ -211,8 +218,6 @@ agent verifying only its own test files:
   (`src/ui/components/adl-form-view.ts`, CSS) and its DOM tests.
 - The inline edit path and its staged-batch integration
   (`src/ui/components/adl-app.ts`) and its DOM tests.
-- The picker's mint-a-child runtime behaviour
-  (`src/runtime/edit-surface-runtime.ts`) and its unit tests.
 - Conformance cases, the runner extension and the specification.
 - Reference application model and fixtures.
 - Real-PostgreSQL integration coverage.
@@ -242,16 +247,14 @@ derived, whole-list assertion to exactly one owner.
    readonly.
 2. Add an inline child edit that produces a real patch, staged and committed
    inside the Phase 59 batch.
-3. Add a picker mode that offers a related object and mints the child record,
-   with parser, validation and resolution support.
-4. Refuse `unlink` at compile time on a required parent field.
-5. Resolve `editContainer` from the opening view.
-6. Use all of it in the Giggle Band reference app: add a song to a set list by
-   choosing it.
-7. Add conformance cases and specification coverage.
-8. Add real-PostgreSQL integration coverage for a batch containing a
-   minted-from-picker child.
-9. **Required next-phase planning handoff:** before Phase 60 closes, write
+3. Refuse `unlink` at compile time on a required parent field.
+4. Resolve `editContainer` from the opening view.
+5. Use all of it in the Giggle Band reference app, on a child collection whose
+   children have fields of their own rather than a single link.
+6. Add conformance cases and specification coverage.
+7. Add real-PostgreSQL integration coverage for a batch containing an inline
+   child edit.
+8. **Required next-phase planning handoff:** before Phase 60 closes, write
    `docs/phases/phase-61-*.md` as a complete evidence-based executable phase
    document for the highest-value remaining gap repository-wide, with objective,
    evidence, scope, constraints, deliverables, acceptance criteria, non-goals,

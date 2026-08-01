@@ -167,6 +167,230 @@
         "END.OBJECT"
       ]
     },
+    "songMintingPicker": {
+      "adl": [
+        "APP 'Set List Minting Picker'",
+        "END.APP",
+        "",
+        "OBJECT SetList",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "",
+        "  VIEW SetListForm FORM",
+        "    FIELDS Name",
+        "    EDIT_CONTAINER page",
+        "    CHILD_COLLECTION Songs HEADING 'Songs'",
+        "      CHILD SetListItem PARENT_FIELD SetList",
+        "      CHILD_VIEW SetListItemList",
+        "      OPERATIONS createChild updateChild remove reorder",
+        "      STAGED",
+        "      ORDER_FIELD Position",
+        "      EMPTY_TEXT 'No songs in this set list yet.'",
+        "      PICKER SongPicker",
+        "        SOURCE OBJECT Song",
+        "        CANDIDATE_FIELD Song",
+        "        SELECTION multiple",
+        "        DISPLAY Title Composer",
+        "        SEARCH Title Composer",
+        "        SORT Title ASC",
+        "        EXCLUDE_LINKED",
+        "        EMPTY_TEXT 'Every song in the library is already in this set list.'",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Song",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Composer TEXT",
+        "END.OBJECT",
+        "",
+        "OBJECT SetListItem",
+        "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+        "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "",
+        "  VIEW SetListItemList LIST",
+        "    FIELDS Song Position",
+        "    ACTIONS read",
+        "  END.VIEW",
+        "END.OBJECT"
+      ]
+    },
+    "songMintingPickerFromReadModel": {
+      "adl": [
+        "APP 'Set List Minting Picker From Read Model'",
+        "END.APP",
+        "",
+        "OBJECT SetList",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "",
+        "  VIEW SetListForm FORM",
+        "    FIELDS Name",
+        "    CHILD_COLLECTION Songs HEADING 'Songs'",
+        "      CHILD SetListItem PARENT_FIELD SetList",
+        "      OPERATIONS createChild updateChild remove",
+        "      PICKER SongPicker",
+        "        SOURCE READ_MODEL SongCatalogue",
+        "        CANDIDATE_FIELD Song",
+        "        DISPLAY SongTitle",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Song",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "END.OBJECT",
+        "",
+        "OBJECT SetListItem",
+        "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+        "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+        "END.OBJECT",
+        "",
+        "READ_MODEL SongCatalogue",
+        "  SOURCE song OBJECT Song SCOPE all",
+        "  FIELD SongTitle FROM song.Title",
+        "  SORT SongTitle ASC",
+        "END.READ_MODEL"
+      ]
+    },
+    "mintingPickerSourcedFromTheChildObject": {
+      "adl": [
+        "APP 'Minting Picker Sourced From The Child'",
+        "END.APP",
+        "",
+        "OBJECT SetList",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "",
+        "  VIEW SetListForm FORM",
+        "    FIELDS Name",
+        "    CHILD_COLLECTION Songs",
+        "      CHILD SetListItem PARENT_FIELD SetList",
+        "      OPERATIONS createChild updateChild remove",
+        "      PICKER SongPicker",
+        "        SOURCE OBJECT SetListItem",
+        "        CANDIDATE_FIELD Song",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Song",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "END.OBJECT",
+        "",
+        "OBJECT SetListItem",
+        "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+        "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+        "END.OBJECT"
+      ]
+    },
+    "mintingPickerWithoutCreateChild": {
+      "adl": [
+        "APP 'Minting Picker Without Create'",
+        "END.APP",
+        "",
+        "OBJECT SetList",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "",
+        "  VIEW SetListForm FORM",
+        "    FIELDS Name",
+        "    CHILD_COLLECTION Songs",
+        "      CHILD SetListItem PARENT_FIELD SetList",
+        "      OPERATIONS updateChild remove",
+        "      PICKER SongPicker",
+        "        SOURCE OBJECT Song",
+        "        CANDIDATE_FIELD Song",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Song",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "END.OBJECT",
+        "",
+        "OBJECT SetListItem",
+        "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+        "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+        "END.OBJECT"
+      ]
+    },
+    "mintingPickerWithUnknownCandidateField": {
+      "adl": [
+        "APP 'Minting Picker Unknown Candidate Field'",
+        "END.APP",
+        "",
+        "OBJECT SetList",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "",
+        "  VIEW SetListForm FORM",
+        "    FIELDS Name",
+        "    CHILD_COLLECTION Songs",
+        "      CHILD SetListItem PARENT_FIELD SetList",
+        "      OPERATIONS createChild updateChild remove",
+        "      PICKER SongPicker",
+        "        SOURCE OBJECT Song",
+        "        CANDIDATE_FIELD Track",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Song",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "END.OBJECT",
+        "",
+        "OBJECT SetListItem",
+        "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+        "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+        "END.OBJECT"
+      ]
+    },
+    "mintingPickerWithCandidateFieldThatIsNotALookup": {
+      "adl": [
+        "APP 'Minting Picker Candidate Field Not A Lookup'",
+        "END.APP",
+        "",
+        "OBJECT SetList",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "",
+        "  VIEW SetListForm FORM",
+        "    FIELDS Name",
+        "    CHILD_COLLECTION Songs",
+        "      CHILD SetListItem PARENT_FIELD SetList",
+        "      OPERATIONS createChild updateChild remove",
+        "      PICKER SongPicker",
+        "        SOURCE OBJECT Song",
+        "        CANDIDATE_FIELD Position",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Song",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "END.OBJECT",
+        "",
+        "OBJECT SetListItem",
+        "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+        "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "END.OBJECT"
+      ]
+    },
     "pickerWithUnknownCandidateFields": {
       "adl": [
         "APP 'Picker Unknown Fields'",
@@ -431,6 +655,115 @@
             "severity": "error",
             "code": "ADL_RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED",
             "path": "objects[0].views[0].editSections[0].picker.name"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.language.candidate-field.001",
+      "title": "CANDIDATE_FIELD resolves onto the picker and routes its source at the candidate object",
+      "specRef": "language#edit-surfaces",
+      "operation": "resolveModel",
+      "modelRef": "songMintingPicker",
+      "input": { "select": ["objects.0.views.0.editSections.0.picker"] },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editSections.0.picker": {
+            "name": "SongPicker",
+            "sourceKind": "object",
+            "source": "Song",
+            "candidateField": "Song",
+            "selection": "multiple",
+            "displayFields": ["Title", "Composer"],
+            "searchFields": ["Title", "Composer"],
+            "sort": [{ "field": "Title", "direction": "asc" }],
+            "excludeAlreadyLinked": true,
+            "emptyState": { "text": "Every song in the library is already in this set list." }
+          }
+        }
+      }
+    },
+    {
+      "id": "edit-surface.language.candidate-field.002",
+      "title": "A minting picker whose object source is the candidate field's lookup target validates clean",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "songMintingPicker",
+      "expected": { "ok": true, "result": [] }
+    },
+    {
+      "id": "edit-surface.language.candidate-field.003",
+      "title": "A minting picker may read its candidates from a read model that includes the candidate object",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "songMintingPickerFromReadModel",
+      "expected": { "ok": true, "result": [] }
+    },
+    {
+      "id": "edit-surface.validation.picker-candidate-source.001",
+      "title": "A minting picker sourced from the child object rather than the candidate object is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "mintingPickerSourcedFromTheChildObject",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_SOURCE_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].picker.source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.picker-create-operation.001",
+      "title": "A minting picker on a collection that cannot create children is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "mintingPickerWithoutCreateChild",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_CREATE_OPERATION_REQUIRED",
+            "path": "objects[0].views[0].editSections[0].picker.name"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.picker-candidate-field-unknown.001",
+      "title": "A candidate field the child object does not carry is refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "mintingPickerWithUnknownCandidateField",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_CANDIDATE_FIELD_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].picker.candidateField"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.validation.picker-candidate-field-invalid.001",
+      "title": "A candidate field that is not a lookup is refused, because the picker writes a chosen record's id into it",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "mintingPickerWithCandidateFieldThatIsNotALookup",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_RELATIONSHIP_PICKER_CANDIDATE_FIELD_INVALID",
+            "path": "objects[0].views[0].editSections[0].picker.candidateField"
           }
         ]
       }

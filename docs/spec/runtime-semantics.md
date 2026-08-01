@@ -204,12 +204,25 @@ picker if one is declared.
 
 Evaluation is a read and enforces nothing new. Child rows are loaded through the
 child object's ordinary policy-enforcing search and then filtered to the declared
-parent field, and picker candidates come from the child object's `search` or from
-`executeReadModel` before any picker-specific text matching, already-linked
-exclusion or ordering is applied. Action visibility on a child row is shaped by
+parent field, and picker candidates come from the candidate object's `search` or
+from `executeReadModel` before any picker-specific text matching, already-linked
+exclusion or ordering is applied; see
+[relationship pickers](#relationship-pickers) for which object that is. Action
+visibility on a child row is shaped by
 the child object's own policy and sync decisions, so a collection that lists an
 operation the caller may not perform reports it as not enabled rather than
 hiding the refusal until the write.
+
+A staged `createChild` is completed before it is planned. The declared parent
+field is set to the parent record, the child object's context-scope field is
+seeded from the caller's currently selected context when the caller supplied no
+value for it, and — in a collection with an `orderField` — the position is filled
+in when the caller supplied none: the child is **appended**, taking one more than
+the highest position among the parent's existing children. Several appends in one
+batch count forward from that same starting point, in the order they were staged,
+so they land after the existing children and after each other rather than all
+claiming one slot. A caller-supplied position still wins, and is then subject to
+the ordinary ordered-collection expansion below.
 
 Applying a staged batch is a **single transaction**. Every staged operation is
 planned first — running exactly the policy, validation, lifecycle, scope,
@@ -256,6 +269,73 @@ which the authority holds no copy to contradict the removal. See
 the operation log is what feeds the sync queue, so a kind the model does not log
 has no delivery path at all. Like `command`, it is deliberately not an audit
 operation; audit stays per record.
+
+## Relationship Pickers
+
+A child collection may declare a `picker`, which is how a caller chooses what to
+add to the collection. A picker has two modes, and the resolved declaration
+decides which: a picker that names a `candidateField` **mints**, and one that does
+not **links**.
+
+- A **linking** picker offers the child records themselves. Choosing one stages
+  `linkExisting`, which re-parents that child onto this parent, so the collection
+  must support `linkExisting`.
+- A **minting** picker offers records of the object its candidate field looks up.
+  Choosing one stages a `createChild` whose values carry the chosen record's id in
+  that field, so a new child is created naming it and the collection must support
+  `createChild`. The requirement is
+  `ADL_RELATIONSHIP_PICKER_CREATE_OPERATION_REQUIRED`; the linking one is
+  `ADL_RELATIONSHIP_PICKER_LINK_OPERATION_REQUIRED`.
+
+The **candidate object** — the object a picker's candidates are records of — is
+therefore derived from the model rather than from the declared source: the child
+object for a linking picker, the candidate field's lookup target for a minting
+one. The declared source must agree. An object source must name the candidate
+object and a read-model source must include it, and either failure is
+`ADL_RELATIONSHIP_PICKER_SOURCE_UNKNOWN`. Because an omitted source resolves to
+the child object, a minting picker whose candidate object is anything else has to
+declare its source explicitly. A candidate field the child object does not carry
+is `ADL_RELATIONSHIP_PICKER_CANDIDATE_FIELD_UNKNOWN`, and one that is not a lookup
+field is `ADL_RELATIONSHIP_PICKER_CANDIDATE_FIELD_INVALID` — the picker writes a
+chosen record's id into it, so there has to be a declared target for that id to
+name.
+
+Candidates are read first and filtered afterwards. An object source loads through
+the candidate object's ordinary policy-enforcing search, and a read-model source
+through read-model execution, before any picker search text, already-linked
+exclusion, ordering or limit is applied — so read policy and context scoping are
+never overridden by a picker's own narrowing. Each candidate reports the candidate
+record's id, a label built from the picker's display fields joined with `" - "` —
+or, when the picker declares none, from the candidate object's display field,
+business key and first field — falling back to the record id when no display
+value is present, the values it was read from, a source reference, and whether it
+is already linked.
+Object-backed candidates carry the candidate object's record id; read-model-backed
+candidates carry the source reference for the candidate object in that row.
+Ordering is deterministic: the picker's `sort`, then the label, then the record id.
+When no candidate remains, evaluation reports a warning diagnostic
+`ADL_RUNTIME_RELATIONSHIP_PICKER_EMPTY` carrying the picker's empty-state text.
+
+`excludeAlreadyLinked`, which defaults to true, means a different thing in each
+mode, because "already taken" is a different set:
+
+- for a **linking** picker it is the ids of the children already pointing at this
+  parent, plus the child ids that staged `linkExisting` operations in the same
+  editing session already name;
+- for a **minting** picker it is the **candidates** those children already name in
+  the candidate field — a child's own id would not identify one — plus the
+  candidates that staged `createChild` operations in the same session already
+  name. So a candidate chosen twice before the parent is saved is offered once.
+
+Evaluating a picker for a parent that does not exist yet excludes nothing from
+storage; only the staged operations narrow it.
+
+Applying staged links refuses two staged `linkExisting` operations naming the same
+child in the same section (`ADL_RUNTIME_RELATIONSHIP_PICKER_DUPLICATE`), and
+refuses a stale attempt to link a child that already points at this parent. That
+check is about link operations only: what keeps a minting picker from creating the
+same child twice is the exclusion above and the child object's own declared
+constraints.
 
 ## Decision Tables
 
@@ -380,20 +460,18 @@ Cancelling a create/edit container discards the caller-held staged operation
 list.
 
 Relationship picker candidates evaluate through
-`ApplicationRuntime.evaluateRelationshipPicker`. The runtime loads candidates
-from the picker object source through policy-enforcing object search, or from
-the picker read-model source through read-model execution. Picker search,
-already-linked exclusion, and deterministic sorting run only after those
-runtime reads have applied context scoping and read policy. Object-backed
-pickers use the child object record id. Read-model-backed pickers use the
-source reference for the child object.
+`ApplicationRuntime.evaluateRelationshipPicker`, whose semantics are stated in
+[relationship pickers](#relationship-pickers): candidates load through
+policy-enforcing object search or read-model execution first, and picker search,
+already-linked exclusion and deterministic ordering apply only afterwards.
 
-`linkExisting` picker output is represented as explicit staged child operations.
-Multi-select output is ordered deterministically by picker sort, display label,
-and record id before the browser stages the selected child ids. Applying staged
-links rejects duplicate child ids in the same batch and rejects stale attempts
-to link a child row that is already linked to the same parent. Model-declared
-constraints are still enforced by the normal create/update transaction path.
+A picker's output is represented as explicit staged child operations, and which
+operation depends on the picker's mode: a chosen candidate becomes a
+`linkExisting` naming that child, or — for a picker that names a candidate field —
+a `createChild` whose values carry the chosen record's id in that field. The
+choices are staged in the picker's own deterministic candidate order.
+Model-declared constraints are still enforced by the normal create/update
+transaction path.
 
 The deterministic formatter currently supports:
 

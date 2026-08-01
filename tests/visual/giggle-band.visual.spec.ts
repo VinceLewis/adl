@@ -117,11 +117,45 @@ test.describe("Giggle Band visual smoke", () => {
     // A lookup column shows the song's title, not its record id. The child-row
     // renderer resolves lookups asynchronously, so this also waits for it.
     await expect(songs).toContainText("Neon Map");
-    // `createChild` and `linkExisting` were invisible for a context-scoped child
-    // until the policy patch carried the selected scope; their controls are the
-    // visible proof that it does.
-    await expect(songs.locator("button[data-child-action='createChild']")).toBeVisible();
-    await expect(songs.locator("button[data-child-action='linkExisting']")).toBeVisible();
+    // One control adds songs, and it opens a chooser rather than asking anyone to
+    // type a record id. Its presence is also the visible proof that a
+    // context-scoped child's create is permitted: the control renders only when
+    // policy allows `createChild`, which needed the selected band scope to reach
+    // the policy engine at all.
+    const add = songs.locator("button[data-picker-open='Songs']");
+    await expect(add).toBeVisible();
+    await expect(add).toHaveText("Add");
+    // The raw draft row is gone with it: choosing is how a song is added.
+    await expect(page.locator("[data-child-draft='Songs']")).toHaveCount(0);
+
+    await add.click();
+    const picker = page.locator(".adl-relationship-picker");
+    await expect(picker).toBeVisible();
+    // Songs, not set-list items — and not the three already in this set list.
+    await expect(picker).toContainText("Slow Tide");
+    await expect(picker).not.toContainText("Neon Map");
+    await expectNoDocumentHorizontalOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`giggle-${testInfo.project.name}-set-list-song-picker.png`),
+      fullPage: true,
+    });
+    // The whole point, end to end in a real browser: tick a song, add it, save,
+    // and it is in the set list at the end — with no record id typed anywhere.
+    await picker.locator("input[data-picker-candidate]").first().check();
+    await picker.locator("button[data-picker-action='add']").click();
+    await expect(page.locator(".adl-relationship-picker")).toHaveCount(0);
+    await expect(songs).toContainText("Slow Tide");
+
+    await page.locator("button[data-action-name='save']").click();
+    await expect(page.locator(".adl-message-area")).toContainText("SetList saved.");
+
+    await page.locator("tr[data-record-id]").filter({ hasText: "August headline" }).click();
+    const savedRows = page.locator(
+      "section.adl-child-section[data-child-section='Songs'] [data-child-row]",
+    );
+    await expect(savedRows).toHaveCount(4);
+    await expect(savedRows.nth(3)).toContainText("Slow Tide");
+    await expect(savedRows.nth(3)).toHaveAttribute("data-child-row-position", "4");
 
     await expectAppReady(page);
     await expectNoDocumentHorizontalOverflow(page);

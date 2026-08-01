@@ -151,6 +151,13 @@ export class AdlFormViewElement extends HTMLElement {
       return;
     }
 
+    const pickerOpen = target.closest<HTMLButtonElement>("button[data-picker-open]");
+    if (pickerOpen !== null) {
+      event.stopPropagation();
+      void this.openRelationshipPicker(pickerOpen.dataset.pickerOpen ?? "");
+      return;
+    }
+
     const reorderButton = target.closest<HTMLButtonElement>("button[data-child-reorder]");
     if (reorderButton !== null) {
       this.handleReorderButtonClick(event, reorderButton);
@@ -461,24 +468,29 @@ export class AdlFormViewElement extends HTMLElement {
     const linkAction = section.actions.find(
       (action) => action.operation === "linkExisting" && action.visible,
     );
+    // A picker that names a candidate field creates children from what is chosen,
+    // so the operation that must be permitted — and the control that opens it —
+    // is `createChild`, not `linkExisting`.
+    const mints = section.picker?.candidateField !== undefined;
+    const pickerAction = mints ? addAction : linkAction;
     return `
       <section class="adl-edit-section adl-child-section" data-child-section="${escapeHtml(section.name)}">
         <header class="adl-child-section-header">
           <h3>${escapeHtml(section.heading ?? titleCaseIdentifier(section.name))}</h3>
           <div class="adl-child-section-actions">
             ${
-              linkAction === undefined || section.picker === undefined
+              pickerAction === undefined || section.picker === undefined
                 ? ""
                 : `<button
                     type="button"
-                    data-child-action="linkExisting"
-                    data-child-section="${escapeHtml(section.name)}"
-                    data-child-object="${escapeHtml(section.childObject)}"
-                    ${linkAction.enabled ? "" : "disabled"}
-                  >Link</button>`
+                    data-picker-open="${escapeHtml(section.name)}"
+                    ${pickerAction.enabled ? "" : "disabled"}
+                  >${escapeHtml(mints ? "Add" : "Link")}</button>`
             }
             ${
-              addAction === undefined
+              // A minting picker *is* the way to add, so the raw draft row's
+              // submit button would be a second, worse one beside it.
+              mints || addAction === undefined
                 ? ""
                 : `<button
                   type="button"
@@ -494,6 +506,15 @@ export class AdlFormViewElement extends HTMLElement {
         ${this.renderChildDraft(section)}
       </section>
     `;
+  }
+
+  private childCollectionSection(
+    sectionName: string,
+  ): RuntimeEditChildCollectionSection | undefined {
+    return this._editSurface?.sections.find(
+      (section): section is RuntimeEditChildCollectionSection =>
+        section.kind === "childCollection" && section.name === sectionName,
+    );
   }
 
   /** A child cell, with a `LOOKUP` field shown by its display value once loaded. */
@@ -800,7 +821,13 @@ export class AdlFormViewElement extends HTMLElement {
   }
 
   private renderChildDraft(section: RuntimeEditChildCollectionSection): string {
-    if (!section.operations.includes("createChild")) {
+    // Suppressed when a minting picker exists: choosing a candidate is how a
+    // child is added there, and the draft row's bare inputs would ask the person
+    // to type by hand the very record the picker exists to let them choose.
+    if (
+      !section.operations.includes("createChild") ||
+      section.picker?.candidateField !== undefined
+    ) {
       return "";
     }
 
@@ -984,14 +1011,25 @@ export class AdlFormViewElement extends HTMLElement {
       return;
     }
 
+    const candidateField = this.pickerResult.picker.candidateField;
+    // Always the *child* object, never the candidate's. For a minting picker the
+    // candidates are records of some other object entirely, so reading the child
+    // object off a candidate would have staged the operation against the wrong
+    // collection.
+    const childObject =
+      this.childCollectionSection(this.pickerResult.section)?.childObject ??
+      this.pickerResult.candidates[0]?.source.objectName ??
+      "";
+
     this.dispatchEvent(
       new CustomEvent<StageChildOperationDetail>("adl-stage-child-operation", {
         bubbles: true,
         detail: {
           section: this.pickerResult.section,
-          operation: "linkExisting",
-          childObject: this.pickerResult.candidates[0]?.source.objectName ?? "",
+          operation: candidateField === undefined ? "linkExisting" : "createChild",
+          childObject,
           childIds: selected,
+          ...(candidateField === undefined ? {} : { candidateField }),
         },
       }),
     );

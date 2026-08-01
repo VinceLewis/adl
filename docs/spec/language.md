@@ -376,20 +376,37 @@ records edited inside the parent's form:
 - `EMPTY_TEXT 'text'` — what to show when the collection is empty.
 - `PICKER ... END.PICKER` — see below.
 
-`PICKER Name ... END.PICKER` declares how `linkExisting` finds candidates. It is
-only meaningful on a collection whose operations include `linkExisting`, and is
-refused otherwise:
+`PICKER Name ... END.PICKER` declares how a caller chooses what to add to the
+collection. It has two modes, and `CANDIDATE_FIELD` is what chooses between them:
 
-- `SOURCE OBJECT <object>` or `SOURCE READ_MODEL <read model>`. An object source
-  must be the child object; a read-model source must include the child object,
-  so every candidate resolves to a child record id. Omitting `SOURCE` resolves to
-  the child object.
+- Without it the picker **links**. Its candidates are existing child records, and
+  choosing one re-parents it, so the collection's operations must include
+  `linkExisting` and are refused otherwise.
+- With it the picker **mints**. Its candidates are records of whatever that field
+  looks up, and choosing one creates a new child naming it, so the collection's
+  operations must include `createChild` and are refused otherwise.
+
+Its directives are:
+
+- `SOURCE OBJECT <object>` or `SOURCE READ_MODEL <read model>`. The source must
+  agree with what is being chosen: for a linking picker that is the child object,
+  and for a minting picker it is the candidate field's lookup target. An object
+  source must name that object; a read-model source must include it, so every
+  candidate resolves to a deterministic record id of it. Omitting `SOURCE`
+  resolves to the child object, so a minting picker whose candidates are records
+  of anything else has to declare one.
+- `CANDIDATE_FIELD <field>` — a lookup field on the **child** object that receives
+  the chosen record's id. Optional, and never inferred: which of a child's lookups
+  the picker fills is a modelling decision, and guessing would silently pick one
+  when a child has two. A field the child object does not carry, or one that is
+  not a lookup, is refused.
 - `SELECTION single|multiple` — the default is `multiple`.
 - `DISPLAY <fields>`, `SEARCH <fields>`, `SORT <field> ASC|DESC` — over candidate
-  fields.
-- `EXCLUDE_LINKED` (or `EXCLUDE_LINKED false`) — whether candidates already
-  linked to this parent are hidden. The bare word means `true`, which is the
-  default.
+  fields, meaning fields of the source above rather than of the child.
+- `EXCLUDE_LINKED` (or `EXCLUDE_LINKED false`) — whether candidates this parent
+  already has are hidden: for a linking picker the children themselves, for a
+  minting picker the candidates its children already name. The bare word means
+  `true`, which is the default.
 - `EMPTY_TEXT 'text'` — what to show when no candidate remains.
 
 ```adl
@@ -427,6 +444,60 @@ OBJECT Order
   END.VIEW
 END.OBJECT
 ```
+
+The picker above links: its candidates are `OrderLine` records, and choosing one
+moves that line onto this order. A picker that mints instead offers the thing a
+person thinks they are choosing, and the platform creates the child record for
+them:
+
+```adl
+OBJECT SetList
+  DISPLAY Name
+  FIELD Name TEXT REQUIRED
+
+  VIEW SetListForm FORM
+    FIELDS Name
+    EDIT_CONTAINER page
+
+    CHILD_COLLECTION Songs HEADING 'Songs'
+      CHILD SetListItem PARENT_FIELD SetList
+      CHILD_VIEW SetListItemList
+      OPERATIONS createChild updateChild remove reorder
+      STAGED
+      ORDER_FIELD Position
+      EMPTY_TEXT 'No songs in this set list yet.'
+
+      PICKER SongPicker
+        SOURCE OBJECT Song            # the candidate object, not the child
+        CANDIDATE_FIELD Song          # the child field the choice is written to
+        SELECTION multiple
+        DISPLAY Title Composer
+        SEARCH Title Composer
+        SORT Title ASC
+        EXCLUDE_LINKED
+        EMPTY_TEXT 'Every song in the library is already in this set list.'
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT SetListItem
+  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name
+  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
+  FIELD Position NUMBER REQUIRED MIN 1
+
+  VIEW SetListItemList LIST
+    FIELDS Song Position
+    ACTIONS read
+  END.VIEW
+END.OBJECT
+```
+
+Choosing three songs there stages three `createChild` operations, each carrying
+the chosen song's id in `Song`, each appended to the end of the set list. Songs
+already in this set list are not offered again. See
+[runtime-semantics#relationship-pickers](runtime-semantics.md) for the full
+evaluation rules.
 
 `EDIT_SECTION` is spelled differently from the composed-presentation `SECTION`
 because a view may declare both, and two different things cannot share one

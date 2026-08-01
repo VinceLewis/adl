@@ -711,6 +711,7 @@ function relationshipPickerToPartial(
     name: picker.name,
     ...(picker.sourceKind === undefined ? {} : { sourceKind: picker.sourceKind }),
     ...(picker.source === undefined ? {} : { source: picker.source }),
+    ...(picker.candidateField === undefined ? {} : { candidateField: picker.candidateField }),
     ...(picker.selection === undefined ? {} : { selection: picker.selection }),
     // Left absent rather than empty so resolution keeps its own defaulting: an
     // empty display list is a picker showing nothing, which no author means.

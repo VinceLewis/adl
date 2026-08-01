@@ -127,6 +127,12 @@ export interface RuntimeRelationshipPickerSummary {
   name: string;
   sourceKind: ResolvedRelationshipPicker["sourceKind"];
   source: string;
+  /**
+   * Present when choosing a candidate *creates* a child naming it, rather than
+   * re-parenting an existing child. A renderer must dispatch `createChild`
+   * carrying this field, not `linkExisting`.
+   */
+  candidateField?: string;
   selection: ResolvedRelationshipPicker["selection"];
   displayFields: string[];
   searchFields: string[];
@@ -313,6 +319,10 @@ export class EditSurfaceRuntime {
 
     const operations = input.stagedChanges.map(cloneStagedOperation);
     const writes: PlannedObjectWrite[] = [];
+    // The last position handed out per ordered section, so several children
+    // added in one batch land after the existing ones and after each other
+    // rather than all claiming the same slot.
+    const appendPositions = new Map<string, number>();
     for (const operation of operations) {
       const section = sectionsByName.get(operation.section);
       if (section === undefined) {
@@ -336,7 +346,9 @@ export class EditSurfaceRuntime {
         );
       }
 
-      writes.push(await this.planStagedOperation(section, parent, operation, input.context));
+      writes.push(
+        await this.planStagedOperation(section, parent, operation, input.context, appendPositions),
+      );
     }
 
     // One commit for the whole staged batch: either every child change lands and
@@ -390,22 +402,39 @@ export class EditSurfaceRuntime {
         : ((await this.dataSource.read(parentObject.name, input.recordId, input.context)) ??
           undefined);
     const childObject = this.index.getObject(section.childObject);
+    // A minting picker offers the candidate field's *target*; a linking one
+    // offers the child object itself. Derived from the model rather than from
+    // `picker.source`, so an object source and a read-model source agree about
+    // what is being chosen.
+    const candidateObject = this.index.getObject(candidateObjectName(childObject, section.picker));
     const stagedChanges = input.stagedChanges ?? [];
     const diagnostics: RuntimeEditSurfaceDiagnostic[] = [];
     const linkedIds = await this.getAlreadyLinkedChildIds(section, input.context, parent);
+    const candidateField = section.picker.candidateField;
     for (const staged of stagedChanges) {
-      if (
-        staged.section === section.name &&
-        staged.operation === "linkExisting" &&
-        staged.childId !== undefined
-      ) {
+      if (staged.section !== section.name) {
+        continue;
+      }
+      // "Already taken" means a different thing for each mode. For a minting
+      // picker it is the candidate a staged child already names, not the staged
+      // child's own id — offering the same song twice in one editing session is
+      // exactly what the exclusion exists to prevent.
+      if (candidateField !== undefined) {
+        const chosen =
+          staged.operation === "createChild" ? staged.values?.[candidateField] : undefined;
+        if (typeof chosen === "string") {
+          linkedIds.add(chosen);
+        }
+        continue;
+      }
+      if (staged.operation === "linkExisting" && staged.childId !== undefined) {
         linkedIds.add(staged.childId);
       }
     }
 
     const candidates = await this.loadPickerCandidates({
       picker: section.picker,
-      childObject,
+      candidateObject,
       context: input.context,
       query: input.query ?? {},
       linkedIds,
@@ -634,22 +663,51 @@ export class EditSurfaceRuntime {
     parent: StoredObjectRecord,
     operation: RuntimeStagedChildOperation,
     context: RuntimeContext,
+    appendPositions: Map<string, number>,
   ): Promise<PlannedObjectWrite> {
     if (operation.operation === "createChild") {
-      return this.dataSource.planCreate(
-        section.childObject,
-        {
-          // Seeded first so an explicit staged value still wins. Without it a
-          // `SCOPE` child created from inside its parent's form carries no
-          // context id at all, and fails its own required-field check and the
-          // object-scope gate — the child form has no reason to ask for a
-          // context the user has already selected.
-          ...scopeValues(this.index.getObject(section.childObject), context),
-          ...(operation.values ?? {}),
-          [section.parentField]: parent.meta.guid,
-        },
-        context,
-      );
+      // The same check the `linkExisting` branch makes below, for the mode that
+      // creates rather than links: a candidate this parent already holds must not
+      // be added again when the model says it should not even be offered.
+      const picker = section.picker;
+      const candidateField =
+        picker?.excludeAlreadyLinked === true ? picker.candidateField : undefined;
+      const chosen = candidateField === undefined ? undefined : operation.values?.[candidateField];
+      if (typeof chosen === "string") {
+        const taken = await this.getAlreadyLinkedChildIds(section, context, parent);
+        if (taken.has(chosen)) {
+          throw duplicateLinkOperation(
+            operation,
+            `Candidate '${chosen}' is already held by parent record '${parent.meta.guid}' in section '${section.name}'.`,
+          );
+        }
+      }
+
+      const values = {
+        // Seeded first so an explicit staged value still wins. Without it a
+        // `SCOPE` child created from inside its parent's form carries no
+        // context id at all, and fails its own required-field check and the
+        // object-scope gate — the child form has no reason to ask for a
+        // context the user has already selected.
+        ...scopeValues(this.index.getObject(section.childObject), context),
+        ...(operation.values ?? {}),
+        [section.parentField]: parent.meta.guid,
+      };
+      // A new child in an ordered collection goes to the end unless the caller
+      // said otherwise. Without this the position is simply missing, and a
+      // required order field refuses the write — so "add" would be unusable on
+      // exactly the collections that most want it. Appending is also what a
+      // person expects: the new row appears last, ready to be moved.
+      if (section.orderField !== undefined && values[section.orderField] === undefined) {
+        values[section.orderField] = await this.nextAppendPosition(
+          section,
+          parent,
+          context,
+          appendPositions,
+        );
+      }
+
+      return this.dataSource.planCreate(section.childObject, values, context);
     }
 
     if (operation.childId === undefined) {
@@ -716,28 +774,104 @@ export class EditSurfaceRuntime {
     );
   }
 
+  /**
+   * The next free slot at the end of this parent's ordered collection.
+   *
+   * Read once per section and then counted forward in memory, because every
+   * write in a batch is planned before any is committed: a second read would
+   * still see the pre-transaction rows and hand out the same position twice.
+   */
+  private async nextAppendPosition(
+    section: ResolvedEditChildCollectionSection,
+    parent: StoredObjectRecord,
+    context: RuntimeContext,
+    appendPositions: Map<string, number>,
+  ): Promise<number> {
+    const issued = appendPositions.get(section.name);
+    if (issued !== undefined) {
+      const next = issued + 1;
+      appendPositions.set(section.name, next);
+      return next;
+    }
+
+    const orderField = section.orderField ?? "";
+    const siblings = (await this.dataSource.search(section.childObject, context)).filter(
+      (record) => record.values[section.parentField] === parent.meta.guid,
+    );
+    let highest = 0;
+    for (const sibling of siblings) {
+      const position = sibling.values[orderField];
+      if (typeof position === "number" && position > highest) {
+        highest = position;
+      }
+    }
+
+    const next = highest + 1;
+    appendPositions.set(section.name, next);
+    return next;
+  }
+
+  /**
+   * Refuses a batch that names the same thing twice.
+   *
+   * Both modes need this and for the same reason, but they identify "the same
+   * thing" differently: a link is a duplicate when it names a child record
+   * already named, and a minting create is one when it names a *candidate*
+   * already chosen. The minting half was previously enforced only by the
+   * picker's own exclusion — which is a read a renderer performs, so a caller
+   * that did not perform it could add the same song to a set list twice. UI
+   * behaviour must never be the only enforcement point.
+   *
+   * It applies to a minting picker only when the model declares
+   * `excludeAlreadyLinked`. A picker that explicitly permits already-chosen
+   * candidates is saying duplicates are meaningful for that collection, and this
+   * must not overrule it.
+   */
   private requireNoDuplicateLinkOperations(
     operations: RuntimeStagedChildOperation[],
     sectionsByName: Map<string, ResolvedEditChildCollectionSection>,
   ): void {
     const seen = new Set<string>();
     for (const operation of operations) {
-      if (operation.operation !== "linkExisting" || operation.childId === undefined) {
+      const section = sectionsByName.get(operation.section);
+      const picker = section?.picker;
+      const candidateField =
+        picker?.excludeAlreadyLinked === true ? picker.candidateField : undefined;
+      const chosen =
+        candidateField === undefined || operation.operation !== "createChild"
+          ? undefined
+          : operation.values?.[candidateField];
+      const subject =
+        typeof chosen === "string"
+          ? chosen
+          : operation.operation === "linkExisting"
+            ? operation.childId
+            : undefined;
+      if (subject === undefined) {
         continue;
       }
 
-      const section = sectionsByName.get(operation.section);
-      const key = `${operation.section}\0${section?.childObject ?? operation.childObject}\0${operation.childId}`;
+      const key = `${operation.section}\0${section?.childObject ?? operation.childObject}\0${subject}`;
       if (seen.has(key)) {
         throw duplicateLinkOperation(
           operation,
-          `Staged link operation '${operation.id}' duplicates child record '${operation.childId}' in section '${operation.section}'.`,
+          typeof chosen === "string"
+            ? `Staged create operation '${operation.id}' duplicates candidate '${subject}' in section '${operation.section}'.`
+            : `Staged link operation '${operation.id}' duplicates child record '${subject}' in section '${operation.section}'.`,
         );
       }
       seen.add(key);
     }
   }
 
+  /**
+   * What the picker must not offer again.
+   *
+   * For a linking picker that is the ids of children already under this parent.
+   * For a minting picker it is the *candidates* those children already name — a
+   * song already in this set list is what must not be offered, and its set-list
+   * item's own id would not identify it.
+   */
   private async getAlreadyLinkedChildIds(
     section: ResolvedEditChildCollectionSection,
     context: RuntimeContext,
@@ -747,17 +881,27 @@ export class EditSurfaceRuntime {
       return new Set();
     }
 
-    const childRecords = await this.dataSource.search(section.childObject, context);
-    return new Set(
-      childRecords
-        .filter((record) => record.values[section.parentField] === parent.meta.guid)
-        .map((record) => record.meta.guid),
+    const candidateField = section.picker?.candidateField;
+    const children = (await this.dataSource.search(section.childObject, context)).filter(
+      (record) => record.values[section.parentField] === parent.meta.guid,
     );
+    if (candidateField === undefined) {
+      return new Set(children.map((record) => record.meta.guid));
+    }
+
+    const taken = new Set<string>();
+    for (const record of children) {
+      const chosen = record.values[candidateField];
+      if (typeof chosen === "string") {
+        taken.add(chosen);
+      }
+    }
+    return taken;
   }
 
   private async loadPickerCandidates(input: {
     picker: ResolvedRelationshipPicker;
-    childObject: ResolvedObject;
+    candidateObject: ResolvedObject;
     context: RuntimeContext;
     query: RuntimeRelationshipPickerQuery;
     linkedIds: Set<string>;
@@ -777,14 +921,14 @@ export class EditSurfaceRuntime {
 
   private async loadObjectPickerCandidates(input: {
     picker: ResolvedRelationshipPicker;
-    childObject: ResolvedObject;
+    candidateObject: ResolvedObject;
     context: RuntimeContext;
     query: RuntimeRelationshipPickerQuery;
     linkedIds: Set<string>;
   }): Promise<RuntimeRelationshipPickerCandidate[]> {
-    const searchFields = pickerSearchFields(input.picker, input.childObject);
+    const searchFields = pickerSearchFields(input.picker, input.candidateObject);
     const records = await this.dataSource.searchWithQuery(
-      input.childObject.name,
+      input.candidateObject.name,
       {
         ...(input.query.text === undefined ? {} : { text: input.query.text }),
         fields: searchFields,
@@ -795,16 +939,25 @@ export class EditSurfaceRuntime {
 
     return records.map((record) => ({
       id: record.meta.guid,
-      label: pickerCandidateLabel(input.picker, input.childObject, record.values, record.meta.guid),
+      label: pickerCandidateLabel(
+        input.picker,
+        input.candidateObject,
+        record.values,
+        record.meta.guid,
+      ),
       values: cloneJson(record.values),
-      source: { kind: "object", objectName: input.childObject.name, recordId: record.meta.guid },
+      source: {
+        kind: "object",
+        objectName: input.candidateObject.name,
+        recordId: record.meta.guid,
+      },
       alreadyLinked: input.linkedIds.has(record.meta.guid),
     }));
   }
 
   private async loadReadModelPickerCandidates(input: {
     picker: ResolvedRelationshipPicker;
-    childObject: ResolvedObject;
+    candidateObject: ResolvedObject;
     context: RuntimeContext;
     query: RuntimeRelationshipPickerQuery;
     linkedIds: Set<string>;
@@ -820,7 +973,7 @@ export class EditSurfaceRuntime {
     return rows
       .map((row) => {
         const source = Object.values(row.sources).find(
-          (candidate) => candidate.objectName === input.childObject.name,
+          (candidate) => candidate.objectName === input.candidateObject.name,
         );
         if (source === undefined) {
           return undefined;
@@ -828,7 +981,12 @@ export class EditSurfaceRuntime {
 
         const candidate: RuntimeRelationshipPickerCandidate = {
           id: source.recordId,
-          label: pickerCandidateLabel(input.picker, input.childObject, row.values, source.recordId),
+          label: pickerCandidateLabel(
+            input.picker,
+            input.candidateObject,
+            row.values,
+            source.recordId,
+          ),
           values: cloneJson(row.values),
           source: {
             kind: "readModel" as const,
@@ -879,6 +1037,27 @@ function evaluateFieldsSection(
  * context it declares; in the second case the write is refused downstream, which
  * is the honest outcome rather than one invented here.
  */
+/**
+ * The object a picker's candidates are records of.
+ *
+ * A linking picker offers the child object itself. A minting picker offers
+ * whatever its candidate field looks up, which validation has already required
+ * the declared source to agree with — so this reads the answer off the model
+ * rather than off `picker.source`, and an object source and a read-model source
+ * cannot disagree about what is being chosen.
+ */
+function candidateObjectName(
+  childObject: ResolvedObject,
+  picker: ResolvedRelationshipPicker,
+): string {
+  if (picker.candidateField === undefined) {
+    return childObject.name;
+  }
+
+  const field = childObject.fields.find((candidate) => candidate.name === picker.candidateField);
+  return field?.lookup?.targetObject ?? childObject.name;
+}
+
 function scopeValues(object: ResolvedObject, context: RuntimeContext): Record<string, JsonValue> {
   const scope = object.scope;
   if (scope === undefined) {
@@ -936,6 +1115,7 @@ function summarizePicker(picker: ResolvedRelationshipPicker): RuntimeRelationshi
     name: picker.name,
     sourceKind: picker.sourceKind,
     source: picker.source,
+    ...(picker.candidateField === undefined ? {} : { candidateField: picker.candidateField }),
     selection: picker.selection,
     displayFields: [...picker.displayFields],
     searchFields: [...picker.searchFields],

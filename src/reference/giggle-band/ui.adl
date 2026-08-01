@@ -184,19 +184,24 @@ OBJECT SetList
     CHILD_COLLECTION Songs HEADING 'Songs'
       CHILD SetListItem PARENT_FIELD SetList
       CHILD_VIEW SetListItemList
-      OPERATIONS createChild linkExisting updateChild remove reorder
+      OPERATIONS createChild updateChild remove reorder
       STAGED
       ORDER_FIELD Position
       EMPTY_TEXT 'No songs in this set list yet.'
 
-      PICKER SetListItemPicker
-        SOURCE READ_MODEL SetListItemsByPosition
+      # Adding a song is choosing one, not typing its record id. CANDIDATE_FIELD
+      # makes each choice mint a SetListItem naming that Song, appended to the end
+      # of the set list and ready to be reordered. Songs already in this set list
+      # are excluded, so the same song cannot be added twice.
+      PICKER SongPicker
+        SOURCE OBJECT Song
+        CANDIDATE_FIELD Song
         SELECTION multiple
-        DISPLAY SongTitle SetListName
-        SEARCH SongTitle SetListName
-        SORT SongTitle ASC
+        DISPLAY Title Composer
+        SEARCH Title Composer
+        SORT Title ASC
         EXCLUDE_LINKED
-        EMPTY_TEXT 'Every set-list item in this band is already in this set list.'
+        EMPTY_TEXT 'Every song in the library is already in this set list.'
       END.PICKER
     END.CHILD_COLLECTION
   END.VIEW

@@ -589,6 +589,70 @@ END.OBJECT
         emptyText: "Nothing to link.",
       },
     });
+
+    const linkingSection = view?.editSections[1];
+    if (linkingSection?.kind !== "EditChildCollectionDeclaration") {
+      throw new Error("Expected a child collection declaration.");
+    }
+
+    // A picker with no CANDIDATE_FIELD links existing children, so the field
+    // must be absent rather than defaulted to anything.
+    expect(linkingSection.picker?.candidateField).toBeUndefined();
+  });
+
+  /*
+   * `CANDIDATE_FIELD` is what turns a picker from "re-parent one of these
+   * children" into "add one of these things", so the child field it names has to
+   * survive into the AST alongside a source that is the *candidate* object.
+   */
+  it("parses a minting relationship picker's CANDIDATE_FIELD", () => {
+    const ast = parseAdl(`APP Phase60
+END.APP
+
+OBJECT SetList
+  FIELD Name TEXT
+
+  VIEW SetListForm FORM
+    FIELDS Name
+    CHILD_COLLECTION Items
+      CHILD SetListItem PARENT_FIELD SetList
+      OPERATIONS createChild updateChild remove reorder
+      ORDER_FIELD Position
+      PICKER SongPicker
+        SOURCE OBJECT Song
+        CANDIDATE_FIELD Song
+        SELECTION multiple
+        DISPLAY Title Composer
+        SEARCH Title
+        SORT Title ASC
+        EXCLUDE_LINKED
+        EMPTY_TEXT 'Every song is already in this set list.'
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+`);
+
+    const section = ast.objects[0]?.views[0]?.editSections[0];
+    if (section?.kind !== "EditChildCollectionDeclaration") {
+      throw new Error("Expected a child collection declaration.");
+    }
+
+    expect(section.picker).toMatchObject({
+      kind: "RelationshipPickerDeclaration",
+      name: "SongPicker",
+      sourceKind: "object",
+      // The candidate object, not the child object: the picker offers songs and
+      // mints the set-list item that names one.
+      source: "Song",
+      candidateField: "Song",
+      selection: "multiple",
+      displayFields: ["Title", "Composer"],
+      searchFields: ["Title"],
+      sort: [{ field: "Title", direction: "asc" }],
+      excludeAlreadyLinked: true,
+      emptyText: "Every song is already in this set list.",
+    });
   });
 
   /*
@@ -719,7 +783,7 @@ END.OBJECT
         STAGED
       END.PICKER
     END.CHILD_COLLECTION`),
-      "Expected PICKER directive SOURCE, SELECTION, DISPLAY, SEARCH, SORT, EXCLUDE_LINKED, EMPTY_TEXT, or END.PICKER, but found 'STAGED'.",
+      "Expected PICKER directive SOURCE, CANDIDATE_FIELD, SELECTION, DISPLAY, SEARCH, SORT, EXCLUDE_LINKED, EMPTY_TEXT, or END.PICKER, but found 'STAGED'.",
     );
 
     expectParseFailure(

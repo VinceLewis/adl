@@ -176,15 +176,14 @@ would have.
   asks for a context the user selected before opening it. **The prediction and
   the write must be seeded identically**; a policy patch that describes a write
   the runtime does not make is worse than no check.
-- **A picker's candidates are existing *child* records, not the thing a user
-  thinks they are picking.** `linkExisting` plans
-  `planUpdate(child, {parentField: parent})`, so validation requires an object
-  source to *be* the child object and a read-model source to include it. For a
-  set list that means the picker offers `SetListItem` rows, not `Song` rows, and
-  the reference app uses `READ_MODEL SetListItemsByPosition` so the candidate
-  labels are song titles rather than guids. Picking a `Song` and having the
-  platform mint the child record is a different operation the model cannot
-  express; recorded as a gap, not worked around.
+- ~~**A picker's candidates are existing *child* records, not the thing a user
+  thinks they are picking.**~~ **Closed.** `linkExisting` plans
+  `planUpdate(child, {parentField: parent})`, so a linking picker's source must
+  be the child object — which made "add a song to this set list" inexpressible
+  and left adding a child meaning *typing a record guid into a bare text box*.
+  A picker may now name a `CANDIDATE_FIELD`, which turns it from one that links
+  into one that **creates**: the candidates become that field's lookup target,
+  and each choice mints a child naming it. See "Minting pickers" below.
 - **`unlink` is undeclarable for a required parent field.** `planStagedOperation`
   patches `{parentField: null}`, so a child whose lookup back to its parent is
   `REQUIRED` can never honour it. The language can declare the operation; that
@@ -203,6 +202,54 @@ Two smaller ones worth knowing:
   child-row renderer now mirrors that component's cache — same key, same
   read-through the policy-enforcing `runtime.read`, same fall back to the id when
   the target cannot be read.
+
+## Minting pickers
+
+A `PICKER` naming a `CANDIDATE_FIELD` creates children instead of re-parenting
+them. It is the difference between "move a set-list item into this set list" and
+"add this song to this set list", and only the second is what a person opening a
+set list is trying to do.
+
+```
+PICKER SongPicker
+  SOURCE OBJECT Song        # the CANDIDATE object, not the child object
+  CANDIDATE_FIELD Song      # the child field that receives the chosen record's id
+  SELECTION multiple
+  DISPLAY Title Composer
+  EXCLUDE_LINKED
+END.PICKER
+```
+
+- **The candidate object is read off the model, not off `SOURCE`.**
+  `candidateObjectName` returns the candidate field's lookup target, so an object
+  source and a read-model source cannot disagree about what is being chosen.
+  Validation then requires `SOURCE` to name that target (object kind) or include
+  it (read-model kind), which is the same rule the linking mode has, pointed at a
+  different object.
+- **The required operation changes with the mode.** A minting picker needs
+  `createChild` in the section's operations, a linking one needs `linkExisting`.
+  Requiring `linkExisting` of a minting picker would have refused the very
+  declaration the feature exists to allow.
+- **`EXCLUDE_LINKED` means a different thing in each mode.** Linking excludes
+  child records already under this parent. Minting excludes the *candidates*
+  those children already name — a song already in the set list is what must not
+  be offered, and the set-list item's own id would not identify it. Candidates
+  named by staged creates in the same session are excluded too, or ticking the
+  same song twice before saving would add it twice.
+- **A staged create in an ordered collection appends.**
+  `EditSurfaceRuntime.nextAppendPosition` reads the current maximum once per
+  section and counts forward in memory, because every write in a batch is planned
+  before any is committed and a second read would hand out the same slot twice. A
+  caller-supplied position still wins. Without this a required `ORDER_FIELD`
+  simply refused the write, so "add" was unusable on exactly the collections that
+  most want it.
+- **The browser stages the candidate as a *value*, never as `childId`.** Staging
+  it as `childId` would have named a child record that does not exist yet and, in
+  the same breath, named the song's record as though it were one.
+- **A minting picker suppresses the bare child draft row**, and the section
+  header renders one control that opens the picker — "Add" when minting, "Link"
+  when linking. Two ways to add, one of them requiring a typed record id, is
+  worse than one that works.
 
 ## Practical guidance
 

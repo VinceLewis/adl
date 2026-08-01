@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { ApplicationRuntime, resolveApplicationModel } from "../src/index.js";
+import {
+  ApplicationRuntime,
+  resolveApplicationModel,
+  validateApplicationModel,
+} from "../src/index.js";
 import type {
   PartialApplicationModel,
   ResolvedApplicationModel,
@@ -395,7 +399,11 @@ describe("parent-child edit surfaces", () => {
     requireElement<HTMLButtonElement>(app, "[data-list-action='new']").click();
     await flushUi();
     fillInput(app, "adl-field-renderer[data-field-name='Title'] input", "With linked sets");
-    requireElement<HTMLButtonElement>(app, "button[data-child-action='linkExisting']").click();
+    // One header control opens the picker, and a linking picker labels it
+    // "Link" because the records it offers already exist.
+    const open = requireElement<HTMLButtonElement>(app, "button[data-picker-open='SetLists']");
+    expect(open.textContent?.trim()).toBe("Link");
+    open.click();
     await flushUi();
 
     const candidates = [...app.querySelectorAll<HTMLInputElement>("input[data-picker-candidate]")];
@@ -423,6 +431,197 @@ describe("parent-child edit surfaces", () => {
       ["Beta", expect.any(String)],
     ]);
     expect(linked[0]?.values.Event).toBe(linked[1]?.values.Event);
+  });
+});
+
+/**
+ * A picker that names a `candidateField` offers the thing the user believes
+ * they are choosing — a song — and mints the child record that names it. The
+ * link-only picker above can only re-parent an existing `SetListItem`, which
+ * makes "add a song to this set list" inexpressible.
+ *
+ * Every case below therefore turns on the distinction between the candidate and
+ * the child: what the picker offers, what exclusion compares, and what the
+ * staged operation carries.
+ */
+describe("a relationship picker that mints children", () => {
+  async function setListWithSongs(): Promise<{
+    runtime: ApplicationRuntime;
+    setListId: string;
+    songs: Map<string, string>;
+  }> {
+    const runtime = new ApplicationRuntime(createMintingEditSurfaceModel());
+    const setList = await runtime.create("SetList", { Name: "Main set" }, adminContext);
+    const songs = new Map<string, string>();
+    for (const title of ["Alpha", "Beta", "Gamma"]) {
+      const song = await runtime.create("Song", { Title: title }, adminContext);
+      songs.set(title, song.meta.guid);
+    }
+    runtime.syncQueue.clear();
+    return { runtime, setListId: setList.meta.guid, songs };
+  }
+
+  function songId(songs: Map<string, string>, title: string): string {
+    const id = songs.get(title);
+    if (id === undefined) throw new Error(`Expected a seeded song '${title}'.`);
+    return id;
+  }
+
+  it("offers records of the candidate object rather than of the child object", async () => {
+    const { runtime, setListId } = await setListWithSongs();
+
+    const picker = await runtime.evaluateRelationshipPicker({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      sectionName: "Items",
+      recordId: setListId,
+      context: adminContext,
+    });
+
+    expect(picker.picker.candidateField).toBe("Song");
+    expect(picker.candidates.map((candidate) => candidate.label)).toEqual([
+      "Alpha",
+      "Beta",
+      "Gamma",
+    ]);
+    expect(new Set(picker.candidates.map((candidate) => candidate.source.objectName))).toEqual(
+      new Set(["Song"]),
+    );
+  });
+
+  /**
+   * The child's own id is not what identifies the choice, so exclusion has to
+   * compare the candidate each existing child *names*. Comparing child ids would
+   * exclude nothing at all and offer a song already in the set list again.
+   */
+  it("excludes candidates the existing children already name", async () => {
+    const { runtime, setListId, songs } = await setListWithSongs();
+    const item = await runtime.create(
+      "SetListItem",
+      { SetList: setListId, Song: songId(songs, "Beta"), Position: 1 },
+      adminContext,
+    );
+
+    const picker = await runtime.evaluateRelationshipPicker({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      sectionName: "Items",
+      recordId: setListId,
+      context: adminContext,
+    });
+
+    expect(picker.candidates.map((candidate) => candidate.label)).toEqual(["Alpha", "Gamma"]);
+    // The excluded id is the song's, not the set-list item's — the item's own id
+    // never identified anything the picker offers.
+    expect(picker.candidates.map((candidate) => candidate.id)).not.toContain(item.meta.guid);
+  });
+
+  /**
+   * The staged creates have not been committed, so nothing in storage names the
+   * songs they carry. Offering them again would let one editing session put the
+   * same song into the set list twice.
+   */
+  it("excludes candidates named by staged creates in the same session", async () => {
+    const { runtime, setListId, songs } = await setListWithSongs();
+
+    const picker = await runtime.evaluateRelationshipPicker({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      sectionName: "Items",
+      recordId: setListId,
+      context: adminContext,
+      stagedChanges: [
+        {
+          id: "add-alpha",
+          section: "Items",
+          operation: "createChild",
+          childObject: "SetListItem",
+          values: { Song: songId(songs, "Alpha") },
+        },
+        {
+          id: "add-beta",
+          section: "Items",
+          operation: "createChild",
+          childObject: "SetListItem",
+          values: { Song: songId(songs, "Beta") },
+        },
+      ],
+    });
+
+    expect(picker.candidates.map((candidate) => candidate.label)).toEqual(["Gamma"]);
+  });
+
+  /**
+   * The payoff: several chosen songs become several children naming them, at
+   * the end of the ordered collection in the order chosen, committed once.
+   *
+   * Nothing supplies a position — the picker knows only which songs were ticked
+   * — so a required order field is only satisfiable if the runtime appends, and
+   * appending must count forward within the batch rather than issuing the same
+   * free position to every create in it.
+   */
+  it("applies staged creates as appended children naming the chosen candidates, in one batch", async () => {
+    const { runtime, setListId, songs } = await setListWithSongs();
+    await runtime.create(
+      "SetListItem",
+      { SetList: setListId, Song: songId(songs, "Beta"), Position: 1 },
+      adminContext,
+    );
+    runtime.syncQueue.clear();
+
+    const applied = await runtime.applyStagedChildChanges({
+      objectName: "SetList",
+      viewName: "SetListForm",
+      parentRecordId: setListId,
+      context: adminContext,
+      stagedChanges: [
+        {
+          id: "add-gamma",
+          section: "Items",
+          operation: "createChild",
+          childObject: "SetListItem",
+          values: { Song: songId(songs, "Gamma") },
+        },
+        {
+          id: "add-alpha",
+          section: "Items",
+          operation: "createChild",
+          childObject: "SetListItem",
+          values: { Song: songId(songs, "Alpha") },
+        },
+      ],
+    });
+
+    expect(applied.applied.map((operation) => operation.operation)).toEqual([
+      "createChild",
+      "createChild",
+    ]);
+
+    const items = await runtime.search(
+      "SetListItem",
+      { sort: [{ field: "Position", direction: "asc" }] },
+      adminContext,
+    );
+    expect(
+      items.map((record) => [
+        [...songs].find(([, id]) => id === record.values.Song)?.[0],
+        record.values.Position,
+        record.values.SetList,
+      ]),
+    ).toEqual([
+      ["Beta", 1, setListId],
+      ["Gamma", 2, setListId],
+      ["Alpha", 3, setListId],
+    ]);
+
+    // One transaction, so one queue entry — not one per song the user ticked.
+    const entries = runtime.syncQueue.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.operation.operation).toBe("batch");
+    expect(entries[0]?.operation.batch?.writes.map((write) => write.operation)).toEqual([
+      "create",
+      "create",
+    ]);
   });
 });
 
@@ -828,6 +1027,138 @@ function createEditSurfacePartialModel(): PartialApplicationModel {
         sort: [{ field: "Title", direction: "asc" }],
       },
     ],
+  };
+}
+
+function createMintingEditSurfaceModel(): ResolvedApplicationModel {
+  const model = resolveApplicationModel(createMintingPartialModel());
+  // The declaration has to be a legal one, or the cases below would be proving
+  // behaviour for a model no author could write.
+  expect(validateApplicationModel(model)).toEqual([]);
+  return model;
+}
+
+/**
+ * A set list whose songs are added by choosing a `Song`. The child record is
+ * the `SetListItem` that names the chosen song, which is the record no picker
+ * could produce before `CANDIDATE_FIELD`.
+ */
+function createMintingPartialModel(): PartialApplicationModel {
+  return {
+    app: { name: "SetListDemo", startView: "SetListList" },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "SetList",
+        displayField: "Name",
+        fields: [{ name: "Name", type: "text", required: true }],
+        views: [
+          {
+            name: "SetListList",
+            kind: "list",
+            fields: ["Name"],
+            actions: ["create", "read", "update", "delete"],
+            editContainer: "modal",
+          },
+          {
+            name: "SetListForm",
+            kind: "form",
+            fields: ["Name"],
+            actions: ["save", "delete"],
+            editSections: [
+              { name: "Details", kind: "fields", fields: ["Name"] },
+              {
+                name: "Items",
+                kind: "childCollection",
+                heading: "Songs",
+                childObject: "SetListItem",
+                parentField: "SetList",
+                childView: "SetListItemInline",
+                // No `linkExisting`: a minting picker adds, it does not
+                // re-parent, and the model is not obliged to permit both.
+                operations: ["createChild", "updateChild", "remove", "reorder"],
+                orderField: "Position",
+                emptyState: { text: "No songs in this set list yet." },
+                picker: {
+                  name: "SongPicker",
+                  sourceKind: "object",
+                  source: "Song",
+                  candidateField: "Song",
+                  selection: "multiple",
+                  displayFields: ["Title"],
+                  searchFields: ["Title"],
+                  sort: [{ field: "Title", direction: "asc" }],
+                  emptyState: { text: "Every song is already in this set list." },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "SetListItem",
+        displayField: "Song",
+        constraints: [
+          {
+            name: "orderedSetListItems",
+            kind: "ordered",
+            parentField: "SetList",
+            positionField: "Position",
+            minPosition: 1,
+            reorder: "shift",
+            compaction: "onDelete",
+          },
+        ],
+        fields: [
+          {
+            name: "SetList",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "SetList", displayField: "Name" },
+          },
+          {
+            name: "Song",
+            type: "text",
+            required: true,
+            lookup: { targetObject: "Song", displayField: "Title" },
+          },
+          { name: "Position", type: "number", required: true },
+        ],
+        views: [
+          {
+            name: "SetListItemInline",
+            kind: "list",
+            fields: ["Song", "Position"],
+            actions: ["read", "update", "delete"],
+          },
+        ],
+      },
+      {
+        name: "Song",
+        displayField: "Title",
+        fields: [{ name: "Title", type: "text", required: true }],
+        views: [
+          {
+            name: "SongList",
+            kind: "list",
+            fields: ["Title"],
+            actions: ["create", "read", "update", "delete"],
+          },
+        ],
+      },
+    ],
+    policies: ["SetList", "SetListItem", "Song"].map((object) => ({
+      name: `${object}Policy`,
+      object,
+      rules: [
+        {
+          name: `allowAdmins${object}`,
+          effect: "allow" as const,
+          principal: { match: "specific" as const, roles: ["Admin"] },
+          action: "*" as const,
+        },
+      ],
+    })),
   };
 }
 

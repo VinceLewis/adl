@@ -67,6 +67,73 @@
         "  RULE allowOrderLine ALLOW * AUTHENTICATED",
         "END.POLICY"
       ]
+    },
+    "setListMintingSurface": {
+      "adl": [
+        "APP 'Set List Minting Surface'",
+        "END.APP",
+        "",
+        "OBJECT SetList",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE all",
+        "",
+        "  VIEW SetListForm FORM",
+        "    FIELDS Name",
+        "    EDIT_CONTAINER page",
+        "    CHILD_COLLECTION Songs HEADING 'Songs'",
+        "      CHILD SetListItem PARENT_FIELD SetList",
+        "      CHILD_VIEW SetListItemList",
+        "      OPERATIONS createChild updateChild remove reorder",
+        "      STAGED",
+        "      ORDER_FIELD Position",
+        "      EMPTY_TEXT 'No songs in this set list yet.'",
+        "      PICKER SongPicker",
+        "        SOURCE OBJECT Song",
+        "        CANDIDATE_FIELD Song",
+        "        SELECTION multiple",
+        "        DISPLAY Title Composer",
+        "        SEARCH Title Composer",
+        "        SORT Title ASC",
+        "        EXCLUDE_LINKED",
+        "        EMPTY_TEXT 'Every song in the library is already in this set list.'",
+        "      END.PICKER",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Song",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD Composer TEXT",
+        "  SYNC LOCAL_FIRST SCOPE all",
+        "END.OBJECT",
+        "",
+        "OBJECT SetListItem",
+        "  CONSTRAINT orderedSetListItems ORDERED PARENT SetList POSITION Position REORDER shift COMPACT onDelete",
+        "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+        "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "  SYNC LOCAL_FIRST SCOPE all",
+        "",
+        "  VIEW SetListItemList LIST",
+        "    FIELDS Song Position",
+        "    ACTIONS read",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "POLICY SetListPolicy ON SetList",
+        "  RULE allowSetList ALLOW * AUTHENTICATED",
+        "END.POLICY",
+        "",
+        "POLICY SongPolicy ON Song",
+        "  RULE allowSong ALLOW * AUTHENTICATED",
+        "END.POLICY",
+        "",
+        "POLICY SetListItemPolicy ON SetListItem",
+        "  RULE allowSetListItem ALLOW * AUTHENTICATED",
+        "END.POLICY"
+      ]
     }
   },
   "cases": [
@@ -842,6 +909,643 @@
                 "Position": 1
               }
             }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.evaluate.minting-picker.001",
+      "title": "A minting child collection reports its candidate field, so a renderer can tell choosing a song from linking a set-list item",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "evaluateEditSurface",
+      "modelRef": "setListMintingSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "setList",
+          "objectName": "SetList",
+          "values": { "Name": "Main set" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetList",
+        "viewName": "SetListForm",
+        "mode": "edit",
+        "recordId": { "$ref": "setList.meta.guid" },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "name": "Songs",
+              "kind": "childCollection",
+              "childObject": "SetListItem",
+              "parentField": "SetList",
+              "operations": ["createChild", "updateChild", "remove", "reorder"],
+              "orderField": "Position",
+              "picker": {
+                "name": "SongPicker",
+                "sourceKind": "object",
+                "source": "Song",
+                "candidateField": "Song",
+                "selection": "multiple",
+                "displayFields": ["Title", "Composer"],
+                "searchFields": ["Title", "Composer"],
+                "sort": [{ "field": "Title", "direction": "asc" }],
+                "excludeAlreadyLinked": true
+              },
+              "rows": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "edit-surface.picker.minting-candidates.001",
+      "title": "A minting picker offers records of the candidate field's target object, minus the ones this parent's children already name",
+      "specRef": "runtime-semantics#relationship-pickers",
+      "operation": "evaluateRelationshipPicker",
+      "modelRef": "setListMintingSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "setList",
+          "objectName": "SetList",
+          "values": { "Name": "Main set" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "anthem",
+          "objectName": "Song",
+          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ballad",
+          "objectName": "Song",
+          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "reel",
+          "objectName": "Song",
+          "values": { "Title": "Reel", "Composer": "Rae" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "balladItem",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": { "$ref": "setList.meta.guid" },
+            "Song": { "$ref": "ballad.meta.guid" },
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetList",
+        "viewName": "SetListForm",
+        "sectionName": "Songs",
+        "recordId": { "$ref": "setList.meta.guid" },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "object": "SetList",
+          "view": "SetListForm",
+          "section": "Songs",
+          "picker": {
+            "name": "SongPicker",
+            "sourceKind": "object",
+            "source": "Song",
+            "candidateField": "Song",
+            "selection": "multiple",
+            "excludeAlreadyLinked": true
+          },
+          "candidates": [
+            {
+              "id": "$anthem",
+              "label": "Anthem - Ada",
+              "values": { "Title": "Anthem", "Composer": "Ada" },
+              "source": { "kind": "object", "objectName": "Song", "recordId": "$anthem" },
+              "alreadyLinked": false
+            },
+            {
+              "id": "$reel",
+              "label": "Reel - Rae",
+              "values": { "Title": "Reel", "Composer": "Rae" },
+              "source": { "kind": "object", "objectName": "Song", "recordId": "$reel" },
+              "alreadyLinked": false
+            }
+          ],
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "id": "edit-surface.picker.minting-candidates.002",
+      "title": "The baseline for the case above: with no child naming a song, every song in the library is offered",
+      "specRef": "runtime-semantics#relationship-pickers",
+      "operation": "evaluateRelationshipPicker",
+      "modelRef": "setListMintingSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "setList",
+          "objectName": "SetList",
+          "values": { "Name": "Main set" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "anthem",
+          "objectName": "Song",
+          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ballad",
+          "objectName": "Song",
+          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "reel",
+          "objectName": "Song",
+          "values": { "Title": "Reel", "Composer": "Rae" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetList",
+        "viewName": "SetListForm",
+        "sectionName": "Songs",
+        "recordId": { "$ref": "setList.meta.guid" },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "candidates": [
+            { "id": "$anthem", "label": "Anthem - Ada" },
+            { "id": "$ballad", "label": "Ballad - Bo" },
+            { "id": "$reel", "label": "Reel - Rae" }
+          ],
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "id": "edit-surface.picker.minting-staged-exclusion.001",
+      "title": "A candidate a staged createChild already names is excluded before the parent is ever saved",
+      "specRef": "runtime-semantics#relationship-pickers",
+      "operation": "evaluateRelationshipPicker",
+      "modelRef": "setListMintingSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "setList",
+          "objectName": "SetList",
+          "values": { "Name": "Main set" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "anthem",
+          "objectName": "Song",
+          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ballad",
+          "objectName": "Song",
+          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "reel",
+          "objectName": "Song",
+          "values": { "Title": "Reel", "Composer": "Rae" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "balladItem",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": { "$ref": "setList.meta.guid" },
+            "Song": { "$ref": "ballad.meta.guid" },
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetList",
+        "viewName": "SetListForm",
+        "sectionName": "Songs",
+        "recordId": { "$ref": "setList.meta.guid" },
+        "stagedChanges": [
+          {
+            "id": "reelItem",
+            "section": "Songs",
+            "operation": "createChild",
+            "childObject": "SetListItem",
+            "values": { "Song": { "$ref": "reel.meta.guid" } }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "candidates": [{ "id": "$anthem", "label": "Anthem - Ada" }],
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "id": "edit-surface.picker.linking-candidates.001",
+      "title": "A linking picker still offers child records themselves, minus the children already under this parent",
+      "specRef": "runtime-semantics#relationship-pickers",
+      "operation": "evaluateRelationshipPicker",
+      "modelRef": "orderEditSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "order",
+          "objectName": "Order",
+          "values": { "Code": "A-1" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherOrder",
+          "objectName": "Order",
+          "values": { "Code": "B-1" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "strings",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": { "$ref": "order.meta.guid" },
+            "Description": "Strings",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "brass",
+          "objectName": "OrderLine",
+          "values": {
+            "Order": { "$ref": "otherOrder.meta.guid" },
+            "Description": "Brass",
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "Order",
+        "viewName": "OrderForm",
+        "sectionName": "Lines",
+        "recordId": { "$ref": "order.meta.guid" },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "picker": {
+            "name": "LinePicker",
+            "sourceKind": "object",
+            "source": "OrderLine",
+            "candidateField": "$absent",
+            "excludeAlreadyLinked": true
+          },
+          "candidates": [
+            {
+              "id": "$brass",
+              "label": "Brass",
+              "source": { "kind": "object", "objectName": "OrderLine", "recordId": "$brass" },
+              "alreadyLinked": false
+            }
+          ],
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "id": "edit-surface.staged.minting-appends.001",
+      "title": "Staged minting creates land naming the chosen songs, appended in order at the end of the collection, as one batch",
+      "specRef": "runtime-semantics#staged-child-changes",
+      "operation": "applyStagedChildChanges",
+      "modelRef": "setListMintingSurface",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "setList",
+          "objectName": "SetList",
+          "values": { "Name": "Main set" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "anthem",
+          "objectName": "Song",
+          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "ballad",
+          "objectName": "Song",
+          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "reel",
+          "objectName": "Song",
+          "values": { "Title": "Reel", "Composer": "Rae" },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "balladItem",
+          "objectName": "SetListItem",
+          "values": {
+            "SetList": { "$ref": "setList.meta.guid" },
+            "Song": { "$ref": "ballad.meta.guid" },
+            "Position": 1
+          },
+          "context": {
+            "userId": "user-1",
+            "roles": [],
+            "channel": "ui",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "SetList",
+        "viewName": "SetListForm",
+        "parentRecordId": { "$ref": "setList.meta.guid" },
+        "stagedChanges": [
+          {
+            "id": "anthemItem",
+            "section": "Songs",
+            "operation": "createChild",
+            "childObject": "SetListItem",
+            "values": { "Song": { "$ref": "anthem.meta.guid" } }
+          },
+          {
+            "id": "reelItem",
+            "section": "Songs",
+            "operation": "createChild",
+            "childObject": "SetListItem",
+            "values": { "Song": { "$ref": "reel.meta.guid" } }
+          }
+        ],
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "ui",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "apply": {
+            "status": "applied",
+            "applied": [
+              {
+                "operationId": "anthemItem",
+                "operation": "createChild",
+                "childObject": "SetListItem",
+                "recordId": "$anthemItem"
+              },
+              {
+                "operationId": "reelItem",
+                "operation": "createChild",
+                "childObject": "SetListItem",
+                "recordId": "$reelItem"
+              }
+            ]
+          },
+          "queue": [
+            { "objectName": "SetList", "operation": "create", "recordId": "$setList" },
+            { "objectName": "Song", "operation": "create", "recordId": "$anthem" },
+            { "objectName": "Song", "operation": "create", "recordId": "$ballad" },
+            { "objectName": "Song", "operation": "create", "recordId": "$reel" },
+            { "objectName": "SetListItem", "operation": "create", "recordId": "$balladItem" },
+            {
+              "objectName": "SetListItem",
+              "operation": "batch",
+              "recordId": "$anthemItem",
+              "mode": "localFirst",
+              "batch": {
+                "writes": [
+                  {
+                    "operation": "create",
+                    "objectName": "SetListItem",
+                    "recordId": "$anthemItem",
+                    "values": {
+                      "SetList": "$setList",
+                      "Song": "$anthem",
+                      "Position": 2
+                    }
+                  },
+                  {
+                    "operation": "create",
+                    "objectName": "SetListItem",
+                    "recordId": "$reelItem",
+                    "values": {
+                      "SetList": "$setList",
+                      "Song": "$reel",
+                      "Position": 3
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "records": [
+            { "objectName": "SetList", "recordId": "$setList" },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$anthemItem",
+              "values": { "SetList": "$setList", "Song": "$anthem", "Position": 2 }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$balladItem",
+              "values": { "SetList": "$setList", "Song": "$ballad", "Position": 1 }
+            },
+            {
+              "objectName": "SetListItem",
+              "recordId": "$reelItem",
+              "values": { "SetList": "$setList", "Song": "$reel", "Position": 3 }
+            },
+            { "objectName": "Song", "recordId": "$anthem" },
+            { "objectName": "Song", "recordId": "$ballad" },
+            { "objectName": "Song", "recordId": "$reel" }
           ]
         }
       }

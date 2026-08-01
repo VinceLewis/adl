@@ -239,7 +239,12 @@ async function fixture() {
     contextId: "band-1",
     role: "Manager",
     recipientUserId: outsider.userId,
-    expiresAt: "2026-08-01T00:00:00.000Z",
+    // Relative to now, not a fixed date. This was `2026-08-01T00:00:00.000Z`,
+    // which made the assertion below — that an invite reports as `active` — true
+    // only until that morning, and the suite began failing on a day nobody had
+    // changed anything. A fixture asserting "not yet expired" has to be stated
+    // as an offset, or it is a test with an expiry date of its own.
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
     status: "active",
   });
   const accessStore = new InMemoryAuthorityAccessStore(storage);

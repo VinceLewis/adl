@@ -1819,6 +1819,7 @@ class AdlParser {
     const name = this.consumeName("relationship picker name");
     let sourceKind: RelationshipPickerSourceKind | undefined;
     let source: string | undefined;
+    let candidateField: string | undefined;
     let selection: RelationshipPickerSelectionMode | undefined;
     const displayFields: string[] = [];
     const searchFields: string[] = [];
@@ -1841,6 +1842,7 @@ class AdlParser {
           name,
           ...(sourceKind === undefined ? {} : { sourceKind }),
           ...(source === undefined ? {} : { source }),
+          ...(candidateField === undefined ? {} : { candidateField }),
           ...(selection === undefined ? {} : { selection }),
           displayFields,
           searchFields,
@@ -1856,6 +1858,9 @@ class AdlParser {
         sourceKind = this.parseRelationshipPickerSourceKind();
         source = this.consumeName("relationship picker source name");
         this.consumeLineEnd("PICKER SOURCE directive");
+      } else if (this.matchWord("CANDIDATE_FIELD")) {
+        candidateField = this.consumeName("relationship picker candidate field name");
+        this.consumeLineEnd("PICKER CANDIDATE_FIELD directive");
       } else if (this.matchWord("SELECTION")) {
         selection = this.parseRelationshipPickerSelection();
         this.consumeLineEnd("PICKER SELECTION directive");
@@ -1876,7 +1881,7 @@ class AdlParser {
         this.consumeLineEnd("PICKER EMPTY_TEXT directive");
       } else {
         this.failUnexpected(
-          "PICKER directive SOURCE, SELECTION, DISPLAY, SEARCH, SORT, EXCLUDE_LINKED, EMPTY_TEXT, or END.PICKER",
+          "PICKER directive SOURCE, CANDIDATE_FIELD, SELECTION, DISPLAY, SEARCH, SORT, EXCLUDE_LINKED, EMPTY_TEXT, or END.PICKER",
         );
       }
     }

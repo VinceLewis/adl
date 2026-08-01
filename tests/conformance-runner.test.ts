@@ -1235,6 +1235,335 @@ describe("applyStagedChildChanges", () => {
   });
 });
 
+/**
+ * The Phase 60 runner extensions, shown to discriminate.
+ *
+ * A picker that *mints* children offers records of a different object from the
+ * one the collection holds, so nothing about it is observable through the
+ * declaration alone: a runtime could resolve `candidateField` faithfully and
+ * still offer set-list items instead of songs, or write the chosen song's id into
+ * the wrong field. Both are only visible in what the picker offered and in what
+ * the child ended up naming.
+ */
+const setListMintingAdl = [
+  "APP 'Runner Set List Minting'",
+  "END.APP",
+  "",
+  "OBJECT SetList",
+  "  DISPLAY Name",
+  "  FIELD Name TEXT REQUIRED",
+  "  SYNC LOCAL_FIRST SCOPE all",
+  "",
+  "  VIEW SetListForm FORM",
+  "    FIELDS Name",
+  "    CHILD_COLLECTION Songs HEADING 'Songs'",
+  "      CHILD SetListItem PARENT_FIELD SetList",
+  "      OPERATIONS createChild updateChild remove reorder",
+  "      ORDER_FIELD Position",
+  "      PICKER SongPicker",
+  "        SOURCE OBJECT Song",
+  "        CANDIDATE_FIELD Song",
+  "        DISPLAY Title",
+  "        SORT Title ASC",
+  "        EXCLUDE_LINKED",
+  "      END.PICKER",
+  "    END.CHILD_COLLECTION",
+  "  END.VIEW",
+  "END.OBJECT",
+  "",
+  "OBJECT Song",
+  "  DISPLAY Title",
+  "  FIELD Title TEXT REQUIRED",
+  "  SYNC LOCAL_FIRST SCOPE all",
+  "END.OBJECT",
+  "",
+  "OBJECT SetListItem",
+  "  CONSTRAINT orderedSetListItems ORDERED PARENT SetList POSITION Position REORDER shift COMPACT onDelete",
+  "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
+  "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
+  "  FIELD Position NUMBER REQUIRED MIN 1",
+  "  SYNC LOCAL_FIRST SCOPE all",
+  "END.OBJECT",
+  "",
+  "POLICY SetListPolicy ON SetList",
+  "  RULE allowSetList ALLOW * AUTHENTICATED",
+  "END.POLICY",
+  "",
+  "POLICY SongPolicy ON Song",
+  "  RULE allowSong ALLOW * AUTHENTICATED",
+  "END.POLICY",
+  "",
+  "POLICY SetListItemPolicy ON SetListItem",
+  "  RULE allowSetListItem ALLOW * AUTHENTICATED",
+  "END.POLICY",
+];
+
+const setListMintingSetup: RuntimeConformanceCase["setup"] = [
+  {
+    operation: "create",
+    alias: "setList",
+    objectName: "SetList",
+    values: { Name: "Main set" },
+    context: orderContext,
+  },
+  {
+    operation: "create",
+    alias: "anthem",
+    objectName: "Song",
+    values: { Title: "Anthem" },
+    context: orderContext,
+  },
+  {
+    operation: "create",
+    alias: "ballad",
+    objectName: "Song",
+    values: { Title: "Ballad" },
+    context: orderContext,
+  },
+  {
+    operation: "create",
+    alias: "balladItem",
+    objectName: "SetListItem",
+    values: {
+      SetList: { $ref: "setList.meta.guid" },
+      Song: { $ref: "ballad.meta.guid" },
+      Position: 1,
+    },
+    context: orderContext,
+  },
+];
+
+describe("evaluateRelationshipPicker", () => {
+  const picker = (result: JsonValue): RuntimeConformanceCase => ({
+    id: "runner.picker.minting",
+    title: "What a minting picker offers for this parent",
+    specRef: "runtime-semantics#relationship-pickers",
+    operation: "evaluateRelationshipPicker",
+    model: { adl: setListMintingAdl },
+    setup: setListMintingSetup,
+    input: {
+      objectName: "SetList",
+      viewName: "SetListForm",
+      sectionName: "Songs",
+      recordId: { $ref: "setList.meta.guid" },
+      context: orderContext,
+    } as unknown as RuntimeConformanceCase["input"],
+    expected: { ok: true, result },
+  });
+
+  it("offers songs, not set-list items, and drops the one this set list already holds", async () => {
+    const result = await runConformanceCase(
+      picker({
+        picker: { source: "Song", candidateField: "Song" },
+        candidates: [
+          {
+            id: "$anthem",
+            label: "Anthem",
+            source: { kind: "object", objectName: "Song", recordId: "$anthem" },
+          },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same picker asserted to still offer the song already in the set list", async () => {
+    // The exclusion is the whole reason a minting picker compares candidates
+    // rather than child ids: comparing child ids would never match a song, so
+    // every song would be offered forever and this expectation would hold.
+    const result = await runConformanceCase(
+      picker({
+        candidates: [{ id: "$anthem" }, { id: "$ballad" }],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  /**
+   * The same collection with the picker switched to linking. Dropping
+   * `CANDIDATE_FIELD` alone would not compile: the source-routing rule flips with
+   * the mode, so a linking picker must be sourced from the child object and the
+   * collection must support `linkExisting`.
+   */
+  const setListLinkingAdl = setListMintingAdl
+    .filter((line) => !line.includes("CANDIDATE_FIELD"))
+    .map((line) => {
+      if (line === "        SOURCE OBJECT Song") return "        SOURCE OBJECT SetListItem";
+      if (line === "        DISPLAY Title") return "        DISPLAY Position";
+      if (line === "        SORT Title ASC") return "        SORT Position ASC";
+      if (line.startsWith("      OPERATIONS")) {
+        return "      OPERATIONS createChild linkExisting updateChild remove reorder";
+      }
+      return line;
+    });
+
+  const linking = (result: JsonValue): RuntimeConformanceCase => ({
+    id: "runner.picker.linking",
+    title: "A picker with no candidate field links rather than mints",
+    specRef: "runtime-semantics#relationship-pickers",
+    operation: "evaluateRelationshipPicker",
+    model: { adl: setListLinkingAdl },
+    setup: [
+      ...(setListMintingSetup ?? []),
+      {
+        operation: "create",
+        alias: "encoreList",
+        objectName: "SetList",
+        values: { Name: "Encore" },
+        context: orderContext,
+      },
+      {
+        operation: "create",
+        alias: "encoreItem",
+        objectName: "SetListItem",
+        values: {
+          SetList: { $ref: "encoreList.meta.guid" },
+          Song: { $ref: "anthem.meta.guid" },
+          Position: 1,
+        },
+        context: orderContext,
+      },
+    ],
+    input: {
+      objectName: "SetList",
+      viewName: "SetListForm",
+      sectionName: "Songs",
+      recordId: { $ref: "setList.meta.guid" },
+      context: orderContext,
+    } as unknown as RuntimeConformanceCase["input"],
+    expected: { ok: true, result },
+  });
+
+  it("offers child records themselves and carries no candidate field", async () => {
+    const result = await runConformanceCase(
+      linking({
+        picker: { source: "SetListItem", candidateField: "$absent" },
+        candidates: [
+          {
+            id: "$encoreItem",
+            source: { kind: "object", objectName: "SetListItem", recordId: "$encoreItem" },
+          },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails that linking picker asserted to carry a candidate field", async () => {
+    const result = await runConformanceCase(
+      linking({ picker: { candidateField: "Song" } } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+});
+
+describe("staged minting creates", () => {
+  const mint = (result: JsonValue): RuntimeConformanceCase => ({
+    id: "runner.staged.minting",
+    title: "A staged batch of minting creates, and what the children it wrote name",
+    specRef: "runtime-semantics#staged-child-changes",
+    operation: "applyStagedChildChanges",
+    model: { adl: setListMintingAdl },
+    setup: setListMintingSetup,
+    input: {
+      objectName: "SetList",
+      viewName: "SetListForm",
+      parentRecordId: { $ref: "setList.meta.guid" },
+      stagedChanges: [
+        {
+          id: "anthemItem",
+          section: "Songs",
+          operation: "createChild",
+          childObject: "SetListItem",
+          values: { Song: { $ref: "anthem.meta.guid" } },
+        },
+      ],
+      context: orderContext,
+    } as unknown as RuntimeConformanceCase["input"],
+    expected: { ok: true, result },
+  });
+
+  it("writes a child naming the chosen song, appended after the existing one", async () => {
+    const result = await runConformanceCase(
+      mint({
+        records: [
+          { objectName: "SetList", recordId: "$setList" },
+          {
+            objectName: "SetListItem",
+            recordId: "$anthemItem",
+            values: { Song: "$anthem", Position: 2 },
+          },
+          {
+            objectName: "SetListItem",
+            recordId: "$balladItem",
+            values: { Song: "$ballad", Position: 1 },
+          },
+          { objectName: "Song", recordId: "$anthem" },
+          { objectName: "Song", recordId: "$ballad" },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(true);
+  });
+
+  it("fails the same batch asserted to have written a child naming the other song", async () => {
+    // Lookup values in persisted records go through the alias table for exactly
+    // this: without it `Song` is a generated guid no case could name, and a
+    // runtime writing the wrong candidate's id — or the child's own — would be
+    // indistinguishable from one writing the chosen song's.
+    const result = await runConformanceCase(
+      mint({
+        records: [
+          { objectName: "SetList", recordId: "$setList" },
+          {
+            objectName: "SetListItem",
+            recordId: "$anthemItem",
+            values: { Song: "$ballad", Position: 2 },
+          },
+          {
+            objectName: "SetListItem",
+            recordId: "$balladItem",
+            values: { Song: "$ballad", Position: 1 },
+          },
+          { objectName: "Song", recordId: "$anthem" },
+          { objectName: "Song", recordId: "$ballad" },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+
+  it("fails the same batch asserted to have put the new child first", async () => {
+    const result = await runConformanceCase(
+      mint({
+        records: [
+          { objectName: "SetList", recordId: "$setList" },
+          {
+            objectName: "SetListItem",
+            recordId: "$anthemItem",
+            values: { Song: "$anthem", Position: 1 },
+          },
+          {
+            objectName: "SetListItem",
+            recordId: "$balladItem",
+            values: { Song: "$ballad", Position: 2 },
+          },
+          { objectName: "Song", recordId: "$anthem" },
+          { objectName: "Song", recordId: "$ballad" },
+        ],
+      } as unknown as JsonValue),
+    );
+
+    expect(result.pass).toBe(false);
+  });
+});
+
 describe("persisted sync state", () => {
   const persisted = (objectName: string, syncStatus: string): RuntimeConformanceCase => ({
     id: `runner.persisted.${objectName}`,

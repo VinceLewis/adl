@@ -58,6 +58,12 @@ export interface StageChildOperationDetail {
   childObject: string;
   childId?: string;
   childIds?: string[];
+  /**
+   * Set when the ids above name *candidates* rather than child records: each one
+   * becomes a new child whose `candidateField` holds it. This is what "add these
+   * songs" is, as distinct from "re-parent these set-list items".
+   */
+  candidateField?: string;
   values?: Record<string, JsonValue>;
   stagedOperationId?: string;
   /**
