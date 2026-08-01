@@ -528,6 +528,9 @@ describe("band reference app runtime", () => {
           source: "event",
           sourceScope: "allAvailableContexts",
           mode: "localFirst",
+          // Phase 63: the source widened the context this event is held for; it
+          // did not widen the declared 90-day window, and the reason says so.
+          boundedBy: "window",
         },
       ]),
     );
@@ -539,6 +542,83 @@ describe("band reference app runtime", () => {
     expect(availabilitySearch.map((record) => record.meta.guid)).toEqual([
       seeded.availability.meta.guid,
     ]);
+  });
+
+  /**
+   * Phase 63. `Event` declares `WINDOW Date 90 DAYS LIMIT 200` and two read
+   * models source it, so before this an event seven years outside that window
+   * stayed on the device — admitted by `CalendarPlanningItems` alone, with the
+   * `objectSync` reason correctly absent. The window had done its job and the
+   * read-model source had put the record back.
+   */
+  it("keeps an event outside the declared window off the device by every route", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const selectedBaseContext: RuntimeContext = {
+      ...seeded.musicianContext,
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    };
+
+    const ancient = await seeded.runtime.create(
+      "Event",
+      {
+        Band: seeded.firstBand.meta.guid,
+        EventType: "Gig",
+        Date: "2019-01-01",
+        Title: "Seven years before the declared window",
+        VenueName: "Nowhere",
+      },
+      contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid),
+    );
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(selectedBaseContext);
+    const events = dataset.records.filter((record) => record.objectName === "Event");
+
+    expect(events.find((record) => record.recordId === ancient.meta.guid)).toBeUndefined();
+    // The seeded events are inside the window and still held, so this excludes
+    // the out-of-window record rather than every event.
+    expect(new Set(events.map((record) => record.recordId))).toEqual(
+      new Set([seeded.firstEvent.meta.guid, seeded.secondEvent.meta.guid]),
+    );
+  });
+
+  /**
+   * Phase 57 verified that a `SCOPE all` read-model source correctly admits a
+   * bandmate's `Availability` into the founder's dataset, and
+   * `learnings/implementation/offline-dataset-runtime.md` records that run.
+   * Phase 63 bounds what a source may widen, so this guards the half it must
+   * not touch: `Availability` declares no window and no predicate, so its
+   * cross-context admission is unchanged.
+   */
+  it("still admits a bandmate's availability through a cross-context read-model source", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const otherUserAvailability = await seeded.runtime.create(
+      "Availability",
+      {
+        User: seeded.guest.meta.guid,
+        Date: "2026-08-05",
+        Status: "Available",
+      },
+      { ...seeded.musicianContext, userId: seeded.guest.meta.guid },
+    );
+
+    const dataset = await seeded.runtime.evaluateOfflineDataset(seeded.musicianContext);
+    const row = dataset.records.find(
+      (record) => record.recordId === otherUserAvailability.meta.guid,
+    );
+
+    expect(row).toBeDefined();
+    expect(row?.reasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "readModelSource",
+          readModel: "BandMemberAvailability",
+          source: "availability",
+          sourceScope: "all",
+        }),
+      ]),
+    );
+    // No declared bound on Availability, so nothing to report one.
+    expect(row?.reasons.every((reason) => !("boundedBy" in reason))).toBe(true);
   });
 
   it("requires availability self-service writes to target the runtime user", async () => {

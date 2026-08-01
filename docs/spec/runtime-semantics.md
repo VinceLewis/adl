@@ -775,10 +775,35 @@ type mismatch, say — excludes that record rather than failing the whole datase
 the same way an unreadable window date does. `custom` may not be declared without
 a predicate; that is a validation refusal, not a runtime one.
 
-A read-model source scope can still admit a record its object's own sync scope
-excludes, because a dashboard declaring a cross-context input is asking for
-exactly that. A window therefore bounds an object's own scope, not every route
-by which one of its records can reach a device.
+### What a read-model source may widen
+
+A record reaches a device by one of two routes: its object's own sync scope, or a
+read model that declares it as a source. The two routes are not equal, and the
+difference is between saying *which context* an object is held for and saying
+*how much* of it a device keeps.
+
+- A read-model source scope **may widen the context**. A dashboard declaring a
+  cross-context input is asking for exactly that, and a source with scope `all`
+  admits a record whose object is scoped to a single context. This is deliberate:
+  narrowing it would make a declared cross-context dashboard silently empty
+  offline.
+- A read-model source **never widens a declared bound**. A `recent` window and a
+  `custom` predicate say how much of an object a device keeps at all, and no
+  source can say otherwise, because a source has no way to declare a bound of its
+  own. A record outside its object's window, or failing its object's predicate, is
+  not in the offline dataset by any route, however many read models source it.
+
+The bound is therefore evaluated once per record and gates every reason, rather
+than being one disjunct among them. A record excluded by the bound reports no
+reasons at all, including no read-model source reason.
+
+When a record is held and its object declares a bound, every read-model source
+reason for it carries `boundedBy`, naming `window` or `predicate`. That is what
+distinguishes a dashboard that is deliberately short offline from one that is
+wrong.
+
+Dataset membership remains separate from authorization throughout. Widening or
+bounding what a device holds never widens or narrows what its user may read.
 
 ## Inspection
 

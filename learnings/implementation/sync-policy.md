@@ -27,6 +27,16 @@ Read this before changing object sync modes, runtime write gating, sync queue be
   and the `custom` predicate, and no scope may be declared in a form the runtime
   ignores. See [[offline-dataset-runtime]] and [[adl-parser]].
 
+## Key decisions from Phase 63
+
+- A sync scope has two separable halves, and they are governed differently. The
+  **context** half says which business contexts an object is held for and a
+  read-model source may widen it. The **bound** half — the `recent` window, the
+  `custom` predicate — says how much of the object a device keeps, and nothing
+  widens it. Keep the distinction when adding any future scope: a new scope must
+  state which half each of its parts belongs to. See
+  [[offline-dataset-runtime]] and [[read-model-runtime]].
+
 ## Practical guidance
 
 - Keep future production sync, remote replay, and persisted sync queues as runtime services or dedicated persistence concerns. Do not add sync protocol state to `ObjectStorageBackend` unless it is pure record metadata.

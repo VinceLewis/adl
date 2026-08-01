@@ -19,6 +19,21 @@ Read this before changing read-model execution, read-model-backed dashboards, re
 - Read-model rows return projected `values` plus source record identities. They do not expose raw source records to the UI.
 - The generic dashboard renderer presents read-model rows as a dense event list. It is not a calendar or scheduler widget.
 
+## Key decisions from Phase 63
+
+- A read-model source scope decides **which context** an object is held for
+  offline. It does not decide **how much** of the object a device keeps: the
+  sourced object's own `recent` window or `custom` predicate bounds every route,
+  including this one. `ResolvedReadModelSource` carries no bound of its own, so
+  there was nothing to widen a bound *deliberately* — only by accident, which is
+  what Phase 63 stopped. See [[offline-dataset-runtime]].
+- Read-model **execution** is unaffected. `executeReadModel` does not consult the
+  offline dataset, so a bounded object still projects every row it has online.
+  The bound is about what a device holds, not what a read model returns.
+- If a future phase needs a dashboard to reach past its object's bound, declare
+  the bound on the source and reuse the Phase 62 `WINDOW` shape. Do not reopen
+  the rule that an undeclared source inherits the object's bound.
+
 ## Practical guidance
 
 - Add new read-model behavior through resolved-model declarations and `ReadModelService`; keep parser syntax and backend execution strategies separate.

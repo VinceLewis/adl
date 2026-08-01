@@ -214,10 +214,54 @@ export class OfflineDatasetService {
       return [];
     }
 
+    // The declared bound gates every route into the dataset, including a read
+    // model's. A source scope says which *context* an object is held for, and a
+    // cross-context dashboard input legitimately widens that — Phase 57 verified
+    // it, and narrowing it would empty a shipped view offline. A window or a
+    // predicate says something different: how much of the object a device keeps
+    // at all. Nothing can declare that on a source, so nothing can widen it
+    // deliberately, and before this check a source widened it by accident: a
+    // record seven years outside a declared 90-day window stayed on the device
+    // with no `objectSync` reason at all.
+    if (!this.recordSatisfiesDeclaredBound(object, record, state)) {
+      return [];
+    }
+
     return uniqueReasons([
       ...this.getObjectSyncReasons(object, record, state),
       ...this.getReadModelSourceReasons(object, record, state),
     ]);
+  }
+
+  /**
+   * The part of a sync scope that says *how much* of an object a device keeps,
+   * as opposed to which context it keeps it for. Only `recent` and `custom`
+   * declare one; every other scope is context-only and bounds nothing.
+   */
+  private recordSatisfiesDeclaredBound(
+    object: ResolvedObject,
+    record: StoredObjectRecord,
+    state: DatasetEvaluationState,
+  ): boolean {
+    switch (object.sync.scope) {
+      case "recent":
+        return this.recordMatchesRecentWindow(object, record, state);
+      case "custom":
+        return this.recordMatchesCustomPredicate(object, record, state);
+      default:
+        return true;
+    }
+  }
+
+  private declaredBoundKind(object: ResolvedObject): "window" | "predicate" | undefined {
+    switch (object.sync.scope) {
+      case "recent":
+        return "window";
+      case "custom":
+        return "predicate";
+      default:
+        return undefined;
+    }
   }
 
   private getObjectSyncReasons(
@@ -243,6 +287,8 @@ export class OfflineDatasetService {
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
   ): RuntimeOfflineDatasetReason[] {
+    const boundedBy = this.declaredBoundKind(object);
+
     return (this.model.readModels ?? []).flatMap((readModel) =>
       readModel.sources
         .filter((source) => source.object === object.name)
@@ -256,6 +302,7 @@ export class OfflineDatasetService {
             source: source.name,
             sourceScope: source.scope,
             mode: object.sync.mode,
+            ...(boundedBy === undefined ? {} : { boundedBy }),
           }),
         ),
     );
@@ -280,16 +327,12 @@ export class OfflineDatasetService {
         return this.recordMatchesCurrentObjectContext(object, record, state.context);
       case "allAvailableContexts":
         return this.recordMatchesAvailableObjectContext(object, record, state);
+      // The window and the predicate halves of these two scopes are checked once
+      // for every route in `recordSatisfiesDeclaredBound`, so what is left here
+      // is the context half alone.
       case "recent":
-        return (
-          this.recordMatchesAvailableObjectContext(object, record, state) &&
-          this.recordMatchesRecentWindow(object, record, state)
-        );
       case "custom":
-        return (
-          this.recordMatchesAvailableObjectContext(object, record, state) &&
-          this.recordMatchesCustomPredicate(object, record, state)
-        );
+        return this.recordMatchesAvailableObjectContext(object, record, state);
     }
   }
 

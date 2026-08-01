@@ -74,6 +74,53 @@ ever read it. The model-declared window replaces it. A genuine per-device
 *override* of a model-declared window remains a separate capability that no
 evidence yet asks for.
 
+## Key decisions from Phase 63
+
+The over-inclusion recorded below as "the gap that remains, if any" was confirmed
+as a defect and closed. Phase 62 is what made it matter: once an author could
+declare a window, a read-model source silently defeating it stopped being
+harmless. Reproduced in the reference app Phase 62 shipped — an `Event` dated
+2019, seven years outside the declared `WINDOW Date 90 DAYS`, stayed on the
+device admitted by `CalendarPlanningItems` alone, with the `objectSync` reason
+correctly absent. The window worked and the source put the record back.
+
+**The rule: a read-model source may widen an object's context, never its declared
+bound.**
+
+- The *context* half of a sync scope (`all`, `currentUser`, `currentContext`,
+  `allAvailableContexts`, and the available-contexts component of `recent` and
+  `custom`) stays widenable by a source scope. That is the Phase 57 behaviour
+  verified below and it must not be narrowed.
+- The *bound* — the `recent` window, the `custom` predicate — is evaluated once
+  per record in `recordSatisfiesDeclaredBound` and gates `getDatasetReasons`
+  before any reason is computed. A record failing it reports **no reasons at
+  all**, so no route admits it.
+- `recordMatchesSyncScope` for `recent` and `custom` is now the context half
+  alone, because the bound half already ran. Do not re-add the bound there; it
+  would evaluate the predicate twice per record.
+- A `readModelSource` reason carries `boundedBy: "window" | "predicate"` when the
+  sourced object declares one. Without it a reader cannot tell a dashboard that
+  is deliberately short offline from one that is wrong.
+
+### Why there is no diagnostic for this
+
+Considered and rejected: a warning when a read-model source names an object that
+declares a bound. It would fire on every legitimate model combining the two —
+twice on the reference app alone — and a warning an author cannot action or
+silence becomes wallpaper. The phase's constraint was that a bound and a source
+must not contradict each other *silently*, satisfied by either the runtime
+honouring the bound or the compiler reporting it. The runtime honours it, so no
+contradiction remains expressible and there is nothing for a diagnostic to say.
+
+The mirror risk is real and worth knowing: an author who declares a window on an
+object a dashboard sources will see that dashboard bounded offline too. That is
+what they declared, it is specified in
+`docs/spec/runtime-semantics.md#what-a-read-model-source-may-widen`, the
+`boundedBy` reason makes it inspectable, and the read model still returns
+everything when executed online. If a future phase needs a dashboard to reach
+past its object's bound, that is a source-level bound declaration and it should
+reuse the Phase 62 `WINDOW` shape rather than reopening this rule.
+
 ## A recorded gap that turned out not to exist
 
 Phases 56 and 57 both listed "offline dataset selection does not know about
@@ -90,6 +137,10 @@ If a gap remains in this area it is **over**-inclusion — a `SCOPE all` source
 pulls records into the dataset on the strength of the source scope alone — not
 the under-inclusion that would have made a shipped view wrong. Do not re-plan a
 phase around the original claim without re-checking it.
+
+**Phase 63 update.** That over-inclusion was confirmed and bounded, but only for
+a *declared bound*; a source scope still admits on its own strength for context,
+which remains correct. See the Phase 63 section above.
 
 The general rule this is an instance of: a gap recorded in a phase document's
 non-goals is an assertion made at planning time, and

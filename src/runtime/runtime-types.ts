@@ -123,6 +123,14 @@ export type RuntimeOfflineDatasetReason =
       source: string;
       sourceScope: ReadModelSourceScope;
       mode: SyncMode;
+      /**
+       * Present when the sourced object declares an offline bound, which this
+       * record also had to satisfy to be here. A source scope widens the
+       * *context* an object is held for; it never widens how much of the object
+       * a device keeps. Without this a reader could not tell a dashboard that is
+       * short offline from one that is wrong.
+       */
+      boundedBy?: "window" | "predicate";
     };
 
 export interface RuntimeOfflineDatasetRecord {

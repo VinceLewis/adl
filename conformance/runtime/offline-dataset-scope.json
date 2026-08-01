@@ -31,6 +31,45 @@
         "  RULE allowTask ALLOW * ROLE Admin",
         "END.POLICY"
       ]
+    },
+    "boundedByAReadModelSource": {
+      "adl": [
+        "APP 'Bounded By A Read Model Source'",
+        "END.APP",
+        "",
+        "ROLE Admin",
+        "",
+        "OBJECT Gig",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD GigDate DATE REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE recent WINDOW GigDate 7 DAYS",
+        "END.OBJECT",
+        "",
+        "OBJECT Venue",
+        "  DISPLAY Name",
+        "  FIELD Name TEXT REQUIRED",
+        "  SYNC LOCAL_FIRST SCOPE all",
+        "END.OBJECT",
+        "",
+        "READ_MODEL GigBoard",
+        "  SOURCE gig OBJECT Gig SCOPE all",
+        "  FIELD Title FROM gig.Title",
+        "END.READ_MODEL",
+        "",
+        "READ_MODEL VenueBoard",
+        "  SOURCE venue OBJECT Venue SCOPE all",
+        "  FIELD Name FROM venue.Name",
+        "END.READ_MODEL",
+        "",
+        "POLICY GigPolicy ON Gig",
+        "  RULE allowGig ALLOW * ROLE Admin",
+        "END.POLICY",
+        "",
+        "POLICY VenuePolicy ON Venue",
+        "  RULE allowVenue ALLOW * ROLE Admin",
+        "END.POLICY"
+      ]
     }
   },
   "cases": [
@@ -51,7 +90,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true,
             "now": "2026-07-17T09:00:00.000Z"
@@ -67,7 +108,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true,
             "now": "2026-07-17T09:00:00.000Z"
@@ -77,7 +120,9 @@
       "input": {
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -119,7 +164,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true,
             "now": "2026-07-17T09:00:00.000Z"
@@ -136,7 +183,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true,
             "now": "2026-07-17T09:00:00.000Z"
@@ -153,7 +202,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true,
             "now": "2026-07-17T09:00:00.000Z"
@@ -163,7 +214,9 @@
       "input": {
         "context": {
           "userId": "admin-1",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -205,7 +258,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true,
             "now": "2026-07-17T09:00:00.000Z"
@@ -222,7 +277,9 @@
           },
           "context": {
             "userId": "admin-1",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "ui",
             "online": true,
             "now": "2026-07-17T09:00:00.000Z"
@@ -232,7 +289,9 @@
       "input": {
         "context": {
           "userId": "admin-2",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "ui",
           "now": "2026-07-17T09:00:00.000Z"
         }
@@ -249,6 +308,148 @@
                   "kind": "objectSync",
                   "mode": "localFirst",
                   "scope": "custom"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.scope.runtime.source-cannot-widen-window.001",
+      "title": "A read model source does not admit a record the object's declared window excludes",
+      "specRef": "runtime-semantics#what-each-sync-scope-selects",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "boundedByAReadModelSource",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "inside",
+          "objectName": "Gig",
+          "values": {
+            "Title": "Inside the declared window",
+            "GigDate": "2026-07-14"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "outside",
+          "objectName": "Gig",
+          "values": {
+            "Title": "Outside the declared window",
+            "GigDate": "2019-01-01"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Gig",
+              "recordId": "$inside",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "recent"
+                },
+                {
+                  "kind": "readModelSource",
+                  "readModel": "GigBoard",
+                  "source": "gig",
+                  "sourceScope": "all",
+                  "mode": "localFirst",
+                  "boundedBy": "window"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offline.scope.runtime.source-still-widens-context.001",
+      "title": "A read model source over an object that declares no bound still admits on its source scope alone",
+      "specRef": "runtime-semantics#what-each-sync-scope-selects",
+      "operation": "evaluateOfflineDataset",
+      "modelRef": "boundedByAReadModelSource",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "venue",
+          "objectName": "Venue",
+          "values": {
+            "Name": "Alpha Hall"
+          },
+          "context": {
+            "userId": "admin-1",
+            "roles": [
+              "Admin"
+            ],
+            "channel": "ui",
+            "online": true,
+            "now": "2026-07-17T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "context": {
+          "userId": "admin-1",
+          "roles": [
+            "Admin"
+          ],
+          "channel": "ui",
+          "now": "2026-07-17T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "records": [
+            {
+              "objectName": "Venue",
+              "recordId": "$venue",
+              "reasons": [
+                {
+                  "kind": "objectSync",
+                  "mode": "localFirst",
+                  "scope": "all"
+                },
+                {
+                  "kind": "readModelSource",
+                  "readModel": "VenueBoard",
+                  "source": "venue",
+                  "sourceScope": "all",
+                  "mode": "localFirst"
                 }
               ]
             }
