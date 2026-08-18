@@ -24,11 +24,11 @@ or mobile business-context selection.
   behavior defaults to `sheet`, rendering a compact selected-label trigger and
   modal sheet while preserving the desktop dropdown path.
 - Optional shell controls include `contextSelector`, `syncStatus`,
-  `themeSwitch`, `logout`, and `pwaInstall`. As of Phase 66 the current
+  `themeSwitch`, `logout`, and `pwaInstall`. As of Phase 67 the current
   browser implements context selection, sync/online status, sign-out (Phase
-  47), and PWA installability (Phase 47's capture-and-prompt wiring, closed by
-  Phase 66's `appinstalled` handling); `themeSwitch` has no runtime behind it
-  yet. Unavailable host capabilities degrade as disabled controls.
+  47), PWA installability (Phase 47's capture-and-prompt wiring, closed by
+  Phase 66's `appinstalled` handling), and theme switching (Phase 67).
+  Unavailable host capabilities degrade as disabled controls.
 
 ## Decisions From Phase 66
 
@@ -74,6 +74,63 @@ or mobile business-context selection.
   use for `logout` and `connectivity`. Reaching for a pure-module split would
   have separated state (`installPrompt`, `appInstalled`) that belongs together
   for no testability gain.
+
+## Decisions From Phase 67
+
+- **`themeSwitch` was already a fully modelled control kind, parseable
+  end to end, with no rendering behind it** — the same shape `pwaInstall` was
+  in before Phase 66. Do not assume a shell control kind needs parser or
+  model work just because no reference app declares it or no render branch
+  exists yet; check `ShellControlKind`, `parseShellControlKind`, and
+  `renderShellControl` before planning any of that as new work.
+- **A theme select is a dropdown over `model.themes`, never a binary toggle.**
+  `model.themes` always carries at least the three built-in base themes
+  (`CorporateLight`, `CorporateDark`, `MinimalLight`) — `resolveThemes` in
+  `src/compiler/resolve-model.ts` injects any built-in name the input did not
+  already declare — so even a reference app with zero custom `THEME` blocks,
+  like Giggle Band, has three options the moment it declares the control.
+  A control that assumed exactly two themes would have been wrong from the
+  first app to use it.
+- **The active theme is mutable, persisted, device-local UI state, layered
+  over — not written into — the model's static `app.theme`.** `app.theme` is
+  resolved once, at build/model-resolution time, from the `APP ... THEME`
+  directive, and stays the declared default for the app. `AdlAppElement`
+  holds a separate `activeThemeName: string | undefined` override, `undefined`
+  meaning "no device override yet, use the model's default." `resolveActiveTheme`
+  is the one place that reconciles the two: override first, falling back to
+  `findApplicationTheme(model)` when there is no override or when a stored
+  override no longer names a theme the model still declares (a model change
+  dropped or renamed it).
+- **Reused the existing context-selection `localStorage` pattern rather than
+  adding a new persistence mechanism.** `AdlAppElement` already had
+  `readStorageValue`/`writeStorageValue` helpers and a
+  `` `adl:${appName}:context:${contextName}` `` key convention for exactly
+  this shape of state — a per-device UI selection that should survive a
+  reload with no application-declared object needed. The theme override reuses
+  those helpers under `` `adl:${appName}:theme` ``. This is a platform
+  capability every app gets once it declares a `themeSwitch` control, not
+  something each app must model as its own preference object the way Giggle
+  Band's `OBJECT DevicePreference` models `SelectedBand`/`LastOpenedView`.
+  Reach for that existing key-per-app-name `localStorage` convention before
+  inventing IndexedDB storage or an app-declared object for any future
+  platform-level device setting — `IndexedDbSyncStateStorage`
+  (`src/runtime/sync-state-storage.ts`) is async and exists specifically for
+  the sync queue and operation log, not a fit for one string a render method
+  needs synchronously on every paint.
+- **`activeThemeName` never un-sets itself**, the same reasoning Phase 66 gave
+  for `appInstalled`: once a person has chosen a theme on a device, nothing
+  this phase observes is evidence they want the app's default back. A stale
+  override is corrected only by `resolveActiveTheme`'s fallback when the
+  stored name no longer resolves, never by clearing the override eagerly.
+- **No new `ResolvedTheme` label field was added.** Theme options are labelled
+  with `titleCaseIdentifier` over the theme's declared `name`, the same
+  fallback every other shell control already uses when no explicit `LABEL` is
+  given. Giving themes a friendlier display name distinct from `name` is a
+  separate, undemonstrated language change.
+- **No separate pure-logic module was needed**, for the same reason Phase 66
+  gives: `adl-app.ts` is a real `HTMLElement` fully exercised by `happy-dom`
+  already, and the state that matters (`activeThemeName`, the rendered
+  `<select>`, the theme actually applied) belongs together in one component.
 
 ## Practical Guidance
 

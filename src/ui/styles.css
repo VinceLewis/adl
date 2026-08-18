@@ -384,7 +384,8 @@ button:disabled {
 
 .adl-object-switch,
 .adl-view-switch,
-.adl-context-selector {
+.adl-context-selector,
+.adl-theme-switch {
   align-items: center;
   display: flex;
   gap: var(--adl-space-sm);
@@ -393,6 +394,7 @@ button:disabled {
 .adl-object-switch select,
 .adl-view-switch select,
 .adl-context-selector select,
+.adl-theme-switch select,
 .adl-search-input,
 .adl-field-control {
   background: var(--adl-color-surface);
@@ -511,17 +513,20 @@ button:disabled {
 }
 
 .adl-topbar-app .adl-view-switch,
-.adl-topbar-app .adl-context-selector {
+.adl-topbar-app .adl-context-selector,
+.adl-topbar-app .adl-theme-switch {
   color: var(--adl-color-text-inverted);
 }
 
 .adl-topbar-app .adl-view-switch span,
-.adl-topbar-app .adl-context-selector span {
+.adl-topbar-app .adl-context-selector span,
+.adl-topbar-app .adl-theme-switch span {
   font-size: 12px;
 }
 
 .adl-topbar-app .adl-view-switch select,
 .adl-topbar-app .adl-context-selector select,
+.adl-topbar-app .adl-theme-switch select,
 .adl-topbar-app .adl-context-empty,
 .adl-topbar-app .adl-context-single,
 .adl-topbar-app .adl-context-compact,
@@ -2233,7 +2238,8 @@ textarea.adl-field-control {
 
   .adl-topbar-tools,
   .adl-view-switch,
-  .adl-context-selector {
+  .adl-context-selector,
+  .adl-theme-switch {
     align-items: stretch;
     width: 100%;
   }
@@ -2248,12 +2254,14 @@ textarea.adl-field-control {
   }
 
   .adl-view-switch,
-  .adl-context-selector {
+  .adl-context-selector,
+  .adl-theme-switch {
     justify-content: space-between;
   }
 
   .adl-view-switch select,
-  .adl-context-selector select {
+  .adl-context-selector select,
+  .adl-theme-switch select {
     min-width: 0;
     width: 100%;
   }

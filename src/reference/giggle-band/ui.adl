@@ -13,9 +13,10 @@ SHELL
   CONTROL contextSelector KIND contextSelector PLACEMENT topBar
   CONTROL connection KIND connectivity PLACEMENT topBar
   CONTROL syncStatus KIND syncStatus PLACEMENT topBar
+  CONTROL themeSwitch KIND themeSwitch LABEL 'Theme' PLACEMENT topBar
   CONTROL installApp KIND pwaInstall LABEL 'Install' PLACEMENT topBar
   CONTROL signOut KIND logout LABEL 'Sign out' ICON x PLACEMENT navDrawer
-  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector connection syncStatus installApp
+  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector connection syncStatus themeSwitch installApp
   NAV_DRAWER TITLE 'Giggle Band' CONTROLS signOut
 END.SHELL
 

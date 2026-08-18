@@ -109,14 +109,21 @@ are still validated through runtime context services before scoped reads or
 writes run.
 
 Optional shell controls degrade by capability. The current browser runtime
-implements context selection, sync/online status, sign-out, and PWA
-installability: it captures the browser's `beforeinstallprompt` event, prompts
-on the control's click, and reflects both an accepted/dismissed choice and a
-later `appinstalled` event (or a device already running the app installed) by
-disabling the control. Theme switch has no runtime behind it yet. Any control
-whose host capability the runtime does not supply — theme switch always,
-today, and PWA install on a browser that never offers installability — renders
-as an unavailable control rather than breaking the shell.
+implements context selection, sync/online status, sign-out, theme switching,
+and PWA installability. `themeSwitch` renders a dropdown over every theme in
+the resolved model (always at least the three built-in base themes, plus any
+the app declares), applies the chosen theme immediately, and persists the
+choice device-locally so it survives a reload — no application-declared object
+or field is needed for this, since the active theme is platform presentation
+state rather than application data. With fewer than two declared themes the
+control renders unavailable, the same shape a control with no host capability
+behind it renders. PWA install captures the browser's `beforeinstallprompt`
+event, prompts on the control's click, and reflects both an accepted/dismissed
+choice and a later `appinstalled` event (or a device already running the app
+installed) by disabling the control. Any control whose host capability the
+runtime does not supply — PWA install on a browser that never offers
+installability, for instance — renders as an unavailable control rather than
+breaking the shell.
 
 ## Lifecycles
 

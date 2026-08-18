@@ -11,6 +11,7 @@ import type {
   ResolvedReadModel,
   ResolvedShellControl,
   ResolvedShellNavItem,
+  ResolvedTheme,
   ShellControlPlacement,
   ResolvedView,
   ResolvedViewContext,
@@ -170,6 +171,17 @@ export class AdlAppElement extends HTMLElement {
    */
   private recordSyncSummary: RecordSyncStateSummary | undefined;
   private refusedRecords: RefusedLocalRecord[] = [];
+  /**
+   * A device-local override of `model.app.theme`, chosen through the
+   * `themeSwitch` shell control and read back from `localStorage` on the next
+   * `set model`. `undefined` means "no override on this device": the model's
+   * declared `app.theme` still governs, exactly as it did before this control
+   * existed. It is never cleared to `undefined` once a person has chosen a
+   * theme; a stored name that no longer matches a declared theme (a model
+   * changed the app runs under) is treated the same as no override, which
+   * `resolveActiveTheme` falls back on.
+   */
+  private activeThemeName: string | undefined;
 
   private readonly handleSignIn = (event: Event): void => {
     const detail = (event as CustomEvent<SignInDetail>).detail;
@@ -687,12 +699,39 @@ export class AdlAppElement extends HTMLElement {
 
   private readonly handleChange = (event: Event): void => {
     const target = event.target;
-    if (!(target instanceof HTMLSelectElement) || target.dataset.viewSwitch !== "true") {
+    if (!(target instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    if (target.dataset.themeSwitch === "true") {
+      this.handleThemeSwitch(target.value);
+      return;
+    }
+
+    if (target.dataset.viewSwitch !== "true") {
       return;
     }
 
     this.navigateToView(target.value);
   };
+
+  /**
+   * The `themeSwitch` shell control's `change` handler. Unlike record data,
+   * the active theme is device presentation state, not something a runtime
+   * write goes through — it takes effect immediately and is persisted
+   * locally, the same way a business-context selection is.
+   */
+  private handleThemeSwitch(themeName: string): void {
+    const theme = this._model.themes.find((candidate) => candidate.name === themeName);
+    if (theme === undefined || theme.name === this.resolveActiveTheme().name) {
+      return;
+    }
+
+    this.activeThemeName = theme.name;
+    this.persistThemeSelection(theme.name);
+    this.applyThemeTokens();
+    this.render();
+  }
 
   private readonly handleClick = (event: Event): void => {
     const target = event.target;
@@ -977,6 +1016,7 @@ export class AdlAppElement extends HTMLElement {
     this.editContainerOpen = false;
     this.selectedRecord = undefined;
     this.clearEditTarget();
+    this.activeThemeName = this.readPersistedThemeName(model);
 
     if (this.initialized) {
       this.readyPromise = this.initialize();
@@ -1669,7 +1709,25 @@ export class AdlAppElement extends HTMLElement {
   }
 
   private applyThemeTokens(): void {
-    applyResolvedTheme(this, findApplicationTheme(this._model));
+    applyResolvedTheme(this, this.resolveActiveTheme());
+  }
+
+  /**
+   * `model.app.theme` is the app's declared default; `activeThemeName` is this
+   * device's override, chosen through the `themeSwitch` control on some
+   * earlier visit. A name that no longer names a declared theme — a model
+   * change dropped or renamed it since the override was stored — falls back
+   * to the declared default rather than an unresolved theme.
+   */
+  private resolveActiveTheme(): ResolvedTheme {
+    if (this.activeThemeName !== undefined) {
+      const overridden = this._model.themes.find((theme) => theme.name === this.activeThemeName);
+      if (overridden !== undefined) {
+        return overridden;
+      }
+    }
+
+    return findApplicationTheme(this._model);
   }
 
   /**
@@ -1749,6 +1807,60 @@ export class AdlAppElement extends HTMLElement {
       .join("");
   }
 
+  /**
+   * A dropdown, not a binary toggle, because a declared theme set is not
+   * necessarily two-valued: `model.themes` always carries at least the three
+   * built-in base themes (`CorporateLight`, `CorporateDark`, `MinimalLight`),
+   * and an app may declare more of its own. With fewer than two themes there
+   * is nothing to switch between, so the control renders the same disabled
+   * shape `renderShellControl`'s generic branch gives an unavailable control,
+   * for the same reason `pwaInstall` does when no host capability backs it.
+   * `resolveApplicationModel` cannot produce fewer than three today — it
+   * always injects the built-ins for any name not already declared — so this
+   * branch is defensive against a resolver that may one day let an app
+   * suppress them, not a state reachable through the language as it stands.
+   */
+  private renderThemeSwitch(control: ResolvedShellControl): string {
+    const label = control.label ?? titleCaseIdentifier(control.name);
+    const themes = this._model.themes;
+    if (themes.length < 2) {
+      return `
+        <button
+          class="adl-shell-control adl-shell-control-unavailable"
+          type="button"
+          data-shell-control="${escapeHtml(control.name)}"
+          data-shell-control-kind="themeSwitch"
+          disabled
+          title="${escapeHtml(`${label} is not available in this runtime.`)}"
+        >
+          <span>${escapeHtml(label)}</span>
+        </button>
+      `;
+    }
+
+    const activeThemeName = this.resolveActiveTheme().name;
+    return `
+      <label
+        class="adl-theme-switch"
+        data-shell-control="${escapeHtml(control.name)}"
+        data-shell-control-kind="themeSwitch"
+      >
+        <span>${escapeHtml(label)}</span>
+        <select data-theme-switch="true" aria-label="${escapeHtml(label)}">
+          ${themes
+            .map(
+              (theme) => `
+                <option value="${escapeHtml(theme.name)}"${
+                  theme.name === activeThemeName ? " selected" : ""
+                }>${escapeHtml(titleCaseIdentifier(theme.name))}</option>
+              `,
+            )
+            .join("")}
+        </select>
+      </label>
+    `;
+  }
+
   private renderTopBarControls(): string {
     return this.placedShellControls(this._model.shell.topBar.controls, "topBar")
       .map((control) => this.renderShellControl(control))
@@ -1779,6 +1891,10 @@ export class AdlAppElement extends HTMLElement {
   private renderShellControl(control: ResolvedShellControl): string {
     if (control.kind === "contextSelector") {
       return this.renderContextSelectors();
+    }
+
+    if (control.kind === "themeSwitch") {
+      return this.renderThemeSwitch(control);
     }
 
     /*
@@ -2231,6 +2347,35 @@ export class AdlAppElement extends HTMLElement {
 
   private contextStorageKey(contextName: string): string {
     return `adl:${this._model.app.name}:context:${contextName}`;
+  }
+
+  /**
+   * The active theme is a platform-level device preference, not application
+   * data: every ADL app gets it from declaring a `themeSwitch` control, with
+   * no object or field of its own to declare. `localStorage`, keyed by app
+   * name the same way `contextStorageKey` scopes context selection, is the
+   * existing device-local mechanism for exactly this shape of state, so the
+   * theme override reuses it rather than adding a second storage path.
+   */
+  private themeStorageKey(appName: string): string {
+    return `adl:${appName}:theme`;
+  }
+
+  private readPersistedThemeName(model: ResolvedApplicationModel): string | undefined {
+    const value = readStorageValue(globalThis.localStorage, this.themeStorageKey(model.app.name));
+    if (value === null || value.length === 0) {
+      return undefined;
+    }
+
+    return model.themes.some((theme) => theme.name === value) ? value : undefined;
+  }
+
+  private persistThemeSelection(themeName: string): void {
+    writeStorageValue(
+      globalThis.localStorage,
+      this.themeStorageKey(this._model.app.name),
+      themeName,
+    );
   }
 
   private requireActiveRuntimeContext(): RuntimeContext {
