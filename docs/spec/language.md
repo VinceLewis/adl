@@ -114,6 +114,16 @@ FIELD Attachment ATTACHMENT MAX_SIZE(5000000)
 FIELD EndDate DATE VALIDATE EndDate >= StartDate MESSAGE 'End date must be on or after the start date.'
 ```
 
+This block is illustrative, gathering every validator kind in one place. Giggle
+Band exercises several of them directly and unmixed with the others: `EMAIL` on
+`User.Email` and `BandInvitation.InviteeEmail`
+(`src/reference/giggle-band/domain.adl:21,82`), `MIN` on `Event.Amount`
+(`domain.adl:125`), `IN` on `Event.EventType` (`domain.adl:107`), and `REGEXP`
+on `Band.Facebook` (`domain.adl:38`). `MIN_LENGTH`, `MAX_LENGTH`,
+`CURRENCY_CODE`, `MAX_SIZE`, and the field-level `VALIDATE`/`PREDICATE` form
+are not exercised anywhere in the reference app and are shown here only to
+document that the syntax exists.
+
 - `EMAIL` (text) checks the value is shaped like `local@domain.tld`; it is not
   full RFC 5322 validation.
 - `MIN <n>` / `MAX <n>` apply to `NUMBER` fields only (not date or datetime)
@@ -242,6 +252,15 @@ SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId
 SYNC ONLINE_REQUIRED SCOPE currentContext CONFLICT serverWins
 ```
 
+The first line matches, verbatim, `Song`, `SetList`, `SetListItem`, and
+`StreamingLink`'s own `SYNC` declarations (for example
+`src/reference/giggle-band/domain.adl:179`). The fourth line's `SCOPE
+currentContext` portion matches `BandInvitation`'s (`domain.adl:93`), which
+does not itself declare `CONFLICT`. Giggle Band uses only `currentContext`,
+`currentUser`, and `allAvailableContexts` for `SCOPE`, so `recent` and
+`custom` above are shown synthetically — they are legal syntax the reference
+app has no occasion to use.
+
 `MODE` may be written before the mode word for readability. The mode is one of
 `LOCAL_FIRST`, `CACHE_READONLY`, `ONLINE_REQUIRED` and `LOCAL_PRIVATE`; it
 decides writes and delivery, not dataset membership, and is specified under
@@ -262,6 +281,12 @@ SYNC LOCAL_FIRST SCOPE currentUser WINDOW Date 90 DAYS LIMIT 400
 SYNC LOCAL_FIRST SCOPE currentContext WHERE Status == 'open'
 SYNC LOCAL_FIRST SCOPE currentUser WINDOW SpentOn 30 DAYS WHERE Status == 'open'
 ```
+
+The first line is `Availability`'s own declaration verbatim
+(`src/reference/giggle-band/domain.adl:156`). The other two are illustrative:
+Giggle Band's `SYNC` declarations never combine `WINDOW` with `WHERE`, and
+none use `WHERE` at all, since the reference app has no `SCOPE custom`
+declarations either.
 
 When both are declared, both must pass.
 
@@ -448,7 +473,10 @@ Views and read models can declare context requirements:
 ```adl
 VIEW BandEventList LIST
   CONTEXT REQUIRED Band
-  FIELDS Date Title Status
+  FIELDS Date StartTime EventType Title VenueName
+  SEARCH Title VenueName EventType
+  SORT Date ASC StartTime ASC
+  ACTIONS create read update delete
 END.VIEW
 
 READ_MODEL HomeUpcomingEvents
@@ -456,6 +484,12 @@ READ_MODEL HomeUpcomingEvents
   SOURCE event OBJECT Event SCOPE allAvailableContexts
 END.READ_MODEL
 ```
+
+`BandEventList` above is Giggle Band's own view, verbatim
+(`src/reference/giggle-band/domain.adl:134`). The `READ_MODEL` fragment is
+trimmed to its `CONTEXT`/first-`SOURCE` lines for focus; Giggle Band's actual
+`HomeUpcomingEvents` is a two-source `UNION` with a full field list — see
+`domain.adl:273` for the complete, working declaration.
 
 A source after the first may declare an explicit join:
 
@@ -525,7 +559,7 @@ VIEW HomeDashboard DASHBOARD
   STATE showRehearsals BOOLEAN DEFAULT true
   STATE showUnavailable BOOLEAN DEFAULT true
 
-  ICON_MAP EventTypeIcon FOR EventType
+  ICON_MAP EventTypeIcon FOR EventType DEFAULT calendar
     Gig -> music
     Rehearsal -> microphone
     Unavailable -> x
@@ -535,7 +569,7 @@ VIEW HomeDashboard DASHBOARD
   STATUS rehearsal LABEL 'Rehearsal' ARIA_LABEL 'Rehearsal event' ICON EventTypeIcon(Rehearsal) THEME colorStatusAlternate PRECEDENCE 10
   STATUS unavailable LABEL 'Unavailable' ARIA_LABEL 'Unavailable block' ICON EventTypeIcon(Unavailable) THEME colorStatusUnavailable PRECEDENCE 20
 
-  STATUS_MAP EventTypeStatus FOR EventType
+  STATUS_MAP EventTypeStatus FOR EventType DEFAULT event
     Gig -> event
     Rehearsal -> rehearsal
     Unavailable -> unavailable
@@ -550,6 +584,7 @@ VIEW HomeDashboard DASHBOARD
       ORDER BY EventDate ASC, StartTime ASC
       WHERE (EventType == 'Gig' AND showGigs == true) OR (EventType == 'Rehearsal' AND showRehearsals == true) OR (EventType == 'Unavailable' AND showUnavailable == true)
       RENDER_AS compactFeed
+      DENSITY compact
       EMPTY_TEXT 'No upcoming events'
       STATUS EventTypeStatus(EventType)
 
@@ -568,17 +603,43 @@ VIEW HomeDashboard DASHBOARD
 END.VIEW
 ```
 
+This is Giggle Band's own `HomeDashboard`, verbatim, trimmed of its `CONTEXT`/
+`FIELDS`/`SORT`/`ACTIONS` lines and its `Welcome` and `Filters` sections — see
+`src/reference/giggle-band/ui.adl:24` for the complete view, including the
+toggle controls that drive `showGigs`/`showRehearsals`/`showUnavailable`.
+
 A `LIST`'s row-scoped `ACTION` may reference the row's own record identity as
 `id` inside `INPUT ... FROM` and `WHEN`, targeting the exact record the row
 renders from rather than only its projected fields:
 
 ```adl
-LIST Notes FROM OBJECT Note
-  ACTION archiveRow COMMAND ArchiveNote LABEL 'Archive' PLACEMENT row
-    INPUT NoteId FROM id
+LIST SentInvitationsList FROM READ_MODEL SentBandInvitations
+  ORDER BY SentAt DESC
+  RENDER_AS table
+  DENSITY compact
+  EMPTY_TEXT 'No invitations sent yet'
+
+  ROW
+    TEXT InviteeEmail STYLE bold
+    TEXT ' - '
+    TEXT Role
+    TEXT ' - '
+    TEXT Status
+    TEXT ' - '
+    TEXT SentAt FORMAT date 'EEE d MMM'
+  END.ROW
+
+  ACTION revoke COMMAND RevokeBandInvitation LABEL 'Revoke' ICON x PLACEMENT row
+    WHEN Status == 'Pending'
+    INPUT Invitation FROM id
   END.ACTION
 END.LIST
 ```
+
+This is Giggle Band's own `MyInvitationList` list, verbatim
+(`src/reference/giggle-band/ui.adl:252`) — a read-model-backed list, so `id`
+here resolves through `SentBandInvitations`' first declared source
+(`invitation`) rather than through an object binding.
 
 `id` resolves to the row's real storage id (its primary source's record id —
 the object it is bound to for an object-backed list, or a read model's first
@@ -766,6 +827,15 @@ OBJECT SetListItem
 END.OBJECT
 ```
 
+The `CHILD_COLLECTION`/`PICKER` block above is Giggle Band's own
+`SongPicker`, verbatim — the `SOURCE`/`CANDIDATE_FIELD` comments are added
+here for exposition and are not in the source. The surrounding `SetList` and
+`SetListItem` objects are simplified for this example: the real objects carry
+business-context `SCOPE`, `UNIQUE`/`ORDERED` constraints, `SYNC`, and several
+more fields. See `src/reference/giggle-band/ui.adl:363` for the full form
+view and `domain.adl:189` and `domain.adl:208` for the full object
+declarations.
+
 Choosing three songs there stages three `createChild` operations, each carrying
 the chosen song's id in `Song`, each appended to the end of the set list. Songs
 already in this set list are not offered again. See
@@ -831,6 +901,12 @@ SHELL
 END.SHELL
 ```
 
+This is a trimmed shape of Giggle Band's own `SHELL` (three of its eleven
+`NAV` entries and three of its six `CONTROL` entries), with a `VISIBLE
+ONLINE` clause added to `syncStatus` to document that condition, which the
+reference app's own `syncStatus` control does not declare. See
+`src/reference/giggle-band/ui.adl:1` for the complete, working block.
+
 `NAV` entries target resolved views. Supported nav metadata includes `LABEL`,
 semantic `ICON`, `GROUP`, numeric `ORDER`, optional `ACTIVE_WHEN` view names,
 and `VISIBLE` conditions. Implemented visibility conditions are `ALWAYS`,
@@ -882,14 +958,19 @@ COMMAND ImportSongs LABEL 'Import songs'
   INPUT Songs LIST REQUIRED
     FIELD Title TEXT REQUIRED
     FIELD Composer TEXT
+    FIELD DurationSeconds NUMBER
   END.INPUT
   STEP importSongs CREATE Song FOR EACH Songs
     VALUE Band INPUT Band
     VALUE Title ITEM Title
     VALUE Composer ITEM Composer
+    VALUE DurationSeconds ITEM DurationSeconds
   END.STEP
 END.COMMAND
 ```
+
+This is Giggle Band's own `ImportSongs` command, verbatim
+(`src/reference/giggle-band/domain.adl:471`).
 
 `INPUT <name> LIST [<type>]` declares a list of scalars; adding `FIELD` lines and
 an `END.INPUT` terminator declares a list of records instead. Item `FIELD` lines
@@ -917,6 +998,7 @@ context:
 ```adl
 STEP createBand CREATE Band ESTABLISHES CONTEXT Band
   VALUE Name INPUT Name
+  VALUE Description INPUT Description
   VALUE CreatedBy RUNTIME userId
 END.STEP
 
@@ -924,8 +1006,12 @@ STEP createFounderMembership CREATE BandMember AUTHORITY command
   VALUE User RUNTIME userId
   VALUE Band STEP createBand META guid
   VALUE Role LITERAL BandAdmin
+  VALUE JoinedAt RUNTIME today
 END.STEP
 ```
+
+This is Giggle Band's own `CreateBand` command's step pair, verbatim
+(`src/reference/giggle-band/domain.adl:454`).
 
 For the rest of that transaction the new instance is in reach of the object-scope
 gate, so the membership step can write a record scoped to a context that did not
