@@ -97,10 +97,14 @@ import type {
 
 /**
  * `beforeinstallprompt` is Chromium-only and absent from the DOM lib, so it is
- * declared here as the narrowest shape this shell actually uses.
+ * declared here as the narrowest shape this shell actually uses. The event can
+ * only be acted on once: a second `prompt()` call on the same event rejects, so
+ * every caller must stash it, act on it at most once, and discard it
+ * afterwards regardless of which way `userChoice` resolves.
  */
 interface InstallPromptEvent extends Event {
   prompt(): Promise<unknown>;
+  readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
 interface ActiveViewContextState {
@@ -146,6 +150,17 @@ export class AdlAppElement extends HTMLElement {
   private authorityBusy = false;
   private deliveringWrites = false;
   private installPrompt: InstallPromptEvent | undefined;
+  /**
+   * True once this device is known to be running the app installed, whether
+   * that was learned from the browser's `appinstalled` event fired during this
+   * session or from the display mode already being `standalone` (or iOS
+   * Safari's `navigator.standalone`) when the shell first connected. A record
+   * of this never needs to un-set itself: browsers do not fire an "uninstalled"
+   * event, and an install performed outside this control (e.g. the browser's
+   * own omnibox affordance) must be reflected here too, not only an install
+   * that went through the `pwaInstall` shell control.
+   */
+  private appInstalled = false;
   /**
    * The device's record sync state, read once per refresh and cached here.
    *
@@ -335,12 +350,71 @@ export class AdlAppElement extends HTMLElement {
 
   /** Chromium fires this before offering installation; other engines never do. */
   private readonly handleInstallPrompt = (event: Event): void => {
+    if (this.appInstalled) {
+      // Already installed for this device; do not resurrect the control by
+      // stashing a prompt event nothing will ever show a button for.
+      return;
+    }
+
     event.preventDefault();
     this.installPrompt = event as InstallPromptEvent;
     if (this.initialized) {
       this.render();
     }
   };
+
+  /**
+   * Fires once installation completes, however it was triggered — through this
+   * shell's own control or the browser's own install affordance. The
+   * `beforeinstallprompt` event it may have followed is spent either way, so
+   * this also clears any stashed prompt rather than leaving a dangling
+   * reference to an event that can no longer be used.
+   */
+  private readonly handleAppInstalled = (): void => {
+    this.appInstalled = true;
+    this.installPrompt = undefined;
+    if (this.initialized) {
+      this.render();
+    }
+  };
+
+  /**
+   * The `pwaInstall` shell control's click handler. The stashed event is
+   * cleared immediately, before the user has answered, because a
+   * `beforeinstallprompt` event may only be prompted once regardless of the
+   * outcome — a second click while the first is still pending must not call
+   * `prompt()` again. `handleAppInstalled` is the source of truth for
+   * `appInstalled`; an accepted choice here only re-renders so the control
+   * reflects "not available" immediately rather than waiting on the browser's
+   * `appinstalled` event, which some engines fire with a perceptible delay.
+   */
+  private handleInstallClick(): void {
+    const promptEvent = this.installPrompt;
+    if (promptEvent === undefined) {
+      return;
+    }
+
+    this.installPrompt = undefined;
+    this.render();
+    void this.runInstallPrompt(promptEvent);
+  }
+
+  private async runInstallPrompt(promptEvent: InstallPromptEvent): Promise<void> {
+    try {
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      if (choice.outcome === "accepted") {
+        this.messages = [successMessage("Installing the app.")];
+      }
+    } catch {
+      // A spent or otherwise unusable prompt event is not a runtime error; the
+      // control has already returned to "not available" above.
+    } finally {
+      if (this.initialized) {
+        this.render();
+      }
+    }
+  }
 
   private readonly handleSearch = (event: Event): void => {
     const detail = (event as CustomEvent<{ text: string }>).detail;
@@ -647,9 +721,7 @@ export class AdlAppElement extends HTMLElement {
     }
 
     if (shellAction === "install") {
-      void this.installPrompt?.prompt();
-      this.installPrompt = undefined;
-      this.render();
+      this.handleInstallClick();
       return;
     }
 
@@ -1006,6 +1078,7 @@ export class AdlAppElement extends HTMLElement {
     }
 
     this.initialized = true;
+    this.appInstalled = this.appInstalled || isRunningAsInstalledPwa();
     this.addEventListener("adl-search", this.handleSearch);
     this.addEventListener("adl-select-record", this.handleSelect);
     this.addEventListener("adl-new-record", this.handleNew);
@@ -1041,6 +1114,7 @@ export class AdlAppElement extends HTMLElement {
     this.addEventListener(ADL_REVOKE_MEMBER_SESSIONS_EVENT, this.handleRevokeMemberSessions);
     document.addEventListener("keydown", this.handleKeyDown);
     globalThis.addEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
+    globalThis.addEventListener?.("appinstalled", this.handleAppInstalled);
     addBrowserOnlineListeners(this.handleOnlineStateChange);
     this.readyPromise = this.initialize();
   }
@@ -1084,6 +1158,7 @@ export class AdlAppElement extends HTMLElement {
     this.removeEventListener(ADL_REVOKE_MEMBER_SESSIONS_EVENT, this.handleRevokeMemberSessions);
     document.removeEventListener("keydown", this.handleKeyDown);
     globalThis.removeEventListener?.("beforeinstallprompt", this.handleInstallPrompt);
+    globalThis.removeEventListener?.("appinstalled", this.handleAppInstalled);
     removeBrowserOnlineListeners(this.handleOnlineStateChange);
     this.initialized = false;
   }
@@ -1739,17 +1814,22 @@ export class AdlAppElement extends HTMLElement {
 
     const label = control.label ?? titleCaseIdentifier(control.name);
     // `logout` needs a session to end, and `pwaInstall` needs the user agent to
-    // have offered installation. Anything else still has no runtime behind it.
+    // have offered installation this session and the device not to be running
+    // installed already. Anything else still has no runtime behind it.
     const action =
       control.kind === "logout"
         ? "sign-out"
-        : control.kind === "pwaInstall" && this.installPrompt !== undefined
+        : control.kind === "pwaInstall" && this.installPrompt !== undefined && !this.appInstalled
           ? "install"
           : undefined;
     const available =
       action === undefined
         ? false
         : action === "install" || this._authority?.session.status === "signedIn";
+    const unavailableTitle =
+      control.kind === "pwaInstall" && this.appInstalled
+        ? "This app is already installed."
+        : `${label} is not available in this runtime.`;
     return `
       <button
         class="adl-shell-control${available ? "" : " adl-shell-control-unavailable"}"
@@ -1757,7 +1837,7 @@ export class AdlAppElement extends HTMLElement {
         data-shell-control="${escapeHtml(control.name)}"
         data-shell-control-kind="${escapeHtml(control.kind)}"
         ${available ? `data-shell-action="${escapeHtml(action ?? "")}"` : "disabled"}
-        title="${escapeHtml(available ? label : `${label} is not available in this runtime.`)}"
+        title="${escapeHtml(available ? label : unavailableTitle)}"
       >
         ${
           control.icon === undefined
@@ -2404,6 +2484,24 @@ function browserPersistenceAvailable(): boolean {
 
 function getBrowserOnlineState(): boolean | undefined {
   return globalThis.navigator?.onLine;
+}
+
+/**
+ * True when this device is already running the app installed, learned by a
+ * means other than an `appinstalled` event fired during this session — the
+ * case a returning user who installed on a previous visit hits on every load.
+ * `display-mode: standalone` covers engines that support the manifest's
+ * `display` field; `navigator.standalone` is Safari's older, iOS-only signal
+ * for the same fact. Both are read defensively because neither exists in every
+ * test or browser environment.
+ */
+function isRunningAsInstalledPwa(): boolean {
+  const standaloneDisplayMode =
+    globalThis.matchMedia?.("(display-mode: standalone)").matches === true;
+  const iosStandalone =
+    (globalThis.navigator as { standalone?: boolean } | undefined)?.standalone === true;
+
+  return standaloneDisplayMode || iosStandalone;
 }
 
 function addBrowserOnlineListeners(listener: () => void): void {

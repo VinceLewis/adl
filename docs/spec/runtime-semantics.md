@@ -109,9 +109,14 @@ are still validated through runtime context services before scoped reads or
 writes run.
 
 Optional shell controls degrade by capability. The current browser runtime
-implements context selection and sync/online status. Controls such as logout,
-theme switch, and PWA install prompt can be declared and inspected, but render
-as unavailable unless the host runtime supplies that capability.
+implements context selection, sync/online status, sign-out, and PWA
+installability: it captures the browser's `beforeinstallprompt` event, prompts
+on the control's click, and reflects both an accepted/dismissed choice and a
+later `appinstalled` event (or a device already running the app installed) by
+disabling the control. Theme switch has no runtime behind it yet. Any control
+whose host capability the runtime does not supply — theme switch always,
+today, and PWA install on a browser that never offers installability — renders
+as an unavailable control rather than breaking the shell.
 
 ## Lifecycles
 

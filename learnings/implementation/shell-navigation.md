@@ -24,9 +24,56 @@ or mobile business-context selection.
   behavior defaults to `sheet`, rendering a compact selected-label trigger and
   modal sheet while preserving the desktop dropdown path.
 - Optional shell controls include `contextSelector`, `syncStatus`,
-  `themeSwitch`, `logout`, and `pwaInstall`. The current browser implements
-  context selection and sync/online status; unavailable host capabilities
-  degrade as disabled controls.
+  `themeSwitch`, `logout`, and `pwaInstall`. As of Phase 66 the current
+  browser implements context selection, sync/online status, sign-out (Phase
+  47), and PWA installability (Phase 47's capture-and-prompt wiring, closed by
+  Phase 66's `appinstalled` handling); `themeSwitch` has no runtime behind it
+  yet. Unavailable host capabilities degrade as disabled controls.
+
+## Decisions From Phase 66
+
+- **`pwaInstall` was already a modelled control kind and its
+  capture-and-prompt wiring already existed, from Phase 47.** Before Phase 66,
+  `adl-app.ts` already registered a `beforeinstallprompt` listener, called
+  `preventDefault()` and stashed the event, rendered the control available
+  exactly when a stashed event existed, and called `.prompt()` on click. Do
+  not assume a shell control kind is unimplemented just because no reference
+  app declares it yet — check the component before planning work to add it.
+- **What Phase 66 actually closed**: no `appinstalled` listener existed at
+  all, so a device that was already installed had no way to learn that fact
+  and kept offering the control the same way an un-offered one looked. The
+  click handler fired `.prompt()` without awaiting `userChoice`, so an
+  accepted install produced no feedback and was indistinguishable from a
+  dismissed one at the call site. Nothing detected a device already running
+  installed at page load (`matchMedia("(display-mode: standalone)")` /
+  `navigator.standalone`). The Giggle Band reference app declared no
+  `pwaInstall` control, so the capability had no end-to-end reference-app
+  proof, unlike every other implemented control kind.
+- **`appInstalled` is set only by the `appinstalled` event, never by an
+  accepted `userChoice`.** An accepted choice and a fired `appinstalled` event
+  are not guaranteed to be the same signal across engines, and installation
+  can happen entirely outside this control (the browser's own omnibox
+  affordance). The browser's own event is the one source of truth for
+  "installed."
+- **`appInstalled` never un-sets.** Browsers do not fire an "uninstalled"
+  event and there is no reliable signal that would make clearing it safe.
+- **A captured `beforeinstallprompt` event must be cleared synchronously on
+  click, before awaiting anything.** The event can only be prompted once; a
+  second click in the same synchronous turn, before the first click's
+  `await prompt()` resolves, must not call `prompt()` again on the same spent
+  event. Clear `installPrompt` and re-render first, then await
+  `prompt()`/`userChoice` in a separate async step.
+- **No separate pure-logic module was needed to test this**, unlike
+  `service-worker-policy.ts` (see `implementation/usable-sync-slice.md`). That
+  split exists because a service worker runs in a different global scope with
+  no DOM; `adl-app.ts` is a real `HTMLElement` already fully exercised by
+  `happy-dom` (`tests/ui-authority-chrome.test.ts` and siblings), so
+  dispatching a real `beforeinstallprompt`-shaped `Event` and an `appinstalled`
+  `Event` at `window` and asserting on the rendered button, in
+  `tests/ui-pwa-install.test.ts`, is the same technique those tests already
+  use for `logout` and `connectivity`. Reaching for a pure-module split would
+  have separated state (`installPrompt`, `appInstalled`) that belongs together
+  for no testability gain.
 
 ## Practical Guidance
 
