@@ -1182,16 +1182,17 @@ END.POLICY
         ["SetListForm", "Set list editor", 62],
         ["StreamingLinkList", "Streaming", 65],
         ["BandDirectory", "Bands", 70],
+        ["MyInvitationList", "Sent Invitations", 80],
         // Undeclared views keep their derived ordering after the declared ones,
-        // which is why adding three NAV entries moves this block from 80 to 110.
-        ["UserProfileList", "User Profile List", 110],
-        ["BandProfile", "Band Profile", 120],
-        ["BandMemberList", "Band Member List", 130],
-        ["BandInvitationList", "Band Invitation List", 140],
-        ["BandEventForm", "Band Event Form", 150],
-        ["SetListItemList", "Set List Item List", 160],
-        ["SetListByPosition", "Set List By Position", 170],
-        ["DevicePreferenceList", "Device Preference List", 180],
+        // which is why adding a fourth NAV entry moves this block from 110 to 120.
+        ["UserProfileList", "User Profile List", 120],
+        ["BandProfile", "Band Profile", 130],
+        ["BandMemberList", "Band Member List", 140],
+        ["BandInvitationList", "Band Invitation List", 150],
+        ["BandEventForm", "Band Event Form", 160],
+        ["SetListItemList", "Set List Item List", 170],
+        ["SetListByPosition", "Set List By Position", 180],
+        ["DevicePreferenceList", "Device Preference List", 190],
       ],
     );
     expect(

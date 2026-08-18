@@ -18,6 +18,11 @@ const gigglePages: VisualPage[] = [
   { name: "songs", navItem: "SongLibrary", expectedText: "Neon Map" },
   { name: "set-lists", navItem: "SetListList", expectedText: "August headline" },
   { name: "bands", navItem: "BandDirectory", expectedText: "The Alphas" },
+  {
+    name: "sent-invitations",
+    navItem: "MyInvitationList",
+    expectedText: "riley@example.com",
+  },
 ];
 
 test.describe("Giggle Band visual smoke", () => {
@@ -27,9 +32,9 @@ test.describe("Giggle Band visual smoke", () => {
       await selectBandContext(page);
       await navigateTo(page, pageSpec);
 
-      await expect(page.locator(".adl-workspace, .adl-composed-workspace")).toContainText(
-        pageSpec.expectedText,
-      );
+      await expect(
+        page.locator(".adl-workspace, .adl-composed-workspace, .adl-dashboard"),
+      ).toContainText(pageSpec.expectedText);
       await expectAppReady(page);
 
       await page.screenshot({

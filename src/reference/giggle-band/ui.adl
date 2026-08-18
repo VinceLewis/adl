@@ -7,13 +7,15 @@ SHELL
   NAV SetListList LABEL 'Set Lists' ICON list GROUP Library ORDER 60
   NAV SetListForm LABEL 'Set list editor' ICON list GROUP Library ORDER 62
   NAV BandDirectory LABEL 'Bands' ICON users GROUP Admin ORDER 70
+  NAV MyInvitationList LABEL 'Sent Invitations' ICON list GROUP Admin ORDER 80 VISIBLE WHEN CONTEXT Band SELECTED
   NAV BandMemberAvailabilityBoard LABEL 'Who is free' ICON users GROUP Main ORDER 45 VISIBLE WHEN CONTEXT Band SELECTED
   NAV StreamingLinkList LABEL 'Streaming' ICON music GROUP Library ORDER 65
   CONTROL contextSelector KIND contextSelector PLACEMENT topBar
   CONTROL connection KIND connectivity PLACEMENT topBar
   CONTROL syncStatus KIND syncStatus PLACEMENT topBar
+  CONTROL installApp KIND pwaInstall LABEL 'Install' PLACEMENT topBar
   CONTROL signOut KIND logout LABEL 'Sign out' ICON x PLACEMENT navDrawer
-  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector connection syncStatus
+  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector connection syncStatus installApp
   NAV_DRAWER TITLE 'Giggle Band' CONTROLS signOut
 END.SHELL
 
@@ -167,6 +169,30 @@ OBJECT Event
         END.ACTION
       END.CALENDAR
     END.SECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT BandInvitation
+  # Admin-facing counterpart to the `HomeDashboard` "Invitations" feed, which
+  # only ever shows what is still `Pending`. This one is read-only:
+  # `RevokeBandInvitation` exists and is exercised directly (see
+  # `band-reference-app.test.ts`), the same way `AcceptBandInvitation` has
+  # been since Phase 28, but a one-click row action cannot be wired to it yet.
+  # A presentation `ACTION`'s `INPUT ... FROM <expr>` only ever sees a row's
+  # already-projected field values (`RuntimePresentationRow.values`); nothing
+  # in a read model, an object field, or a computed field can carry a
+  # record's own storage id (`meta.guid`) into that scope today. Every
+  # existing `ACTION` in this app that targets an existing record --
+  # accepting an invitation included -- is invoked directly through the
+  # command service, never through a list row, for exactly this reason.
+  # Closing that gap is platform work (exposing the record id to presentation
+  # row values / action input), not reference-app content.
+  VIEW MyInvitationList DASHBOARD
+    CONTEXT REQUIRED Band
+    READ_MODEL SentBandInvitations
+    FIELDS InviteeEmail Role Status SentAt RespondedAt
+    SORT SentAt DESC
+    ACTIONS read search
   END.VIEW
 END.OBJECT
 

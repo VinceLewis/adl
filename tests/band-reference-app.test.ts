@@ -51,7 +51,12 @@ describe("band reference app model", () => {
         }),
       ]),
     );
-    expect(model.commands?.map((command) => command.name)).toContain("AcceptBandInvitation");
+    expect(model.commands?.map((command) => command.name)).toEqual(
+      expect.arrayContaining(["AcceptBandInvitation", "RevokeBandInvitation"]),
+    );
+    expect(model.readModels?.map((readModel) => readModel.name)).toEqual(
+      expect.arrayContaining(["PendingInvitations", "SentBandInvitations"]),
+    );
     expect(model.objects.find((object) => object.name === "BandInvitation")?.validations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "respondedAtRequiredAfterResponse" }),
@@ -880,6 +885,112 @@ describe("band reference app runtime", () => {
       Role: "BandMember",
       JoinedAt: "2026-07-08",
     });
+  });
+
+  it("revokes a pending invitation as any band admin, not only its original sender", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+    const pendingInvitation = await createPendingInvitation(seeded);
+
+    // Promote the guest to a second `BandAdmin` for this band -- distinct from
+    // `seeded.musician`, who is both the founding admin and this invitation's
+    // `Inviter` -- to prove revocation is not restricted to the sender.
+    await seeded.runtime.create(
+      "BandMember",
+      { User: seeded.guest.meta.guid, Band: seeded.firstBand.meta.guid, Role: "BandAdmin" },
+      bandContext,
+    );
+    // `withSelectedContext` is what actually resolves and stamps
+    // `contextRoles` from the membership just created; a `RuntimeContext`
+    // built by hand with only `selectedContexts` (as `inviteeContext` is
+    // elsewhere in this file) never carries a `ROLE` a policy rule can match.
+    const secondAdminContext = await seeded.runtime.withSelectedContext(
+      "Band",
+      seeded.firstBand.meta.guid,
+      {
+        userId: seeded.guest.meta.guid,
+        roles: [],
+        channel: "api",
+        now: new Date("2026-07-08T10:00:00.000Z"),
+      },
+    );
+
+    const result = await seeded.runtime.executeCommand(
+      "RevokeBandInvitation",
+      { Invitation: pendingInvitation.meta.guid },
+      secondAdminContext,
+    );
+
+    expect(result.steps.map((step) => [step.step, step.objectName])).toEqual([
+      ["revokeInvitation", "BandInvitation"],
+    ]);
+    // Revoking a still-pending invitation is not a response from the invitee,
+    // so `RespondedAt` must stay unset -- exactly what
+    // `respondedAtRequiredAfterResponse` now allows for `Status == 'Revoked'`.
+    expect(result.steps[0]?.record.values).toMatchObject({ Status: "Revoked" });
+    expect(result.steps[0]?.record.values.RespondedAt ?? null).toBeNull();
+
+    const sent = await seeded.runtime.executeReadModel("SentBandInvitations", secondAdminContext);
+    expect(sent.rows.map((row) => row.values)).toContainEqual(
+      expect.objectContaining({
+        InviteeEmail: "riley.pending@example.com",
+        Status: "Revoked",
+        IsSender: false,
+      }),
+    );
+  });
+
+  it("refuses revoking a band invitation once it is no longer pending", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const pendingInvitation = await createPendingInvitation(seeded);
+    const inviteeContext: RuntimeContext = {
+      userId: seeded.guest.meta.guid,
+      roles: [],
+      channel: "api",
+      now: new Date("2026-07-08T10:00:00.000Z"),
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    };
+    await seeded.runtime.executeCommand(
+      "AcceptBandInvitation",
+      { Invitation: pendingInvitation.meta.guid },
+      inviteeContext,
+    );
+
+    // `seeded.musicianContext` is a genuine `BandAdmin`, so this isolates the
+    // step's own `REQUIRE Status == 'Pending'` precondition rather than an
+    // authorization failure.
+    await expect(
+      seeded.runtime.executeCommand(
+        "RevokeBandInvitation",
+        { Invitation: pendingInvitation.meta.guid },
+        seeded.musicianContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+  });
+
+  it("refuses revoking a band invitation for a caller who is not a band admin", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const pendingInvitation = await createPendingInvitation(seeded);
+    // The invitee holds no membership in the band at all before accepting, so
+    // this proves `BandInvitationPolicy` denies revocation the same way it
+    // denies every other admin-only `BandInvitation` operation -- being the
+    // named `Invitee` grants no revoke rights, only `allowInviteeAcceptInvitation`
+    // does, and only toward `Status == 'Accepted'`.
+    const inviteeContext: RuntimeContext = {
+      userId: seeded.guest.meta.guid,
+      roles: [],
+      channel: "api",
+      now: new Date("2026-07-08T10:00:00.000Z"),
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    };
+
+    await expect(
+      seeded.runtime.executeCommand(
+        "RevokeBandInvitation",
+        { Invitation: pendingInvitation.meta.guid },
+        inviteeContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
   });
 
   it("delivers a band invitation to the authority instead of stranding it on the device", async () => {
@@ -1744,6 +1855,7 @@ describe("band reference browser demo", () => {
       "Pending",
       "Accepted",
       "Declined",
+      "Revoked",
     ]);
   });
 });
