@@ -527,6 +527,64 @@ a `VIEW` block. The hint in force is the one on the **form view that opens**, no
 the one on whichever view is active, so a view that declares none uses the
 platform default `modal`. See [Edit Surfaces](#edit-surfaces).
 
+## Decision Tables
+
+`DECISION_TABLE` expresses multi-condition branching logic as data — named
+inputs, ordered rows with a boolean condition and literal outputs, and a
+required default — instead of as nested boolean expressions written inline
+elsewhere. A decision table is not wired into any other declaration
+automatically; nothing in a command, policy, or lifecycle references one. A
+host evaluates it explicitly through
+`ApplicationRuntime.evaluateDecisionTable(tableName, values, context)`. See
+[Decision Tables](runtime-semantics.md#decision-tables) for the runtime's
+evaluation order.
+
+```adl
+OBJECT Order
+  FIELD Customer TEXT REQUIRED
+  FIELD Total NUMBER REQUIRED
+END.OBJECT
+
+DECISION_TABLE OrderDiscount ON Order MATCH FIRST
+  INPUT amount = Total
+  ROW bulk WHEN amount >= 1000 OUTPUT discountPercent 15, label 'Bulk'
+  ROW standard WHEN amount >= 100 AND amount < 1000 OUTPUT discountPercent 5, label 'Standard'
+  DEFAULT OUTPUT discountPercent 0, label 'None'
+END.DECISION_TABLE
+```
+
+- `DECISION_TABLE Name ON Object` names the table and the object whose fields
+  `INPUT` expressions may reference. `Object` must be a declared object name
+  (`ADL_DECISION_TABLE_OBJECT_UNKNOWN` otherwise).
+- `MATCH FIRST` (default) or `MATCH SINGLE` sets the match policy. `FIRST`
+  returns the first row whose condition is true, in declaration order.
+  `SINGLE` requires at most one matching row and raises a `DecisionTableError`
+  at evaluation time when more than one row matches.
+- `INPUT <name> = <expression>` (`FROM` is accepted in place of `=`) declares
+  one named input. Its expression evaluates once, against the caller-supplied
+  source values keyed by `Object`'s field names, before any row is
+  considered.
+- `ROW <name> [WHEN] <condition> OUTPUT <key> <value>[, <key> <value>...]`
+  declares one row. The condition evaluates over the table's `INPUT` names —
+  not the object's raw fields — and must resolve to `boolean`
+  (`ADL_DECISION_TABLE_ROW_CONDITION_TYPE` otherwise). `OUTPUT` takes one or
+  more `name value` literal pairs, comma- or newline-separated.
+- `DEFAULT [OUTPUT] <key> <value>...` declares the output returned when no row
+  matches. It is not optional: a table with no `DEFAULT` fails validation
+  (`ADL_DECISION_TABLE_DEFAULT_MISSING`).
+
+Input names and row names must each be unique within a table
+(`ADL_DECISION_TABLE_INPUT_DUPLICATE`, `ADL_DECISION_TABLE_ROW_DUPLICATE`).
+Where a row condition compares an input to a literal with a supported
+operator, the validator statically analyzes the constraint it implies on that
+input and reports two shapes of static defect: a row whose constraint no
+input value could ever satisfy, given what earlier rows already exclude
+(`ADL_DECISION_TABLE_ROW_UNREACHABLE`, a warning), and a row whose constraint
+overlaps an earlier row's (`ADL_DECISION_TABLE_ROW_OVERLAP`) — a warning
+under `MATCH FIRST`, where declaration order still resolves the overlap
+deterministically, and an error under `MATCH SINGLE`, where an overlap is a
+real defect because both rows can match the same input at once.
+
 ## Composed View Presentation
 
 Views may include renderer-neutral presentation declarations. Presentation is
