@@ -131,17 +131,36 @@ were wrong, defeated by a NUL byte that makes `grep` treat the file as binary an
 return nothing silently. A claim that a 6,878-line validator validates nothing
 should not survive first contact with judgement.
 
-**As of Phase 69, that NUL byte is still there**, and two more files have the
+**As of Phase 69, that NUL byte was still there**, and two more files had the
 same defect: `src/compiler/validate-model.ts` (line 1019, inside a
 `` `${migration.from}\0${migration.to}` `` composite key), `src/conformance/runner.ts`
 (line 1117, `` `${left.object}\0${left.recordId}` ``), and
 `src/runtime/command-service.ts` (line 522,
-`` `${entry.objectName}\0${entry.recordId}` ``) all carry a literal raw `0x00`
+`` `${entry.objectName}\0${entry.recordId}` ``) all carried a literal raw `0x00`
 byte in the source file, not the two-character escape `\0` this same section
-says to use instead. `grep`/`ugrep` return nothing at all on these three files
+says to use instead. `grep`/`ugrep` returned nothing at all on these three files
 — not an error, not a partial match, silently empty — which reads exactly like
 "this file has none of what I searched for." `grep -c <pattern> <file> ||
 echo "no matches"` disagreeing with `grep -ac <pattern> <file>` is the
 cheap check that catches it; `awk`, `Read`, and `Edit` are all unaffected and
-are the reliable fallback for these three files until someone replaces the raw
-byte with the `\0` escape (a one-byte-per-file fix nobody has done yet).
+were the reliable fallback for these three files until someone replaced the raw
+byte with the `\0` escape.
+
+**Fixed in Phase 70.** A repo-wide byte-safe sweep (`grep -laP '\x00'` over
+every tracked file, since a raw NUL embedded in a bash argument via `$'\x00'`
+gets silently truncated by argv and matches nothing useful — `grep -P '\x00'`,
+whose pattern is the four-character escape text, not an embedded byte, is what
+actually works) found two more instances beyond the three above:
+`src/runtime/startup-compatibility.ts` (lines 304 and 311, the same
+`` `${entry.objectName}\0${entry.record.meta.guid}` `` shape inside
+`applyMigration`) and one deliberately-embedded raw NUL in
+`tests/authority-retention-configuration.test.ts` (line 116, a test literal
+exercising PostgreSQL's own refusal of a NUL in a text key) — five raw bytes
+total, all replaced with the `\0` escape, which produces the byte-for-byte
+identical runtime string. `tests/composite-key-nul-separator.test.ts` now pins
+this: it asserts none of the five files contain a raw `0x00` byte, and that
+`validateModelMigrations`'s composite key does not collide two migrations
+whose `from`/`to` only match once concatenated without a separator, so the
+defect returning — as a reintroduced byte or as an accidental encoding
+regression — fails a fast unit test instead of waiting for the next
+reconnaissance agent to trip over it.

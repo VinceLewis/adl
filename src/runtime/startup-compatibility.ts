@@ -301,14 +301,16 @@ async function applyMigration(
   }
 
   const migratedById = new Map(
-    migrated.map((entry) => [`${entry.objectName} ${entry.record.meta.guid}`, entry.record]),
+    migrated.map((entry) => [`${entry.objectName}\0${entry.record.meta.guid}`, entry.record]),
   );
 
   return {
     status: "applied",
     migratedRecordCount: migrated.length,
     records: records.map((persisted) => {
-      const replacement = migratedById.get(`${persisted.objectName} ${persisted.record.meta.guid}`);
+      const replacement = migratedById.get(
+        `${persisted.objectName}\0${persisted.record.meta.guid}`,
+      );
       return replacement === undefined ? persisted : { ...persisted, record: replacement };
     }),
   };

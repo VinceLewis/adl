@@ -1114,7 +1114,7 @@ async function runAuthorityBootstrapCase(
           deleted: entry.record.meta.deletedAt !== undefined,
         }))
         .sort((left, right) =>
-          `${left.object} ${left.recordId}`.localeCompare(`${right.object} ${right.recordId}`),
+          `${left.object}\0${left.recordId}`.localeCompare(`${right.object}\0${right.recordId}`),
         ),
     } as unknown as JsonValue,
   };

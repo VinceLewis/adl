@@ -519,7 +519,7 @@ class SuppliedRecordIds {
       // id under two different objects is not a collision and must not be
       // refused as one. Neither part can contain a NUL, so the separator is
       // unambiguous.
-      const key = `${entry.objectName} ${entry.recordId}`;
+      const key = `${entry.objectName}\0${entry.recordId}`;
       if (seen.has(key)) {
         throw new RecordIdUnavailableError(
           `Command '${this.command.name}' names the same '${entry.objectName}' record id more than once.`,

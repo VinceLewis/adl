@@ -1016,7 +1016,7 @@ function validateModelMigrations(
       );
     }
 
-    const key = `${migration.from} ${migration.to}`;
+    const key = `${migration.from}\0${migration.to}`;
     if (seen.has(key)) {
       diagnostics.push(
         diagnostic(
