@@ -136,3 +136,45 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   browser handoff support the same resolved contract end to end. The browser's
   current drawer navigation is a generic convention, not an authored shell
   declaration.
+
+## A row-scoped presentation ACTION cannot target an existing record by id
+
+Found while adding a "revoke invitation" admin surface to the Giggle Band
+reference app: a `LIST` row's `ACTION ... COMMAND <name> ... INPUT <name>
+FROM <expr>` cannot invoke a command whose step identifies an *existing*
+record (`STEP x UPDATE <Object> ID INPUT <input>`), because nothing carries
+that record's storage id (`meta.guid`) into the expression scope the action's
+`INPUT` clauses evaluate against.
+
+- `evaluateActionInput` (`src/runtime/presentation-runtime.ts`) evaluates
+  every `INPUT ... FROM <expr>` against `{ values: row.values, ...state }`
+  only. `row.id` and `row.sources[].recordId` — which do carry the real
+  guid — live on the outer `RuntimePresentationRow`/`BoundPresentationRow`
+  and are never merged into that scope, for rows bound to either an
+  `OBJECT` or a `READ_MODEL` (`objectRecordToPresentationRow` and
+  `readModelRowToPresentationRow` both put the guid only in `id`/`sources`).
+- No field can carry a record's own id into `row.values` either. A
+  `READ_MODEL FIELD ... FROM <source>.<field>` resolves `field` only against
+  the source object's declared `fields`/`computedFields`
+  (`resolveReadModelField` in `src/compiler/resolve-model.ts`); an object
+  computed field's expression likewise evaluates over `record.values` only
+  (`src/runtime/computed-fields.ts`). The one place a record's own id *is*
+  addressable by name is `RECORD_ID_JOIN_FIELD` (`"id"`), and it is
+  special-cased solely inside `READ_MODEL SOURCE ... JOIN ON` key matching
+  (`joinKeyForRecord` in `src/runtime/read-model-service.ts`) — it never
+  reaches a projected field or an action input.
+- Consequence: every existing presentation `ACTION` in this app's reference
+  content is either `CREATE`-shaped (`ACTION addEvent CREATE Event ...`,
+  which mints a new record and so needs no existing id) or read/navigation
+  only. Accepting a `BandInvitation` (`AcceptBandInvitation`) has never been
+  wired to a UI action for exactly this reason — it is exercised only by
+  calling `ApplicationRuntime.executeCommand` directly, in tests.
+- If a future phase needs a one-click UI action against a specific existing
+  record — revoke, cancel, archive, and similar — from a `LIST` row, the
+  platform work is to expose the record's own id into the row values an
+  `ACTION INPUT` can reference (e.g. a reserved field name mirroring
+  `RECORD_ID_JOIN_FIELD`, projected into `RuntimePresentationRow.values` for
+  both object- and read-model-backed rows). Do not simulate this by wiring
+  `INPUT` to some other unique-looking business field (an email, a natural
+  key): it will send the wrong value to the command's `ID INPUT` and fail on
+  every click.

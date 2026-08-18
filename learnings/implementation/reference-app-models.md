@@ -85,6 +85,33 @@ Read this before adding or changing ADL reference applications, especially multi
   availability record in the system. That is what the `contextMember` principal
   is for.
 
+## Key decisions from the sent-invitations / revoke lifecycle addition
+
+- **A record-targeting row action is not yet buildable from a presentation
+  `LIST`.** Adding an admin-facing "sent invitations" view with a one-click
+  `Revoke` button on pending rows found that no `LIST` row — object- or
+  read-model-backed — can pass its own record id into a `COMMAND`-invoking
+  `ACTION`'s `INPUT`. See
+  [ui-presentation-model#a-row-scoped-presentation-action-cannot-target-an-existing-record-by-id](ui-presentation-model.md)
+  for the full mechanism. `RevokeBandInvitation` still exists and is
+  exercised directly through `executeCommand`, matching how
+  `AcceptBandInvitation` has been proven since Phase 28; the admin view
+  (`MyInvitationList`) is read-only until that platform gap closes. Treat
+  "add a one-click action against an existing row" as a request to check this
+  first, not an assumption that the existing `ACTION addEvent CREATE Event`
+  pattern generalises — it does not, because `CREATE` never needed an
+  existing id in the first place.
+- **A `READ_MODEL`-backed `DASHBOARD` view with no composed `SECTION`
+  ignores the view's own `FIELDS` list.** `adl-dashboard-view.ts` always
+  renders every field the read model projects, using the first non-date
+  field (by the read model's own declaration order) as each row's bold
+  title. `BandMemberAvailabilityBoard` and `SetListByPosition` happen to
+  declare their first non-date field as the one worth reading; a read model
+  whose first field is an internal lookup id (as `SentBandInvitations`'
+  `Inviter` was, before being moved to project last) shows that id as the
+  title instead. Order a read model's fields for this renderer, not only for
+  logical grouping.
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.
