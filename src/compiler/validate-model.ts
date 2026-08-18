@@ -4496,6 +4496,21 @@ function validatePresentationList(
     `Presentation row action names must be unique within list '${list.name}'.`,
   );
 
+  // Row actions alone get `id` added to their legal expression vocabulary:
+  // `evaluateRow` (`presentation-runtime.ts`) merges the row's own record
+  // identity into the values scope only when evaluating a row's `ACTION`
+  // `INPUT`/`visibleWhen`, not for `list.filter` or `list.row` fragments
+  // above, which still see only projected field values. Adding `id` to the
+  // shared `expressionFieldsByName` instead would let a filter or row
+  // fragment compile against a field the runtime never populates for them.
+  const rowActionExpressionFieldsByName = new Map(expressionFieldsByName).set(
+    RECORD_ID_JOIN_FIELD,
+    {
+      item: expressionTypeField(RECORD_ID_JOIN_FIELD, "text"),
+      index: expressionFieldsByName.size,
+    },
+  );
+
   for (let actionIndex = 0; actionIndex < list.actions.length; actionIndex += 1) {
     const action = list.actions[actionIndex];
     if (action === undefined) {
@@ -4504,7 +4519,7 @@ function validatePresentationList(
     validatePresentationActionControl(
       action,
       `${listPath}.actions[${actionIndex}]`,
-      expressionFieldsByName,
+      rowActionExpressionFieldsByName,
       indexes,
       diagnostics,
     );

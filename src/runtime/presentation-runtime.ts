@@ -30,6 +30,7 @@ import type {
   ResolvedView,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
+import { RECORD_ID_JOIN_FIELD } from "../model/resolved-model.js";
 import { evaluateExpression, evaluateExpressionAsBoolean } from "./expression-evaluator.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
 import { cloneJson, noopRuntimeLogger, safeContextLog } from "./runtime-types.js";
@@ -1501,7 +1502,7 @@ export class PresentationRuntime {
             },
             view,
             state,
-            row.values,
+            rowActionValues(row),
             context,
             diagnostics,
             { ...location, path: `${location.path}.actions[${index}]`, list: list.name },
@@ -2581,6 +2582,45 @@ function matrixEditPatch(
     [edit.columnField]: columnKey,
     [edit.valueField]: value ?? null,
   };
+}
+
+/**
+ * Row values plus the row's own record identity, for row-scoped `ACTION`
+ * evaluation only.
+ *
+ * `BoundPresentationRow.values` carries projected field values (an object
+ * row's `view.fields`, or a read model's declared `FIELD` projections). It
+ * never carries the row's own storage id, because nothing declares a field
+ * for it — there was no way for `ACTION ... INPUT ... FROM <expr>` to target
+ * the exact record a row renders from, only fields already projected onto it
+ * (see `learnings/implementation/ui-presentation-model.md`, "A row-scoped
+ * presentation ACTION cannot target an existing record by id").
+ *
+ * {@link RECORD_ID_JOIN_FIELD} (`"id"`) is already the reserved name this
+ * codebase uses for "this record's own id" inside a read model's `JOIN ON`
+ * matching (`joinKeyForRecord` in `read-model-service.ts`). Reusing it here
+ * keeps one token meaning one thing everywhere a resolved model can name a
+ * record's own identity, so `INPUT NoteId FROM id` resolves the exact record
+ * this row renders from, for both object- and read-model-backed rows.
+ *
+ * The primary source's `recordId` is used — `sources[0]`, not `row.id` —
+ * because `row.id` is a synthetic display key (`"Object:guid"` for an object
+ * row, `"readModel:source:guid|..."` for a read-model row) that no command
+ * step's `ID INPUT` could ever resolve to a real record. `sources[0]` is
+ * always the row's primary source (`objectRecordToPresentationRow` and
+ * `readModelRowToPresentationRow` both put it first), matching the
+ * documented "first source is primary" read-model rule.
+ *
+ * Placed after the row's own values so the reserved identity always wins if
+ * a field is ever also (implausibly) named `id` — this token already carries
+ * a fixed, system-wide meaning, so a same-named field could never have meant
+ * anything else.
+ */
+function rowActionValues(row: BoundPresentationRow): Record<string, JsonValue> {
+  const recordId = row.sources[0]?.recordId;
+  return recordId === undefined
+    ? { ...row.values }
+    : { ...row.values, [RECORD_ID_JOIN_FIELD]: recordId };
 }
 
 function readModelRowToPresentationRow(row: RuntimeReadModelRow): BoundPresentationRow {

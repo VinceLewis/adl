@@ -273,6 +273,43 @@ END.OBJECT
     });
   });
 
+  it("parses a row action INPUT FROM id as an ordinary field expression, no grammar change needed", () => {
+    // `id` is not a keyword: any identifier in an expression position already
+    // parses as `{ kind: "field", field: <name> }` (`parsePrimaryExpression`).
+    // The row-identity capability is a resolved-model/runtime change only;
+    // this pins that the parser already accepted the syntax beforehand.
+    const ast = parseAdl(`APP RowIdentity
+END.APP
+
+OBJECT Note
+  FIELD Title TEXT
+
+  VIEW Home COMPOSITE
+    FIELDS Title
+
+    SECTION Main
+      LIST Notes FROM OBJECT Note
+        ACTION archiveRow COMMAND ArchiveNote LABEL 'Archive' PLACEMENT row
+          INPUT NoteId FROM id
+        END.ACTION
+
+        ROW
+          TEXT Title
+        END.ROW
+      END.LIST
+    END.SECTION
+  END.VIEW
+END.OBJECT
+`);
+
+    const action = ast.objects[0]?.views[0]?.presentation?.sections[0]?.lists[0]?.actions[0];
+    expect(action).toMatchObject({
+      name: "archiveRow",
+      command: "ArchiveNote",
+      input: [{ name: "NoteId", expression: { kind: "field", field: "id" } }],
+    });
+  });
+
   it("parses shell navigation metadata", () => {
     const ast = parseAdl(`APP ShellSyntax
 END.APP

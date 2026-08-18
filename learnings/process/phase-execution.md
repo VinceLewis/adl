@@ -130,3 +130,18 @@ Two Phase 56 reconnaissance agents independently reported that
 were wrong, defeated by a NUL byte that makes `grep` treat the file as binary and
 return nothing silently. A claim that a 6,878-line validator validates nothing
 should not survive first contact with judgement.
+
+**As of Phase 69, that NUL byte is still there**, and two more files have the
+same defect: `src/compiler/validate-model.ts` (line 1019, inside a
+`` `${migration.from}\0${migration.to}` `` composite key), `src/conformance/runner.ts`
+(line 1117, `` `${left.object}\0${left.recordId}` ``), and
+`src/runtime/command-service.ts` (line 522,
+`` `${entry.objectName}\0${entry.recordId}` ``) all carry a literal raw `0x00`
+byte in the source file, not the two-character escape `\0` this same section
+says to use instead. `grep`/`ugrep` return nothing at all on these three files
+— not an error, not a partial match, silently empty — which reads exactly like
+"this file has none of what I searched for." `grep -c <pattern> <file> ||
+echo "no matches"` disagreeing with `grep -ac <pattern> <file>` is the
+cheap check that catches it; `awk`, `Read`, and `Edit` are all unaffected and
+are the reliable fallback for these three files until someone replaces the raw
+byte with the `\0` escape (a one-byte-per-file fix nobody has done yet).

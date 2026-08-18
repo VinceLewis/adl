@@ -568,6 +568,28 @@ VIEW HomeDashboard DASHBOARD
 END.VIEW
 ```
 
+A `LIST`'s row-scoped `ACTION` may reference the row's own record identity as
+`id` inside `INPUT ... FROM` and `WHEN`, targeting the exact record the row
+renders from rather than only its projected fields:
+
+```adl
+LIST Notes FROM OBJECT Note
+  ACTION archiveRow COMMAND ArchiveNote LABEL 'Archive' PLACEMENT row
+    INPUT NoteId FROM id
+  END.ACTION
+END.LIST
+```
+
+`id` resolves to the row's real storage id (its primary source's record id —
+the object it is bound to for an object-backed list, or a read model's first
+declared source for a read-model-backed list), not the renderer-facing row
+key. It is reserved the same way `id` already is inside a read model's `JOIN
+ON` matching, and it is the mechanism a command step's `ID INPUT` needs to
+update, delete, or otherwise act on the specific record a row was rendered
+from. It resolves only inside a row `ACTION`'s own `INPUT`/`WHEN`
+expressions; `LIST WHERE` and `ROW` fragments still see only the list's
+projected field values and cannot reference it.
+
 Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
 framework component names, procedural render loops, or host functions.
 

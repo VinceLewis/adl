@@ -402,6 +402,81 @@
           ]
         }
       ]
+    },
+    "rowIdentityPresentation": {
+      "app": { "name": "RowIdentityPresentation", "startView": "Home" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Note",
+          "fields": [
+            { "name": "Title", "type": "text", "required": true },
+            { "name": "Archived", "type": "boolean", "defaultValue": false }
+          ],
+          "views": [
+            {
+              "name": "Home",
+              "kind": "composite",
+              "fields": ["Title", "Archived"],
+              "presentation": {
+                "sections": [
+                  {
+                    "name": "Main",
+                    "lists": [
+                      {
+                        "name": "Notes",
+                        "sourceKind": "object",
+                        "source": "Note",
+                        "fields": ["Title", "Archived"],
+                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "actions": [
+                          {
+                            "name": "archiveRow",
+                            "kind": "action",
+                            "label": "Archive",
+                            "command": "ArchiveNote",
+                            "input": { "NoteId": { "kind": "field", "field": "id" } }
+                          }
+                        ],
+                        "row": { "fragments": [{ "kind": "field", "field": "Title" }] }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "ArchiveNote",
+          "inputs": [{ "name": "NoteId", "type": "text", "required": true }],
+          "steps": [
+            {
+              "name": "archiveNote",
+              "action": "update",
+              "object": "Note",
+              "recordId": { "kind": "input", "name": "NoteId" },
+              "patch": { "Archived": { "kind": "literal", "value": true } }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "NotePolicy",
+          "object": "Note",
+          "rules": [
+            {
+              "name": "allowAdminAllNoteActions",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
     }
   },
   "cases": [
@@ -984,6 +1059,110 @@
             "path": "objects[0].views[0].presentation.sections[0].lists[0].row.fragments[0].icon.map"
           }
         ]
+      }
+    },
+    {
+      "id": "presentation.row-action-uses-record-identity",
+      "title": "A row action's INPUT FROM id resolves to that row's own record, not a shared or projected value",
+      "specRef": "runtime-semantics#presentation-evaluation",
+      "operation": "evaluatePresentationView",
+      "modelRef": "rowIdentityPresentation",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note-alpha",
+          "objectName": "Note",
+          "values": { "Title": "Alpha", "Archived": false },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "alias": "note-beta",
+          "objectName": "Note",
+          "values": { "Title": "Beta", "Archived": false },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "objectName": "Note",
+        "viewName": "Home",
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "sections": [
+            {
+              "name": "Main",
+              "lists": [
+                {
+                  "name": "Notes",
+                  "rows": [
+                    {
+                      "values": { "Title": "Alpha" },
+                      "actions": [
+                        {
+                          "name": "archiveRow",
+                          "input": { "NoteId": "$note-alpha" }
+                        }
+                      ]
+                    },
+                    {
+                      "values": { "Title": "Beta" },
+                      "actions": [
+                        {
+                          "name": "archiveRow",
+                          "input": { "NoteId": "$note-beta" }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "presentation.row-action-record-identity-targets-correct-record",
+      "title": "Invoking a command with the identity a row action resolved updates exactly that record",
+      "specRef": "runtime-semantics#commands",
+      "operation": "executeCommand",
+      "modelRef": "rowIdentityPresentation",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "note-alpha",
+          "objectName": "Note",
+          "values": { "Title": "Alpha", "Archived": false },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        },
+        {
+          "operation": "create",
+          "alias": "note-beta",
+          "objectName": "Note",
+          "values": { "Title": "Beta", "Archived": false },
+          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        }
+      ],
+      "input": {
+        "commandName": "ArchiveNote",
+        "input": { "NoteId": { "$ref": "note-alpha.meta.guid" } },
+        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "archiveNote",
+              "objectName": "Note",
+              "recordId": "$note-alpha",
+              "values": { "Title": "Alpha", "Archived": true }
+            }
+          ]
+        }
       }
     }
   ]

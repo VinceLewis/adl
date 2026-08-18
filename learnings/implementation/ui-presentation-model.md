@@ -137,7 +137,67 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   current drawer navigation is a generic convention, not an authored shell
   declaration.
 
-## A row-scoped presentation ACTION cannot target an existing record by id
+## A row-scoped presentation ACTION can target its own record's identity (Phase 69)
+
+Phase 69 closed the gap recorded below. `INPUT NoteId FROM id` inside a `LIST`
+row `ACTION` now resolves `id` to that row's own real storage id, for both an
+`OBJECT`-backed and a `READ_MODEL`-backed list. The rest of this section is
+kept as the evidence trail; the fix is described first.
+
+- **Mechanism: reuse `RECORD_ID_JOIN_FIELD` (`"id"`), the token this codebase
+  already reserves for "this record's own id" inside a `JOIN ON` clause, as a
+  row-action-only expression field.** One name, one meaning, everywhere a
+  resolved model can name a record's own identity — rather than inventing a
+  second spelling for the same concept.
+- **Runtime:** `presentation-runtime.ts`'s `rowActionValues(row)` returns
+  `{ ...row.values, [RECORD_ID_JOIN_FIELD]: row.sources[0]?.recordId }`, and
+  `evaluateRow`'s row-action loop passes this instead of raw `row.values` to
+  `evaluateActionControl` — so both a row action's `INPUT ... FROM <expr>`
+  and its `WHEN <expr>` can see `id`.
+- **`row.sources[0].recordId`, never `row.id`.** `BoundPresentationRow.id` is
+  a synthetic display/sort key (`"Object:guid"` for an object row,
+  `"readModel:source:guid|..."` for a read-model row) that no command step's
+  `ID INPUT` could ever resolve to a real record — `CommandService`'s
+  `evaluateRecordIdExpression`/`ObjectStore.getRecordForRuntime` need the raw
+  `meta.guid`. `sources[0]` is always the row's primary source (an object row
+  has exactly one; a read-model row's first declared source is already the
+  documented primary — see the Phase 15 section above), and its `recordId` is
+  that raw guid.
+- **Validation matches runtime exactly, and only for row actions.**
+  `validate-model.ts`'s `validatePresentationList` builds a *separate*
+  field-reference map — the existing `expressionFieldsByName` plus `id` — and
+  passes it only to `validatePresentationActionControl` for `list.actions`.
+  `list.filter` and `validatePresentationRowTemplate` (row fragments) keep the
+  original map without `id`, because the runtime genuinely does not populate
+  `id` for those evaluation contexts — only for row actions. Giving `id` to
+  every row-scoped expression consumer instead of only actions was
+  considered and rejected: it would have been compile-time acceptance for
+  something the runtime does not actually do outside actions, exactly the
+  "validated but inert" trap `read-model-runtime.md`'s Phase 68 section
+  describes for `LOOKUP ... TARGET_FIELD`.
+- **No parser change.** Any identifier already parsed as `{ kind: "field",
+  field: <name> }` with no reserved-word list — `id` needed no grammar work at
+  all, only resolved-model/runtime/validator wiring. Confirmed by a parser
+  test that pins the AST shape independent of the runtime/validator fix.
+- **Deliberately not touched:** `list.filter`, `ROW` fragments, matrix cell
+  expressions, and calendar cell/action expressions still cannot see a row's
+  identity. Matrix cells already have direct record access through a
+  different mechanism (`matrixCellRecord`, keyed off `cell.sources`) and
+  calendar cell actions are aggregate/create-shaped by design (see the Phase
+  15/22 sections above); neither needed this change. If a future need arises
+  for `list.filter`/`ROW` to reference `id` too, extend `rowActionValues`'s
+  merge to those call sites rather than inventing a second mechanism.
+- **Left open, evaluated and explicitly scoped out:** a related but separate
+  gap — `COMMAND`/`STEP` has no way to read an *existing* record's fields to
+  seed a new record, only `create`/`update` step kinds and a create step's
+  `STEP x FIELD y` (which only reaches an earlier step *this same command*
+  wrote). This is a genuinely different capability (new
+  `ResolvedCommandValueExpression` kind, parser syntax, validation, and
+  runtime evaluation inside `CommandService`, not an extension of
+  `rowActionValues`) and was not built in Phase 69. See
+  `docs/phases/phase-69-row-action-record-identity.md`.
+
+### Original gap (Phase 65-era), preserved as evidence
 
 Found while adding a "revoke invitation" admin surface to the Giggle Band
 reference app: a `LIST` row's `ACTION ... COMMAND <name> ... INPUT <name>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApplicationRuntime, resolveApplicationModel } from "../src/index.js";
+import { ApplicationRuntime, evaluateExpression, resolveApplicationModel } from "../src/index.js";
 import type { RuntimeContext } from "../src/index.js";
 import { createBandReferenceRuntime, seedBandReferenceRuntime } from "../src/reference/band-app.js";
 
@@ -310,6 +310,93 @@ describe("presentation runtime", () => {
         enabled: true,
       }),
     ]);
+  });
+
+  it("threads an object-backed row's own record identity into its ACTION INPUT, targeting the right record", async () => {
+    const context: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "api",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(createRowIdentityObjectModel());
+    const alpha = await runtime.create("Note", { Title: "Alpha", Archived: false }, context);
+    const beta = await runtime.create("Note", { Title: "Beta", Archived: false }, context);
+
+    const view = await runtime.evaluatePresentationView("Note", "Home", context);
+    const rows = view.sections[0]?.lists[0]?.rows ?? [];
+    const alphaRow = rows.find((row) => row.values.Title === "Alpha");
+    const betaRow = rows.find((row) => row.values.Title === "Beta");
+    const alphaAction = alphaRow?.actions.find((action) => action.name === "archiveRow");
+    const betaAction = betaRow?.actions.find((action) => action.name === "archiveRow");
+
+    // The fix: `id` resolves to this row's own real record id, and two rows
+    // bound to different records resolve to two different ids rather than
+    // both collapsing onto the same value.
+    expect(alphaAction?.input).toEqual({ NoteId: alpha.meta.guid });
+    expect(betaAction?.input).toEqual({ NoteId: beta.meta.guid });
+    expect(alphaAction?.input.NoteId).not.toBe(betaAction?.input.NoteId);
+
+    // Regression guard: before this fix, `evaluateActionInput` evaluated
+    // `INPUT ... FROM <expr>` against `{ values: row.values, ...state }`
+    // only — the same raw projected values a row's fragments/status see, with
+    // no `id` key at all. Evaluating the same `field: "id"` expression
+    // against those raw values (rather than the identity-augmented values
+    // this fix adds) is exactly what the old code path did, and it resolves
+    // to null: the record's own id was genuinely unreachable from an ACTION
+    // INPUT expression, not merely un-tested.
+    expect(Object.keys(alphaRow?.values ?? {})).not.toContain("id");
+    const oldPathResult = evaluateExpression(
+      { kind: "field", field: "id" },
+      { values: alphaRow?.values ?? {}, context },
+    );
+    expect(oldPathResult).toEqual({ ok: true, value: { kind: "null", value: null } });
+
+    // End-to-end: invoking the command with exactly the input the row action
+    // computed archives the record the row was rendered from, and no other.
+    if (alphaAction?.input === undefined) {
+      throw new Error("expected alphaAction input");
+    }
+    await runtime.executeCommand("ArchiveNote", alphaAction.input, context);
+    const [archivedAlpha, untouchedBeta] = await Promise.all([
+      runtime.read("Note", alpha.meta.guid, context),
+      runtime.read("Note", beta.meta.guid, context),
+    ]);
+    expect(archivedAlpha?.values.Archived).toBe(true);
+    expect(untouchedBeta?.values.Archived).toBe(false);
+  });
+
+  it("threads a read-model-backed row's own record identity into its ACTION INPUT, targeting the right record", async () => {
+    const context: RuntimeContext = {
+      userId: "admin",
+      roles: ["Admin"],
+      channel: "api",
+      now: new Date("2026-07-07T08:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(createRowIdentityReadModelModel());
+    const taskA = await runtime.create("Task", { Title: "Write phase doc", Done: false }, context);
+    const taskB = await runtime.create("Task", { Title: "Ship it", Done: false }, context);
+
+    const view = await runtime.evaluatePresentationView("Task", "Home", context);
+    const rows = view.sections[0]?.lists[0]?.rows ?? [];
+    const rowA = rows.find((row) => row.values.Title === "Write phase doc");
+    const rowB = rows.find((row) => row.values.Title === "Ship it");
+    const actionA = rowA?.actions.find((action) => action.name === "completeRow");
+    const actionB = rowB?.actions.find((action) => action.name === "completeRow");
+
+    expect(actionA?.input).toEqual({ TaskId: taskA.meta.guid });
+    expect(actionB?.input).toEqual({ TaskId: taskB.meta.guid });
+
+    if (actionA?.input === undefined) {
+      throw new Error("expected actionA input");
+    }
+    await runtime.executeCommand("CompleteTask", actionA.input, context);
+    const [completedA, untouchedB] = await Promise.all([
+      runtime.read("Task", taskA.meta.guid, context),
+      runtime.read("Task", taskB.meta.guid, context),
+    ]);
+    expect(completedA?.values.Done).toBe(true);
+    expect(untouchedB?.values.Done).toBe(false);
   });
 
   it("evaluates availability matrices with policy-shaped editability and derived statuses", async () => {
@@ -768,6 +855,175 @@ function createActionPresentationModel() {
         rules: [
           {
             name: "allowAdminAllNoteActions",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createRowIdentityObjectModel() {
+  return resolveApplicationModel({
+    app: {
+      name: "RowIdentityObjectDemo",
+      startView: "Home",
+    },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Note",
+        fields: [
+          { name: "Title", type: "text", required: true },
+          { name: "Archived", type: "boolean", defaultValue: false },
+        ],
+        views: [
+          {
+            name: "Home",
+            kind: "composite",
+            fields: ["Title", "Archived"],
+            presentation: {
+              sections: [
+                {
+                  name: "Main",
+                  lists: [
+                    {
+                      name: "Notes",
+                      sourceKind: "object",
+                      source: "Note",
+                      fields: ["Title", "Archived"],
+                      sort: [{ field: "Title", direction: "asc" }],
+                      actions: [
+                        {
+                          name: "archiveRow",
+                          kind: "action",
+                          label: "Archive",
+                          command: "ArchiveNote",
+                          input: { NoteId: { kind: "field", field: "id" } },
+                        },
+                      ],
+                      row: { fragments: [{ kind: "field", field: "Title" }] },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "ArchiveNote",
+        inputs: [{ name: "NoteId", type: "text", required: true }],
+        steps: [
+          {
+            name: "archiveNote",
+            action: "update",
+            object: "Note",
+            recordId: { kind: "input", name: "NoteId" },
+            patch: { Archived: { kind: "literal", value: true } },
+          },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "NotePolicy",
+        object: "Note",
+        rules: [
+          {
+            name: "allowAdminAllNoteActions",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createRowIdentityReadModelModel() {
+  return resolveApplicationModel({
+    app: {
+      name: "RowIdentityReadModelDemo",
+      startView: "Home",
+    },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Task",
+        fields: [
+          { name: "Title", type: "text", required: true },
+          { name: "Done", type: "boolean", defaultValue: false },
+        ],
+        views: [
+          {
+            name: "Home",
+            kind: "composite",
+            fields: ["Title", "Done"],
+            presentation: {
+              sections: [
+                {
+                  name: "Main",
+                  lists: [
+                    {
+                      name: "Tasks",
+                      sourceKind: "readModel",
+                      source: "TaskFeed",
+                      fields: ["Title"],
+                      sort: [{ field: "Title", direction: "asc" }],
+                      actions: [
+                        {
+                          name: "completeRow",
+                          kind: "action",
+                          label: "Complete",
+                          command: "CompleteTask",
+                          input: { TaskId: { kind: "field", field: "id" } },
+                        },
+                      ],
+                      row: { fragments: [{ kind: "field", field: "Title" }] },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    readModels: [
+      {
+        name: "TaskFeed",
+        sources: [{ name: "task", object: "Task", scope: "all" }],
+        fields: [{ name: "Title", source: "task", field: "Title" }],
+      },
+    ],
+    commands: [
+      {
+        name: "CompleteTask",
+        inputs: [{ name: "TaskId", type: "text", required: true }],
+        steps: [
+          {
+            name: "completeTask",
+            action: "update",
+            object: "Task",
+            recordId: { kind: "input", name: "TaskId" },
+            patch: { Done: { kind: "literal", value: true } },
+          },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "TaskPolicy",
+        object: "Task",
+        rules: [
+          {
+            name: "allowAdminAllTaskActions",
             effect: "allow",
             principal: { match: "specific", roles: ["Admin"] },
             action: "*",
