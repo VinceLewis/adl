@@ -25,7 +25,9 @@
             "userField": "User",
             "contextField": "Band",
             "roleField": "Role",
-            "roles": ["BandMember"]
+            "roles": [
+              "BandMember"
+            ]
           }
         }
       ],
@@ -303,7 +305,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -334,7 +338,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -365,7 +371,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -396,7 +404,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -455,7 +465,9 @@
             "userField": "User",
             "contextField": "Band",
             "roleField": "Role",
-            "roles": ["BandMember"]
+            "roles": [
+              "BandMember"
+            ]
           }
         }
       ],
@@ -733,7 +745,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -764,7 +778,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -795,7 +811,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -826,7 +844,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -874,7 +894,9 @@
             "userField": "User",
             "contextField": "Band",
             "roleField": "Role",
-            "roles": ["BandMember"]
+            "roles": [
+              "BandMember"
+            ]
           }
         }
       ],
@@ -1152,7 +1174,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1183,7 +1207,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1214,7 +1240,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1245,7 +1273,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1296,7 +1326,9 @@
             "userField": "User",
             "contextField": "Band",
             "roleField": "Role",
-            "roles": ["BandMember"]
+            "roles": [
+              "BandMember"
+            ]
           }
         }
       ],
@@ -1574,7 +1606,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1597,7 +1631,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1628,7 +1664,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1659,7 +1697,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -1718,7 +1758,9 @@
             "userField": "User",
             "contextField": "Band",
             "roleField": "Role",
-            "roles": ["BandMember"]
+            "roles": [
+              "BandMember"
+            ]
           }
         }
       ],
@@ -1996,7 +2038,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -2027,7 +2071,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -2050,7 +2096,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -2081,7 +2129,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["SystemAdmin"]
+                "roles": [
+                  "SystemAdmin"
+                ]
               },
               "action": "*"
             },
@@ -2115,6 +2165,320 @@
           ]
         }
       ]
+    },
+    "readModelJoinsTargetField": {
+      "app": {
+        "name": "ReadModelJoinsTargetField"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Author",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Code",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "constraints": [
+            {
+              "name": "uniqueAuthorCode",
+              "kind": "unique",
+              "fields": [
+                "Code"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Post",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "AuthorCode",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Author",
+                "targetField": "Code",
+                "displayField": "Name"
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "PostsWithAuthor",
+          "sources": [
+            {
+              "name": "post",
+              "object": "Post",
+              "scope": "all"
+            },
+            {
+              "name": "author",
+              "object": "Author",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Title",
+              "source": "post",
+              "field": "Title"
+            },
+            {
+              "name": "AuthorName",
+              "source": "author",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Title",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "AuthorPolicy",
+          "object": "Author",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAuthor",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchAuthor",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadAuthor",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "PostPolicy",
+          "object": "Post",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllPost",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchPost",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadPost",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "readModelJoinsTargetFieldUnsearchableAuthor": {
+      "app": {
+        "name": "ReadModelJoinsTargetFieldUnsearchableAuthor"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Author",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Code",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "constraints": [
+            {
+              "name": "uniqueAuthorCode",
+              "kind": "unique",
+              "fields": [
+                "Code"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Post",
+          "displayField": "Title",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "AuthorCode",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Author",
+                "targetField": "Code",
+                "displayField": "Name"
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "PostsWithAuthor",
+          "sources": [
+            {
+              "name": "post",
+              "object": "Post",
+              "scope": "all"
+            },
+            {
+              "name": "author",
+              "object": "Author",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Title",
+              "source": "post",
+              "field": "Title"
+            },
+            {
+              "name": "AuthorName",
+              "source": "author",
+              "field": "Name"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Title",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "AuthorPolicy",
+          "object": "Author",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllAuthor",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadAuthor",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "PostPolicy",
+          "object": "Post",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllPost",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchPost",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadPost",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        }
+      ]
     }
   },
   "cases": [
@@ -2134,7 +2498,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2148,7 +2514,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2162,7 +2530,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2176,7 +2546,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2190,7 +2562,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2204,7 +2578,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2218,7 +2594,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2239,7 +2617,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2265,7 +2645,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2291,7 +2673,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2317,7 +2701,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2343,7 +2729,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2369,7 +2757,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2392,7 +2782,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2410,7 +2802,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2428,7 +2822,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2446,7 +2842,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2464,7 +2862,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2477,7 +2877,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2584,7 +2986,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2598,7 +3002,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2612,7 +3018,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2626,7 +3034,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2640,7 +3050,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2654,7 +3066,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2668,7 +3082,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2689,7 +3105,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2715,7 +3133,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2741,7 +3161,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2767,7 +3189,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2793,7 +3217,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2819,7 +3245,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -2842,7 +3270,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2860,7 +3290,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2878,7 +3310,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2896,7 +3330,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2914,7 +3350,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -2927,7 +3365,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3013,7 +3453,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3027,7 +3469,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3041,7 +3485,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3055,7 +3501,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3069,7 +3517,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3083,7 +3533,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3097,7 +3549,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3118,7 +3572,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3144,7 +3600,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3170,7 +3628,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3196,7 +3656,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3222,7 +3684,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3248,7 +3712,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3271,7 +3737,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3289,7 +3757,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3307,7 +3777,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3325,7 +3797,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3343,7 +3817,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3356,7 +3832,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3424,7 +3902,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3438,7 +3918,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3452,7 +3934,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3466,7 +3950,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3480,7 +3966,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3494,7 +3982,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3508,7 +3998,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3529,7 +4021,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3555,7 +4049,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3581,7 +4077,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3607,7 +4105,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3633,7 +4133,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3659,7 +4161,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3682,7 +4186,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3700,7 +4206,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3718,7 +4226,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3736,7 +4246,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3754,7 +4266,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3767,7 +4281,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3859,7 +4375,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3873,7 +4391,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3887,7 +4407,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3901,7 +4423,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3915,7 +4439,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3929,7 +4455,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3943,7 +4471,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -3964,7 +4494,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -3990,7 +4522,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4016,7 +4550,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4042,7 +4578,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4068,7 +4606,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4094,7 +4634,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4117,7 +4659,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4135,7 +4679,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4153,7 +4699,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4171,7 +4719,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4189,7 +4739,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4202,7 +4754,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4294,7 +4848,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4308,7 +4864,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4322,7 +4880,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4336,7 +4896,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4350,7 +4912,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4364,7 +4928,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4378,7 +4944,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4399,7 +4967,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4425,7 +4995,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4451,7 +5023,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4477,7 +5051,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4503,7 +5079,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4529,7 +5107,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4552,7 +5132,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4570,7 +5152,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4588,7 +5172,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4606,7 +5192,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4624,7 +5212,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4637,7 +5227,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4702,7 +5294,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4716,7 +5310,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4730,7 +5326,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4744,7 +5342,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4758,7 +5358,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4772,7 +5374,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4786,7 +5390,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4807,7 +5413,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4833,7 +5441,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4859,7 +5469,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4885,7 +5497,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4911,7 +5525,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4937,7 +5553,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -4960,7 +5578,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4978,7 +5598,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -4996,7 +5618,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5014,7 +5638,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5032,7 +5658,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5045,7 +5673,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5117,7 +5747,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5131,7 +5763,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5145,7 +5779,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5159,7 +5795,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5173,7 +5811,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5187,7 +5827,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5201,7 +5843,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5222,7 +5866,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5248,7 +5894,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5274,7 +5922,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5300,7 +5950,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5326,7 +5978,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5352,7 +6006,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5375,7 +6031,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5393,7 +6051,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5411,7 +6071,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5429,7 +6091,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5447,7 +6111,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5460,7 +6126,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5504,7 +6172,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5518,7 +6188,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5532,7 +6204,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5546,7 +6220,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5560,7 +6236,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5574,7 +6252,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5588,7 +6268,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5609,7 +6291,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5635,7 +6319,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5661,7 +6347,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5687,7 +6375,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5713,7 +6403,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5739,7 +6431,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -5762,7 +6456,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5780,7 +6476,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5798,7 +6496,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5816,7 +6516,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5834,7 +6536,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5847,7 +6551,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5891,7 +6597,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5905,7 +6613,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5919,7 +6629,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5933,7 +6645,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5947,7 +6661,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5961,7 +6677,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5975,7 +6693,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -5996,7 +6716,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6022,7 +6744,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6048,7 +6772,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6074,7 +6800,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6100,7 +6828,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6126,7 +6856,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6149,7 +6881,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6167,7 +6901,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6185,7 +6921,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6203,7 +6941,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6221,7 +6961,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6234,7 +6976,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6342,7 +7086,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6356,7 +7102,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6370,7 +7118,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6384,7 +7134,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6398,7 +7150,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6412,7 +7166,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6426,7 +7182,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6447,7 +7205,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6473,7 +7233,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6499,7 +7261,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6525,7 +7289,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6551,7 +7317,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6577,7 +7345,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z",
             "selectedContexts": {
@@ -6600,7 +7370,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6618,7 +7390,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6636,7 +7410,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6654,7 +7430,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6672,7 +7450,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6685,7 +7465,9 @@
           },
           "context": {
             "userId": "system-admin",
-            "roles": ["SystemAdmin"],
+            "roles": [
+              "SystemAdmin"
+            ],
             "channel": "api",
             "now": "2026-08-07T08:00:00.000Z"
           }
@@ -6734,6 +7516,198 @@
               }
             }
           ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.target-field-lookup-resolves-by-named-field.001",
+      "title": "LOOKUP ... TARGET_FIELD resolves an implicit read-model join by the named field, not by the target record's own id",
+      "specRef": "language#field-validators",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoinsTargetField",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ada",
+          "objectName": "Author",
+          "values": {
+            "Name": "Ada Lovelace",
+            "Code": "AL-001"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-18T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "post",
+          "objectName": "Post",
+          "values": {
+            "Title": "On Analytical Engines",
+            "AuthorCode": "AL-001"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-18T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "PostsWithAuthor",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-18T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Title": "On Analytical Engines",
+                "AuthorName": "Ada Lovelace"
+              },
+              "sources": {
+                "post": {
+                  "objectName": "Post",
+                  "recordId": "$post"
+                },
+                "author": {
+                  "objectName": "Author",
+                  "recordId": "$ada"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.join.target-field-lookup-drops-when-no-field-match.002",
+      "title": "A TARGET_FIELD lookup with no matching target record drops the row rather than erroring",
+      "specRef": "language#field-validators",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoinsTargetField",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ada",
+          "objectName": "Author",
+          "values": {
+            "Name": "Ada Lovelace",
+            "Code": "AL-001"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-18T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "post",
+          "objectName": "Post",
+          "values": {
+            "Title": "Orphaned Post",
+            "AuthorCode": "does-not-exist"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-18T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "PostsWithAuthor",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-18T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": []
+        }
+      }
+    },
+    {
+      "id": "read-model.join.target-field-lookup-requires-search-on-target-object.003",
+      "title": "Matching a TARGET_FIELD lookup by field value is a search, so it is refused without the search action on the target object",
+      "specRef": "language#field-validators",
+      "operation": "executeReadModel",
+      "modelRef": "readModelJoinsTargetFieldUnsearchableAuthor",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "ada",
+          "objectName": "Author",
+          "values": {
+            "Name": "Ada Lovelace",
+            "Code": "AL-001"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-18T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "post",
+          "objectName": "Post",
+          "values": {
+            "Title": "On Analytical Engines",
+            "AuthorCode": "AL-001"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-18T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "PostsWithAuthor",
+        "context": {
+          "userId": "reader-1",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-18T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
         }
       }
     }

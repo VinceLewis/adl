@@ -130,11 +130,10 @@ FIELD EndDate DATE VALIDATE EndDate >= StartDate MESSAGE 'End date must be on or
   letters; it does not check membership in an actual ISO 4217 list.
 - `MAX_SIZE <n>` (attachment) bounds an approximate size of the field's stored
   value.
-- `MIME_TYPE <value>` (attachment) is meant to restrict an attachment to one
-  or more allowed MIME types. **A caveat worth knowing before relying on it.**
-  The parser only ever accepts a single literal here, but model validation
-  requires a non-empty list, so any `MIME_TYPE` declaration currently fails
-  `ADL_FIELD_VALIDATOR_VALUE_INVALID` at compile time.
+- `MIME_TYPE (<values>, ...)` (attachment) restricts an attachment to the
+  given set of allowed MIME types. Like `IN`, its value is always a
+  parenthesised, comma-separated list — even a single allowed type needs the
+  parentheses: `MIME_TYPE ('application/pdf')`.
 - `VALIDATE <expression> [MESSAGE '<text>']`, and its exact alias `PREDICATE
   <expression> [MESSAGE '<text>']`, run an [expression](#expressions) over the
   object's own fields and `RUNTIME.userId` / `RUNTIME.now`. Unlike an object
@@ -760,10 +759,27 @@ FIELD Song TEXT REQUIRED LOOKUP Song TARGET_FIELD Isrc DISPLAY Title
 ```
 
 `TARGET_FIELD` must name a field that exists on the target object
-(`ADL_LOOKUP_TARGET_FIELD_UNKNOWN`). **A caveat worth knowing before relying on
-it.** Every `LOOKUP` above, including this one, is resolved at runtime by
-reading the target record by its own identity, regardless of `TARGET_FIELD` —
-declaring it is currently validated but has no other runtime effect.
+(`ADL_LOOKUP_TARGET_FIELD_UNKNOWN`). A `LOOKUP` with no `TARGET_FIELD` stores
+the target record's own id, resolved by an identity read. A `LOOKUP` that
+declares `TARGET_FIELD` stores a natural key instead: the *implicit* join a
+read model source performs when it names no `JOIN` of its own (see
+[Read Models](resolved-model.md#read-models)) matches the target object's
+records by that field's value, not by id. `TARGET_FIELD` is meant for a
+target field the target object declares `UNIQUE`; model validation does not
+require this, so if more than one record shares the value, the match is
+whichever one a search of the target object happens to return first — the
+same ambiguity rule an explicitly declared `JOIN ... CARDINALITY one` already
+applies. Matching by field value is a search however it is spelled, so it is
+refused for a caller who may not `search` the target object, exactly like a
+declared join's candidate set.
+
+A caveat: a `LOOKUP` field's value is also read by identity in two other
+places that predate `TARGET_FIELD` and do not yet honour it — a "current
+user" read-model source scope matching a lookup field against
+`RUNTIME.userId`, and the browser UI's lookup-label display. Both degrade
+gracefully (a "current user" match that should hold does not, and a lookup
+label falls back to the raw stored value) rather than returning wrong data,
+but neither resolves a `TARGET_FIELD` lookup correctly yet.
 
 `EDIT_SECTION` is spelled differently from the composed-presentation `SECTION`
 because a view may declare both, and two different things cannot share one

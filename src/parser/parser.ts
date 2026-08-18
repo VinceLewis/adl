@@ -1303,7 +1303,7 @@ class AdlParser {
         );
       } else if (this.matchWord("MIME_TYPE")) {
         validators.push(
-          this.validator("mimeType", this.previous(), this.consumeModifierValue("MIME_TYPE value")),
+          this.validator("mimeType", this.previous(), this.consumeValueList("MIME_TYPE values")),
         );
       } else if (this.matchWord("VALIDATE") || this.matchWord("PREDICATE")) {
         const validatorStart = this.previous();

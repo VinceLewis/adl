@@ -108,6 +108,30 @@ change would have meant new syntax, new parser tests, and a second place for the
 two rules to disagree. When adding a clause, parse the shape and let the
 validator decide whether the combination means anything.
 
+## Key decisions from Phase 68: `MIME_TYPE` parsed the wrong shape
+
+- `MIME_TYPE` used `consumeModifierValue` (one literal, optional parentheses —
+  the same helper `MIN`/`MAX`/`MIN_LENGTH`/`MAX_LENGTH`/`MAX_SIZE`/`DEFAULT`
+  use), but `validate-model.ts`'s `NAMED_VALIDATOR_RULES` already declared its
+  value shape as `"list"`, same as `IN`. The mismatch meant every `MIME_TYPE`
+  declaration failed `ADL_FIELD_VALIDATOR_VALUE_INVALID` unconditionally — a
+  validator that compiled to a shape the model itself would then refuse.
+- The fix is `MIME_TYPE` calling `consumeValueList` instead, matching `IN`'s
+  established list-value precedent exactly. When a parser clause's value
+  shape and a validator's declared expectation for that same value disagree,
+  check both sides before assuming one of them is correct: here the
+  validator, the runtime (`validation-engine.ts`'s `hasAllowedMimeType`
+  already handled an array), and even a JSON-authored conformance model
+  (`conformance/runtime/validation.json`'s `fieldValidators.Doc.validators`)
+  all agreed the value should be a list. Only the parser disagreed with
+  everything else, which is why it was the thing to fix.
+- A JSON-authored conformance model bypasses the parser entirely (it is a
+  `PartialApplicationModel` fed directly to `resolveApplicationModel`), so it
+  cannot catch a parser-only defect like this one no matter how thorough its
+  runtime coverage is. A parser bug needs a parser-level test
+  (`parseAdl`/`compileAdl` over real ADL source text), not another
+  resolved-model-JSON conformance case.
+
 ## Practical guidance
 
 - Keep parser syntax declarative. Unsupported procedural keywords such as `FETCH`, `STORE`, `LOOP`, `SET`, `DART.INLINE`, and `SQL.INTO` should remain rejected.

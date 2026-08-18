@@ -338,16 +338,31 @@ export class ReadModelService {
     context: RuntimeContext,
   ): Promise<StoredObjectRecord | undefined> {
     const object = this.index.getObject(source.object);
-    const recordId =
-      this.getCurrentUserSourceRecordId(source, object, context) ??
-      this.findRelatedRecordId(object, sourceRecords);
+    const currentUserRecordId = this.getCurrentUserSourceRecordId(source, object, context);
 
-    if (recordId === undefined) {
-      return undefined;
+    let record: StoredObjectRecord | undefined;
+
+    if (currentUserRecordId !== undefined) {
+      record = await this.readLookupTargetById(object, currentUserRecordId);
+    } else {
+      const related = this.findRelatedLookupMatch(object, sourceRecords);
+      if (related === undefined) {
+        return undefined;
+      }
+
+      record =
+        related.targetField === undefined
+          ? await this.readLookupTargetById(object, related.value)
+          : await this.findLookupTargetByField(
+              readModel,
+              source,
+              related.targetField,
+              related.value,
+              context,
+            );
     }
 
-    const record = await this.storage.read(object.name, recordId);
-    if (record === null || record.meta.deletedAt !== undefined) {
+    if (record === undefined) {
       return undefined;
     }
 
@@ -356,6 +371,43 @@ export class ReadModelService {
     }
 
     return this.canReadSourceRecord(object, record, context) ? record : undefined;
+  }
+
+  private async readLookupTargetById(
+    object: ResolvedObject,
+    recordId: string,
+  ): Promise<StoredObjectRecord | undefined> {
+    const record = await this.storage.read(object.name, recordId);
+    return record === null || record.meta.deletedAt !== undefined ? undefined : record;
+  }
+
+  /**
+   * A `LOOKUP ... TARGET_FIELD` value is a natural-key match rather than an
+   * identity read: the stored value is compared against the named field on
+   * every candidate record instead of being read by record id. Matching by
+   * field value is a search however it is spelled, so — exactly like a
+   * declared join's candidate set in `applyDeclaredJoinedSource` — it clears
+   * the `search` action, the object-scope search check, the source scope
+   * check, and the per-record read policy before a single record can reach a
+   * row; a caller who may not search the target object is refused here, not
+   * quietly given a match.
+   *
+   * `TARGET_FIELD` is documented as expecting the target object to declare
+   * that field unique, but nothing enforces that at compile time. If more
+   * than one candidate matches, the first one in search order wins — the same
+   * ambiguity rule a declared join already applies for `cardinality: "one"`
+   * (`applyDeclaredJoinedSource`, `matches[0]`) — rather than throwing or
+   * returning a record nobody asked for.
+   */
+  private async findLookupTargetByField(
+    readModel: ResolvedReadModel,
+    source: ResolvedReadModelSource,
+    targetField: string,
+    value: string,
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord | undefined> {
+    const candidates = await this.searchAuthorisedSourceRecords(readModel, source, context);
+    return candidates.find((candidate) => candidate.values[targetField] === value);
   }
 
   private getCurrentUserSourceRecordId(
@@ -375,10 +427,16 @@ export class ReadModelService {
       : undefined;
   }
 
-  private findRelatedRecordId(
+  /**
+   * Finds the value an upstream source's lookup field points at `targetObject`
+   * with, plus the lookup's `targetField` when it declares one. `targetField`
+   * absent means the value is the target record's own id, matching every
+   * `LOOKUP` declared before Phase 68.
+   */
+  private findRelatedLookupMatch(
     targetObject: ResolvedObject,
     sourceRecords: Map<string, StoredObjectRecord>,
-  ): string | undefined {
+  ): { value: string; targetField?: string } | undefined {
     for (const record of sourceRecords.values()) {
       const sourceObject = this.index.getObject(record.meta.object);
       for (const field of sourceObject.fields) {
@@ -388,7 +446,12 @@ export class ReadModelService {
 
         const value = record.values[field.name];
         if (typeof value === "string" && value.length > 0) {
-          return value;
+          return {
+            value,
+            ...(field.lookup.targetField === undefined
+              ? {}
+              : { targetField: field.lookup.targetField }),
+          };
         }
       }
     }

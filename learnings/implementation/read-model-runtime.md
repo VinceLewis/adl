@@ -34,8 +34,64 @@ Read this before changing read-model execution, read-model-backed dashboards, re
   the bound on the source and reuse the Phase 62 `WINDOW` shape. Do not reopen
   the rule that an undeclared source inherits the object's bound.
 
+## Key decisions from Phase 68: `LOOKUP ... TARGET_FIELD` was dead code
+
+- `TARGET_FIELD` was validated at compile time
+  (`ADL_LOOKUP_TARGET_FIELD_UNKNOWN` in `validate-model.ts`) and carried all
+  the way into `ResolvedLookup.targetField`, but nothing at runtime ever
+  branched on it. The one place a lookup field's *value* gets resolved to a
+  target *record* — as opposed to merely naming a target *object* — is
+  `ReadModelService.resolveJoinedSource`, used for a read-model source that
+  declares no explicit `JOIN` (the "implicit lookup join" described in the
+  Phase 15 section above). It always did an identity `storage.read`,
+  regardless of `targetField`. A feature can be validated end-to-end and still
+  be completely inert if the one runtime consumer of the field never checks
+  it — grep for every reader of a resolved-model field before trusting that a
+  compile-time check implies a load-bearing runtime effect.
+- The fix keeps the identity path byte-for-byte identical (`readLookupTargetById`
+  is exactly the old inline `storage.read` + null/`deletedAt` check, pulled
+  into its own method) and adds a second path,
+  `findLookupTargetByField`, taken only when the lookup that produced the
+  value declared `targetField`. That path reuses
+  `searchAuthorisedSourceRecords` — the same authorised candidate set a
+  declared join already loads — rather than inventing a second way to load
+  and filter records.
+- **Matching by field value is a search, whichever feature spells it.**
+  `applyDeclaredJoinedSource`'s own comment already made this argument for a
+  declared `JOIN`: loading candidates to match by field value must clear the
+  `search` policy action, not just `read`, or a caller who may not enumerate
+  an object could still fish records out of it one field-match at a time.
+  `TARGET_FIELD` resolution is the same operation and now clears the same
+  gate — proven by
+  `read-model.join.target-field-lookup-requires-search-on-target-object.003`
+  in `conformance/runtime/read-model-joins.json`, which mirrors cases `.008`
+  and `.009` for declared joins.
+- **Ambiguity gets the same answer this file already gives a declared join.**
+  `TARGET_FIELD`'s value is documented as expecting the target field to be
+  `UNIQUE` on the target object, but nothing enforces that at compile time —
+  deliberately, because `applyDeclaredJoinedSource`'s `cardinality: "one"`
+  makes the identical bet (`matches[0]`, no validation that the join key is
+  actually unique) and there is no reason for the two features to disagree.
+  If a future phase wants to close this gap, close it for both at once rather
+  than making one of two structurally identical operations stricter than the
+  other.
+- **Two identity-only `LOOKUP` consumers were found and deliberately left
+  alone.** `recordMatchesCurrentUser` (this file and its
+  `OfflineDatasetService` equivalent) matches a lookup field's raw value
+  against `context.userId` for `currentUser` scope, and the browser UI's
+  lookup-label display (`adl-list-view.ts`, `adl-form-view.ts`) reads a lookup
+  field's target by identity to show a label. Both predate `TARGET_FIELD` and
+  neither honours it; both degrade gracefully rather than returning wrong
+  data (a "current user" match silently fails; a UI label falls back to the
+  raw stored value). Fixing them was out of scope for Phase 68 — see that
+  phase's Non-goals — and they remain a known, undocumented-until-now gap for
+  whoever declares `TARGET_FIELD` next.
+
 ## Practical guidance
 
 - Add new read-model behavior through resolved-model declarations and `ReadModelService`; keep parser syntax and backend execution strategies separate.
 - When adding source scopes or dataset selection, preserve the distinction between dataset membership and policy authorization. A record being in a local dataset must not imply the user can read it.
 - If future phases need multi-object event feeds, extend the read-model declaration shape explicitly rather than overloading the current lookup-join behavior.
+- Before trusting that a resolved-model field is load-bearing, grep every
+  runtime reader of it, not just the validator. `TARGET_FIELD` proves a field
+  can be fully compile-time-checked and still be dead at runtime.
