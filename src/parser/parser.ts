@@ -3743,13 +3743,13 @@ class AdlParser {
     let establishesContext: string | undefined;
 
     while (!this.isLineEnd()) {
-      if (this.matchWord("AUTHORITY")) {
+      if (action !== "read" && this.matchWord("AUTHORITY")) {
         authority = this.parseCommandStepAuthority();
       } else if (this.matchWord("ID") || this.matchWord("RECORD")) {
         recordId = this.parseCommandValueExpression();
-      } else if (this.matchWord("FOR_EACH")) {
+      } else if (action !== "read" && this.matchWord("FOR_EACH")) {
         forEach = this.consumeName("command step FOR_EACH input name");
-      } else if (this.matchWord("FOR")) {
+      } else if (action !== "read" && this.matchWord("FOR")) {
         // `FOR EACH` as two words reads better in source; `FOR_EACH` is the
         // same clause spelled as one, like ACTIVE_WHEN and TOP_BAR elsewhere.
         this.expectWord("EACH", "command step FOR EACH clause");
@@ -3761,7 +3761,9 @@ class AdlParser {
         this.failUnexpected(
           action === "create"
             ? "COMMAND STEP header option AUTHORITY, ID, FOR EACH, ESTABLISHES CONTEXT, or end of line"
-            : "COMMAND STEP header option AUTHORITY, ID, FOR EACH, or end of line",
+            : action === "read"
+              ? "COMMAND STEP header option ID or end of line"
+              : "COMMAND STEP header option AUTHORITY, ID, FOR EACH, or end of line",
         );
       }
     }
@@ -3795,7 +3797,12 @@ class AdlParser {
         };
       }
 
-      if (this.matchWord("VALUE") || this.matchWord("SET") || this.matchWord("PATCH")) {
+      // A read step writes nothing, so it has no VALUE/SET/PATCH directive —
+      // only REQUIRE, evaluated against the record it read, and END.STEP.
+      if (
+        action !== "read" &&
+        (this.matchWord("VALUE") || this.matchWord("SET") || this.matchWord("PATCH"))
+      ) {
         const field = this.consumeName("command step field name");
         if (this.matchSymbol("=")) {
           // Optional readability separator.
@@ -3806,12 +3813,16 @@ class AdlParser {
         preconditions.push(this.parseExpressionUntil(new Set()));
         this.consumeLineEnd("COMMAND STEP REQUIRE directive");
       } else {
-        this.failUnexpected("COMMAND STEP directive VALUE, SET, PATCH, REQUIRE, or END.STEP");
+        this.failUnexpected(
+          action === "read"
+            ? "COMMAND STEP directive REQUIRE or END.STEP"
+            : "COMMAND STEP directive VALUE, SET, PATCH, REQUIRE, or END.STEP",
+        );
       }
     }
   }
 
-  private parseCommandStepAction(): "create" | "update" {
+  private parseCommandStepAction(): "create" | "update" | "read" {
     const raw = normaliseKeyword(this.consumeName("command step action"));
     if (raw === "create") {
       return "create";
@@ -3819,7 +3830,10 @@ class AdlParser {
     if (raw === "update") {
       return "update";
     }
-    this.failExpected("command step action CREATE or UPDATE", this.previous());
+    if (raw === "read") {
+      return "read";
+    }
+    this.failExpected("command step action CREATE, UPDATE, or READ", this.previous());
   }
 
   private parseCommandStepAuthority(): CommandStepAuthority {

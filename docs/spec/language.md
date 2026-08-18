@@ -946,6 +946,54 @@ intent handles the whole command in one transaction and works correctly; what
 does not yet exist is a client that emits one. See
 `tests/command-authority-replay.test.ts`, which pins both halves.
 
+### Reading an existing record
+
+A step may `READ` an existing record instead of writing one, and bind it under
+the step's own name for later steps to draw from:
+
+```adl
+COMMAND DuplicateEvent LABEL 'Duplicate event'
+  INPUT SourceEventId TEXT REQUIRED
+  INPUT NewDate DATE REQUIRED
+  STEP source READ Event ID INPUT SourceEventId
+  END.STEP
+  STEP duplicate CREATE Event AUTHORITY command
+    VALUE VenueName STEP source FIELD VenueName
+    VALUE ContactName STEP source FIELD ContactName
+    VALUE EventDate INPUT NewDate
+  END.STEP
+END.COMMAND
+```
+
+A later step reads a `READ` step's bound fields the identical way it already
+reads a `create`/`update` step's own written record: `STEP <name> FIELD
+<field>` or `STEP <name> META <property>`. There is no separate expression kind
+for "a field of a record a READ step bound" — a `READ` step's binding and a
+`create`/`update` step's own written record are the same kind of thing to a
+later step's value expressions, so they share the one reference syntax.
+
+A `READ` step's header takes only `ID <expr>`: no `AUTHORITY`, no `FOR EACH`,
+and its body accepts only `REQUIRE` (evaluated against the record it read, the
+same as any other step precondition) and `END.STEP` — never `VALUE`, `SET`, or
+`PATCH`, because a read step writes nothing.
+
+`AUTHORITY` does not apply to a `READ` step because there is no write for it to
+authorize. A `READ` step always goes through the caller's own read policy —
+object scope, row policy, and field-level masking — the identical path a direct
+API/UI read of the same record would take. It cannot see more of the source
+record than the caller could see by reading it directly, and there is no
+`AUTHORITY command` equivalent that would let it.
+
+A step's value expressions may only reference a `READ` step (or any other step)
+that executes *earlier* in the same command; referencing one that has not run
+yet, or does not exist, is refused at validation
+(`ADL_COMMAND_STEP_REFERENCE_UNKNOWN`) rather than left to fail at runtime.
+
+**Failure is whole-command failure**, matching every other step: a `READ`
+step's target record not existing, or being denied by policy, fails the command
+before any write is planned or committed — there is no partial result and
+nothing already written by an earlier step in the same command survives.
+
 ## Model Versions And Migrations
 
 A model declares its version with `MODEL_VERSION` in the `APP` block, and

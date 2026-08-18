@@ -1566,6 +1566,16 @@ function resolveCommandStep(input: PartialCommandStepModel): ResolvedCommandStep
     };
   }
 
+  if (input.action === "read") {
+    return {
+      name: input.name,
+      action: "read",
+      object: input.object,
+      recordId: cloneCommandValueExpression(input.recordId),
+      preconditions: (input.preconditions ?? []).map(resolveExpression),
+    };
+  }
+
   return {
     name: input.name,
     action: "create",

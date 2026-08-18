@@ -1770,6 +1770,56 @@ END.OBJECT
     );
   });
 
+  it("accepts a command READ step and a later step's reference to its bound field", () => {
+    const resolved = resolveApplicationModel(createReadStepPartialModel());
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
+  it("reports a command step value expression that forward-references a later READ step", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createReadStepPartialModel()));
+    const command = invalid.commands?.find((candidate) => candidate.name === "DuplicateEvent");
+    if (command === undefined) {
+      throw new Error("Expected DuplicateEvent read-step fixture.");
+    }
+    // Reverses step order, so the create step referencing `source` now runs
+    // *before* the read step it references — the same reference that is
+    // legal in declaration order becomes a forward reference here, and must
+    // be refused rather than crash at runtime.
+    command.steps.reverse();
+
+    expect(validateApplicationModel(invalid).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_REFERENCE_UNKNOWN,
+    );
+  });
+
+  it("reports an unknown field referenced from a command READ step's binding", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createReadStepPartialModel()));
+    const command = invalid.commands?.find((candidate) => candidate.name === "DuplicateEvent");
+    const duplicateStep = command?.steps[1];
+    if (duplicateStep === undefined || duplicateStep.action !== "create") {
+      throw new Error("Expected DuplicateEvent read-step fixture.");
+    }
+    duplicateStep.values.VenueName = { kind: "stepField", step: "source", field: "MissingField" };
+
+    expect(validateApplicationModel(invalid).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_FIELD_UNKNOWN,
+    );
+  });
+
+  it("reports a command READ step whose target object is unknown", () => {
+    const invalid = cloneResolved(resolveApplicationModel(createReadStepPartialModel()));
+    const command = invalid.commands?.find((candidate) => candidate.name === "DuplicateEvent");
+    const readStep = command?.steps[0];
+    if (readStep === undefined || readStep.action !== "read") {
+      throw new Error("Expected DuplicateEvent read-step fixture.");
+    }
+    readStep.object = "MissingObject";
+
+    expect(validateApplicationModel(invalid).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.COMMAND_STEP_OBJECT_UNKNOWN,
+    );
+  });
+
   it("reports a command whose steps disagree about sync queueability", () => {
     const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
     setObjectSyncMode(invalid, "BandMember", "localPrivate");
@@ -2275,6 +2325,55 @@ function createPresentationMatrixPartialModel(): PartialApplicationModel {
           { name: "User", type: "text" },
           { name: "Date", type: "date" },
           { name: "Status", type: "text" },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * A minimal command with a READ step and a later CREATE step that seeds one of
+ * its fields from it (`STEP source FIELD VenueName`) and overrides another from
+ * the command's own input (`EventDate`) instead of copying it.
+ */
+function createReadStepPartialModel(): PartialApplicationModel {
+  return {
+    app: { name: "ReadStepValidation" },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Event",
+        displayField: "VenueName",
+        fields: [
+          { name: "VenueName", type: "text", required: true },
+          { name: "EventDate", type: "date", required: true },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "DuplicateEvent",
+        inputs: [
+          { name: "SourceEventId", type: "text", required: true },
+          { name: "NewDate", type: "date", required: true },
+        ],
+        steps: [
+          {
+            name: "source",
+            action: "read",
+            object: "Event",
+            recordId: { kind: "input", name: "SourceEventId" },
+          },
+          {
+            name: "duplicate",
+            action: "create",
+            object: "Event",
+            authority: "command",
+            values: {
+              VenueName: { kind: "stepField", step: "source", field: "VenueName" },
+              EventDate: { kind: "input", name: "NewDate" },
+            },
+          },
         ],
       },
     ],

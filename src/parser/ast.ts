@@ -959,7 +959,7 @@ export interface CommandPreconditionDeclarationAst {
 export interface CommandStepDeclarationAst {
   kind: "CommandStepDeclaration";
   name: string;
-  action: "create" | "update";
+  action: "create" | "update" | "read";
   object: string;
   authority?: "caller" | "command";
   recordId?: ResolvedCommandValueExpression;

@@ -305,6 +305,38 @@ transaction, so it cannot hand a caller access to a context that already existed
 It confers no roles; the membership record a later step creates is what confers
 real access afterwards.
 
+### Reading an existing record
+
+A step's `action` may be `"read"` instead of `"create"`/`"update"`. A read step
+names a target object and a `recordId` expression, and binds the record it
+reads under the step's own name — the identical binding a `create`/`update`
+step's own written record already gets, so a later step reads it with the same
+`{ kind: "stepField" }` / `{ kind: "stepMeta" }` expressions, with no additional
+expression kind. A read step has no `authority`, `values`/`patch`, or `forEach`:
+it writes nothing, so there is nothing to authorize or iterate.
+
+A read step's `recordId` is validated as any other command value expression is,
+and is subject to the same forward-reference rule every step reference is: a
+value expression may reference a step (of any action) only if that step
+executes earlier in the command's declared step order. Referencing a step that
+has not yet run, or does not exist, is `ADL_COMMAND_STEP_REFERENCE_UNKNOWN`.
+
+At runtime a read step is executed through the identical policy-gated path a
+direct API/UI read of the same record takes: object scope, row policy, and
+field-level read shaping (mask/hidden) all apply. This is a deliberate
+constraint, not an implementation detail a conforming runtime is free to
+relax — a command must not be able to see more of an existing record than the
+caller invoking it could see by reading it directly, and `authority: "command"`
+(which lets a *write* step bypass the caller's own write policy) has no
+equivalent for a read step. A denied read, or a read of a record that does not
+exist, fails the whole command before any write is planned or committed —
+consistent with how any other step failure already aborts a command.
+
+A read step contributes no write and so does not appear in a command's written
+records, its operation-log entry, or its record-id manifest for authority
+replay: the manifest names only the records a command **creates**, and a read
+step creates nothing.
+
 ### Step sync modes
 
 A command's steps may write objects in different sync modes, but every step
@@ -323,6 +355,10 @@ reconnect; do not queue it and the steps that should have synced never do.
 The check is skipped when a step's object does not resolve or its declared mode
 is not a valid one, so it never stacks a second diagnostic on top of an existing
 error.
+
+A read step writes nothing and so has no write-delivery mode to disagree with
+the command's other steps about; it is excluded from this check entirely,
+whatever sync mode its own target object declares.
 
 ### Local operation kinds
 

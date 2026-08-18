@@ -67,6 +67,9 @@ split usually converged. Phase 56 made it stop converging:
   (`STEP x META guid`) resolves to the adopted id for free. A derived
   ordered-collection write is likewise an update on a record that already exists,
   so the manifest covers the *requested* writes only, never the expanded plan.
+  Phase 71's `read` step extends this the same way: it creates nothing, so it
+  never needs a manifest entry, and the positional/named matching below is
+  entirely unaffected by a command containing one. See [[command-read-steps]].
 - **Adoption reuses the Phase 48 create path, deliberately.**
   `CommandService.planStepWrite` passes the id to
   `ObjectStore.planCreateForTransaction`, so every Phase 48 guarantee applies per

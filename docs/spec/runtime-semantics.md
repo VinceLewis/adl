@@ -161,6 +161,47 @@ intent metadata: command name, optional command label, command step, and a share
 command transaction id. This lets replay, audit, and diagnostics preserve the
 business action without hiding the affected object records.
 
+### Read steps
+
+A `read` step is planned like any other step, in declared order, but it plans
+no write: it evaluates its `recordId` expression, then reads that record
+through the identical policy-gated path a direct API/UI read of the same
+record would take — object scope, row policy, and field-level read shaping
+(mask/hidden) all apply, exactly as `ObjectStore.read` already enforces for
+every other reader. A conforming runtime must not offer a read step any
+narrower or looser check than that path, and in particular must not let a
+read step's own step authority (there is none to declare) stand in for it.
+
+The record a read step reads is bound under the step's name for the remainder
+of the command, exactly as a `create`/`update` step's own written record is —
+a later step's value expressions read it with the same reference a
+`create`/`update` step's record already supports. A read step is otherwise
+inert: it contributes no entry to the transaction's planned writes, no
+operation-log entry, no audit event beyond the read audit `ObjectStore.read`
+itself already produces when the object's audit configuration includes
+`read`, and no entry in a command's written-records list or its record-id
+manifest for authority replay.
+
+**Failure is whole-command failure.** A read step's target record not
+existing, or the caller's read policy denying it, fails the command before any
+write is planned or committed, and any state a policy denial or a missing
+record would already disclose (row existence, masked fields) is disclosed no
+more than an equivalent direct read would disclose — a read step is not a way
+to probe for the existence of a record the caller could not otherwise read.
+This is not a new failure shape: it fails the same way an `update` step's own
+"does the target record still exist" check already fails a command, extended
+to a step whose only purpose is that check.
+
+**A read step's target is re-read at the point the step executes, whichever
+device executes it.** Executed locally, that is the device's own local state;
+replayed at the authority, that is the authority's state at replay time. This
+is the same behaviour every other step's "read the record this step's
+recordId names" already has — an `update` step re-reads its own target too —
+so a read step introduces no new consistency model. A model author relying on
+a read step inside a command that may be queued and replayed later should be
+aware the source record could have changed between the two executions, exactly
+as it already could for an `update` step's target.
+
 ### Command replay
 
 A locally executed command produces **exactly one** sync-queue entry, whose

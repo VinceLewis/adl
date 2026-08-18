@@ -87,6 +87,7 @@ against, also read:
 - `implementation/runtime-services.md`
 - `implementation/sync-mode-delivery.md`
 - `implementation/authority-server.md`
+- `implementation/command-read-steps.md`
 
 Before tasks that change client conflict/rejection recovery, the browser authority bridge, sign-in, passkey registration or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell, also read:
 
@@ -172,6 +173,7 @@ Before tasks that change runtime services, model-declared commands, UI runtime i
 - `implementation/sync-mode-delivery.md`
 - `implementation/offline-dataset-runtime.md`
 - `implementation/conformance-suite.md`
+- `implementation/command-read-steps.md`
 
 Before tasks that change runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, or conformance cases, also read:
 
@@ -305,6 +307,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
 - `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record or names a version of one.
 - `implementation/command-intent-replay.md`: read before changing how a locally executed command is queued, the `command` local-operation kind, the command intent's record-id manifest, the authority's re-execution of a command, the sync-queueability rule on command steps, or which selected contexts an operation replays against.
+- `implementation/command-read-steps.md`: read before changing command step kinds, the command value-expression vocabulary (`stepField`/`stepMeta`), command step-ordering validation, or anything that lets a command read an existing record rather than only create or update one — it carries the Phase 71 decision to bind a `read` step's record into the same `stepRecords` namespace a `create`/`update` step's own written record already uses, rather than a second expression kind, and the decision to enforce read policy through `ObjectStore.read` rather than the write-path's unauthorized `getRecordForRuntime` lookup.
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
 - `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read.
 - `implementation/context-grants-and-relationship-access.md`: read before changing business-context availability, the object-scope gate, policy principals, read-model joins, command-established contexts, or anything that decides whether one user may see another user's records.

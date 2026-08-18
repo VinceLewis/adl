@@ -637,6 +637,16 @@ function commandStepToPartial(step: CommandStepDeclarationAst): PartialCommandSt
     };
   }
 
+  if (step.action === "read") {
+    return {
+      name: step.name,
+      action: "read",
+      object: step.object,
+      recordId: step.recordId ?? { kind: "literal", value: null },
+      preconditions: [...step.preconditions],
+    };
+  }
+
   return {
     name: step.name,
     action: "create",

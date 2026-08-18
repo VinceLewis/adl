@@ -11,6 +11,7 @@ import {
   RuntimeValidationError,
   RuntimeStartupError,
   RuntimeContextError,
+  StorageError,
   SyncPolicyError,
   resolveApplicationModel,
 } from "../src/index.js";
@@ -1770,6 +1771,96 @@ describe("ApplicationRuntime", () => {
     await expect(runtime.search("EventSetList", {}, adminContext)).resolves.toHaveLength(0);
     expect(runtime.operationLog.getOperations()).toHaveLength(1);
   });
+
+  it("reads an existing record and seeds a new one from it, overriding one field rather than copying it", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createCommandReadStepModel()));
+    const source = await runtime.create(
+      "Event",
+      {
+        VenueName: "The Forum",
+        ContactName: "Jamie Rivera",
+        AmountCents: 250000,
+        EventDate: "2026-01-10",
+      },
+      adminContext,
+    );
+
+    const result = await runtime.executeCommand(
+      "DuplicateEvent",
+      { SourceEventId: source.meta.guid, NewDate: "2026-03-20" },
+      adminContext,
+    );
+
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0]?.objectName).toBe("Event");
+    expect(result.steps[0]?.recordId).not.toBe(source.meta.guid);
+    // VenueName, ContactName and AmountCents are copied from the record the
+    // READ step bound; EventDate comes from the command's own input instead
+    // of the source record, proving a later step can override rather than
+    // blindly copy a field the READ step made available.
+    expect(result.steps[0]?.record.values).toMatchObject({
+      VenueName: "The Forum",
+      ContactName: "Jamie Rivera",
+      AmountCents: 250000,
+      EventDate: "2026-03-20",
+    });
+
+    // The READ step writes nothing of its own, so it produces neither a
+    // per-step operation-log entry nor a step count on the command wrapper:
+    // only the one write the command actually made is logged, alongside the
+    // seed record's own create and the command's wrapper entry.
+    expect(runtime.operationLog.getOperations().map((operation) => operation.operation)).toEqual([
+      "create",
+      "create",
+      "command",
+    ]);
+  });
+
+  it("fails the whole command when the READ step's target record does not exist", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createCommandReadStepModel()));
+
+    await expect(
+      runtime.executeCommand(
+        "DuplicateEvent",
+        { SourceEventId: "missing-event", NewDate: "2026-03-20" },
+        adminContext,
+      ),
+    ).rejects.toBeInstanceOf(StorageError);
+
+    await expect(runtime.search("Event", {}, adminContext)).resolves.toHaveLength(0);
+  });
+
+  it("fails the whole command when the READ step is denied by the caller's read policy", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createCommandReadStepModel()));
+    const source = await runtime.create(
+      "Event",
+      {
+        VenueName: "The Forum",
+        ContactName: "Jamie Rivera",
+        AmountCents: 250000,
+        EventDate: "2026-01-10",
+      },
+      adminContext,
+    );
+    const outsiderContext: RuntimeContext = {
+      userId: "outsider-1",
+      roles: ["Outsider"],
+      channel: "api",
+      now: fixedNow,
+    };
+
+    await expect(
+      runtime.executeCommand(
+        "DuplicateEvent",
+        { SourceEventId: source.meta.guid, NewDate: "2026-03-20" },
+        outsiderContext,
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    // Nothing was written: the source record is still the only one, and the
+    // read policy denial reached before any write was planned.
+    await expect(runtime.search("Event", {}, adminContext)).resolves.toHaveLength(1);
+  });
 });
 
 function createRuntime(): ApplicationRuntime {
@@ -1918,6 +2009,73 @@ function createCommandWorkflowModel(): PartialApplicationModel {
         },
       ],
     })),
+  };
+}
+
+function createCommandReadStepModel(): PartialApplicationModel {
+  return {
+    app: { name: "CommandReadStepDemo" },
+    roles: [{ name: "Admin" }, { name: "Outsider" }],
+    objects: [
+      {
+        name: "Event",
+        businessKey: "VenueName",
+        displayField: "VenueName",
+        fields: [
+          { name: "VenueName", type: "text", required: true },
+          { name: "ContactName", type: "text", required: true },
+          { name: "AmountCents", type: "number", required: true },
+          { name: "EventDate", type: "date", required: true },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "DuplicateEvent",
+        label: "Duplicate event",
+        inputs: [
+          { name: "SourceEventId", type: "text", required: true },
+          { name: "NewDate", type: "date", required: true },
+        ],
+        steps: [
+          {
+            name: "source",
+            action: "read",
+            object: "Event",
+            recordId: { kind: "input", name: "SourceEventId" },
+          },
+          {
+            name: "duplicate",
+            action: "create",
+            object: "Event",
+            authority: "command",
+            values: {
+              VenueName: { kind: "stepField", step: "source", field: "VenueName" },
+              ContactName: { kind: "stepField", step: "source", field: "ContactName" },
+              AmountCents: { kind: "stepField", step: "source", field: "AmountCents" },
+              // Deliberately from the command's own input, not `STEP source FIELD
+              // EventDate` — proving a later step can override rather than
+              // blindly copy a field the READ step made available.
+              EventDate: { kind: "input", name: "NewDate" },
+            },
+          },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "EventPolicy",
+        object: "Event",
+        rules: [
+          {
+            name: "allowAdminEventOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
   };
 }
 

@@ -6842,6 +6842,11 @@ function validateCommandStepSyncCoherence(
     if (step === undefined) {
       continue;
     }
+    if (step.action === "read") {
+      // A read step writes nothing, so it has no write-delivery mode to
+      // disagree with the command's other steps about.
+      continue;
+    }
     const object = indexes.objectsByName.get(step.object)?.item;
     if (object === undefined) {
       // Already reported as an unknown step object, and an object that does not
@@ -6997,7 +7002,7 @@ function validateCommandStep(
   diagnostics: Diagnostic[],
 ): void {
   const rawStep = step as { name?: string; action?: unknown };
-  if (step.action !== "create" && step.action !== "update") {
+  if (step.action !== "create" && step.action !== "update" && step.action !== "read") {
     diagnostics.push(
       diagnostic(
         MODEL_VALIDATION_CODES.COMMAND_STEP_ACTION_INVALID,
@@ -7008,7 +7013,10 @@ function validateCommandStep(
     return;
   }
 
-  if (!COMMAND_STEP_AUTHORITIES.has(step.authority)) {
+  // A read step writes nothing, so `authority` (a write-authorization bypass)
+  // does not apply to it: it always enforces the caller's own read policy,
+  // the same gate a direct API/UI read would go through.
+  if (step.action !== "read" && !COMMAND_STEP_AUTHORITIES.has(step.authority)) {
     diagnostics.push(
       diagnostic(
         MODEL_VALIDATION_CODES.COMMAND_AUTHORITY_INVALID,
@@ -7018,13 +7026,12 @@ function validateCommandStep(
     );
   }
 
-  const iteration = validateCommandStepIteration(
-    step,
-    stepPath,
-    command,
-    inputsByName,
-    diagnostics,
-  );
+  // A read step never iterates (see `ResolvedCommandReadStep`), so it is
+  // never a valid `forEach` target and reads no item/index expression.
+  const iteration: CommandStepIteration =
+    step.action === "read"
+      ? { iterates: false }
+      : validateCommandStepIteration(step, stepPath, command, inputsByName, diagnostics);
 
   if (step.action === "create" && step.establishesContext !== undefined) {
     const establishedContext = indexes.contextsByName.get(step.establishesContext)?.item;
@@ -7066,7 +7073,10 @@ function validateCommandStep(
   }
 
   const fieldsByName = indexByName(object.fields);
-  const values = step.action === "create" ? step.values : step.patch;
+  // A read step writes nothing, so it has no values/patch map to check field
+  // names against; the loop below runs zero times for it.
+  const values =
+    step.action === "create" ? step.values : step.action === "update" ? step.patch : {};
   const valuesProperty = step.action === "create" ? "values" : "patch";
 
   for (const [fieldName, expression] of Object.entries(values)) {
@@ -7092,7 +7102,7 @@ function validateCommandStep(
     );
   }
 
-  if (step.action === "update") {
+  if (step.action === "update" || step.action === "read") {
     validateCommandValueExpression(
       step.recordId,
       `${stepPath}.recordId`,

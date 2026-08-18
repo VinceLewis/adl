@@ -4,9 +4,12 @@ import type {
   LocalCommandRecordId,
   ResolvedApplicationModel,
   ResolvedCommand,
+  ResolvedCommandCreateStep,
   ResolvedCommandInput,
   ResolvedCommandPrecondition,
+  ResolvedCommandReadStep,
   ResolvedCommandStep,
+  ResolvedCommandUpdateStep,
   ResolvedCommandValueExpression,
   StoredObjectRecord,
 } from "../model/resolved-model.js";
@@ -99,6 +102,27 @@ export class CommandService {
 
     for (const step of command.steps) {
       for (const frame of this.iterationFrames(command, step, values)) {
+        if (step.action === "read") {
+          // A read step writes nothing: it never joins `plannedWrites`, is
+          // never committed, and never appears in the command's result. It
+          // exists only to bind a record for a later step's value
+          // expressions, exactly as a `create`/`update` step's own written
+          // record already does.
+          const record = await this.planStepRead(
+            command,
+            step,
+            values,
+            frame,
+            stepRecords,
+            context,
+            stepContext,
+          );
+          if (frame === undefined) {
+            stepRecords.set(step.name, cloneJson(record));
+          }
+          continue;
+        }
+
         const write = await this.planStepWrite(
           command,
           step,
@@ -203,7 +227,7 @@ export class CommandService {
 
   private async planStepWrite(
     command: ResolvedCommand,
-    step: ResolvedCommandStep,
+    step: ResolvedCommandCreateStep | ResolvedCommandUpdateStep,
     values: Record<string, JsonValue>,
     frame: CommandIterationFrame | undefined,
     stepRecords: Map<string, StoredObjectRecord>,
@@ -263,6 +287,48 @@ export class CommandService {
       step.authority,
       recordId === undefined ? {} : { recordId },
     );
+  }
+
+  /**
+   * Reads one existing record for a `read` step, through the identical
+   * policy-gated path (`ObjectStore.read`) a direct API/UI read of the same
+   * record would go through: object scope, row policy, and field-level read
+   * shaping (mask/hidden) all apply. A command step gets no more of the
+   * record than the caller could see by reading it directly, and a denial
+   * throws `PolicyDeniedError` exactly as a direct read would — failing this
+   * whole command before any write is planned or committed, since planning
+   * happens before `commitPlannedTransaction` is ever called.
+   *
+   * A missing record is a `StorageError`, matching how an `update` step's own
+   * "does the target still exist" check already fails the command (see
+   * `planStepWrite`) — a read step is not a new failure shape, only a new
+   * reason to reach the existing one.
+   */
+  private async planStepRead(
+    command: ResolvedCommand,
+    step: ResolvedCommandReadStep,
+    values: Record<string, JsonValue>,
+    frame: CommandIterationFrame | undefined,
+    stepRecords: Map<string, StoredObjectRecord>,
+    callerContext: RuntimeContext,
+    stepContext: RuntimeContext,
+  ): Promise<StoredObjectRecord> {
+    const recordId = this.evaluateRecordIdExpression(
+      step.recordId,
+      values,
+      stepRecords,
+      callerContext,
+      frame,
+    );
+    const record = await this.objectStore.read(step.object, recordId, stepContext);
+    if (record === null) {
+      throw new StorageError(
+        `Command '${command.name}' step '${step.name}' could not find '${step.object}' record '${recordId}'.`,
+        { commandName: command.name, step: step.name, objectName: step.object, recordId },
+      );
+    }
+    this.requireStepPreconditions(command, step, record.values, callerContext);
+    return record;
   }
 
   private prepareInput(

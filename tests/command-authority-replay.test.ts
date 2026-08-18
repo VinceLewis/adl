@@ -3,12 +3,14 @@ import {
   AuthorityService,
   InMemoryObjectStorageBackend,
   StaticSessionAdapter,
+  resolveApplicationModel,
 } from "../src/index.js";
 import { createGiggleBandExampleModel } from "../src/ui/demo-fixture.js";
 import type {
   AuthorityCommandRecordId,
   AuthorityOperationIntent,
   AuthorityOutcome,
+  PartialApplicationModel,
 } from "../src/index.js";
 
 /**
@@ -643,5 +645,165 @@ describe("replaying the same command twice", () => {
 
     expect(second).toEqual(first);
     expect(await storedIds(storage, "Song")).toEqual(["song-r1", "song-r2"]);
+  });
+});
+
+/**
+ * Phase 71's command READ step re-executes at the authority exactly like every
+ * other step: it is not merely trusted from the device. The read policy below
+ * (`match: "owner"`) is enforced against the *authority's own copy* of the
+ * record and the *session-verified* caller, so a client cannot embed a read it
+ * was not entitled to make and have the authority accept it.
+ */
+describe("authority replay of a command with a READ step", () => {
+  const FOUNDER_TOKEN = "read-step-founder-token-read-step-founder";
+  const STRANGER_TOKEN = "read-step-stranger-token-read-step-strang";
+
+  function duplicateEventPartialModel(): PartialApplicationModel {
+    return {
+      app: { name: "CommandReadStepAuthorityDemo" },
+      roles: [],
+      objects: [
+        {
+          name: "Event",
+          businessKey: "VenueName",
+          displayField: "VenueName",
+          fields: [
+            { name: "VenueName", type: "text", required: true },
+            { name: "EventDate", type: "date", required: true },
+          ],
+        },
+      ],
+      commands: [
+        {
+          name: "DuplicateEvent",
+          inputs: [
+            { name: "SourceEventId", type: "text", required: true },
+            { name: "NewDate", type: "date", required: true },
+          ],
+          steps: [
+            {
+              name: "source",
+              action: "read",
+              object: "Event",
+              recordId: { kind: "input", name: "SourceEventId" },
+            },
+            {
+              name: "duplicate",
+              action: "create",
+              object: "Event",
+              authority: "command",
+              values: {
+                VenueName: { kind: "stepField", step: "source", field: "VenueName" },
+                EventDate: { kind: "input", name: "NewDate" },
+              },
+            },
+          ],
+        },
+      ],
+      policies: [
+        {
+          name: "EventPolicy",
+          object: "Event",
+          rules: [
+            {
+              name: "allowAuthenticatedCreateEvent",
+              effect: "allow",
+              principal: { match: "authenticated" },
+              action: "create",
+            },
+            // Only the record's own creator may read it — the same gate the
+            // command's READ step must be caught by, since the authority never
+            // grants a global role (`resolveContext` always resolves `roles: []`).
+            {
+              name: "allowOwnerReadEvent",
+              effect: "allow",
+              principal: { match: "owner" },
+              action: "read",
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  function startReadStepAuthority() {
+    const model = resolveApplicationModel(duplicateEventPartialModel());
+    const storage = new InMemoryObjectStorageBackend();
+    const sessions = new StaticSessionAdapter(
+      new Map([
+        [FOUNDER_TOKEN, { userId: "user-founder" }],
+        [STRANGER_TOKEN, { userId: "user-stranger" }],
+      ]),
+    );
+    return { authority: new AuthorityService(model, storage, sessions), storage };
+  }
+
+  it("re-executes the READ step and the write it seeds in one transaction", async () => {
+    const { authority, storage } = startReadStepAuthority();
+    const source = await authority.replay(FOUNDER_TOKEN, {
+      operationId: "op-read-step-source",
+      kind: "create",
+      objectName: "Event",
+      recordId: "event-source",
+      values: { VenueName: "The Forum", EventDate: "2026-01-10" },
+    });
+    const sourceRecord = acceptedRecords(source)[0];
+    expect(sourceRecord?.meta.guid).toBe("event-source");
+
+    const outcome = await authority.replay(FOUNDER_TOKEN, {
+      operationId: "op-read-step-duplicate",
+      kind: "command",
+      commandName: "DuplicateEvent",
+      input: { SourceEventId: "event-source", NewDate: "2026-03-20" },
+      // The READ step writes nothing, so the manifest names only the create.
+      recordIds: [{ step: "duplicate", objectName: "Event", recordId: "event-duplicate" }],
+    });
+
+    const records = acceptedRecords(outcome);
+    expect(records).toHaveLength(1);
+    expect(records[0]?.meta.guid).toBe("event-duplicate");
+    expect(records[0]?.values).toMatchObject({ VenueName: "The Forum", EventDate: "2026-03-20" });
+    expect(await storedIds(storage, "Event")).toEqual(["event-duplicate", "event-source"]);
+  });
+
+  it("rejects the whole command when the caller's read policy denies the READ step", async () => {
+    const { authority, storage } = startReadStepAuthority();
+    await authority.replay(FOUNDER_TOKEN, {
+      operationId: "op-read-step-denied-source",
+      kind: "create",
+      objectName: "Event",
+      recordId: "event-owned-by-founder",
+      values: { VenueName: "The Forum", EventDate: "2026-01-10" },
+    });
+
+    // A stranger's client could claim it already read this record, but the
+    // authority re-reads it itself under the stranger's own session — and
+    // `owner` denies anyone but the founder.
+    const outcome = await authority.replay(STRANGER_TOKEN, {
+      operationId: "op-read-step-denied-duplicate",
+      kind: "command",
+      commandName: "DuplicateEvent",
+      input: { SourceEventId: "event-owned-by-founder", NewDate: "2026-03-20" },
+      recordIds: [{ step: "duplicate", objectName: "Event", recordId: "event-should-not-exist" }],
+    });
+
+    expect(rejection(outcome).code).toBe("ADL_POLICY_DENIED");
+    expect(await storedIds(storage, "Event")).toEqual(["event-owned-by-founder"]);
+  });
+
+  it("rejects the whole command when the READ step's target record does not exist", async () => {
+    const { authority, storage } = startReadStepAuthority();
+
+    const outcome = await authority.replay(FOUNDER_TOKEN, {
+      operationId: "op-read-step-missing",
+      kind: "command",
+      commandName: "DuplicateEvent",
+      input: { SourceEventId: "no-such-event", NewDate: "2026-03-20" },
+      recordIds: [{ step: "duplicate", objectName: "Event", recordId: "event-should-not-exist" }],
+    });
+
+    expect(rejection(outcome).code).toBe("ADL_STORAGE_ERROR");
+    expect(await storedIds(storage, "Event")).toEqual([]);
   });
 });

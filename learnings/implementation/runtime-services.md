@@ -31,6 +31,18 @@ Read this before changing runtime services, UI runtime integration, lifecycle ex
 - A backend without transaction support may still run single-record CRUD and single-step commands, but multi-write commands fail with `ADL_STORAGE_ERROR` before any planned write is persisted.
 - Command-backed row side effects keep their normal operation kind and add command metadata: `commandName`, optional `commandLabel`, `commandStep`, and shared `commandTransactionId`. This preserves business command intent without hiding affected object records from audit, operation log, or sync queue consumers.
 
+## Key decisions from Phase 71
+
+- `ApplicationRuntime.executeCommand` steps gained a third kind, `read`: it
+  reads one existing record through the identical policy-gated path a direct
+  API/UI read uses (`ObjectStore.read`, not the write path's unauthorized
+  `getRecordForRuntime`), and binds it into the same `stepRecords` namespace a
+  `create`/`update` step's own written record already occupies — so a later
+  step reads it with the existing `stepField`/`stepMeta` expressions rather
+  than a new expression kind. See [[command-read-steps]] for the full design
+  record, including why no new step-ordering validation code was needed and
+  why a read step never appears in a command's record-id manifest.
+
 ## Policy and validation notes
 
 - `PolicyEngine` is deny-by-default and explicit deny wins.

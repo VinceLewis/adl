@@ -573,6 +573,43 @@ END.COMMAND
     });
   });
 
+  it("parses a command READ step and a later step's reference to its bound field", () => {
+    const ast = parseAdl(`APP Phase71
+END.APP
+
+COMMAND DuplicateEvent
+  INPUT SourceEventId TEXT REQUIRED
+  INPUT NewDate DATE REQUIRED
+  STEP source READ Event ID INPUT SourceEventId
+    REQUIRE VenueName != ''
+  END.STEP
+  STEP duplicate CREATE Event AUTHORITY command
+    VALUE VenueName STEP source FIELD VenueName
+    VALUE EventDate INPUT NewDate
+  END.STEP
+END.COMMAND
+`);
+
+    const command = ast.commands[0];
+
+    expect(command?.steps[0]).toMatchObject({
+      name: "source",
+      action: "read",
+      object: "Event",
+      recordId: { kind: "input", name: "SourceEventId" },
+      values: {},
+      preconditions: [expect.objectContaining({ kind: "binary", operator: "!=" })],
+    });
+    expect(command?.steps[1]).toMatchObject({
+      name: "duplicate",
+      action: "create",
+      values: {
+        VenueName: { kind: "stepField", step: "source", field: "VenueName" },
+        EventDate: { kind: "input", name: "NewDate" },
+      },
+    });
+  });
+
   it("parses the contextMember policy principal and its trailing WHEN", () => {
     const ast = parseAdl(`APP Phase56
 END.APP
@@ -1069,6 +1106,31 @@ COMMAND RenameBand
 END.COMMAND
 `,
       "Expected COMMAND STEP header option AUTHORITY, ID, FOR EACH, or end of line",
+    );
+
+    expectParseFailure(
+      `APP Phase71
+END.APP
+
+COMMAND DuplicateEvent
+  STEP source READ Event AUTHORITY command
+  END.STEP
+END.COMMAND
+`,
+      "Expected COMMAND STEP header option ID or end of line",
+    );
+
+    expectParseFailure(
+      `APP Phase71
+END.APP
+
+COMMAND DuplicateEvent
+  STEP source READ Event ID LITERAL 'event-1'
+    VALUE VenueName LITERAL 'x'
+  END.STEP
+END.COMMAND
+`,
+      "Expected COMMAND STEP directive REQUIRE or END.STEP",
     );
 
     expectParseFailure(

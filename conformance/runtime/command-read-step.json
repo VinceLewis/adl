@@ -1,0 +1,342 @@
+{
+  "version": 1,
+  "models": {
+    "commandReadStep": {
+      "app": {
+        "name": "CommandReadStep"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Outsider"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Event",
+          "displayField": "VenueName",
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "ContactName",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "AmountCents",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "EventDate",
+              "type": "date",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "DuplicateEvent",
+          "label": "Duplicate event",
+          "inputs": [
+            {
+              "name": "SourceEventId",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "NewDate",
+              "type": "date",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "source",
+              "action": "read",
+              "object": "Event",
+              "recordId": {
+                "kind": "input",
+                "name": "SourceEventId"
+              }
+            },
+            {
+              "name": "duplicate",
+              "action": "create",
+              "object": "Event",
+              "authority": "command",
+              "values": {
+                "VenueName": {
+                  "kind": "stepField",
+                  "step": "source",
+                  "field": "VenueName"
+                },
+                "ContactName": {
+                  "kind": "stepField",
+                  "step": "source",
+                  "field": "ContactName"
+                },
+                "AmountCents": {
+                  "kind": "stepField",
+                  "step": "source",
+                  "field": "AmountCents"
+                },
+                "EventDate": {
+                  "kind": "input",
+                  "name": "NewDate"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "EventPolicy",
+          "object": "Event",
+          "rules": [
+            {
+              "name": "allowAdminEventOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "commandReadStepForwardReference": {
+      "app": {
+        "name": "CommandReadStepForwardReference"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
+      "objects": [
+        {
+          "name": "Event",
+          "displayField": "VenueName",
+          "fields": [
+            {
+              "name": "VenueName",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "name": "DuplicateEvent",
+          "inputs": [
+            {
+              "name": "SourceEventId",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "steps": [
+            {
+              "name": "duplicate",
+              "action": "create",
+              "object": "Event",
+              "authority": "command",
+              "values": {
+                "VenueName": {
+                  "kind": "stepField",
+                  "step": "source",
+                  "field": "VenueName"
+                }
+              }
+            },
+            {
+              "name": "source",
+              "action": "read",
+              "object": "Event",
+              "recordId": {
+                "kind": "input",
+                "name": "SourceEventId"
+              }
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "EventPolicy",
+          "object": "Event",
+          "rules": [
+            {
+              "name": "allowAdminEventOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "command.read-step.seeds-a-new-record-and-overrides-a-field-instead-of-copying-it.001",
+      "title": "A READ step's bound record seeds a later CREATE step's fields, and an overridden field is not copied",
+      "specRef": "resolved-model#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandReadStep",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "source",
+          "objectName": "Event",
+          "values": {
+            "VenueName": "The Forum",
+            "ContactName": "Jamie Rivera",
+            "AmountCents": 250000,
+            "EventDate": "2026-01-10"
+          },
+          "context": {
+            "userId": "user-admin",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "commandName": "DuplicateEvent",
+        "input": {
+          "SourceEventId": { "$ref": "source.meta.guid" },
+          "NewDate": "2026-03-20"
+        },
+        "context": {
+          "userId": "user-admin",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "steps": [
+            {
+              "step": "duplicate",
+              "objectName": "Event",
+              "values": {
+                "VenueName": "The Forum",
+                "ContactName": "Jamie Rivera",
+                "AmountCents": 250000,
+                "EventDate": "2026-03-20"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "command.read-step.policy-denial-on-the-read-step-fails-the-whole-command.002",
+      "title": "A caller whose read policy denies the READ step's target record fails the whole command, writing nothing",
+      "specRef": "resolved-model#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandReadStep",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "source",
+          "objectName": "Event",
+          "values": {
+            "VenueName": "The Forum",
+            "ContactName": "Jamie Rivera",
+            "AmountCents": 250000,
+            "EventDate": "2026-01-10"
+          },
+          "context": {
+            "userId": "user-admin",
+            "roles": ["Admin"],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "commandName": "DuplicateEvent",
+        "input": {
+          "SourceEventId": { "$ref": "source.meta.guid" },
+          "NewDate": "2026-03-20"
+        },
+        "context": {
+          "userId": "user-outsider",
+          "roles": ["Outsider"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "command.read-step.a-read-of-a-nonexistent-record-fails-the-whole-command.003",
+      "title": "A READ step whose target record does not exist fails the whole command",
+      "specRef": "resolved-model#commands",
+      "operation": "executeCommand",
+      "modelRef": "commandReadStep",
+      "input": {
+        "commandName": "DuplicateEvent",
+        "input": {
+          "SourceEventId": "no-such-event",
+          "NewDate": "2026-03-20"
+        },
+        "context": {
+          "userId": "user-admin",
+          "roles": ["Admin"],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "StorageError",
+          "code": "ADL_STORAGE_ERROR"
+        }
+      }
+    },
+    {
+      "id": "command.read-step.a-step-may-not-forward-reference-a-later-read-step.004",
+      "title": "A step may not reference a READ step that executes later in the same command",
+      "specRef": "resolved-model#commands",
+      "operation": "validateModel",
+      "modelRef": "commandReadStepForwardReference",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_COMMAND_STEP_REFERENCE_UNKNOWN"
+          }
+        ]
+      }
+    }
+  ]
+}
