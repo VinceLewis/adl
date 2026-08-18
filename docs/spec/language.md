@@ -56,7 +56,14 @@ END.APP
   quoted and read as text rather than as a number, because `1.1.0` is not a
   number a lexer can carry intact. See
   [Model Versions And Migrations](#model-versions-and-migrations).
-- `THEME` names the application theme. It defaults to `CorporateLight`.
+- `THEME` names the application theme. It defaults to `CorporateLight`. Three
+  built-in themes ship and are always selectable by name, whether or not a
+  model declares one of its own: `CorporateLight` (light, blue primary and
+  green accent — the default), `CorporateDark` (the same palette intent
+  inverted for a dark background), and `MinimalLight` (light, a neutral
+  near-black primary and teal accent, smaller corner radius, compact density,
+  and top navigation instead of side). `THEME Name BASE <BuiltIn> ...
+  END.THEME` overrides individual tokens on top of one of these three.
 - `START_VIEW` names the initial view. It defaults to the first resolved object
   view.
 - `OFFLINE_GRACE <days> DAYS` declares how long a device may keep syncing since
@@ -90,6 +97,91 @@ Objects contain business fields. Field syntax supports text, number, date,
 datetime, time, boolean, and attachment types. A field may be `REQUIRED`, have a
 literal `DEFAULT`, validators, lookup metadata, and author-facing display or key
 roles through the resolved model.
+
+### Field Validators
+
+A field may declare one or more validators after its type and `REQUIRED`/
+`DEFAULT`:
+
+```adl
+FIELD Email TEXT EMAIL
+FIELD Age NUMBER MIN(0) MAX(150)
+FIELD Name TEXT MIN_LENGTH(2) MAX_LENGTH(120)
+FIELD Status TEXT IN ('Draft', 'Active', 'Closed')
+FIELD Code TEXT REGEXP('^[A-Z]{3}$')
+FIELD Currency TEXT CURRENCY_CODE
+FIELD Attachment ATTACHMENT MAX_SIZE(5000000)
+FIELD EndDate DATE VALIDATE EndDate >= StartDate MESSAGE 'End date must be on or after the start date.'
+```
+
+- `EMAIL` (text) checks the value is shaped like `local@domain.tld`; it is not
+  full RFC 5322 validation.
+- `MIN <n>` / `MAX <n>` apply to `NUMBER` fields only (not date or datetime)
+  and bound the value inclusively.
+- `MIN_LENGTH <n>` / `MAX_LENGTH <n>` (text) bound a string's character length
+  inclusively.
+- `IN (<values>, ...)` (text, number, or boolean) restricts the value to the
+  given literal set. Unlike the other validators, its value is always a
+  parenthesised, comma-separated list — the parentheses are not optional here.
+- `REGEXP <pattern>` (text) tests the value against `pattern` using
+  JavaScript `RegExp` semantics with no flags. The pattern's own syntactic
+  validity is not checked until a value is evaluated against it at runtime.
+- `CURRENCY_CODE` (text, no value) checks the value is three uppercase
+  letters; it does not check membership in an actual ISO 4217 list.
+- `MAX_SIZE <n>` (attachment) bounds an approximate size of the field's stored
+  value.
+- `MIME_TYPE <value>` (attachment) is meant to restrict an attachment to one
+  or more allowed MIME types. **A caveat worth knowing before relying on it.**
+  The parser only ever accepts a single literal here, but model validation
+  requires a non-empty list, so any `MIME_TYPE` declaration currently fails
+  `ADL_FIELD_VALIDATOR_VALUE_INVALID` at compile time.
+- `VALIDATE <expression> [MESSAGE '<text>']`, and its exact alias `PREDICATE
+  <expression> [MESSAGE '<text>']`, run an [expression](#expressions) over the
+  object's own fields and `RUNTIME.userId` / `RUNTIME.now`. Unlike an object
+  `VALIDATE`/`VALIDATION` declaration, the field-level form takes no name —
+  the keyword is followed directly by the expression. The expression must
+  resolve to boolean (`ADL_FIELD_VALIDATOR_EXPRESSION_TYPE` otherwise).
+  `MESSAGE` supplies the runtime failure text and defaults to a generic
+  message naming the field when omitted.
+
+Model validation checks every named validator's kind against the field's type
+and checks that a value it needs is present and the right JSON shape
+(`ADL_FIELD_VALIDATOR_KIND_INVALID`, `ADL_FIELD_VALIDATOR_VALUE_INVALID`) —
+this is why a validator that could never fire, such as `MIN` on a text field,
+is refused rather than silently accepted. `MIN`, `MAX`, `MIN_LENGTH`,
+`MAX_LENGTH`, `MAX_SIZE`, and `DEFAULT` all accept their value either bare or
+parenthesised — `MIN 0` and `MIN(0)` declare the same thing — because the
+parser treats the parentheses as optional grouping, not a different clause
+shape.
+
+### Field Modifiers
+
+```adl
+FIELD PONumber TEXT REQUIRED AUTO_ID PREFIX('PO-') PAD(6)
+FIELD InternalNotes TEXT READONLY
+FIELD LegacyId TEXT HIDDEN
+```
+
+- `READONLY` refuses any direct write that supplies a value for the field, on
+  create as well as on update (`ADL_RUNTIME_FIELD_READONLY`). Its value can
+  only come from a `DEFAULT`, a computed field, or other system-managed logic
+  — never from caller-supplied input.
+- `HIDDEN` omits the field from anything a read returns to the caller. This is
+  unconditional, unlike a policy rule's `HIDDEN` effect, which hides a field
+  only for the principals and conditions that rule names.
+- `AUTO_ID`, together with any of `PREFIX '<text>'`, `PAD <n>`, and `SCOPE
+  <field>` (each optional, in any order), marks a text field as one whose
+  value is minted rather than authored: `PREFIX` declares a literal prefix and
+  `PAD` a zero-padded numeric width for the minted value, and `SCOPE <field>`
+  names another field on the same object the minted sequence is meant to be
+  scoped within, such as a per-branch invoice sequence instead of one global
+  one. `AUTO_ID` is refused on a non-text field (`ADL_AUTO_ID_NON_TEXT`), and
+  `SCOPE` is refused naming a field that does not exist on the object
+  (`ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN`). **A caveat worth knowing before relying
+  on it.** `AUTO_ID` is declarative only today: it is captured and validated
+  on the resolved field, but no runtime path mints a value from it, so an
+  `AUTO_ID` field still needs an authored or `DEFAULT` value like any other
+  field.
 
 Objects can declare business context scope and backend-neutral constraints:
 
@@ -286,12 +378,64 @@ Two properties are part of the contract:
 Lifecycle transition policy can name an action and state. Field rules restrict
 specific fields. Conditions compile to resolved expressions.
 
+A rule may also restrict itself to specific runtime channels:
+
+```adl
+RULE apiOnlyExport ALLOW EXPORT EVERYONE CHANNEL api
+RULE syncAndUiWrite ALLOW UPDATE ROLE Admin CHANNELS ui sync
+```
+
+`CHANNEL` and `CHANNELS` are the same clause and take one or more of `ui`,
+`api`, `sync`, `import`, and `test` — the runtime channels a `RuntimeContext`
+carries, naming the browser UI, the HTTP API, sync replay, a bulk import, and
+the conformance/test harness respectively. A rule with no `CHANNEL`/`CHANNELS`
+clause matches all five, which is why every rule written before channels
+existed keeps working unchanged. The check happens right after the rule's
+action match and before role, owner, state, field, or condition matching, so a
+request on a channel the rule does not name skips it entirely, as if the rule
+were not declared — this is how a model can grant a wider principal through
+the UI than through direct API access, or keep a rule out of sync replay
+without touching who it names.
+
 ## Lifecycles
 
 Objects may declare a lifecycle with states and actions. A lifecycle action
 declares source states, a target state, optional guards, optional policy
-references, and optional hook names. Hook names are references only; registered
-runtime hooks decide behavior.
+references, and optional hook names:
+
+```adl
+LIFECYCLE TicketLifecycle FIELD Status INITIAL Open
+  STATE Open
+  STATE Closed TERMINAL
+
+  ACTION close FROM Open TO Closed LABEL 'Close'
+    ALLOW ROLE Admin
+    WHEN Resolution != ''
+    BEFORE hooks.ticket.beforeClose
+    AFTER hooks.ticket.afterClose, hooks.ticket.notify
+    ON_ERROR hooks.ticket.onCloseError
+  END.ACTION
+END.LIFECYCLE
+```
+
+`BEFORE`, `AFTER`, and `ON_ERROR` each take one or more hook names, comma-
+optional, either a bare name or a dotted path (`hooks.ticket.beforeClose`). A
+name is checked only for syntactic shape (`ADL_HOOK_REFERENCE_INVALID`); the
+model never requires it to resolve to anything, and whether it fires at all
+depends on whether the runtime host has registered a handler under that exact
+name — an unregistered name is a silent no-op, not an error.
+
+Hook names are references only; registered runtime hooks decide behavior.
+Guards, transition policy, and sync-policy checks all run before any hook, so
+a refused transition never fires one. Once a transition is permitted: `BEFORE`
+hooks run, in declared order, against the pre-transition record; the write
+then commits; and `AFTER` hooks run, in declared order, against the updated
+record. If preparing the write, a `BEFORE` hook, the commit, or an `AFTER`
+hook throws, `ON_ERROR` hooks run — against the original, pre-transition
+record — and the original error still propagates to the caller afterward;
+hooks never turn a failed transition into a successful one. See
+[runtime-semantics#lifecycles](runtime-semantics.md) for the complete ordered
+list, including where audit and the operation log sit.
 
 ## Read Models
 
@@ -606,6 +750,20 @@ the chosen song's id in `Song`, each appended to the end of the set list. Songs
 already in this set list are not offered again. See
 [runtime-semantics#relationship-pickers](runtime-semantics.md) for the full
 evaluation rules.
+
+`LOOKUP <Object> [TARGET_FIELD <field>] DISPLAY <field>` also accepts
+`TARGET_FIELD`, naming the field on the target object that the stored value
+identifies:
+
+```adl
+FIELD Song TEXT REQUIRED LOOKUP Song TARGET_FIELD Isrc DISPLAY Title
+```
+
+`TARGET_FIELD` must name a field that exists on the target object
+(`ADL_LOOKUP_TARGET_FIELD_UNKNOWN`). **A caveat worth knowing before relying on
+it.** Every `LOOKUP` above, including this one, is resolved at runtime by
+reading the target record by its own identity, regardless of `TARGET_FIELD` —
+declaring it is currently validated but has no other runtime effect.
 
 `EDIT_SECTION` is spelled differently from the composed-presentation `SECTION`
 because a view may declare both, and two different things cannot share one

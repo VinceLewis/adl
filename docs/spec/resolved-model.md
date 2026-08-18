@@ -142,6 +142,16 @@ Policies are object-scoped and deny by default. A rule has effect, principal,
 action, optional states, optional fields, optional lifecycle action, optional
 condition, and channels. Conditions are resolved expressions.
 
+`channels` restricts a rule to the `RuntimeChannel`s it applies to: `ui`,
+`api`, `sync`, `import`, and `test`, matching the channel every
+`RuntimeContext` carries. It defaults to all five when the source declares no
+channel restriction, so a model that never restricts a rule's channel behaves
+exactly as it did before channels existed as a concept. Rule matching checks
+the request's channel against this list immediately after the action match and
+before principal, state, field, or condition matching — a rule whose channel
+does not match the request is skipped entirely, as if it were not declared,
+rather than evaluated and simply not applied.
+
 Principals match everyone, authenticated users, anonymous users, owners, specific
 users/roles/group-roles, or **context members**.
 
@@ -636,9 +646,17 @@ than they promise:
   as `ADL_DECISION_TABLE_ROW_CONDITION_UNANALYZABLE` (a warning) and excluded
   from overlap analysis, so a `single`-match table can still be ambiguous at
   runtime despite validating cleanly.
-- **Named field validators are not type-checked against their field.** A
-  validator whose kind does not suit the field's type, or which omits a value it
-  needs, is reported so it cannot silently do nothing.
+- **A named validator's element values are not checked against its field's
+  type.** Model validation does check that a validator's *kind* suits the
+  field's type, and that a value it needs is present and the right JSON shape
+  — `MIN` on a text field, or an `IN` with no list, is
+  `ADL_FIELD_VALIDATOR_KIND_INVALID` or `ADL_FIELD_VALIDATOR_VALUE_INVALID`
+  rather than a validator that can silently never fire. What is not checked is
+  the *content* of a compound value: an `IN` list may hold values of a
+  different type than the field's own, and a `REGEXP` pattern is not confirmed
+  to be syntactically valid until a value is evaluated against it at runtime.
+  See [Field Validators](language.md#field-validators) for the full per-keyword
+  table of applicable field types and required value shapes.
 
 Runtime startup compatibility is a separate concern: model validation checks the
 current model, while the startup guard checks _persisted data_ against it. See
