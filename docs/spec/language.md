@@ -97,6 +97,7 @@ Objects can declare business context scope and backend-neutral constraints:
 SCOPE Band FIELD Band
 CONSTRAINT uniqueSongTitleInBand UNIQUE SCOPE Band FIELDS Title
 CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position REORDER shift COMPACT onDelete
+CONSTRAINT lastBandAdminStanding PROTECTED_ROLE SCOPE Band FIELD Role VALUES ('BandAdmin') MIN 1
 ```
 
 The compiler maps these declarations to the resolved model; runtime services
@@ -120,6 +121,23 @@ and sync checks as an authored one — a sibling the caller may not write fails 
 whole transaction rather than moving silently. Because more than one write is
 involved, a model that opts into either mode requires a storage backend that
 supports transactions; a backend that does not refuses before anything persists.
+
+A `PROTECTED_ROLE` constraint is the "last admin standing" guard: it refuses a
+delete or an update that would leave fewer than `MIN` active records whose
+`FIELD` holds one of the `VALUES` within the same `SCOPE` key. `SCOPE` may name
+more than one field, or none at all to guard the whole object as a single scope.
+`VALUES` takes one or more literals, so more than one role may share the guard —
+demoting between two guarded values (`Admin` to `Owner`, say, when both are
+declared) satisfies it, because the scope's guarded count does not change.
+`MIN` defaults to `1` when omitted.
+
+Declared once on a membership-shaped object — `BandMember`'s `Role` field going
+from `BandAdmin` to `BandMember` is the motivating case — it is enforced by
+every write path that reaches the object's constraints: direct CRUD and command
+steps alike, never only a client-side affordance disabling a button. A create
+can never trigger it, since a create only adds a record; an update or delete
+that never held a guarded value has nothing to protect, and a scope that
+already holds fewer than `MIN` before the write is not retroactively repaired.
 
 ## Offline Dataset Scope
 

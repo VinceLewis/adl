@@ -224,6 +224,32 @@ replay unchanged. Every generated sibling write passes the same policy,
 validation, scope and sync checks as an authored one — a sibling the caller may
 not write fails the whole transaction rather than moving silently.
 
+## Protected Roles
+
+A `protectedRole` object constraint declares scope fields, a role field, one or
+more guarded role values, and a minimum count — the "last admin standing"
+guard. It refuses a delete or an update that would leave fewer than the
+declared minimum active records whose role field holds one of the guarded
+values within the same scope key.
+
+The guard fires only on the write that would cause the loss: a delete of a
+guarded-role holder, or an update that changes its role field away from every
+guarded value (including out of scope entirely, if the scope fields
+themselves change). A create can only add a record, never remove one, so it is
+never checked. An update that keeps the record within the guarded set —
+including a change between two different guarded values, such as `Admin` to
+`Owner` when both are declared — leaves the scope's guarded count unchanged and
+is not checked either. A scope that already holds fewer than the declared
+minimum before this transaction — data older than the constraint's own
+declaration, say — is not retroactively repaired or blocked from unrelated
+writes; the guard only refuses the write that would make an already-satisfied
+scope fall short.
+
+Empty scope fields guard the whole object as one scope rather than a
+partitioned one. This is declared once, on the object itself, and is enforced
+by every write path that reaches `ResolvedObject.constraints` — direct CRUD and
+command steps alike — never only by client-side UI affordance.
+
 ## Commands
 
 Commands contain typed inputs, resolved-expression preconditions, and ordered

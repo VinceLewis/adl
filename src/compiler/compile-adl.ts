@@ -381,15 +381,26 @@ function objectConstraintToPartial(
     };
   }
 
+  if (constraint.kind === "OrderedObjectConstraintDeclaration") {
+    return {
+      name: constraint.name,
+      kind: "ordered",
+      parentField: constraint.parentField,
+      positionField: constraint.positionField,
+      scopeFields: [...constraint.scopeFields],
+      ...(constraint.minPosition === undefined ? {} : { minPosition: constraint.minPosition }),
+      ...(constraint.reorder === undefined ? {} : { reorder: constraint.reorder }),
+      ...(constraint.compaction === undefined ? {} : { compaction: constraint.compaction }),
+    };
+  }
+
   return {
     name: constraint.name,
-    kind: "ordered",
-    parentField: constraint.parentField,
-    positionField: constraint.positionField,
+    kind: "protectedRole",
     scopeFields: [...constraint.scopeFields],
-    ...(constraint.minPosition === undefined ? {} : { minPosition: constraint.minPosition }),
-    ...(constraint.reorder === undefined ? {} : { reorder: constraint.reorder }),
-    ...(constraint.compaction === undefined ? {} : { compaction: constraint.compaction }),
+    roleField: constraint.roleField,
+    roleValues: [...constraint.roleValues],
+    ...(constraint.minCount === undefined ? {} : { minCount: constraint.minCount }),
   };
 }
 

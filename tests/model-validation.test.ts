@@ -1495,6 +1495,96 @@ END.OBJECT
     );
   });
 
+  it("reports an unknown role field, empty guarded values, and a non-positive minCount on a protected role constraint", () => {
+    const invalidPartialModel: PartialApplicationModel = {
+      app: { name: "ProtectedRoleValidation" },
+      roles: [{ name: "Admin" }],
+      objects: [
+        {
+          name: "Team",
+          businessKey: "Name",
+          fields: [{ name: "Name", type: "text", required: true }],
+        },
+        {
+          name: "TeamMember",
+          businessKey: "User",
+          fields: [
+            {
+              name: "Team",
+              type: "text",
+              required: true,
+              lookup: { targetObject: "Team", displayField: "Name" },
+            },
+            { name: "User", type: "text", required: true },
+            { name: "Role", type: "text", required: true },
+          ],
+          constraints: [
+            {
+              name: "invalidProtectedRole",
+              kind: "protectedRole",
+              scopeFields: ["Team"],
+              roleField: "MissingField",
+              roleValues: [],
+              minCount: 0,
+            },
+          ],
+        },
+      ],
+    };
+
+    const codes = validateApplicationModel(resolveApplicationModel(invalidPartialModel)).map(
+      (diagnostic) => diagnostic.code,
+    );
+
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_FIELD_UNKNOWN,
+        MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_PROTECTED_ROLE_VALUES_EMPTY,
+        MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_PROTECTED_ROLE_MIN_INVALID,
+      ]),
+    );
+  });
+
+  it("accepts a well-formed protected role constraint", () => {
+    const validPartial: PartialApplicationModel = {
+      app: { name: "ProtectedRoleValidation" },
+      roles: [{ name: "Admin" }],
+      objects: [
+        {
+          name: "Team",
+          businessKey: "Name",
+          fields: [{ name: "Name", type: "text", required: true }],
+        },
+        {
+          name: "TeamMember",
+          businessKey: "User",
+          fields: [
+            {
+              name: "Team",
+              type: "text",
+              required: true,
+              lookup: { targetObject: "Team", displayField: "Name" },
+            },
+            { name: "User", type: "text", required: true },
+            { name: "Role", type: "text", required: true },
+          ],
+          constraints: [
+            {
+              name: "lastTeamAdminStanding",
+              kind: "protectedRole",
+              scopeFields: ["Team"],
+              roleField: "Role",
+              roleValues: ["Admin"],
+              minCount: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(validateApplicationModel(resolveApplicationModel(validPartial))).toEqual([]);
+  });
+
   it("reports invalid read model source join declarations", () => {
     const invalid = cloneResolved(resolveApplicationModel(createPhase56PartialModel()));
     const readModel = invalid.readModels?.find(

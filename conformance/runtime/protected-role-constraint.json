@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "models": {
+    "protectedRoleTeam": {
+      "app": { "name": "ProtectedRoleTeam" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Team",
+          "businessKey": "Name",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "TeamMember",
+          "businessKey": "User",
+          "displayField": "User",
+          "fields": [
+            {
+              "name": "Team",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "Team", "displayField": "Name" }
+            },
+            { "name": "User", "type": "text", "required": true },
+            { "name": "Role", "type": "text", "required": true }
+          ],
+          "constraints": [
+            {
+              "name": "lastTeamAdminStanding",
+              "kind": "protectedRole",
+              "scopeFields": ["Team"],
+              "roleField": "Role",
+              "roleValues": ["Admin"],
+              "minCount": 1
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "TeamPolicy",
+          "object": "Team",
+          "rules": [
+            {
+              "name": "allowAdminTeam",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TeamMemberPolicy",
+          "object": "TeamMember",
+          "rules": [
+            {
+              "name": "allowAdminTeamMember",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "protectedRoleTeamMultiValue": {
+      "app": { "name": "ProtectedRoleTeamMultiValue" },
+      "roles": [{ "name": "Admin" }],
+      "objects": [
+        {
+          "name": "Team",
+          "businessKey": "Name",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "TeamMember",
+          "businessKey": "User",
+          "displayField": "User",
+          "fields": [
+            {
+              "name": "Team",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "Team", "displayField": "Name" }
+            },
+            { "name": "User", "type": "text", "required": true },
+            { "name": "Role", "type": "text", "required": true }
+          ],
+          "constraints": [
+            {
+              "name": "lastTeamAdminStanding",
+              "kind": "protectedRole",
+              "scopeFields": ["Team"],
+              "roleField": "Role",
+              "roleValues": ["Admin", "Owner"],
+              "minCount": 1
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "TeamPolicy",
+          "object": "Team",
+          "rules": [
+            {
+              "name": "allowAdminTeam",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "TeamMemberPolicy",
+          "object": "TeamMember",
+          "rules": [
+            {
+              "name": "allowAdminTeamMember",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["Admin"] },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "protectedrole.delete.refuses-the-last-admin.001",
+      "title": "Deleting the last guarded-role holder in a scope is refused rather than leaving the scope with none",
+      "specRef": "resolved-model#protected-roles",
+      "operation": "delete",
+      "modelRef": "protectedRoleTeam",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "team",
+          "objectName": "Team",
+          "values": { "Name": "Alpha" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "founder",
+          "objectName": "TeamMember",
+          "values": { "Team": { "$ref": "team.meta.guid" }, "User": "casey", "Role": "Admin" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        }
+      ],
+      "input": {
+        "objectName": "TeamMember",
+        "id": { "$ref": "founder.meta.guid" },
+        "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:05:00.000Z" }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeValidationError",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [{ "code": "ADL_RUNTIME_CONSTRAINT_PROTECTED_ROLE" }]
+        }
+      }
+    },
+    {
+      "id": "protectedrole.update.refuses-demoting-the-last-admin.002",
+      "title": "Demoting the last guarded-role holder out of the guarded set is refused",
+      "specRef": "resolved-model#protected-roles",
+      "operation": "update",
+      "modelRef": "protectedRoleTeam",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "team",
+          "objectName": "Team",
+          "values": { "Name": "Alpha" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "founder",
+          "objectName": "TeamMember",
+          "values": { "Team": { "$ref": "team.meta.guid" }, "User": "casey", "Role": "Admin" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        }
+      ],
+      "input": {
+        "objectName": "TeamMember",
+        "id": { "$ref": "founder.meta.guid" },
+        "patch": { "Role": "Member" },
+        "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:05:00.000Z" }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeValidationError",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [{ "code": "ADL_RUNTIME_CONSTRAINT_PROTECTED_ROLE" }]
+        }
+      }
+    },
+    {
+      "id": "protectedrole.delete.allows-removal-when-another-admin-remains.003",
+      "title": "Deleting a guarded-role holder is allowed once another one remains in the same scope",
+      "specRef": "resolved-model#protected-roles",
+      "operation": "delete",
+      "modelRef": "protectedRoleTeam",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "team",
+          "objectName": "Team",
+          "values": { "Name": "Alpha" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "founder",
+          "objectName": "TeamMember",
+          "values": { "Team": { "$ref": "team.meta.guid" }, "User": "casey", "Role": "Admin" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "second",
+          "objectName": "TeamMember",
+          "values": { "Team": { "$ref": "team.meta.guid" }, "User": "riley", "Role": "Admin" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        }
+      ],
+      "input": {
+        "objectName": "TeamMember",
+        "id": { "$ref": "founder.meta.guid" },
+        "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:05:00.000Z" }
+      },
+      "expected": {
+        "ok": true,
+        "result": { "objectName": "TeamMember", "recordId": "$founder" }
+      }
+    },
+    {
+      "id": "protectedrole.create.never-blocks-a-create.004",
+      "title": "A create is never refused by the guard, even into a scope that already holds no guarded-role record",
+      "specRef": "resolved-model#protected-roles",
+      "operation": "create",
+      "modelRef": "protectedRoleTeam",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "team",
+          "objectName": "Team",
+          "values": { "Name": "Alpha" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        }
+      ],
+      "input": {
+        "objectName": "TeamMember",
+        "values": { "Team": { "$ref": "team.meta.guid" }, "User": "casey", "Role": "Member" },
+        "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:05:00.000Z" }
+      },
+      "expected": {
+        "ok": true,
+        "result": { "objectName": "TeamMember", "values": { "Role": "Member" } }
+      }
+    },
+    {
+      "id": "protectedrole.scope.guards-each-scope-key-independently.005",
+      "title": "Refusing to remove one team's last admin leaves another team's own last admin equally guarded, not exempted",
+      "specRef": "resolved-model#protected-roles",
+      "operation": "delete",
+      "modelRef": "protectedRoleTeam",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Team",
+          "values": { "Name": "Alpha" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "beta",
+          "objectName": "Team",
+          "values": { "Name": "Beta" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "alphaAdmin",
+          "objectName": "TeamMember",
+          "values": { "Team": { "$ref": "alpha.meta.guid" }, "User": "casey", "Role": "Admin" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "betaAdmin",
+          "objectName": "TeamMember",
+          "values": { "Team": { "$ref": "beta.meta.guid" }, "User": "riley", "Role": "Admin" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        }
+      ],
+      "input": {
+        "objectName": "TeamMember",
+        "id": { "$ref": "betaAdmin.meta.guid" },
+        "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:05:00.000Z" }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "RuntimeValidationError",
+          "code": "ADL_RUNTIME_VALIDATION_FAILED",
+          "issues": [{ "code": "ADL_RUNTIME_CONSTRAINT_PROTECTED_ROLE" }]
+        }
+      }
+    },
+    {
+      "id": "protectedrole.update.demotion-between-two-guarded-values-is-allowed.006",
+      "title": "Demoting from one guarded role to another declared guarded role leaves the scope's guarded count unchanged and is allowed",
+      "specRef": "resolved-model#protected-roles",
+      "operation": "update",
+      "modelRef": "protectedRoleTeamMultiValue",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "team",
+          "objectName": "Team",
+          "values": { "Name": "Alpha" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        },
+        {
+          "operation": "create",
+          "alias": "founder",
+          "objectName": "TeamMember",
+          "values": { "Team": { "$ref": "team.meta.guid" }, "User": "casey", "Role": "Admin" },
+          "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:00:00.000Z" }
+        }
+      ],
+      "input": {
+        "objectName": "TeamMember",
+        "id": { "$ref": "founder.meta.guid" },
+        "patch": { "Role": "Owner" },
+        "context": { "userId": "admin-1", "roles": ["Admin"], "channel": "api", "now": "2026-07-31T09:05:00.000Z" }
+      },
+      "expected": {
+        "ok": true,
+        "result": { "objectName": "TeamMember", "values": { "Role": "Owner" } }
+      }
+    }
+  ]
+}

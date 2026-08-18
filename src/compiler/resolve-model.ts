@@ -581,6 +581,17 @@ function resolveObjectConstraint(input: PartialObjectConstraintModel): ResolvedO
     };
   }
 
+  if (input.kind === "protectedRole") {
+    return {
+      name: input.name,
+      kind: "protectedRole",
+      scopeFields: [...(input.scopeFields ?? [])],
+      roleField: input.roleField,
+      roleValues: [...input.roleValues],
+      minCount: input.minCount ?? 1,
+    };
+  }
+
   return {
     name: input.name,
     kind: "unique",

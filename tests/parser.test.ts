@@ -380,6 +380,50 @@ END.OBJECT
     });
   });
 
+  it("parses a protected role constraint declaring a scope, field, guarded values, and minimum count", () => {
+    const ast = parseAdl(`APP Phase65
+END.APP
+
+OBJECT TeamMember
+  FIELD Team TEXT REQUIRED
+  FIELD Role TEXT REQUIRED
+  CONSTRAINT lastTeamAdminStanding PROTECTED_ROLE SCOPE Team FIELD Role VALUES ('Admin', 'Owner') MIN 1
+END.OBJECT
+`);
+
+    expect(ast.objects[0]?.constraints[0]).toMatchObject({
+      kind: "ProtectedRoleObjectConstraintDeclaration",
+      name: "lastTeamAdminStanding",
+      scopeFields: ["Team"],
+      roleField: "Role",
+      roleValues: ["Admin", "Owner"],
+      minCount: 1,
+    });
+  });
+
+  it("parses a protected role constraint with no declared MIN, leaving it for the resolver to default", () => {
+    const ast = parseAdl(`APP Phase65
+END.APP
+
+OBJECT TeamMember
+  FIELD Team TEXT REQUIRED
+  FIELD Role TEXT REQUIRED
+  CONSTRAINT lastTeamAdminStanding PROTECTED_ROLE SCOPE Team FIELD Role VALUES ('Admin')
+END.OBJECT
+`);
+
+    expect(ast.objects[0]?.constraints[0]).toMatchObject({
+      kind: "ProtectedRoleObjectConstraintDeclaration",
+      name: "lastTeamAdminStanding",
+      scopeFields: ["Team"],
+      roleField: "Role",
+      roleValues: ["Admin"],
+    });
+    expect(
+      (ast.objects[0]?.constraints[0] as { minCount?: number } | undefined)?.minCount,
+    ).toBeUndefined();
+  });
+
   it("parses a nav drawer with no CONTROLS clause without inventing an empty list", () => {
     const ast = parseAdl(`APP Phase56
 END.APP
@@ -899,6 +943,32 @@ OBJECT SetListItem
 END.OBJECT
 `,
       "Expected ORDERED CONSTRAINT REORDER mode STRICT or SHIFT",
+    );
+
+    expectParseFailure(
+      `APP Phase65
+END.APP
+
+OBJECT TeamMember
+  FIELD Team TEXT
+  FIELD Role TEXT
+  CONSTRAINT lastTeamAdminStanding PROTECTED_ROLE SCOPE Team VALUES ('Admin')
+END.OBJECT
+`,
+      "Expected FIELD in PROTECTED_ROLE constraint",
+    );
+
+    expectParseFailure(
+      `APP Phase65
+END.APP
+
+OBJECT TeamMember
+  FIELD Team TEXT
+  FIELD Role TEXT
+  CONSTRAINT lastTeamAdminStanding PROTECTED_ROLE SCOPE Team FIELD Role
+END.OBJECT
+`,
+      "Expected VALUES in PROTECTED_ROLE constraint",
     );
 
     expectParseFailure(

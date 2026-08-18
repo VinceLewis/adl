@@ -262,6 +262,9 @@ export const MODEL_VALIDATION_CODES = {
   OBJECT_CONSTRAINT_MIN_POSITION_INVALID: "ADL_OBJECT_CONSTRAINT_MIN_POSITION_INVALID",
   OBJECT_CONSTRAINT_POSITION_FIELD_TYPE_INVALID:
     "ADL_OBJECT_CONSTRAINT_POSITION_FIELD_TYPE_INVALID",
+  OBJECT_CONSTRAINT_PROTECTED_ROLE_VALUES_EMPTY:
+    "ADL_OBJECT_CONSTRAINT_PROTECTED_ROLE_VALUES_EMPTY",
+  OBJECT_CONSTRAINT_PROTECTED_ROLE_MIN_INVALID: "ADL_OBJECT_CONSTRAINT_PROTECTED_ROLE_MIN_INVALID",
   OBJECT_DUPLICATE: "ADL_OBJECT_DUPLICATE",
   OBJECT_VALIDATION_DUPLICATE: "ADL_OBJECT_VALIDATION_DUPLICATE",
   OBJECT_VALIDATION_FIELD_UNKNOWN: "ADL_OBJECT_VALIDATION_FIELD_UNKNOWN",
@@ -2038,6 +2041,47 @@ function validateObjectConstraint(
           MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_COMPACTION_INVALID,
           `Ordered constraint '${constraint.name}' on object '${object.name}' has invalid compaction behaviour '${String(constraint.compaction)}'.`,
           `${constraintPath}.compaction`,
+        ),
+      );
+    }
+
+    validateConstraintFieldList(
+      constraint.scopeFields,
+      `${constraintPath}.scopeFields`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+    return;
+  }
+
+  if (constraint.kind === "protectedRole") {
+    validateConstraintField(
+      constraint.roleField,
+      `${constraintPath}.roleField`,
+      constraint,
+      object,
+      fieldsByName,
+      diagnostics,
+    );
+
+    if (constraint.roleValues.length === 0) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_PROTECTED_ROLE_VALUES_EMPTY,
+          `Protected role constraint '${constraint.name}' on object '${object.name}' must declare at least one guarded value.`,
+          `${constraintPath}.roleValues`,
+        ),
+      );
+    }
+
+    if (!isPositiveInteger(constraint.minCount)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.OBJECT_CONSTRAINT_PROTECTED_ROLE_MIN_INVALID,
+          `Protected role constraint '${constraint.name}' on object '${object.name}' minCount must be a positive integer.`,
+          `${constraintPath}.minCount`,
         ),
       );
     }

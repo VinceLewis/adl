@@ -1223,6 +1223,18 @@ END.POLICY
         }),
       ],
     });
+    expect(result.model.objects.find((object) => object.name === "BandMember")).toMatchObject({
+      constraints: expect.arrayContaining([
+        expect.objectContaining({
+          name: "lastBandAdminStanding",
+          kind: "protectedRole",
+          scopeFields: ["Band"],
+          roleField: "Role",
+          roleValues: ["BandAdmin"],
+          minCount: 1,
+        }),
+      ]),
+    });
     expect(result.model.readModels?.map((readModel) => readModel.name)).toEqual(
       expect.arrayContaining([
         "HomeUpcomingEvents",

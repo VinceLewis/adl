@@ -203,7 +203,7 @@ export type ReadModelSourceScope =
   | "allAvailableContexts"
   | "currentUser";
 export type ReadModelStrategy = "join" | "union";
-export type ObjectConstraintKind = "unique" | "ordered";
+export type ObjectConstraintKind = "unique" | "ordered" | "protectedRole";
 export type OrderedCollectionReorder = "strict" | "shift";
 export type OrderedCollectionCompaction = "none" | "onDelete";
 export type ReadModelJoinCardinality = "one" | "many";
@@ -582,7 +582,8 @@ export interface ResolvedAutoId {
 
 export type ResolvedObjectConstraint =
   | ResolvedUniqueObjectConstraint
-  | ResolvedOrderedObjectConstraint;
+  | ResolvedOrderedObjectConstraint
+  | ResolvedProtectedRoleObjectConstraint;
 
 export interface ResolvedUniqueObjectConstraint {
   name: string;
@@ -617,6 +618,27 @@ export interface ResolvedOrderedObjectConstraint {
    * to walk the collection itself.
    */
   compaction: OrderedCollectionCompaction;
+}
+
+/**
+ * The "last admin standing" guard: refuses a delete or an update that would
+ * leave fewer than {@link ResolvedProtectedRoleObjectConstraint.minCount}
+ * active records whose {@link ResolvedProtectedRoleObjectConstraint.roleField}
+ * holds one of {@link ResolvedProtectedRoleObjectConstraint.roleValues} within
+ * the same {@link ResolvedProtectedRoleObjectConstraint.scopeFields} key.
+ *
+ * It is declared once, on the membership-shaped object itself, and enforced by
+ * every write path that reaches {@link ResolvedObject.constraints} —
+ * direct CRUD and command steps alike — never only by UI affordance. An empty
+ * `scopeFields` guards the whole object rather than a scoped subset of it.
+ */
+export interface ResolvedProtectedRoleObjectConstraint {
+  name: string;
+  kind: "protectedRole";
+  scopeFields: string[];
+  roleField: string;
+  roleValues: JsonValue[];
+  minCount: number;
 }
 
 export interface ResolvedObjectValidation {
@@ -1758,7 +1780,8 @@ export interface PartialAutoIdModel {
 
 export type PartialObjectConstraintModel =
   | PartialUniqueObjectConstraintModel
-  | PartialOrderedObjectConstraintModel;
+  | PartialOrderedObjectConstraintModel
+  | PartialProtectedRoleObjectConstraintModel;
 
 export interface PartialUniqueObjectConstraintModel {
   name: string;
@@ -1776,6 +1799,15 @@ export interface PartialOrderedObjectConstraintModel {
   minPosition?: number;
   reorder?: OrderedCollectionReorder;
   compaction?: OrderedCollectionCompaction;
+}
+
+export interface PartialProtectedRoleObjectConstraintModel {
+  name: string;
+  kind: "protectedRole";
+  scopeFields?: string[];
+  roleField: string;
+  roleValues: JsonValue[];
+  minCount?: number;
 }
 
 export interface PartialObjectValidationModel {

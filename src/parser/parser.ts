@@ -1172,7 +1172,51 @@ class AdlParser {
       };
     }
 
-    this.failExpected("object constraint kind UNIQUE or ORDERED", this.previous());
+    if (constraintKind === "protectedrole") {
+      let scopeFields: string[] = [];
+      let roleField: string | undefined;
+      let roleValues: JsonValue[] = [];
+      let minCount: number | undefined;
+
+      while (!this.isLineEnd()) {
+        if (this.matchWord("SCOPE")) {
+          scopeFields = this.consumeNameListUntilWords(
+            "protected role constraint scope fields",
+            new Set(["FIELD", "VALUES", "MIN"]),
+          );
+        } else if (this.matchWord("FIELD")) {
+          roleField = this.consumeName("protected role constraint field");
+        } else if (this.matchWord("VALUES")) {
+          roleValues = this.consumeValueList("PROTECTED_ROLE CONSTRAINT VALUES");
+        } else if (this.matchWord("MIN")) {
+          minCount = this.consumeIntegerModifierValue("protected role constraint minimum count");
+        } else {
+          this.failUnexpected(
+            "PROTECTED_ROLE CONSTRAINT option SCOPE, FIELD, VALUES, MIN, or end of line",
+          );
+        }
+      }
+
+      if (roleField === undefined) {
+        this.failExpected("FIELD in PROTECTED_ROLE constraint", this.previous());
+      }
+      if (roleValues.length === 0) {
+        this.failExpected("VALUES in PROTECTED_ROLE constraint", this.previous());
+      }
+
+      this.consumeLineEnd("OBJECT CONSTRAINT declaration");
+      return {
+        kind: "ProtectedRoleObjectConstraintDeclaration",
+        name,
+        scopeFields,
+        roleField,
+        roleValues,
+        ...(minCount === undefined ? {} : { minCount }),
+        range: this.rangeFrom(startToken),
+      };
+    }
+
+    this.failExpected("object constraint kind UNIQUE, ORDERED, or PROTECTED_ROLE", this.previous());
   }
 
   private parseOrderedCollectionReorder(): OrderedCollectionReorder {

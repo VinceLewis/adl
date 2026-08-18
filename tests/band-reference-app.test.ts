@@ -193,6 +193,100 @@ describe("band reference app model", () => {
       expect.arrayContaining(["Band", "Event", "Song", "SetList", "SetListItem"]),
     );
   });
+
+  it("declares the last-admin-standing guard on BandMember's BandAdmin role", () => {
+    const model = createBandReferenceModel();
+
+    expect(
+      model.objects.find((object) => object.name === "BandMember")?.constraints,
+    ).toContainEqual(
+      expect.objectContaining({
+        name: "lastBandAdminStanding",
+        kind: "protectedRole",
+        scopeFields: ["Band"],
+        roleField: "Role",
+        roleValues: ["BandAdmin"],
+        minCount: 1,
+      }),
+    );
+  });
+});
+
+/**
+ * Real-world motivation: a sibling app (giggle-new, a band-management app
+ * built on this platform's ideas) enforced "don't remove the last admin"
+ * client-side only, which is exactly the defect the platform boundary in
+ * `AGENTS.md` exists to prevent. These tests prove the guard on the actual
+ * Giggle Band reference model — direct CRUD, not a UI affordance — using the
+ * real `BandMemberPolicy` rules that let a `BandAdmin` update or delete a
+ * fellow member.
+ */
+describe("band reference app last-admin-standing guard", () => {
+  it("refuses deleting a band's sole BandAdmin", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+    const members = await seeded.runtime.search("BandMember", {}, bandContext);
+    const founderMembership = members.find(
+      (record) => record.values.User === seeded.musician.meta.guid,
+    );
+    if (founderMembership === undefined) {
+      throw new Error("Expected the seeded founder BandMember record.");
+    }
+    expect(founderMembership.values.Role).toBe("BandAdmin");
+
+    await expect(
+      seeded.runtime.delete("BandMember", founderMembership.meta.guid, bandContext),
+    ).rejects.toMatchObject({
+      name: "RuntimeValidationError",
+      issues: [expect.objectContaining({ code: "ADL_RUNTIME_CONSTRAINT_PROTECTED_ROLE" })],
+    });
+  });
+
+  it("refuses demoting a band's sole BandAdmin to BandMember", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+    const members = await seeded.runtime.search("BandMember", {}, bandContext);
+    const founderMembership = members.find(
+      (record) => record.values.User === seeded.musician.meta.guid,
+    );
+    if (founderMembership === undefined) {
+      throw new Error("Expected the seeded founder BandMember record.");
+    }
+
+    await expect(
+      seeded.runtime.update(
+        "BandMember",
+        founderMembership.meta.guid,
+        { Role: "BandMember" },
+        bandContext,
+      ),
+    ).rejects.toBeInstanceOf(RuntimeValidationError);
+  });
+
+  it("allows removing a BandAdmin once another BandAdmin exists for the same band", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+    const members = await seeded.runtime.search("BandMember", {}, bandContext);
+    const founderMembership = members.find(
+      (record) => record.values.User === seeded.musician.meta.guid,
+    );
+    if (founderMembership === undefined) {
+      throw new Error("Expected the seeded founder BandMember record.");
+    }
+
+    const secondAdmin = await seeded.runtime.create(
+      "BandMember",
+      { User: seeded.guest.meta.guid, Band: seeded.firstBand.meta.guid, Role: "BandAdmin" },
+      bandContext,
+    );
+
+    await expect(
+      seeded.runtime.delete("BandMember", founderMembership.meta.guid, bandContext),
+    ).resolves.toBeDefined();
+
+    const remaining = await seeded.runtime.read("BandMember", secondAdmin.meta.guid, bandContext);
+    expect(remaining?.values.Role).toBe("BandAdmin");
+  });
 });
 
 describe("band reference app runtime", () => {

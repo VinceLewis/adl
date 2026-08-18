@@ -291,7 +291,8 @@ export interface ObjectScopeDeclarationAst {
 
 export type ObjectConstraintDeclarationAst =
   | UniqueObjectConstraintDeclarationAst
-  | OrderedObjectConstraintDeclarationAst;
+  | OrderedObjectConstraintDeclarationAst
+  | ProtectedRoleObjectConstraintDeclarationAst;
 
 export interface UniqueObjectConstraintDeclarationAst {
   kind: "UniqueObjectConstraintDeclaration";
@@ -312,6 +313,25 @@ export interface OrderedObjectConstraintDeclarationAst {
   reorder?: OrderedCollectionReorder;
   /** `COMPACT none|onDelete`; absent leaves the resolved default (`none`). */
   compaction?: OrderedCollectionCompaction;
+  range: SourceRange;
+}
+
+/**
+ * `PROTECTED_ROLE` guards a privileged role within a scope: it refuses a
+ * delete or an update that would leave fewer than `minCount` active records
+ * whose `roleField` holds one of `roleValues` within the same `scopeFields`
+ * key. This is the "last admin standing" guard — declared once on a
+ * membership-shaped object, it applies to every write path (direct CRUD and
+ * command steps) that reaches it.
+ */
+export interface ProtectedRoleObjectConstraintDeclarationAst {
+  kind: "ProtectedRoleObjectConstraintDeclaration";
+  name: string;
+  scopeFields: string[];
+  roleField: string;
+  roleValues: JsonValue[];
+  /** `MIN <n>`; absent leaves the resolved default (`1`). */
+  minCount?: number;
   range: SourceRange;
 }
 

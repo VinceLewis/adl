@@ -29,6 +29,7 @@ Before tasks that change resolved model defaults, model validation, policy evalu
 - `implementation/expression-language.md`
 - `implementation/computed-fields-and-read-model-expressions.md`
 - `implementation/conformance-suite.md`
+- `implementation/protected-role-constraint.md`
 
 Before tasks that change business context/scope modelling, context-scoped roles, relationship-aware policies, cross-context views, read models, sync dataset design, or backend persistence assumptions, also read:
 
@@ -310,3 +311,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/record-sync-state.md`: read before changing how a record's sync state is produced or cleared, before adding a surface that reports what a device is holding, or before adding any local removal of a row the authority refused.
 - `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.
 - `implementation/edit-surface-language.md`: read before changing ADL edit-surface syntax, the edit-surface runtime, how a staged batch of child changes commits or queues, the `batch` local-operation kind, or anything that adds another ad-hoc multi-record write.
+- `implementation/protected-role-constraint.md`: read before changing object constraints, `ObjectStore.requireConstraintsForWrites`, or any future guard that must count sibling records rather than validate one record in isolation — it carries the Phase 65 "last admin standing" design: the check fires on the transition, not the state, and is deliberately not retroactive.

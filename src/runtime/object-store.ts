@@ -8,6 +8,7 @@ import type {
   ResolvedApplicationModel,
   ResolvedObject,
   ResolvedOrderedObjectConstraint,
+  ResolvedProtectedRoleObjectConstraint,
   StoredObjectRecord,
   SyncMode,
   SyncStatus,
@@ -1326,7 +1327,21 @@ export class ObjectStore {
       }
 
       const finalRecords = await this.getFinalConstraintRecords(object, objectWrites);
+      const protectedRoleConstraints = object.constraints.filter(
+        (constraint): constraint is ResolvedProtectedRoleObjectConstraint =>
+          constraint.kind === "protectedRole",
+      );
+
       for (const write of objectWrites) {
+        // Unlike unique/ordered, a protected-role guard is exactly *about* the
+        // writes that leave the collection or change out of the guarded role,
+        // so it is checked before the delete short-circuit below, using the
+        // write's own `existing` values rather than its (possibly absent)
+        // final ones.
+        for (const constraint of protectedRoleConstraints) {
+          requireProtectedRoleConstraint(constraint, write, finalRecords, object, issues);
+        }
+
         // A deleted record leaves the collection, so it has nothing left to
         // satisfy. It is already absent from `finalRecords`, which is what makes
         // the position it held free for the writes around it.
@@ -1334,6 +1349,10 @@ export class ObjectStore {
           continue;
         }
         for (const constraint of object.constraints) {
+          if (constraint.kind === "protectedRole") {
+            // Already checked above, for every write kind including delete.
+            continue;
+          }
           if (constraint.kind === "unique") {
             const fields = [...constraint.scopeFields, ...constraint.fields];
             if (hasMissingConstraintValue(write.record, fields)) {
@@ -1791,6 +1810,78 @@ function findOrderedOccupant(working: Map<string, number>, slot: number): string
   }
 
   return undefined;
+}
+
+/**
+ * The "last admin standing" guard.
+ *
+ * A create can only add a record, never remove one, so it can never reduce a
+ * scope's guarded-role count and is skipped. For an update or a delete, the
+ * check fires only when the write's *existing* record held the guarded role —
+ * a write that never held it has nothing to protect — and only when the final
+ * state no longer holds it in the same scope: deleted outright, demoted to an
+ * unguarded value, or moved to a different scope key. An update that keeps the
+ * record's guarded role (including a demotion between two guarded values, such
+ * as `Admin` to `Owner` when both are declared) leaves the scope's count
+ * unchanged and is never checked.
+ *
+ * `finalRecords` already reflects every write in this transaction — deletes
+ * removed and updates applied — so the remaining count is exactly what the
+ * transaction would leave behind.
+ */
+function requireProtectedRoleConstraint(
+  constraint: ResolvedProtectedRoleObjectConstraint,
+  write: PlannedObjectWrite,
+  finalRecords: StoredObjectRecord[],
+  object: ResolvedObject,
+  issues: RuntimeValidationIssue[],
+): void {
+  if (write.operation === "create") {
+    return;
+  }
+
+  const existing = write.existing;
+  if (!recordHoldsProtectedRole(existing, constraint)) {
+    return;
+  }
+
+  const scopeKey = orderedScopeKey(existing, constraint.scopeFields);
+  if (scopeKey === undefined) {
+    return;
+  }
+
+  const stillGuarded =
+    write.operation === "update" &&
+    orderedScopeKey(write.record, constraint.scopeFields) === scopeKey &&
+    recordHoldsProtectedRole(write.record, constraint);
+  if (stillGuarded) {
+    return;
+  }
+
+  const remaining = finalRecords.filter(
+    (candidate) =>
+      candidate.meta.guid !== existing.meta.guid &&
+      orderedScopeKey(candidate, constraint.scopeFields) === scopeKey &&
+      recordHoldsProtectedRole(candidate, constraint),
+  ).length;
+
+  if (remaining < constraint.minCount) {
+    issues.push({
+      code: "ADL_RUNTIME_CONSTRAINT_PROTECTED_ROLE",
+      message: `Constraint '${constraint.name}' requires at least ${constraint.minCount} record(s) with '${constraint.roleField}' in [${constraint.roleValues.map((value) => JSON.stringify(value)).join(", ")}] on object '${object.name}'.`,
+      path: `values.${constraint.roleField}`,
+      field: constraint.roleField,
+    });
+  }
+}
+
+function recordHoldsProtectedRole(
+  record: StoredObjectRecord,
+  constraint: ResolvedProtectedRoleObjectConstraint,
+): boolean {
+  return constraint.roleValues.some((value) =>
+    jsonValuesEqual(record.values[constraint.roleField], value),
+  );
 }
 
 function orderedScopeKey(record: StoredObjectRecord, scopeFields: string[]): string | undefined {
