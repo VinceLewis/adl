@@ -1191,6 +1191,63 @@ describe("band reference app runtime", () => {
     );
   });
 
+  it("wires MyInvitationList's Revoke row action to the exact invitation it renders, and hides it once no longer pending", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const pendingInvitation = await createPendingInvitation(seeded);
+
+    const presentation = await seeded.runtime.evaluatePresentationView(
+      "BandInvitation",
+      "MyInvitationList",
+      seeded.firstBandContext,
+    );
+    const section = presentation.sections.find((candidate) => candidate.name === "SentInvitations");
+    const list = section?.lists.find((candidate) => candidate.name === "SentInvitationsList");
+    const row = list?.rows.find(
+      (candidate) => candidate.values.InviteeEmail === "riley.pending@example.com",
+    );
+    const action = row?.actions.find((candidate) => candidate.name === "revoke");
+
+    expect(action).toBeDefined();
+    expect(action?.command).toBe("RevokeBandInvitation");
+    // Phase 69's row identity fix: `INPUT Invitation FROM id` resolves to
+    // this row's own real record id (`meta.guid`), not the read model's
+    // synthetic `readModel:source:guid` row key.
+    expect(action?.input).toEqual({ Invitation: pendingInvitation.meta.guid });
+
+    if (action?.input === undefined) {
+      throw new Error("expected revoke action input");
+    }
+
+    // End-to-end: invoking the command with exactly the input the row action
+    // computed revokes the invitation the row was rendered from.
+    const result = await seeded.runtime.executeCommand(
+      "RevokeBandInvitation",
+      action.input,
+      seeded.firstBandContext,
+    );
+    expect(result.steps[0]?.record.values).toMatchObject({ Status: "Revoked" });
+
+    // `WHEN Status == 'Pending'` -- once revoked, the row no longer offers
+    // the action at all (invisible actions are dropped from the row's
+    // `actions` array, not merely marked `visible: false`).
+    const afterRevoke = await seeded.runtime.evaluatePresentationView(
+      "BandInvitation",
+      "MyInvitationList",
+      seeded.firstBandContext,
+    );
+    const afterSection = afterRevoke.sections.find(
+      (candidate) => candidate.name === "SentInvitations",
+    );
+    const afterList = afterSection?.lists.find(
+      (candidate) => candidate.name === "SentInvitationsList",
+    );
+    const afterRow = afterList?.rows.find(
+      (candidate) => candidate.values.InviteeEmail === "riley.pending@example.com",
+    );
+    expect(afterRow?.values.Status).toBe("Revoked");
+    expect(afterRow?.actions.find((candidate) => candidate.name === "revoke")).toBeUndefined();
+  });
+
   it("refuses revoking a band invitation once it is no longer pending", async () => {
     const seeded = await createSeededBandReferenceRuntime();
     const pendingInvitation = await createPendingInvitation(seeded);

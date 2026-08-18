@@ -229,25 +229,53 @@ END.OBJECT
 
 OBJECT BandInvitation
   # Admin-facing counterpart to the `HomeDashboard` "Invitations" feed, which
-  # only ever shows what is still `Pending`. This one is read-only:
-  # `RevokeBandInvitation` exists and is exercised directly (see
-  # `band-reference-app.test.ts`), the same way `AcceptBandInvitation` has
-  # been since Phase 28, but a one-click row action cannot be wired to it yet.
-  # A presentation `ACTION`'s `INPUT ... FROM <expr>` only ever sees a row's
-  # already-projected field values (`RuntimePresentationRow.values`); nothing
-  # in a read model, an object field, or a computed field can carry a
-  # record's own storage id (`meta.guid`) into that scope today. Every
-  # existing `ACTION` in this app that targets an existing record --
-  # accepting an invitation included -- is invoked directly through the
-  # command service, never through a list row, for exactly this reason.
-  # Closing that gap is platform work (exposing the record id to presentation
-  # row values / action input), not reference-app content.
+  # only ever shows what is still `Pending`. `RevokeBandInvitation` exists and
+  # is exercised directly (see `band-reference-app.test.ts`), the same way
+  # `AcceptBandInvitation` has been since Phase 28; the `revoke` row ACTION
+  # below is what wires a one-click button to it. This was blocked until
+  # Phase 69: a presentation `ACTION`'s `INPUT ... FROM <expr>` only ever saw
+  # a row's already-projected field values, with no way to reach a row's own
+  # record identity (`meta.guid`) -- see `docs/spec/language.md`'s "Composed
+  # View Presentation" section for the `id` token Phase 69 introduced to close
+  # exactly this gap, and `duplicateGig` above for the `PLACEMENT row` shape
+  # this action reuses.
   VIEW MyInvitationList DASHBOARD
     CONTEXT REQUIRED Band
     READ_MODEL SentBandInvitations
     FIELDS InviteeEmail Role Status SentAt RespondedAt
     SORT SentAt DESC
     ACTIONS read search
+
+    SECTION SentInvitations
+      HEADING 'Sent invitations'
+
+      LIST SentInvitationsList FROM READ_MODEL SentBandInvitations
+        ORDER BY SentAt DESC
+        RENDER_AS table
+        DENSITY compact
+        EMPTY_TEXT 'No invitations sent yet'
+
+        ROW
+          TEXT InviteeEmail STYLE bold
+          TEXT ' - '
+          TEXT Role
+          TEXT ' - '
+          TEXT Status
+          TEXT ' - '
+          TEXT SentAt FORMAT date 'EEE d MMM'
+        END.ROW
+
+        # `WHEN Status == 'Pending'` keeps the button off rows that cannot
+        # actually be revoked (already accepted, declined, or revoked), even
+        # though `RevokeBandInvitation`'s own `REQUIRE Status == 'Pending'`
+        # step guard makes this safe either way -- offering it everywhere
+        # would just invite a confusing server-side rejection for no reason.
+        ACTION revoke COMMAND RevokeBandInvitation LABEL 'Revoke' ICON x PLACEMENT row
+          WHEN Status == 'Pending'
+          INPUT Invitation FROM id
+        END.ACTION
+      END.LIST
+    END.SECTION
   END.VIEW
 END.OBJECT
 
