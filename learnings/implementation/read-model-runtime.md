@@ -87,6 +87,42 @@ Read this before changing read-model execution, read-model-backed dashboards, re
   phase's Non-goals — and they remain a known, undocumented-until-now gap for
   whoever declares `TARGET_FIELD` next.
 
+## Key decisions from the Giggle Band cross-band availability overlay
+
+- **A source's `SCOPE allAvailableContexts` only reaches past the selected
+  context if the read model itself is `CONTEXT ALL`.** Found building
+  `MyAvailabilityWithGigs` (a `HomeUpcomingEvents`-shaped union: `SOURCE event
+  OBJECT Event SCOPE allAvailableContexts` plus `SOURCE availability OBJECT
+  Availability SCOPE currentUser`) for a view declared `CONTEXT REQUIRED
+  Band`. Copying the read model's own context declaration from its
+  consuming view (`CONTEXT REQUIRED Band`, matching the view) instead of from
+  `HomeUpcomingEvents` (`CONTEXT ALL Band`) silently dropped every event from
+  a band other than the one selected — the exact cross-band records the
+  source scope exists to admit.
+- The mechanism is `getAllowedContextIds` (`src/runtime/context-scope.ts`):
+  when a context is **selected**, it returns only that one id and never
+  consults `contextRoles`/`contextGrants`, regardless of what any source
+  scope asks for. `resolveExecutionContext` (this file) only clears the
+  selection — falling back to every context the caller has a role or grant
+  in — when `readModel.context?.mode === "all"`. A `REQUIRED`/`OPTIONAL`
+  read model keeps the original context untouched, so `recordMatchesContextScope`
+  intersects `allAvailableContexts` against a set of exactly one id.
+- **A read model's own context requirement is independent of its consuming
+  view's.** `BandMemberAvailabilityBoard` stayed `CONTEXT REQUIRED Band` (a
+  band must still be selected to open the page) while the read model it
+  calls for the overlay section is `CONTEXT ALL Band` (so that section's
+  query itself reaches every band). Nothing enforces these two match, and
+  Phase 15/63's existing `join`-strategy read models never needed them to
+  differ; a `union` read model that intentionally wants a caller's *entire*
+  cross-context footprint, attached to a view that still requires one
+  selected context to render at all, is the case where they legitimately
+  should not.
+- Consequence for testing: a read model exercising this needs a fixture user
+  who is a member of at least two contexts, with a record in the *second*
+  one, and an assertion against the read model's raw output (not just the
+  consuming view) — the wrong `CONTEXT` mode compiles and validates cleanly
+  and only shows up as a silently short row set.
+
 ## Practical guidance
 
 - Add new read-model behavior through resolved-model declarations and `ReadModelService`; keep parser syntax and backend execution strategies separate.

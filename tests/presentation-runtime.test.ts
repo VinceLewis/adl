@@ -141,6 +141,7 @@ describe("presentation runtime", () => {
     expect(homeRows.rows.map((row) => row.values.Title)).toEqual([
       "Canal Street headline",
       "New set rehearsal",
+      "Thought this evening was free.",
       "Unavailable - session prep",
     ]);
   });

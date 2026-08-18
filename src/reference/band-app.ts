@@ -51,6 +51,7 @@ export interface BandReferenceSeed {
   firstEvent: StoredObjectRecord;
   secondEvent: StoredObjectRecord;
   availability: StoredObjectRecord;
+  crossBandAvailability: StoredObjectRecord;
   firstSong: StoredObjectRecord;
   secondSong: StoredObjectRecord;
   thirdSong: StoredObjectRecord;
@@ -103,6 +104,9 @@ export async function seedBandReferenceRuntime(
       Name: "The Alphas",
       Description: "Originals and function sets",
       Biography: "A city band coordinating shows and rehearsals.",
+      Facebook: "https://facebook.com/thealphasband",
+      Instagram: "https://instagram.com/thealphasband",
+      YouTube: "https://youtube.com/@thealphasband",
     },
     systemContext,
   );
@@ -148,6 +152,12 @@ export async function seedBandReferenceRuntime(
       Title: "Canal Street headline",
       VenueName: "Alpha Hall",
       VenueLocation: "Canal Street",
+      ContactName: "Jordan Blake",
+      ContactPhone: "+44 20 7946 0958",
+      ContactEmail: "jordan@alphahall.example.com",
+      Amount: 450,
+      PaymentMethod: "Bank Transfer",
+      Agent: "Riverside Bookings",
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
@@ -189,6 +199,20 @@ export async function seedBandReferenceRuntime(
       Date: "2026-08-03",
       Status: "Unavailable",
       Notes: "Unavailable - session prep",
+    },
+    musicianContext,
+  );
+  // Same date as `secondEvent` (the Betas rehearsal): Casey marked themselves
+  // free before that gig existed. `BandMemberAvailabilityBoard`'s cross-band
+  // overlay is what makes the clash visible from the Alphas' own board — the
+  // gig-derived status outranks this one on 2026-08-02.
+  const crossBandAvailability = await runtime.create(
+    "Availability",
+    {
+      User: musician.meta.guid,
+      Date: "2026-08-02",
+      Status: "Available",
+      Notes: "Thought this evening was free.",
     },
     musicianContext,
   );
@@ -251,6 +275,14 @@ export async function seedBandReferenceRuntime(
       Description: "Opening run for the Canal Street show.",
       CreatedBy: musician.meta.guid,
     },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  // The gig ↔ set-list link: `firstSetList` did not exist yet when `firstEvent`
+  // was created, so this is an update rather than a value at create time.
+  await runtime.update(
+    "Event",
+    firstEvent.meta.guid,
+    { SetList: firstSetList.meta.guid },
     contextForBand(systemContext, firstBand.meta.guid),
   );
   // The set-list child collection on `SetListForm` is the surface Phase 59 makes
@@ -360,6 +392,7 @@ export async function seedBandReferenceRuntime(
     firstEvent,
     secondEvent,
     availability,
+    crossBandAvailability,
     firstSong,
     secondSong,
     thirdSong,

@@ -35,6 +35,10 @@ OBJECT Band
   FIELD Description TEXT
   FIELD Biography TEXT
   FIELD CreatedBy TEXT LOOKUP User DISPLAY Name
+  FIELD Facebook TEXT REGEXP '^https?://'
+  FIELD Instagram TEXT REGEXP '^https?://'
+  FIELD YouTube TEXT REGEXP '^https?://'
+  FIELD ProfilePicture ATTACHMENT
   SYNC LOCAL_FIRST SCOPE allAvailableContexts
 
   VIEW BandDirectory LIST
@@ -46,7 +50,7 @@ OBJECT Band
 
   VIEW BandProfile FORM
     CONTEXT REQUIRED Band
-    FIELDS Name Description Biography
+    FIELDS Name Description Biography Facebook Instagram YouTube ProfilePicture
     ACTIONS save delete
   END.VIEW
 END.OBJECT
@@ -108,6 +112,23 @@ OBJECT Event
   FIELD VenueName TEXT
   FIELD VenueLocation TEXT
   FIELD Notes TEXT
+  # Booking contact and payment terms travel with the gig, matching the fields
+  # giggle-new's own gig form carries (`contact_name`, `contact_phone`,
+  # `contact_email`, `amount`, `payment_method`, `agent`). `Amount` is a plain
+  # `NUMBER`, not a `CURRENCY_CODE`-validated field: `CURRENCY_CODE` checks that
+  # a value is three uppercase letters, which is what a currency *code* like
+  # `'GBP'` looks like, not a fee -- giggle-new itself has no separate currency
+  # field, so there is nothing here for `CURRENCY_CODE` to validate.
+  FIELD ContactName TEXT
+  FIELD ContactPhone TEXT REGEXP '^[0-9 +()-]{7,20}$'
+  FIELD ContactEmail TEXT EMAIL
+  FIELD Amount NUMBER MIN 0
+  FIELD PaymentMethod TEXT IN ('Cash', 'Cheque', 'Bank Transfer')
+  FIELD Agent TEXT
+  # Self-referencing: naming the gig this one repeats lets a repeat booking
+  # carry its history forward without duplicating the earlier record.
+  FIELD PreviousGig TEXT LOOKUP Event DISPLAY Title
+  FIELD SetList TEXT LOOKUP SetList DISPLAY Name
   SYNC LOCAL_FIRST SCOPE currentContext WINDOW Date 90 DAYS LIMIT 200
 
   VIEW BandEventList LIST
@@ -120,7 +141,7 @@ OBJECT Event
 
   VIEW BandEventForm FORM
     CONTEXT REQUIRED Band
-    FIELDS EventType Date StartTime EndTime Title VenueName VenueLocation Notes
+    FIELDS EventType Date StartTime EndTime Title VenueName VenueLocation SetList ContactName ContactPhone ContactEmail Amount PaymentMethod Agent PreviousGig Notes
     ACTIONS save delete
   END.VIEW
 END.OBJECT
@@ -141,13 +162,9 @@ OBJECT Availability
     ACTIONS create read update delete
   END.VIEW
 
-  VIEW BandMemberAvailabilityBoard DASHBOARD
-    CONTEXT REQUIRED Band
-    READ_MODEL BandMemberAvailability
-    FIELDS Member Role Date Status
-    SORT Date ASC
-    ACTIONS read search
-  END.VIEW
+  # `BandMemberAvailabilityBoard`'s composed presentation -- the cross-band gig
+  # overlay and its status precedence -- is authored in `ui.adl`, matching
+  # `HomeDashboard` and `BandEventCalendar`.
 END.OBJECT
 
 OBJECT Song
@@ -227,7 +244,7 @@ OBJECT StreamingLink
   CONSTRAINT uniqueStreamingPlatformForSong UNIQUE SCOPE Song FIELDS Platform
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
   FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
-  FIELD Platform TEXT REQUIRED IN ('YouTube', 'Spotify', 'Apple Music', 'SoundCloud', 'Bandcamp', 'Other')
+  FIELD Platform TEXT REQUIRED IN ('YouTube', 'Spotify', 'Apple Music', 'SoundCloud', 'Bandcamp', 'Tidal', 'Amazon Music', 'Google Drive', 'Device Gallery', 'Other')
   FIELD Url TEXT REQUIRED REGEXP '^https?://'
   SYNC LOCAL_FIRST SCOPE currentContext
 
@@ -323,6 +340,43 @@ READ_MODEL BandMemberAvailability
   FIELD Date FROM availability.Date
   FIELD Status FROM availability.Status
   SORT Date ASC
+END.READ_MODEL
+
+# The cross-band counterpart to `CalendarPlanningItems`: the same union of a
+# gig-shaped fact with a personal-availability fact, but the event source is
+# `SCOPE allAvailableContexts` (every band the caller belongs to) instead of
+# `SCOPE currentContext` (only the selected band). This is what lets a gig
+# booked with a *different* band show up as a same-date overlay on a band's
+# own availability board -- exactly the union `HomeUpcomingEvents` already
+# uses for the cross-band home feed, reused here for the same reason.
+#
+# `CONTEXT ALL Band`, matching `HomeUpcomingEvents`, not `CONTEXT REQUIRED
+# Band` like the view (`BandMemberAvailabilityBoard`) that consumes this read
+# model: `ReadModelService.resolveExecutionContext` only drops the caller's
+# *selected* business context -- letting `SCOPE allAvailableContexts` reach
+# every band the caller belongs to -- when the read model itself is declared
+# `CONTEXT ALL`. Left as `REQUIRED`, `getAllowedContextIds` collapses to the
+# one already-selected band even though the source says `allAvailableContexts`,
+# and a gig from another band silently never appears. A read model may widen a
+# context requirement past its consuming view's; the view still gates entry
+# to the page.
+READ_MODEL MyAvailabilityWithGigs
+  CONTEXT ALL Band
+  UNION
+  SOURCE event OBJECT Event SCOPE allAvailableContexts
+  SOURCE availability OBJECT Availability SCOPE currentUser
+  FIELD EventDateSource FROM event.Date
+  FIELD AvailabilityDate FROM availability.Date
+  FIELD ScheduleDate DATE = EventDateSource ?? AvailabilityDate
+  FIELD EventTypeSource FROM event.EventType
+  FIELD AvailabilityStatus FROM availability.Status
+  FIELD ScheduleStatus TEXT = EventTypeSource ?? AvailabilityStatus
+  FIELD EventTitle FROM event.Title
+  FIELD AvailabilityNotes FROM availability.Notes
+  FIELD Title TEXT = EventTitle ?? AvailabilityNotes
+  FIELD EventVenueName FROM event.VenueName
+  FIELD VenueName TEXT = EventVenueName ?? 'Personal calendar'
+  SORT ScheduleDate ASC
 END.READ_MODEL
 
 READ_MODEL PendingInvitations

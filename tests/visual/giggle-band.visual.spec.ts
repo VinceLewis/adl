@@ -15,6 +15,11 @@ const gigglePages: VisualPage[] = [
     navItem: "MyAvailabilityList",
     expectedText: "Unavailable - session prep",
   },
+  {
+    name: "who-is-free",
+    navItem: "BandMemberAvailabilityBoard",
+    expectedText: "Who is free",
+  },
   { name: "songs", navItem: "SongLibrary", expectedText: "Neon Map" },
   { name: "set-lists", navItem: "SetListList", expectedText: "August headline" },
   { name: "bands", navItem: "BandDirectory", expectedText: "The Alphas" },

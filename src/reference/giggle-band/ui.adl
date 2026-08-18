@@ -170,6 +170,60 @@ OBJECT Event
         END.ACTION
       END.CALENDAR
     END.SECTION
+
+    # A repeat booking is rarely typed from scratch: a venue that had a band
+    # back is asking for the same night, the same contact and the same fee.
+    # `duplicateGig` copies every field but `Date` from an existing gig into a
+    # fresh create form, landing the user on a prefilled draft with only the
+    # new date left to fill in -- the same `CREATE ... INPUT <field> FROM
+    # <field>` shape `addEventOnDate` already uses above, just with one input
+    # per business field instead of one. Bound to `OBJECT Event` directly
+    # (not a read model) so every field the row carries -- including the rich
+    # gig fields -- is available to `INPUT ... FROM`.
+    SECTION DuplicateGig
+      HEADING 'Duplicate a previous gig'
+
+      LIST PreviousGigs FROM OBJECT Event
+        ORDER BY Date DESC
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'No previous gigs to duplicate yet'
+
+        ROW
+          TEXT Date FORMAT date 'EEE d MMM'
+          TEXT ' - '
+          TEXT Title STYLE bold
+          TEXT ' - '
+          TEXT VenueName
+        END.ROW
+
+        # `PreviousGig FROM PreviousGig` copies the row's own `PreviousGig`
+        # value forward (its repeat-booking lineage), not the id of the row
+        # being duplicated -- a presentation ACTION's `INPUT ... FROM <expr>`
+        # only ever sees a row's already-projected field values, never the
+        # row's own record id (see
+        # `learnings/implementation/ui-presentation-model.md`'s "row-scoped
+        # ACTION cannot target an existing record by id"), so there is no
+        # expression here that could point the new gig back at this one.
+        ACTION duplicateGig CREATE Event LABEL 'Duplicate' ICON list PLACEMENT row
+          INPUT EventType FROM EventType
+          INPUT StartTime FROM StartTime
+          INPUT EndTime FROM EndTime
+          INPUT Title FROM Title
+          INPUT VenueName FROM VenueName
+          INPUT VenueLocation FROM VenueLocation
+          INPUT SetList FROM SetList
+          INPUT ContactName FROM ContactName
+          INPUT ContactPhone FROM ContactPhone
+          INPUT ContactEmail FROM ContactEmail
+          INPUT Amount FROM Amount
+          INPUT PaymentMethod FROM PaymentMethod
+          INPUT Agent FROM Agent
+          INPUT PreviousGig FROM PreviousGig
+          INPUT Notes FROM Notes
+        END.ACTION
+      END.LIST
+    END.SECTION
   END.VIEW
 END.OBJECT
 
@@ -194,6 +248,87 @@ OBJECT BandInvitation
     FIELDS InviteeEmail Role Status SentAt RespondedAt
     SORT SentAt DESC
     ACTIONS read search
+  END.VIEW
+END.OBJECT
+
+OBJECT Availability
+  # `BandMemberAvailabilityBoard` keeps its whole-band roster (`Who is free`,
+  # backed by `BandMemberAvailability`, unchanged) and adds a second section:
+  # the signed-in member's own schedule, overlaid with gigs booked with *any*
+  # band they belong to, not just the one currently selected. A gig-derived
+  # status outranks a plain availability status on the same date -- the same
+  # `PRECEDENCE 100` device `BandEventCalendar`'s `conflict` status already
+  # uses, reused here so a real booking outranks a stale "I'm free" note on
+  # the same date.
+  #
+  # The label deliberately says "Gig booked" rather than naming which band:
+  # a read-model expression only ever sees `RUNTIME.userId` / `RUNTIME.now`
+  # (see `docs/spec/language.md`'s Read Models section), never which business
+  # context the *consuming view* currently has selected, so nothing here can
+  # tell the currently-selected band's own gig apart from another band's. Both
+  # are still correctly "booked" -- the wording just does not overclaim which
+  # one.
+  VIEW BandMemberAvailabilityBoard DASHBOARD
+    CONTEXT REQUIRED Band
+    READ_MODEL BandMemberAvailability
+    FIELDS Member Role Date Status
+    SORT Date ASC
+    ACTIONS read search
+    LAYOUT stack
+    DENSITY compact
+
+    STATE visibleMonth DATE DEFAULT '2026-08-01'
+
+    STATUS conflict LABEL 'Gig booked' ARIA_LABEL 'A gig or rehearsal is already booked on this date' ICON calendar THEME colorStatusConflict PRECEDENCE 100
+    STATUS available LABEL 'Available' ARIA_LABEL 'Available' ICON calendar THEME colorStatusAvailable PRECEDENCE 10
+    STATUS unavailable LABEL 'Unavailable' ARIA_LABEL 'Unavailable' ICON x THEME colorStatusUnavailable PRECEDENCE 20
+
+    STATUS_MAP MyScheduleStatus FOR ScheduleStatus DEFAULT unavailable
+      Gig -> conflict
+      Rehearsal -> conflict
+      Available -> available
+      Unavailable -> unavailable
+    END.STATUS_MAP
+
+    LEGEND MyScheduleLegend TITLE 'My schedule' STATUSES conflict available unavailable
+
+    SECTION TeamAvailability
+      HEADING 'Who is free'
+
+      LIST TeamAvailabilityList FROM READ_MODEL BandMemberAvailability
+        ORDER BY Date ASC
+        RENDER_AS table
+        DENSITY compact
+        EMPTY_TEXT 'No availability recorded yet'
+
+        ROW
+          TEXT Member STYLE bold
+          TEXT ' - '
+          TEXT Role
+          TEXT ' - '
+          TEXT Date FORMAT date 'EEE d MMM'
+          TEXT ' - '
+          TEXT Status
+        END.ROW
+      END.LIST
+    END.SECTION
+
+    SECTION MySchedule
+      HEADING 'My schedule across bands'
+
+      CALENDAR MyScheduleCalendar FROM READ_MODEL MyAvailabilityWithGigs
+        MONTH_STATE visibleMonth
+        WEEK_START monday
+        DATE_FIELD ScheduleDate
+        TITLE_FIELD Title
+        SUMMARY_FIELDS VenueName
+        FIELDS ScheduleDate ScheduleStatus Title VenueName
+        ORDER BY ScheduleDate ASC
+        DENSITY compact
+        STATUS MyScheduleStatus(ScheduleStatus)
+        EMPTY_TEXT 'Nothing scheduled this month'
+      END.CALENDAR
+    END.SECTION
   END.VIEW
 END.OBJECT
 

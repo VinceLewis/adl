@@ -112,6 +112,53 @@ Read this before adding or changing ADL reference applications, especially multi
   title instead. Order a read model's fields for this renderer, not only for
   logical grouping.
 
+## Key decisions from the gig/availability content pass
+
+Six content additions to `Event`, `Band`, `StreamingLink` and the availability
+board — a `SetList` lookup on `Event`, rich gig fields (contact, payment,
+`PreviousGig` self-reference), a `duplicateGig` presentation action, a
+cross-band availability overlay, four more streaming platforms, and band
+branding fields — done as application-layer content, no platform change.
+
+- **`BandMemberAvailabilityBoard` moved out of `domain.adl` into `ui.adl`**,
+  matching `HomeDashboard`/`BandEventCalendar`: any view that needs composed
+  `SECTION`/`STATUS`/`CALENDAR` presentation is authored whole in `ui.adl`,
+  never split across a plain declaration in `domain.adl` plus an add-on in
+  `ui.adl` — `mergeViewOnlyObjectDeclarations` (`compile-adl.ts`) appends a
+  second `OBJECT` block's views into the first only when that second block is
+  otherwise field/scope/constraint-free, so a same-named view still has to be
+  declared exactly once. Practical effect: the "first non-date field is the
+  title" generic-dashboard-renderer rule from the sent-invitations addition
+  above no longer applies to this view once it gained composed sections —
+  that rule only governs a `READ_MODEL`-backed `DASHBOARD` with **no**
+  composed `SECTION`.
+- **A cross-band "you're already booked" overlay cannot name which band.** A
+  read-model expression only ever sees `RUNTIME.userId`/`RUNTIME.now` — never
+  which business context the *consuming view* has selected — so a status
+  built from a `SCOPE allAvailableContexts` source cannot distinguish the
+  selected band's own gig from a different band's. Labelling it "Gig with
+  another band" was actively wrong on the selected band's own dates; "Gig
+  booked" is what the data can actually support. See
+  [read-model-runtime](read-model-runtime.md) for the mechanism that made the
+  overlay admit the other band's records in the first place.
+- **A validator name in a task description is not authority over what makes
+  semantic sense.** Asked for an `Amount` field with a `CURRENCY_CODE`
+  validator, `CURRENCY_CODE` checks for three uppercase letters (a currency
+  *code* like `'GBP'`), which cannot validate a monetary amount and would
+  reject every non-empty value. `giggle-new` itself has no separate currency
+  field. Built as `NUMBER MIN 0` instead, matching the sibling app's actual
+  `sql.NullString` amount column. Silently doing the literal, nonsensical
+  thing would have shipped a field nobody could ever save a value into.
+- **`PreviousGig FROM PreviousGig` on a `duplicateGig` row action copies
+  lineage, not identity.** The action needed to duplicate every field but
+  `Date`, and `PreviousGig` is one of them, but a presentation `ACTION`
+  `INPUT` still cannot see a row's own record id (unchanged since the
+  sent-invitations finding above) — so `INPUT PreviousGig FROM PreviousGig`
+  forwards the *source* gig's own `PreviousGig` value rather than pointing
+  the new gig back at the one being duplicated. Documented in place in
+  `ui.adl` rather than silently omitted, so a future reader does not mistake
+  it for an oversight.
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.

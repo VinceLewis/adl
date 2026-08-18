@@ -530,13 +530,23 @@ describe("band reference app runtime", () => {
         Title: "New set rehearsal",
         VenueName: "Beta Rooms",
       }),
+      // Casey's own "thought I was free" availability entry on the same date as
+      // the cross-band rehearsal above: a separate union row, not merged with
+      // it, because it comes from a different source
+      // (`BandMemberAvailabilityBoard`'s cross-band overlay is what visually
+      // resolves this clash; see `learnings/implementation/reference-app-models.md`).
+      expect.objectContaining({
+        EventDate: "2026-08-02",
+        EventType: "Available",
+        Title: "Thought this evening was free.",
+      }),
       expect.objectContaining({
         EventDate: "2026-08-03",
         EventType: "Unavailable",
         Title: "Unavailable - session prep",
       }),
     ]);
-    expect(home.rows[2]?.sources).toEqual({
+    expect(home.rows[3]?.sources).toEqual({
       availability: {
         objectName: "Availability",
         recordId: seeded.availability.meta.guid,
@@ -555,13 +565,21 @@ describe("band reference app runtime", () => {
         Title: "Canal Street headline",
         VenueName: "Alpha Hall",
       }),
+      // `CalendarPlanningItems` sources `Event SCOPE currentContext`, so
+      // `secondEvent` (the Betas rehearsal) never appears while the Alphas are
+      // selected — only Casey's own availability entry on the same date does.
+      expect.objectContaining({
+        Date: "2026-08-02",
+        CalendarStatus: "Available",
+        Title: "Thought this evening was free.",
+      }),
       expect.objectContaining({
         Date: "2026-08-03",
         CalendarStatus: "Unavailable",
         Title: "Unavailable - session prep",
       }),
     ]);
-    expect(calendar.rows[1]?.sources).toEqual({
+    expect(calendar.rows[2]?.sources).toEqual({
       availability: {
         objectName: "Availability",
         recordId: seeded.availability.meta.guid,
@@ -651,12 +669,26 @@ describe("band reference app runtime", () => {
     // selected — it is here because `HomeUpcomingEvents` declares a cross-band
     // input, which is the route that actually wants it. Under Phase 62's `recent`
     // this record carried an `objectSync` reason it had never asked for.
+    //
+    // `MyAvailabilityWithGigs` (the cross-band availability overlay) is a second
+    // such route: it also sources `Event SCOPE allAvailableContexts`, so it
+    // independently admits the same record. Two cross-band read-model sources
+    // wanting the same event is not a defect — each reason names the read model
+    // that actually asked for it.
     expect(
       eventRecords.find((record) => record.recordId === seeded.secondEvent.meta.guid)?.reasons,
     ).toEqual([
       {
         kind: "readModelSource",
         readModel: "HomeUpcomingEvents",
+        source: "event",
+        sourceScope: "allAvailableContexts",
+        mode: "localFirst",
+        boundedBy: "window",
+      },
+      {
+        kind: "readModelSource",
+        readModel: "MyAvailabilityWithGigs",
         source: "event",
         sourceScope: "allAvailableContexts",
         mode: "localFirst",
@@ -670,6 +702,7 @@ describe("band reference app runtime", () => {
     ]);
     expect(availabilitySearch.map((record) => record.meta.guid)).toEqual([
       seeded.availability.meta.guid,
+      seeded.crossBandAvailability.meta.guid,
     ]);
   });
 
@@ -791,6 +824,224 @@ describe("band reference app runtime", () => {
     // the Phase 63 rule holding on an object that could not declare a bound then.
     expect(availability.map((record) => record.recordId)).not.toContain(bandmateAncient.meta.guid);
     expect(availability.map((record) => record.recordId)).toContain(seeded.availability.meta.guid);
+  });
+
+  it("links a gig to a set list through Event.SetList, and enforces the rich gig field validators", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+
+    // The seed links `firstEvent` to `firstSetList` once the set list exists.
+    const linked = await seeded.runtime.read("Event", seeded.firstEvent.meta.guid, bandContext);
+    expect(linked?.values.SetList).toBe(seeded.firstSetList.meta.guid);
+
+    const wellFormed = await seeded.runtime.create(
+      "Event",
+      {
+        Band: seeded.firstBand.meta.guid,
+        EventType: "Gig",
+        Date: "2026-09-01",
+        Title: "September support slot",
+        SetList: seeded.firstSetList.meta.guid,
+        ContactName: "Sam Rivers",
+        ContactPhone: "+44 161 496 0018",
+        ContactEmail: "sam@venue.example.com",
+        Amount: 300,
+        PaymentMethod: "Cash",
+        Agent: "Riverside Bookings",
+      },
+      bandContext,
+    );
+    expect(wellFormed.values).toMatchObject({
+      SetList: seeded.firstSetList.meta.guid,
+      PaymentMethod: "Cash",
+      Amount: 300,
+    });
+
+    await expect(
+      seeded.runtime.create(
+        "Event",
+        {
+          Band: seeded.firstBand.meta.guid,
+          EventType: "Gig",
+          Date: "2026-09-02",
+          Title: "Bad contact phone",
+          ContactPhone: "call me maybe",
+        },
+        bandContext,
+      ),
+    ).rejects.toBeInstanceOf(RuntimeValidationError);
+
+    await expect(
+      seeded.runtime.create(
+        "Event",
+        {
+          Band: seeded.firstBand.meta.guid,
+          EventType: "Gig",
+          Date: "2026-09-03",
+          Title: "Bad contact email",
+          ContactEmail: "not-an-email",
+        },
+        bandContext,
+      ),
+    ).rejects.toBeInstanceOf(RuntimeValidationError);
+
+    await expect(
+      seeded.runtime.create(
+        "Event",
+        {
+          Band: seeded.firstBand.meta.guid,
+          EventType: "Gig",
+          Date: "2026-09-04",
+          Title: "Bad payment method",
+          PaymentMethod: "Venmo",
+        },
+        bandContext,
+      ),
+    ).rejects.toBeInstanceOf(RuntimeValidationError);
+  });
+
+  it("names a repeat booking's earlier gig through the self-referencing PreviousGig lookup", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+
+    const earlierGig = await seeded.runtime.create(
+      "Event",
+      {
+        Band: seeded.firstBand.meta.guid,
+        EventType: "Gig",
+        Date: "2026-05-01",
+        Title: "Spring warm-up show",
+        VenueName: "Alpha Hall",
+      },
+      bandContext,
+    );
+    const repeatBooking = await seeded.runtime.create(
+      "Event",
+      {
+        Band: seeded.firstBand.meta.guid,
+        EventType: "Gig",
+        Date: "2026-10-01",
+        Title: "Alpha Hall return date",
+        VenueName: "Alpha Hall",
+        PreviousGig: earlierGig.meta.guid,
+      },
+      bandContext,
+    );
+
+    const read = await seeded.runtime.read("Event", repeatBooking.meta.guid, bandContext);
+    expect(read?.values.PreviousGig).toBe(earlierGig.meta.guid);
+  });
+
+  it("prefills a duplicate-gig create action from an existing gig's own fields, blanking only Date", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    const presentation = await seeded.runtime.evaluatePresentationView(
+      "Event",
+      "BandEventCalendar",
+      seeded.firstBandContext,
+    );
+    const section = presentation.sections.find((candidate) => candidate.name === "DuplicateGig");
+    const list = section?.lists.find((candidate) => candidate.name === "PreviousGigs");
+    const row = list?.rows.find(
+      (candidate) => candidate.id === `Event:${seeded.firstEvent.meta.guid}`,
+    );
+    const action = row?.actions.find((candidate) => candidate.name === "duplicateGig");
+
+    expect(action).toBeDefined();
+    expect(action?.create).toEqual({ object: "Event" });
+    expect(action?.input).not.toHaveProperty("Date");
+    expect(action?.input).toMatchObject({
+      EventType: "Gig",
+      Title: "Canal Street headline",
+      VenueName: "Alpha Hall",
+      VenueLocation: "Canal Street",
+      SetList: seeded.firstSetList.meta.guid,
+      ContactName: "Jordan Blake",
+      ContactPhone: "+44 20 7946 0958",
+      ContactEmail: "jordan@alphahall.example.com",
+      Amount: 450,
+      PaymentMethod: "Bank Transfer",
+      Agent: "Riverside Bookings",
+    });
+
+    // `action.input` deliberately carries no `Band`: the browser save flow
+    // injects the selected context's scope field at save time (see
+    // `AdlAppElement`'s create-draft handling), the same way `addEventOnDate`'s
+    // resolved input never carries one either. A direct `runtime.create` call
+    // has to supply it itself, matching what that save path would have done.
+    const duplicate = await seeded.runtime.create(
+      "Event",
+      { ...action!.input, Band: seeded.firstBand.meta.guid, Date: "2026-11-01" },
+      contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid),
+    );
+    expect(duplicate.values).toMatchObject({
+      Date: "2026-11-01",
+      Title: "Canal Street headline",
+      VenueName: "Alpha Hall",
+    });
+  });
+
+  it("overlays a cross-band gig on the availability board with a higher-precedence status", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    const presentation = await seeded.runtime.evaluatePresentationView(
+      "Availability",
+      "BandMemberAvailabilityBoard",
+      seeded.firstBandContext,
+    );
+    const teamSection = presentation.sections.find(
+      (candidate) => candidate.name === "TeamAvailability",
+    );
+    // The whole-band roster is untouched by the overlay: still backed by
+    // `BandMemberAvailability`, still every member's own rows.
+    expect(teamSection?.lists[0]?.rows.length).toBeGreaterThan(0);
+
+    const scheduleSection = presentation.sections.find(
+      (candidate) => candidate.name === "MySchedule",
+    );
+    const calendar = scheduleSection?.calendars.find(
+      (candidate) => candidate.name === "MyScheduleCalendar",
+    );
+    // `secondEvent` (a Betas rehearsal, a different band) and Casey's own
+    // "Available" availability entry both fall on 2026-08-02. The gig-derived
+    // `conflict` status (PRECEDENCE 100) must win the cell over `available`
+    // (PRECEDENCE 10).
+    const cell = calendar?.cells.find((candidate) => candidate.date === "2026-08-02");
+    expect(cell?.status?.name).toBe("conflict");
+    // And a date with only an availability fact, no cross-band gig, resolves to
+    // the lower-precedence status instead.
+    const availableOnlyCell = calendar?.cells.find((candidate) => candidate.date === "2026-08-03");
+    expect(availableOnlyCell?.status?.name).toBe("unavailable");
+  });
+
+  it("adds the four new streaming platforms while still enforcing the closed enum", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
+
+    const tidalLink = await seeded.runtime.create(
+      "StreamingLink",
+      {
+        Band: seeded.firstBand.meta.guid,
+        Song: seeded.firstSong.meta.guid,
+        Platform: "Tidal",
+        Url: "https://tidal.com/browse/track/1",
+      },
+      bandContext,
+    );
+    expect(tidalLink.values.Platform).toBe("Tidal");
+
+    await expect(
+      seeded.runtime.create(
+        "StreamingLink",
+        {
+          Band: seeded.firstBand.meta.guid,
+          Song: seeded.secondSong.meta.guid,
+          Platform: "Napster",
+          Url: "https://napster.example.com/track/1",
+        },
+        bandContext,
+      ),
+    ).rejects.toBeInstanceOf(RuntimeValidationError);
   });
 
   it("requires availability self-service writes to target the runtime user", async () => {
