@@ -213,17 +213,32 @@ should default to a static import, not `readFileSync` + `import.meta.url`,
 unless it is known to run only in a pure-Node context** (the authority
 server entry point, a CLI, a Node-only test).
 
-## Browser bundle cost, not yet addressed
+## Browser bundle cost: addressed (Phase 79)
 
-Reaching `compile-adlj.ts` through `src/index.ts`'s barrel export pulls
+Reaching `compile-adlj.ts` through `src/index.ts`'s barrel export pulled
 `ajv` and the generated schema into the browser bundle unconditionally: gzip
-size grew from 158 KB to 203 KB at introduction. Nothing in this phase
-required avoiding that, and the barrel-export-everything convention already
-carries some Node-only surface the same way (see the `simplewebauthn-adapter.ts`
-comment in `src/index.ts`), so this was accepted rather than solved. Code-splitting
-`compile-adlj.ts`/`print-adl.ts` behind a dynamic `import()` — used only where
-a `.adlj` authoring surface is actually reachable in the UI — is the natural
-fix if this compounds with future additions. Not attempted here.
+size grew from 158 KB to 203 KB at introduction (Phase 73). Phase 79 fixed
+this the simple way — no dynamic `import()` or Vite-level code-splitting was
+needed. A grep of `src/ui/**` confirmed nothing in the shipped browser app
+calls `compile-adlj.ts`/`compileAdlj` (it is authoring/build-time tooling,
+called today only by `tests/compile-adlj.test.ts`, which already imported it
+by direct module path rather than through the barrel). So the fix was to
+remove `compile-adlj.ts`, `print-adl.ts`, and `model/adlj-source.ts` from
+`src/index.ts`'s `export *` list entirely, with a comment explaining why —
+the same pattern the barrel already applies to `simplewebauthn-adapter.ts`
+for the identical "browser bundle carries a dependency it doesn't need"
+reason. Anything needing these modules imports their module path directly
+(`./compiler/compile-adlj.js`, `./compiler/print-adl.js`,
+`./model/adlj-source.js`).
+
+Measured after the fix: `npm run build`'s gzip size returned to 158.18 KB
+(684.81 KB raw), down from 202.98 KB (852.37 KB raw) — matching the
+pre-Phase-73 baseline. `npm run test:visual` (all 36 Playwright checks) still
+passed, confirming the barrel change did not affect what the browser UI
+bundle actually renders. If a `.adlj` authoring surface is ever added inside
+`src/ui/**`, reach these modules with a dynamic `import()` there rather than
+re-adding the static barrel export — that would put the code-split point back
+at the one real caller instead of eagerly bundling it for everyone.
 
 ## Phase 77: the importer reuses the printer's expression printers, not a second implementation
 

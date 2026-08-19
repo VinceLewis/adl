@@ -1,13 +1,21 @@
 export * from "./compiler/adl-to-adlj.js";
 export * from "./compiler/compile-adl.js";
 export * from "./compiler/compile-adl-project.js";
-export * from "./compiler/compile-adlj.js";
-export * from "./compiler/print-adl.js";
+// `compile-adlj.ts`, `print-adl.ts` and `model/adlj-source.ts` are deliberately
+// NOT exported here: this barrel is imported by the browser bundle, and
+// `.adlj` compilation is an authoring/build-time concern — it pulls in `ajv`
+// and the generated `adlj-schema.json` (~3600 lines), which no browser UI
+// runtime needs to compile at runtime. Reaching them through this barrel grew
+// the production bundle from 684 KB to 852 KB gzipped (158 KB -> 203 KB gzip)
+// (Phase 73); excluding them (Phase 79) returns it to the pre-`.adlj`
+// baseline. Import directly from their own module paths
+// (`./compiler/compile-adlj.js`, `./compiler/print-adl.js`,
+// `./model/adlj-source.js`) instead — the same treatment already applied to
+// `simplewebauthn-adapter.ts` below for the same reason.
 export * from "./compiler/resolve-model.js";
 export * from "./compiler/validate-model.js";
 export * from "./conformance/runner.js";
 export * from "./inspect.js";
-export * from "./model/adlj-source.js";
 export * from "./model/defaults.js";
 export * from "./model/fingerprint.js";
 export * from "./model/resolved-model.js";

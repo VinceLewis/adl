@@ -335,18 +335,32 @@ same way) but a real difference in the resolved model's literal shape.
 explicitly for exact parity with what `.adl` text always produces; an author
 who does not care about that parity can simply omit both keys.
 
-## Known cost: the browser bundle
+## Browser bundle cost: addressed (Phase 79)
 
-`compileAdlj`'s `ajv` dependency and the generated JSON Schema are reached
+`compileAdlj`'s `ajv` dependency and the generated JSON Schema were reached
 through `src/index.ts`'s barrel export, which the browser UI bundle also
-imports — so every browser build now carries `.adlj` compilation support
-whether or not the app being built ever uses it. Measured at introduction:
+imports — so every browser build carried `.adlj` compilation support whether
+or not the app being built ever used it. Measured at introduction (Phase 73):
 the production bundle grew from 684 KB to 852 KB gzipped (158 KB → 203 KB
-gzip). Nothing in this phase's scope required keeping `.adlj` compilation out
-of the browser bundle, and the existing barrel-export convention already
-carries some Node-only surface the same way, but the size is real and worth
-a deliberate look (code-splitting `compile-adlj.ts` behind a dynamic
-`import()`, most plausibly) before it compounds with future additions.
+gzip).
+
+`.adlj` compilation is an authoring/build-time concern; nothing in the
+deployed browser runtime calls it (confirmed by grepping `src/ui/**` for any
+`compile-adlj`/`compileAdlj` import — there is none). Phase 79 removed
+`compile-adlj.ts`, `print-adl.ts`, and `model/adlj-source.ts` from
+`src/index.ts`'s barrel `export *` list, the same treatment the barrel
+already gives `simplewebauthn-adapter.ts` for the identical "browser bundle
+carries a dependency it doesn't need" reason. Callers that need these
+modules (currently only `tests/compile-adlj.test.ts`, which already imported
+them by direct module path rather than through the barrel) import
+`./compiler/compile-adlj.js`, `./compiler/print-adl.js`, or
+`./model/adlj-source.js` directly.
+
+Measured after the fix: the production bundle returned to 684.81 KB gzipped
+158.18 KB (from 852.37 KB / 202.98 KB), matching the pre-Phase-73 baseline.
+No dynamic `import()` / Vite-level code-splitting was needed — removing the
+barrel re-export was sufficient, since nothing in `src/ui/**` reaches these
+modules at all.
 
 ## Strategic direction: `.adlj` as the primary authoring surface
 
