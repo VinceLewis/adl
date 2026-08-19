@@ -335,6 +335,141 @@ never a static import — and `npm run build` must be re-checked (main chunk
 size, not just "it compiles") every time, the same as for the earlier three
 fixes.
 
+### A second caller of the same dynamic import shares one chunk, and doesn't reopen the hole
+
+Converting Giggle Band to `.adlj` too (see below) gave `band-app.ts` its own
+`compileBandReference()`, structurally identical to `jointly-app.ts`'s
+`compileJointlyReference()` — same memoized-async-wrapping-a-dynamic-`import()`
+shape, same target module path
+(`../compiler/compile-adl-project-v2.js`). Rollup does not duplicate the
+target into two chunks for two independent dynamic-`import()` call sites
+against the same specifier: it produces one shared
+`compile-adl-project-v2-*.js` chunk, fetched once and reused by whichever
+`.adlj`-sourced demo mounts first. Measured before/after adding the second
+caller: main entry 777.43 kB/170.73 KB gzip → 844.30 kB/170.06 KB gzip (gzip
+essentially flat — the raw growth is `domain.adlj`/`ui.adlj`'s own raw-text
+`?raw` imports, ~127 KB of JSON vs. `domain.adl`/`ui.adl`'s ~40 KB of `.adl`
+text, both still statically imported into the main chunk since the *source
+text* has to be available before the dynamic import resolves — JSON's
+verbosity compresses well, which is why gzip barely moved); shared chunk
+176.33 kB/46.71 KB gzip → 196.24 kB/51.45 KB gzip. The lazy chunk grows a
+little because it is now reachable from two call graphs instead of one, but
+it still only downloads when a `.adlj`-sourced demo is actually mounted, so
+the fix's actual property — the `ajv`-carrying payload is absent from every
+page load that never touches Giggle Band or Jointly Care — holds unchanged
+with a second real caller. Confirms the pattern generalizes rather than
+needing a per-app variant.
+
+## Giggle Band's `.adlj` conversion
+
+Giggle Band (`src/reference/giggle-band/`) is the second app converted from
+`.adl` text to `.adlj`, done after the `comment` field above landed —
+unlike Jointly Care's first pass, comments did not need to be sacrificed.
+`importAdlAsAdlj` round-tripped the real `domain.adl` + `ui.adl` with zero
+converter changes needed: every construct Giggle Band exercises that Jointly
+Care doesn't (`UNION` read models, `ORDERED` object constraints,
+`CHILD_COLLECTION`/`PICKER`, `ICON_MAP`/`STATUS_MAP`, a multi-hop
+`READ_MODEL SOURCE JOIN`, `EDIT_SECTION`) survived a `toEqual` check against
+`compileAdlProjectV2`'s resulting model, matching what `compileAdlProject`
+produces from the original `.adl` text byte-for-semantic-equivalent — no
+converter bug found this time, in contrast to how many real printer defects
+Phase 78's Giggle Band round-trip found. All 14 real leading comments
+survived (matching commit `a76f7ab`'s own count for this corpus).
+
+- **Splitting one converted document into `domain.adlj` + `ui.adlj` needs the
+  same synthetic-`APP`-prefix technique Jointly Care's first (pre-`comment`)
+  conversion used, not `importAdlAsAdlj` directly.** `importAdlAsAdlj` is a
+  single-document entry point; `ui.adl` has no `APP` block and
+  `parseDocument` requires one as the literal first thing (see above), so it
+  cannot be converted on its own. The fix: parse `domain.adl` normally
+  (`adlAstToPartialApplicationModel(parseAdl(domainAdl))`, it has a real
+  `APP`), and parse a placeholder-prefixed `ui.adl`
+  (`` `APP 'Giggle Band UI Views (placeholder, discarded on merge)'\nEND.APP\n\n` + uiAdl ``)
+  the same way, then convert each fragment through
+  `partialApplicationModelToAdljSource` independently. The placeholder
+  `app.name` is discarded at merge time (`mergePartialApplicationModelFragments`'s
+  "first fragment that declares `app` wins" rule), so its exact text is
+  cosmetic — but the JSON Schema still requires `app` to be present on every
+  `AdljSourceDocument`, so it cannot be omitted either. Confirmed this is the
+  same mechanism Jointly Care's `ui.adlj` used (its own `app.name` is the
+  identical placeholder-shaped string) even though that conversion predates
+  this file's account of it.
+- **The "AST always supplies `[]`, `isViewOnlyObject` wants `undefined`" trap
+  (documented above for Jointly Care) reproduces identically for
+  `ui.adl`'s four view-only `OBJECT` blocks** (`Event`, `BandInvitation`,
+  `Availability`, `SetList` — each only adding `VIEW`s to an object
+  `domain.adl` declares in full). Same fix: strip each to `{name, views,
+  comment?}` by hand after `adlAstToPartialApplicationModel`, before
+  `partialApplicationModelToAdljSource`. None of the four objects happens to
+  have a comment attached directly to its own `OBJECT` line in this corpus
+  (the comments found sit after `OBJECT X`, before the first nested `VIEW`,
+  so they attach to that `VIEW`/`SECTION` instead, per the leading-comment
+  rule) — but the strip preserves `comment` when present, so this is not a
+  coincidence-dependent fix.
+- **Keeping `domain.adl`/`ui.adl` on disk needed a trailing note, not
+  Jointly Care's header note.** `docs/spec/language.md` and several
+  `docs/phases/*.md` documents cite ~19 *exact line numbers* into these two
+  files as illustrative examples (`giggle-band/domain.adl:471`,
+  `ui.adl:24`, etc.) — grep the repo for `giggle-band/domain\.adl:` /
+  `giggle-band/ui\.adl:` before ever touching a line in either file. A
+  prepended header comment, the way Jointly Care's kept `.adl` files carry
+  one, would silently invalidate every one of those citations by shifting
+  every later line number down. The files are instead left byte-for-byte
+  identical up to their last real content line, with the
+  "SUPERSEDED AS COMPILED SOURCE" note *appended* after it — same
+  information, placed where it cannot perturb an existing citation. Worth
+  checking for this before reflexively reusing the header-note pattern on
+  any future `.adl` file that has accumulated external line-number
+  references.
+- **A generic, non-browser consumer of `app.yaml`+sources also needed
+  `.adlj` support for real, not just the browser bundle.**
+  `src/server/authority-entrypoint.ts`'s `loadAuthorityModel` reads any
+  deployed app's `app.yaml` and sources from a real directory on disk
+  (`ADL_MODEL_PATH`) via `compileAdlProject` — `tests/integration/
+  authority-deployment-slice.test.ts` and `authority-membership-projection
+  .test.ts` point `ADL_MODEL_PATH` straight at
+  `src/reference/giggle-band`, so once its `app.yaml` listed `.adlj`
+  sources, `compileAdlProject` tried to lex JSON as `.adl` text and failed
+  with `ADL_LEX_UNEXPECTED_CHARACTER` on the opening `{`. Fixed by switching
+  `loadAuthorityModel` to `compileAdlProjectV2`. This file is server-only
+  Node code, never reachable from the browser bundle (it already depends on
+  `pg` and other Node-only packages), so — unlike `band-app.ts`/
+  `jointly-app.ts` — it has no reason to defer this behind a dynamic
+  `import()`; a plain static import is correct here. **The general point:**
+  a browser-bundle-focused fix (barrel exclusion, dynamic import) does not
+  automatically cover every real consumer of a generically-loaded app
+  manifest — grep for other `parseAdlProjectManifest`/`compileAdlProject`
+  call sites whenever a reference app's `sources:` list changes format, not
+  just the browser demo registry.
+- **`band-app.ts`'s exported model/runtime factories had to become async**,
+  the same way Jointly Care's did, to defer the compile behind a dynamic
+  `import()` — `createBandReferenceModel`, `createGiggleBandExampleModel`,
+  and `createBandReferenceRuntime` are now
+  `() => Promise<...>`, and `createPersistentBandReferenceRuntime`/
+  `createPersistentGiggleBandExampleRuntime` lost their `= createXModel()`
+  default-parameter fallback (an async call cannot live in a default-parameter
+  position). Unlike Jointly Care — whose test file was authored fresh in the
+  same conversion — Giggle Band already had a large, pre-existing synchronous
+  test surface (`tests/band-reference-app.test.ts` and ~9 other files) built
+  directly against the old synchronous signatures. There is no way to keep a
+  function's call sites synchronous while also deferring its heavy dependency
+  behind `import()`: the two are mutually exclusive by JS module semantics
+  (an `await` is unavoidable once anything in the call chain awaits a dynamic
+  import). Every call site across ~10 files was updated mechanically —
+  `it("...", () => {` → `it("...", async () => {` plus an added `await`, or
+  (for four `tests/integration/*.test.ts` module-top-level `const model =
+  createGiggleBandExampleModel();` declarations) a plain top-level `await`,
+  which Vitest's ESM test-file handling supports directly. No assertion or
+  expected value changed in any of these files — confirmed by a full green
+  `npm test` (1056 tests) and `npm run test:integration` (158 tests) run
+  after the edits. **The practical rule this adds:** before converting a
+  reference app's `createXModel` function to the async/dynamic-import
+  pattern, grep every test file for direct (non-`ReferenceDemoDefinition`)
+  callers first — a mature reference app can have accumulated far more
+  synchronous call sites than a freshly-authored one, and every one of them
+  is a mechanical but real edit, not something the type checker will find
+  for you until you try.
+
 ## Phase 77: the importer reuses the printer's expression printers, not a second implementation
 
 `partialApplicationModelToAdljSource` (`src/compiler/adl-to-adlj.ts`) is the

@@ -241,8 +241,23 @@ describe("printPartialApplicationModelAsAdl", () => {
     // (`Role`), and list-typed command inputs with structured item fields.
     // This is the actual proof the printer's construct coverage is real,
     // not just what a hand-built small fixture happens to exercise.
+    //
+    // Giggle Band's own `app.yaml` now lists `domain.adlj`/`ui.adlj` (its real
+    // compiled source since the `.adlj` conversion), so this proof of the
+    // `.adl` text printer uses a literal manifest naming the retained,
+    // unmodified `domain.adl`/`ui.adl` files directly.
     const original = compileAdlProject({
-      manifestSource: readReference("giggle-band/app.yaml"),
+      manifestSource: [
+        "name: Giggle Band ADL Example",
+        "id: giggle-band",
+        "version: 0.1.0",
+        "startView: HomeDashboard",
+        "",
+        "sources:",
+        "  - domain.adl",
+        "  - ui.adl",
+        "",
+      ].join("\n"),
       sources: {
         "domain.adl": readReference("giggle-band/domain.adl"),
         "ui.adl": readReference("giggle-band/ui.adl"),

@@ -1918,7 +1918,7 @@ interface SeededSetList {
  * configured by hand.
  */
 async function openFirstSetList(): Promise<SeededSetList> {
-  const runtime = createBandReferenceRuntime();
+  const runtime = await createBandReferenceRuntime();
   const seed = await seedBandReferenceRuntime(runtime);
 
   const app = document.createElement("adl-app") as AdlAppElement;

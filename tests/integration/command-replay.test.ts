@@ -42,7 +42,7 @@ const founderToken = "f".repeat(48);
 const founderId = "user-founder";
 const csrf = "csrf-value".padEnd(48, "c");
 
-const model = createGiggleBandExampleModel();
+const model = await createGiggleBandExampleModel();
 
 let pool: Pool;
 

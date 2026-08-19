@@ -1,18 +1,14 @@
-import { compileAdlProject } from "../compiler/compile-adl-project.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import { IndexedDbObjectStorageBackend } from "../runtime/indexeddb-object-storage.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import giggleBandManifestSource from "./giggle-band/app.yaml?raw";
-import giggleBandDomainSource from "./giggle-band/domain.adl?raw";
-import giggleBandUiSource from "./giggle-band/ui.adl?raw";
+import giggleBandDomainSource from "./giggle-band/domain.adlj?raw";
+import giggleBandUiSource from "./giggle-band/ui.adlj?raw";
 import type { ReferenceDemoDefinition, ReferenceDemoSeedOutcome } from "./reference-demo.js";
-import type {
-  PartialApplicationModel,
-  ResolvedApplicationModel,
-  StoredObjectRecord,
-} from "../model/resolved-model.js";
+import type { CompileAdlProjectV2Result } from "../compiler/compile-adl-project-v2.js";
+import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/resolved-model.js";
 
 export const bandReferenceSystemContext: RuntimeContext = {
   userId: "band-reference-system",
@@ -21,24 +17,44 @@ export const bandReferenceSystemContext: RuntimeContext = {
   now: new Date("2026-07-07T08:00:00.000Z"),
 };
 
-const bandReferenceCompileResult = compileAdlProject({
-  manifestSource: giggleBandManifestSource,
-  sources: {
-    "domain.adl": giggleBandDomainSource,
-    "ui.adl": giggleBandUiSource,
-  },
-});
+let bandReferenceCompileResultPromise: Promise<CompileAdlProjectV2Result> | undefined;
 
-if (bandReferenceCompileResult.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
-  throw new Error(
-    `Giggle Band ADL source is invalid: ${JSON.stringify(bandReferenceCompileResult.diagnostics)}`,
-  );
+/**
+ * Lazily compiles `.adlj` behind a dynamic `import()`, not a static one, and
+ * memoizes the result. `compile-adl-project-v2.js` (needed for `.adlj`
+ * sources) pulls in `ajv` and the generated `adlj-schema.json` (~3600
+ * lines); a *static* import here would put both back in the real browser
+ * bundle on every page load, regardless of which `?demo=` is selected, since
+ * this module is unconditionally imported by `reference-demos.js` ->
+ * `main.ts`. That is exactly the regression this function exists to avoid —
+ * see `src/index.ts`'s barrel comment and
+ * `learnings/implementation/adlj-json-authoring-surface.md` for the fuller
+ * history of this bundle-size trap. Mirrors `jointly-app.ts`'s
+ * `compileJointlyReference()` exactly, now that Giggle Band is genuinely
+ * `.adlj`-sourced too.
+ */
+async function compileBandReference(): Promise<CompileAdlProjectV2Result> {
+  if (bandReferenceCompileResultPromise === undefined) {
+    bandReferenceCompileResultPromise = (async () => {
+      const { compileAdlProjectV2 } = await import("../compiler/compile-adl-project-v2.js");
+      const result = compileAdlProjectV2({
+        manifestSource: giggleBandManifestSource,
+        sources: {
+          "domain.adlj": giggleBandDomainSource,
+          "ui.adlj": giggleBandUiSource,
+        },
+      });
+
+      if (result.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+        throw new Error(`Giggle Band ADL source is invalid: ${JSON.stringify(result.diagnostics)}`);
+      }
+
+      return result;
+    })();
+  }
+
+  return bandReferenceCompileResultPromise;
 }
-
-export const bandReferenceAdlSource = bandReferenceCompileResult.source;
-export const bandReferenceAppManifest = bandReferenceCompileResult.manifest;
-export const bandReferencePartialModel: PartialApplicationModel =
-  bandReferenceCompileResult.partialModel;
 
 export interface BandReferenceSeed {
   model: ResolvedApplicationModel;
@@ -64,12 +80,13 @@ export interface BandReferenceSeed {
   invitation: StoredObjectRecord;
 }
 
-export function createBandReferenceModel(): ResolvedApplicationModel {
-  return resolveApplicationModel(bandReferencePartialModel);
+export async function createBandReferenceModel(): Promise<ResolvedApplicationModel> {
+  const { partialModel } = await compileBandReference();
+  return resolveApplicationModel(partialModel);
 }
 
-export function createGiggleBandExampleModel(): ResolvedApplicationModel {
-  const model = createBandReferenceModel();
+export async function createGiggleBandExampleModel(): Promise<ResolvedApplicationModel> {
+  const model = await createBandReferenceModel();
   return {
     ...model,
     app: {
@@ -79,8 +96,11 @@ export function createGiggleBandExampleModel(): ResolvedApplicationModel {
   };
 }
 
-export function createBandReferenceRuntime(storage?: ObjectStorageBackend): ApplicationRuntime {
-  return new ApplicationRuntime(createBandReferenceModel(), {
+export async function createBandReferenceRuntime(
+  storage?: ObjectStorageBackend,
+): Promise<ApplicationRuntime> {
+  const model = await createBandReferenceModel();
+  return new ApplicationRuntime(model, {
     ...(storage === undefined ? {} : { storage }),
   });
 }
@@ -503,8 +523,18 @@ function getSeedNow(context: RuntimeContext): Date {
 export const BAND_REFERENCE_DATABASE_NAME = "adl-band-reference-demo";
 export const GIGGLE_BAND_EXAMPLE_DATABASE_NAME = "adl-giggle-band-example";
 
+/**
+ * No default parameter, unlike this function's own pre-`.adlj` shape:
+ * `createBandReferenceModel()` is now async (it awaits the dynamic import
+ * behind `compileBandReference()`), so it cannot live in a default-parameter
+ * position — callers who want that convenience call
+ * `await createBandReferenceModel()` explicitly. The demo-mount path
+ * (`src/ui/main.ts`) already always supplies `model` explicitly, matching
+ * `ReferenceDemoDefinition.createPersistentRuntime`'s contract. Mirrors
+ * `jointly-app.ts`'s `createPersistentJointlyReferenceRuntime`.
+ */
 export function createPersistentBandReferenceRuntime(
-  model: ResolvedApplicationModel = createBandReferenceModel(),
+  model: ResolvedApplicationModel,
 ): ApplicationRuntime {
   return new ApplicationRuntime(model, {
     storage: new IndexedDbObjectStorageBackend({
@@ -514,7 +544,7 @@ export function createPersistentBandReferenceRuntime(
 }
 
 export function createPersistentGiggleBandExampleRuntime(
-  model: ResolvedApplicationModel = createGiggleBandExampleModel(),
+  model: ResolvedApplicationModel,
 ): ApplicationRuntime {
   return new ApplicationRuntime(model, {
     storage: new IndexedDbObjectStorageBackend({
@@ -540,10 +570,7 @@ async function seedBandReferenceDemo(
  */
 export const bandReferenceDemo: ReferenceDemoDefinition = {
   id: "band",
-  // Plain `.adl` text, so there is no `ajv`/dynamic-import cost to defer —
-  // wrapped `async` only to satisfy `ReferenceDemoDefinition.createModel`'s
-  // shared signature (see its doc comment for why the signature is async).
-  createModel: async () => createBandReferenceModel(),
+  createModel: createBandReferenceModel,
   databaseName: BAND_REFERENCE_DATABASE_NAME,
   createPersistentRuntime: createPersistentBandReferenceRuntime,
   seedIfEmpty: seedBandReferenceDemo,
@@ -551,7 +578,7 @@ export const bandReferenceDemo: ReferenceDemoDefinition = {
 
 export const giggleBandExampleDemo: ReferenceDemoDefinition = {
   id: "giggle-band",
-  createModel: async () => createGiggleBandExampleModel(),
+  createModel: createGiggleBandExampleModel,
   databaseName: GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
   createPersistentRuntime: createPersistentGiggleBandExampleRuntime,
   seedIfEmpty: seedBandReferenceDemo,

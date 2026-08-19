@@ -76,10 +76,23 @@ describe("compileAdlProjectV2", () => {
   });
 
   it("leaves compileAdlProject's existing behaviour on the Giggle Band reference app unchanged", () => {
-    const manifestSource = readFileSync(
-      new URL("../src/reference/giggle-band/app.yaml", import.meta.url),
-      "utf8",
-    );
+    // Giggle Band's own `app.yaml` now lists `domain.adlj`/`ui.adlj` (its real
+    // compiled source since the `.adlj` conversion), so this regression proof
+    // — that plain `.adl` text via `compileAdlProject` still works unaffected
+    // by `compileAdlProjectV2` existing in the same codebase — uses a literal
+    // manifest naming the retained, unmodified `domain.adl`/`ui.adl` files
+    // directly rather than reading the (now `.adlj`-listing) real manifest.
+    const manifestSource = [
+      "name: Giggle Band ADL Example",
+      "id: giggle-band",
+      "version: 0.1.0",
+      "startView: HomeDashboard",
+      "",
+      "sources:",
+      "  - domain.adl",
+      "  - ui.adl",
+      "",
+    ].join("\n");
     const domain = readFileSync(
       new URL("../src/reference/giggle-band/domain.adl", import.meta.url),
       "utf8",

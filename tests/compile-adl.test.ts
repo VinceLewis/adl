@@ -1148,18 +1148,18 @@ END.POLICY
   });
 
   it("compiles the Giggle Band ADL reference app from app.yaml into the runtime model", async () => {
-    const result = compileAdlProject({
+    const result = compileAdlProjectV2({
       manifestSource: readReference("giggle-band/app.yaml"),
       sources: {
-        "domain.adl": readReference("giggle-band/domain.adl"),
-        "ui.adl": readReference("giggle-band/ui.adl"),
+        "domain.adlj": readReference("giggle-band/domain.adlj"),
+        "ui.adlj": readReference("giggle-band/ui.adlj"),
       },
     });
 
     expect(result.manifest).toMatchObject({
       name: "Giggle Band ADL Example",
       id: "giggle-band",
-      sources: ["domain.adl", "ui.adl"],
+      sources: ["domain.adlj", "ui.adlj"],
     });
     expect(result.diagnostics).toEqual([]);
     expect(validateApplicationModel(result.model)).toEqual([]);

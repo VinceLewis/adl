@@ -644,3 +644,18 @@ POLICY DevicePreferencePolicy ON DevicePreference
   RULE allowDevicePreferenceOwnerUpdate ALLOW UPDATE OWNER
   RULE allowDevicePreferenceOwnerDelete ALLOW DELETE OWNER
 END.POLICY
+
+# SUPERSEDED AS COMPILED SOURCE: `app.yaml` now compiles `domain.adlj`, not
+# this file. Kept on disk, unmodified, byte-for-byte and at the same line
+# numbers, because `docs/spec/language.md` and several `docs/phases/*.md`
+# documents cite specific line numbers in this file as illustrative examples
+# (search the repository for `giggle-band/domain.adl:` before ever editing a
+# line above this note) -- a header note here, the way Jointly Care's kept
+# `.adl` files carry one, would have silently invalidated every one of those
+# citations, so this note is appended at the end instead. `domain.adlj` is
+# the real, `.adlj`-native source `domain.adl` was converted from (via
+# `importAdlAsAdlj`, preserving every real leading comment through the new
+# `.adlj` "comment" field -- see
+# `learnings/implementation/adlj-json-authoring-surface.md`); this file is
+# not reparsed, tested, or kept in sync with `domain.adlj` going forward.
+# Treat it as a historical/citation reference, not a source of truth.

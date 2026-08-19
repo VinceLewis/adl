@@ -266,7 +266,7 @@ describe("a refused write stays refused", () => {
    * refuses it with `ADL_RUNTIME_RECORD_ID_TAKEN`.
    */
   it("marks every record a refused command wrote, not only the one its queue entry is filed under", async () => {
-    const giggleModel = createGiggleBandExampleModel();
+    const giggleModel = await createGiggleBandExampleModel();
     const sessionToken = "record-sync-state-session-record-sync-state";
     const authority = new AuthorityService(
       giggleModel,

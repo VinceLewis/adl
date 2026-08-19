@@ -247,12 +247,26 @@ covered by its own Playwright visual spec
   `implementation/adlj-json-authoring-surface.md` for the format itself.
   `.adl` text is a generated, human-reviewable view produced from `.adlj` via
   `print-adl.ts` for review/diffing, not something to hand-author for a new
-  app. Giggle Band (`src/reference/giggle-band/`) predates this direction and
-  is `.adl` text only. Jointly Care (`src/reference/jointly-care/`) is the
-  first real `.adlj` reference-app precedent: `app.yaml` compiles
-  `domain.adlj`/`ui.adlj`, and both files carry every one of the app's
-  original design-rationale comments (17 total) as real `"comment"` keys —
-  there is no separate `.adl` file kept on disk for rationale any more, that
-  earlier gap having been closed by giving `.adlj` a first-class comment
-  field (see `implementation/adlj-json-authoring-surface.md`'s "Comments"
-  section).
+  app. Jointly Care (`src/reference/jointly-care/`) is the first real
+  `.adlj` reference-app precedent: `app.yaml` compiles `domain.adlj`/
+  `ui.adlj`, and both files carry every one of the app's original
+  design-rationale comments (17 total) as real `"comment"` keys — there is
+  no separate `.adl` file kept on disk for rationale any more, that earlier
+  gap having been closed by giving `.adlj` a first-class comment field (see
+  `implementation/adlj-json-authoring-surface.md`'s "Comments" section).
+  Giggle Band (`src/reference/giggle-band/`) predated this direction but has
+  since been converted too: `app.yaml` compiles `domain.adlj`/`ui.adlj`
+  (via `importAdlAsAdlj`, same conversion mechanism, all 14 real comments
+  preserved), `src/reference/band-app.ts` compiles them lazily behind a
+  dynamic `import()` the same way `jointly-app.ts` does, and every construct
+  Giggle Band exercises that Jointly Care doesn't (`UNION`, `ORDERED`,
+  `CHILD_COLLECTION`/`PICKER`, `ICON_MAP`/`STATUS_MAP`, a multi-hop
+  `READ_MODEL SOURCE JOIN`, `EDIT_SECTION`) round-tripped with no converter
+  changes needed. `domain.adl`/`ui.adl` are kept on disk, unmodified, with a
+  trailing (not header) superseded-as-compiled-source note, because
+  `docs/spec/language.md` and several `docs/phases/*.md` documents cite
+  exact line numbers into them — see
+  `implementation/adlj-json-authoring-surface.md`'s "Giggle Band's `.adlj`
+  conversion" section for the full account, including the generic
+  `authority-entrypoint.ts` model loader and the pre-existing synchronous
+  test surface that conversion also had to update.

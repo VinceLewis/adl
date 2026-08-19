@@ -32,8 +32,8 @@ import type {
  */
 const SESSION_TOKEN = "replay-token-replay-token-replay-token";
 
-function startAuthority() {
-  const model = createGiggleBandExampleModel();
+async function startAuthority() {
+  const model = await createGiggleBandExampleModel();
   const storage = new InMemoryObjectStorageBackend();
   const sessions = new StaticSessionAdapter(new Map([[SESSION_TOKEN, { userId: "user-founder" }]]));
   return { authority: new AuthorityService(model, storage, sessions), storage };
@@ -106,7 +106,7 @@ async function storedIds(
 
 describe("authority replay of context-establishing and batch commands", () => {
   it("accepts a command that creates a context and its first membership together", async () => {
-    const { authority } = startAuthority();
+    const { authority } = await startAuthority();
 
     const outcome = await authority.replay(SESSION_TOKEN, {
       operationId: "op-create-band",
@@ -131,7 +131,7 @@ describe("authority replay of context-establishing and batch commands", () => {
   });
 
   it("shapes the response for who the caller became, not who they were", async () => {
-    const { authority } = startAuthority();
+    const { authority } = await startAuthority();
 
     // Before this command the caller is a member of nothing, so the pre-write
     // context cannot read a `BandMember` record scoped to the new band. Shaping
@@ -154,7 +154,7 @@ describe("authority replay of context-establishing and batch commands", () => {
   });
 
   it("accepts a batch command as one atomic intent", async () => {
-    const { authority } = startAuthority();
+    const { authority } = await startAuthority();
     const bandId = await establishBand(
       authority,
       "op-band-for-import",
@@ -190,7 +190,7 @@ describe("authority replay of context-establishing and batch commands", () => {
   });
 
   it("refuses a batch whose items are invalid without writing any of them", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const bandId = await establishBand(
       authority,
       "op-band-for-bad-import",
@@ -234,7 +234,7 @@ describe("authority replay of context-establishing and batch commands", () => {
    * emits it.
    */
   it("refuses the same command replayed as separate per-record intents", async () => {
-    const { authority } = startAuthority();
+    const { authority } = await startAuthority();
 
     const band = await authority.replay(SESSION_TOKEN, {
       operationId: "op-split-band",
@@ -278,7 +278,7 @@ describe("authority replay of context-establishing and batch commands", () => {
  */
 describe("record identity across a replayed command", () => {
   it("gives every created record the id the intent named, across steps and objects", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
 
     const records = acceptedRecords(
       await authority.replay(SESSION_TOKEN, {
@@ -304,7 +304,7 @@ describe("record identity across a replayed command", () => {
   });
 
   it("gives every item of a FOR EACH step the id the intent named for that item", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const bandId = await establishBand(
       authority,
       "op-band-for-named-import",
@@ -341,7 +341,7 @@ describe("record identity across a replayed command", () => {
   });
 
   it("refuses a manifest that names an id already taken, and writes none of the command", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     await establishBand(authority, "op-band-first", "The Thetas", "band-thetas", "member-thetas");
 
     // A fresh band id, but the membership reuses an id that already names a
@@ -364,7 +364,7 @@ describe("record identity across a replayed command", () => {
   });
 
   it("refuses a batch whose manifest collides on one item, and imports none of it", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const bandId = await establishBand(
       authority,
       "op-band-for-collide",
@@ -417,7 +417,7 @@ describe("record identity across a replayed command", () => {
    * rejection is terminal where a transport error is not.
    */
   it("refuses a manifest that names the same id twice for one object", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const bandId = await establishBand(
       authority,
       "op-band-for-dupes",
@@ -444,7 +444,7 @@ describe("record identity across a replayed command", () => {
   });
 
   it("accepts the same id under two different objects, because storage keys per object", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
 
     // A record id is only unique within its object. Refusing this would reject
     // work the storage layer has no objection to at all, and a device is free to
@@ -483,7 +483,7 @@ describe("a manifest that does not describe the planned writes", () => {
     recordIds: AuthorityCommandRecordId[],
     operationId: string,
   ): Promise<{ outcome: AuthorityOutcome; storage: InMemoryObjectStorageBackend }> {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const outcome = await authority.replay(SESSION_TOKEN, {
       operationId,
       kind: "command",
@@ -538,7 +538,7 @@ describe("a manifest that does not describe the planned writes", () => {
   });
 
   it("refuses a manifest whose item indexes do not match the iteration", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const bandId = await establishBand(
       authority,
       "op-band-for-skewed",
@@ -568,7 +568,7 @@ describe("a manifest that does not describe the planned writes", () => {
   });
 
   it("refuses a command intent with no manifest rather than minting ids server-side", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
 
     // The cast is the point of the case: `recordIds` is required by the type, so
     // the only way here is a caller that ignores the contract — a stale client, a
@@ -597,7 +597,7 @@ describe("a manifest that does not describe the planned writes", () => {
  */
 describe("replaying the same command twice", () => {
   it("returns the stored outcome and writes nothing a second time", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const intent: AuthorityOperationIntent = {
       operationId: "op-retried-band",
       kind: "command",
@@ -623,7 +623,7 @@ describe("replaying the same command twice", () => {
   });
 
   it("writes every item of an iterating step once, not once per attempt", async () => {
-    const { authority, storage } = startAuthority();
+    const { authority, storage } = await startAuthority();
     const bandId = await establishBand(
       authority,
       "op-band-for-retry",

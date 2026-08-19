@@ -58,7 +58,7 @@ const founderId = "user-batch-founder";
 const founderProof = "founder@edit-surface-batch.test";
 const csrf = "csrf-value".padEnd(48, "b");
 
-const model = createGiggleBandExampleModel();
+const model = await createGiggleBandExampleModel();
 
 /** Seeding actor: `SystemAdmin` has an `ALLOW *` rule on every object. */
 const systemContext: RuntimeContext = {

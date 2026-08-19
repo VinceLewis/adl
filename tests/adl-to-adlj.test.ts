@@ -212,43 +212,43 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
     expect(sortedComments(reprinted.partialModel)).toEqual(sortedComments(original.partialModel));
   });
 
-  // Giggle Band's `.adl` files are still its real compiled source, so this
-  // one still round-trips through `importAdlAsAdlj` from `.adl` text.
-  // `.adl` text with no `APP` block (`ui.adl`) cannot be parsed alone
-  // (`parseAdl` requires `APP` first), so the pair is concatenated the same
-  // way `compileAdlProject` concatenates manifest sources before parsing.
-  it("preserves every real leading comment for Giggle Band's domain.adl + ui.adl", () => {
+  // Giggle Band's `domain.adlj`/`ui.adlj` are themselves the real,
+  // comment-carrying compiled source now too (see `app.yaml`'s `sources:`
+  // and `learnings/implementation/adlj-json-authoring-surface.md`), so this
+  // proves comment preservation directly against the real compiled `.adlj`
+  // pair via `compileAdlProjectV2`, mirroring the Jointly Care case above.
+  // `domain.adl`/`ui.adl` are kept on disk (superseded-as-compiled-source
+  // note in each file) only because `docs/spec/language.md` and several
+  // `docs/phases/*.md` documents cite specific line numbers in them; they are
+  // the real `.adlj` files' own conversion input (`importAdlAsAdlj`, proven
+  // once at conversion time) but are not reparsed here.
+  it("preserves every real leading comment in Giggle Band's domain.adlj + ui.adlj", () => {
     // Giggle Band exercises comment shapes Jointly Care does not: a SECTION
     // comment (`DuplicateGig`), a row ACTION comment (`duplicateGig`), a
     // PICKER comment (`SongPicker`), and READ_MODEL/FIELD comments on
     // `SentBandInvitations`/`MyAvailabilityWithGigs`.
-    const combined = [
-      readReference("giggle-band/domain.adl"),
-      readReference("giggle-band/ui.adl"),
-    ].join("\n\n");
-
-    const original = compileAdl(combined);
+    const original = compileAdlProjectV2({
+      manifestSource: readReference("giggle-band/app.yaml"),
+      sources: {
+        "domain.adlj": readReference("giggle-band/domain.adlj"),
+        "ui.adlj": readReference("giggle-band/ui.adlj"),
+      },
+    });
     expect(original.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
 
     const originalComments = collectComments(original.partialModel);
+    // Sanity: this must be a real, non-vacuous proof against real content.
     expect(originalComments.length).toBeGreaterThanOrEqual(10);
 
-    const imported = importAdlAsAdlj(combined);
-    expect(imported.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
-    expect(imported.document).toBeDefined();
-
-    const adljResult = compileAdlj(JSON.stringify(imported.document));
-    expect(adljResult.diagnostics).toEqual([]);
-    expect(adljResult.model).toEqual(original.model);
-    expect(sortedComments(adljResult.partialModel)).toEqual(sortedComments(original.partialModel));
-
-    const printed = printPartialApplicationModelAsAdl(adljResult.partialModel);
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
     for (const comment of originalComments) {
       for (const line of comment.split("\n")) {
         expect(printed).toContain(line.length === 0 ? "#" : `# ${line}`);
       }
     }
 
+    // The printed .adl view itself reparses carrying the identical comments —
+    // not just a structurally-equal model, the actual rationale text again.
     const reprinted = compileAdl(printed);
     expect(reprinted.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(sortedComments(reprinted.partialModel)).toEqual(sortedComments(original.partialModel));

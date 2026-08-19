@@ -20,8 +20,8 @@ import { AdlAppElement } from "../src/ui/components/adl-app.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
 
 describe("band reference app model", () => {
-  it("validates the full band-management reference model", () => {
-    const model = createBandReferenceModel();
+  it("validates the full band-management reference model", async () => {
+    const model = await createBandReferenceModel();
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
@@ -126,8 +126,8 @@ describe("band reference app model", () => {
     });
   });
 
-  it("declares the set-list edit surface entirely in ADL", () => {
-    const model = createBandReferenceModel();
+  it("declares the set-list edit surface entirely in ADL", async () => {
+    const model = await createBandReferenceModel();
     const setList = model.objects.find((object) => object.name === "SetList");
     const form = setList?.views.find((view) => view.name === "SetListForm");
 
@@ -188,8 +188,8 @@ describe("band reference app model", () => {
     );
   });
 
-  it("exposes the Giggle Band example as the same ADL model with an example app identity", () => {
-    const model = createGiggleBandExampleModel();
+  it("exposes the Giggle Band example as the same ADL model with an example app identity", async () => {
+    const model = await createGiggleBandExampleModel();
 
     expect(validateApplicationModel(model)).toEqual([]);
     expect(model.app.name).toBe("Giggle Band ADL Example");
@@ -199,8 +199,8 @@ describe("band reference app model", () => {
     );
   });
 
-  it("declares the last-admin-standing guard on BandMember's BandAdmin role", () => {
-    const model = createBandReferenceModel();
+  it("declares the last-admin-standing guard on BandMember's BandAdmin role", async () => {
+    const model = await createBandReferenceModel();
 
     expect(
       model.objects.find((object) => object.name === "BandMember")?.constraints,
@@ -2169,7 +2169,7 @@ describe("band reference browser demo", () => {
 });
 
 async function createSeededBandReferenceRuntime() {
-  const runtime = createBandReferenceRuntime();
+  const runtime = await createBandReferenceRuntime();
   return seedBandReferenceRuntime(runtime);
 }
 

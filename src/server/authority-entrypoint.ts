@@ -3,7 +3,8 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join, resolve as resolvePath } from "node:path";
 import { Pool } from "pg";
-import { compileAdlProject, parseAdlProjectManifest } from "../compiler/compile-adl-project.js";
+import { parseAdlProjectManifest } from "../compiler/compile-adl-project.js";
+import { compileAdlProjectV2 } from "../compiler/compile-adl-project-v2.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import type { ResolvedApplicationModel } from "../model/resolved-model.js";
 import { RuntimeStartupError, noopRuntimeLogger } from "../runtime/runtime-types.js";
@@ -113,6 +114,14 @@ export function loadAuthorityProcessConfiguration(
  * Reads an ADL project from disk. The browser build imports the same sources
  * through Vite `?raw` assets; the server process must not, so it reads them
  * with `node:fs` and keeps the browser-only module out of its dependency graph.
+ *
+ * Uses `compileAdlProjectV2` (not `compileAdlProject`), since a deployed
+ * project's `sources` list may name `.adlj` files (Giggle Band's own
+ * `app.yaml` does, since its `.adlj` conversion) as well as `.adl` text.
+ * Unlike the browser bundle, this server-only module has no reason to defer
+ * `compile-adl-project-v2.js`'s `ajv` dependency behind a dynamic `import()`:
+ * bundle size is a browser concern, and this file already depends on `pg`
+ * and other Node-only packages no browser bundle would ever ship.
  */
 export function loadAuthorityModel(modelPath: string): ResolvedApplicationModel {
   const directory = resolvePath(modelPath);
@@ -121,7 +130,7 @@ export function loadAuthorityModel(modelPath: string): ResolvedApplicationModel 
   const sources = Object.fromEntries(
     manifest.sources.map((source) => [source, read(join(directory, source), modelPath)]),
   );
-  const compiled = compileAdlProject({ manifestSource, sources });
+  const compiled = compileAdlProjectV2({ manifestSource, sources });
   const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
   if (errors.length > 0)
     throw new AuthorityConfigurationError(

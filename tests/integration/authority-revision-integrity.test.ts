@@ -83,7 +83,7 @@ const founderId = "user-revision-founder";
  */
 const WRITES = 3;
 
-const model = createGiggleBandExampleModel();
+const model = await createGiggleBandExampleModel();
 
 /** Seeding actor: `SystemAdmin` has an `ALLOW *` rule on every object. */
 const systemContext: RuntimeContext = {

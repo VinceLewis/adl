@@ -1,0 +1,1237 @@
+{
+  "app": {
+    "name": "Giggle Band UI Views (placeholder, discarded on merge)"
+  },
+  "shell": {
+    "nav": {
+      "items": [
+        {
+          "view": "HomeDashboard",
+          "label": "Home",
+          "icon": "home",
+          "group": "Main",
+          "order": 10
+        },
+        {
+          "view": "BandEventList",
+          "label": "Gigs",
+          "icon": "calendar",
+          "group": "Main",
+          "order": 20
+        },
+        {
+          "view": "BandEventCalendar",
+          "label": "Calendar",
+          "icon": "calendar",
+          "group": "Main",
+          "order": 30,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Band"
+          }
+        },
+        {
+          "view": "MyAvailabilityList",
+          "label": "Availability",
+          "icon": "calendar",
+          "group": "Main",
+          "order": 40,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Band"
+          }
+        },
+        {
+          "view": "SongLibrary",
+          "label": "Songs",
+          "icon": "music",
+          "group": "Library",
+          "order": 50
+        },
+        {
+          "view": "SetListList",
+          "label": "Set Lists",
+          "icon": "list",
+          "group": "Library",
+          "order": 60
+        },
+        {
+          "view": "SetListForm",
+          "label": "Set list editor",
+          "icon": "list",
+          "group": "Library",
+          "order": 62
+        },
+        {
+          "view": "BandDirectory",
+          "label": "Bands",
+          "icon": "users",
+          "group": "Admin",
+          "order": 70
+        },
+        {
+          "view": "MyInvitationList",
+          "label": "Sent Invitations",
+          "icon": "list",
+          "group": "Admin",
+          "order": 80,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Band"
+          }
+        },
+        {
+          "view": "BandMemberAvailabilityBoard",
+          "label": "Who is free",
+          "icon": "users",
+          "group": "Main",
+          "order": 45,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Band"
+          }
+        },
+        {
+          "view": "StreamingLinkList",
+          "label": "Streaming",
+          "icon": "music",
+          "group": "Library",
+          "order": 65
+        }
+      ]
+    },
+    "topBar": {
+      "contextSelector": "topBar",
+      "mobileContextSelector": "sheet",
+      "controls": [
+        "contextSelector",
+        "connection",
+        "syncStatus",
+        "themeSwitch",
+        "installApp"
+      ]
+    },
+    "navDrawer": {
+      "title": "Giggle Band",
+      "controls": [
+        "signOut"
+      ]
+    },
+    "controls": [
+      {
+        "name": "contextSelector",
+        "kind": "contextSelector",
+        "placement": "topBar"
+      },
+      {
+        "name": "connection",
+        "kind": "connectivity",
+        "placement": "topBar"
+      },
+      {
+        "name": "syncStatus",
+        "kind": "syncStatus",
+        "placement": "topBar"
+      },
+      {
+        "name": "themeSwitch",
+        "kind": "themeSwitch",
+        "label": "Theme",
+        "placement": "topBar"
+      },
+      {
+        "name": "installApp",
+        "kind": "pwaInstall",
+        "label": "Install",
+        "placement": "topBar"
+      },
+      {
+        "name": "signOut",
+        "kind": "logout",
+        "label": "Sign out",
+        "icon": "x",
+        "placement": "navDrawer"
+      }
+    ]
+  },
+  "roles": [],
+  "themes": [],
+  "migrations": [],
+  "objects": [
+    {
+      "name": "Event",
+      "views": [
+        {
+          "name": "HomeDashboard",
+          "kind": "dashboard",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "readModel": "HomeUpcomingEvents",
+          "fields": [
+            "EventDate",
+            "StartTime",
+            "EventType",
+            "Title",
+            "VenueName"
+          ],
+          "searchFields": [],
+          "sort": [
+            {
+              "field": "EventDate",
+              "direction": "asc"
+            },
+            {
+              "field": "StartTime",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "presentation": {
+            "layout": "stack",
+            "density": "compact",
+            "state": [
+              {
+                "name": "showGigs",
+                "type": "boolean",
+                "defaultValue": true
+              },
+              {
+                "name": "showRehearsals",
+                "type": "boolean",
+                "defaultValue": true
+              },
+              {
+                "name": "showUnavailable",
+                "type": "boolean",
+                "defaultValue": true
+              }
+            ],
+            "iconMaps": [
+              {
+                "name": "EventTypeIcon",
+                "field": "EventType",
+                "values": [
+                  {
+                    "value": "Gig",
+                    "icon": "music"
+                  },
+                  {
+                    "value": "Rehearsal",
+                    "icon": "microphone"
+                  },
+                  {
+                    "value": "Unavailable",
+                    "icon": "x"
+                  }
+                ],
+                "defaultIcon": "calendar"
+              }
+            ],
+            "statuses": [
+              {
+                "name": "event",
+                "label": "Gig",
+                "accessibleLabel": "Gig event",
+                "icon": {
+                  "kind": "map",
+                  "map": "EventTypeIcon",
+                  "value": "Gig"
+                },
+                "themeToken": "colorStatusEvent",
+                "precedence": 10
+              },
+              {
+                "name": "rehearsal",
+                "label": "Rehearsal",
+                "accessibleLabel": "Rehearsal event",
+                "icon": {
+                  "kind": "map",
+                  "map": "EventTypeIcon",
+                  "value": "Rehearsal"
+                },
+                "themeToken": "colorStatusAlternate",
+                "precedence": 10
+              },
+              {
+                "name": "unavailable",
+                "label": "Unavailable",
+                "accessibleLabel": "Unavailable block",
+                "icon": {
+                  "kind": "map",
+                  "map": "EventTypeIcon",
+                  "value": "Unavailable"
+                },
+                "themeToken": "colorStatusUnavailable",
+                "precedence": 20
+              }
+            ],
+            "statusMaps": [
+              {
+                "name": "EventTypeStatus",
+                "field": "EventType",
+                "values": [
+                  {
+                    "value": "Gig",
+                    "status": "event"
+                  },
+                  {
+                    "value": "Rehearsal",
+                    "status": "rehearsal"
+                  },
+                  {
+                    "value": "Unavailable",
+                    "status": "unavailable"
+                  }
+                ],
+                "defaultStatus": "event"
+              }
+            ],
+            "legends": [
+              {
+                "name": "ScheduleStatus",
+                "title": "Schedule status",
+                "statuses": [
+                  "event",
+                  "rehearsal",
+                  "unavailable"
+                ]
+              }
+            ],
+            "sections": [
+              {
+                "name": "Welcome",
+                "heading": "Welcome Back!",
+                "controls": [
+                  {
+                    "name": "addEvent",
+                    "kind": "action",
+                    "label": "Add Event",
+                    "icon": {
+                      "kind": "named",
+                      "name": "calendar"
+                    },
+                    "placement": "primary",
+                    "create": {
+                      "object": "Event"
+                    }
+                  }
+                ],
+                "lists": [],
+                "calendars": []
+              },
+              {
+                "name": "Filters",
+                "density": "compact",
+                "controls": [
+                  {
+                    "name": "showGigsToggle",
+                    "kind": "toggle",
+                    "state": "showGigs",
+                    "label": "Gigs",
+                    "icon": {
+                      "kind": "map",
+                      "map": "EventTypeIcon",
+                      "value": "Gig"
+                    }
+                  },
+                  {
+                    "name": "showRehearsalsToggle",
+                    "kind": "toggle",
+                    "state": "showRehearsals",
+                    "label": "Rehearsals",
+                    "icon": {
+                      "kind": "map",
+                      "map": "EventTypeIcon",
+                      "value": "Rehearsal"
+                    }
+                  },
+                  {
+                    "name": "showUnavailableToggle",
+                    "kind": "toggle",
+                    "state": "showUnavailable",
+                    "label": "Unavailable",
+                    "icon": {
+                      "kind": "map",
+                      "map": "EventTypeIcon",
+                      "value": "Unavailable"
+                    }
+                  }
+                ],
+                "lists": [],
+                "calendars": []
+              },
+              {
+                "name": "Schedule",
+                "heading": "Schedule",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "UpcomingEvents",
+                    "source": "HomeUpcomingEvents",
+                    "renderAs": "compactFeed",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "EventDate",
+                        "direction": "asc"
+                      },
+                      {
+                        "field": "StartTime",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No upcoming events"
+                    },
+                    "status": {
+                      "candidates": [
+                        {
+                          "kind": "map",
+                          "map": "EventTypeStatus",
+                          "field": "EventType"
+                        }
+                      ]
+                    },
+                    "filter": "(((EventType == 'Gig') AND (showGigs == TRUE)) OR ((EventType == 'Rehearsal') AND (showRehearsals == TRUE))) OR ((EventType == 'Unavailable') AND (showUnavailable == TRUE))",
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "icon",
+                          "icon": {
+                            "kind": "map",
+                            "map": "EventTypeIcon",
+                            "field": "EventType"
+                          }
+                        },
+                        {
+                          "kind": "field",
+                          "field": "EventDate",
+                          "format": {
+                            "kind": "date",
+                            "pattern": "EEE d MMM"
+                          }
+                        },
+                        {
+                          "kind": "text",
+                          "text": " "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "StartTime",
+                          "format": {
+                            "kind": "time",
+                            "pattern": "h:mma"
+                          }
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Title",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "VenueName"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              },
+              {
+                "name": "Invitations",
+                "heading": "Invitations",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "PendingInvitations",
+                    "source": "PendingInvitations",
+                    "renderAs": "compactFeed",
+                    "density": "compact",
+                    "sort": [],
+                    "emptyState": {
+                      "text": "No pending invitations"
+                    },
+                    "filter": "Status == 'Pending'",
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "InviteeEmail",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Role"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " invited on "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "SentAt",
+                          "format": {
+                            "kind": "date",
+                            "pattern": "EEE d MMM"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "BandEventCalendar",
+          "kind": "dashboard",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "fields": [
+            "Date",
+            "StartTime",
+            "EventType",
+            "Title",
+            "VenueName"
+          ],
+          "searchFields": [],
+          "sort": [],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "presentation": {
+            "layout": "stack",
+            "density": "compact",
+            "state": [
+              {
+                "name": "visibleMonth",
+                "type": "date",
+                "defaultValue": "2026-08-01"
+              }
+            ],
+            "iconMaps": [
+              {
+                "name": "CalendarEventTypeIcon",
+                "field": "EventType",
+                "values": [
+                  {
+                    "value": "Gig",
+                    "icon": "music"
+                  },
+                  {
+                    "value": "Rehearsal",
+                    "icon": "microphone"
+                  },
+                  {
+                    "value": "Unavailable",
+                    "icon": "x"
+                  }
+                ],
+                "defaultIcon": "calendar"
+              }
+            ],
+            "statuses": [
+              {
+                "name": "event",
+                "label": "Gig",
+                "accessibleLabel": "Gig event",
+                "icon": {
+                  "kind": "map",
+                  "map": "CalendarEventTypeIcon",
+                  "value": "Gig"
+                },
+                "themeToken": "colorStatusEvent",
+                "precedence": 10
+              },
+              {
+                "name": "rehearsal",
+                "label": "Rehearsal",
+                "accessibleLabel": "Rehearsal event",
+                "icon": {
+                  "kind": "map",
+                  "map": "CalendarEventTypeIcon",
+                  "value": "Rehearsal"
+                },
+                "themeToken": "colorStatusAlternate",
+                "precedence": 10
+              },
+              {
+                "name": "unavailable",
+                "label": "Unavailable",
+                "accessibleLabel": "Unavailable block",
+                "icon": {
+                  "kind": "map",
+                  "map": "CalendarEventTypeIcon",
+                  "value": "Unavailable"
+                },
+                "themeToken": "colorStatusUnavailable",
+                "precedence": 20
+              },
+              {
+                "name": "conflict",
+                "label": "Conflict",
+                "accessibleLabel": "Scheduling conflict",
+                "icon": {
+                  "kind": "named",
+                  "name": "calendar"
+                },
+                "themeToken": "colorStatusConflict",
+                "precedence": 100
+              }
+            ],
+            "statusMaps": [
+              {
+                "name": "CalendarEventTypeStatus",
+                "field": "EventType",
+                "values": [
+                  {
+                    "value": "Gig",
+                    "status": "event"
+                  },
+                  {
+                    "value": "Rehearsal",
+                    "status": "rehearsal"
+                  },
+                  {
+                    "value": "Unavailable",
+                    "status": "unavailable"
+                  }
+                ],
+                "defaultStatus": "event"
+              }
+            ],
+            "legends": [
+              {
+                "name": "CalendarStatus",
+                "title": "Calendar status",
+                "statuses": [
+                  "event",
+                  "rehearsal",
+                  "unavailable",
+                  "conflict"
+                ]
+              }
+            ],
+            "sections": [
+              {
+                "name": "PlanningCalendar",
+                "heading": "Calendar",
+                "controls": [],
+                "lists": [],
+                "calendars": [
+                  {
+                    "name": "MonthPlanner",
+                    "sourceKind": "readModel",
+                    "source": "CalendarPlanningItems",
+                    "dateField": "Date",
+                    "titleField": "Title",
+                    "summaryFields": [
+                      "StartTime",
+                      "VenueName"
+                    ],
+                    "fields": [
+                      "Date",
+                      "StartTime",
+                      "CalendarStatus",
+                      "Title",
+                      "VenueName"
+                    ],
+                    "sort": [
+                      {
+                        "field": "Date",
+                        "direction": "asc"
+                      },
+                      {
+                        "field": "StartTime",
+                        "direction": "asc"
+                      }
+                    ],
+                    "density": "compact",
+                    "month": {
+                      "state": "visibleMonth",
+                      "weekStart": "monday"
+                    },
+                    "status": {
+                      "candidates": [
+                        {
+                          "kind": "map",
+                          "map": "CalendarEventTypeStatus",
+                          "field": "CalendarStatus"
+                        }
+                      ]
+                    },
+                    "emptyState": {
+                      "text": "No events in this month"
+                    },
+                    "actions": [
+                      {
+                        "name": "addEventOnDate",
+                        "kind": "action",
+                        "label": "Add Event",
+                        "icon": {
+                          "kind": "named",
+                          "name": "calendar"
+                        },
+                        "placement": "primary",
+                        "create": {
+                          "object": "Event"
+                        },
+                        "input": {
+                          "Date": "Date"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "DuplicateGig",
+                "heading": "Duplicate a previous gig",
+                "comment": "A repeat booking is rarely typed from scratch: a venue that had a band\nback is asking for the same night, the same contact and the same fee.\n`duplicateGig` copies every field but `Date` from an existing gig into a\nfresh create form, landing the user on a prefilled draft with only the\nnew date left to fill in -- the same `CREATE ... INPUT <field> FROM\n<field>` shape `addEventOnDate` already uses above, just with one input\nper business field instead of one. Bound to `OBJECT Event` directly\n(not a read model) so every field the row carries -- including the rich\ngig fields -- is available to `INPUT ... FROM`.",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "PreviousGigs",
+                    "sourceKind": "object",
+                    "source": "Event",
+                    "renderAs": "compactFeed",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "Date",
+                        "direction": "desc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No previous gigs to duplicate yet"
+                    },
+                    "actions": [
+                      {
+                        "name": "duplicateGig",
+                        "kind": "action",
+                        "label": "Duplicate",
+                        "icon": {
+                          "kind": "named",
+                          "name": "list"
+                        },
+                        "placement": "row",
+                        "create": {
+                          "object": "Event"
+                        },
+                        "comment": "`PreviousGig FROM PreviousGig` copies the row's own `PreviousGig`\nvalue forward (its repeat-booking lineage), not the id of the row\nbeing duplicated -- a presentation ACTION's `INPUT ... FROM <expr>`\nonly ever sees a row's already-projected field values, never the\nrow's own record id (see\n`learnings/implementation/ui-presentation-model.md`'s \"row-scoped\nACTION cannot target an existing record by id\"), so there is no\nexpression here that could point the new gig back at this one.",
+                        "input": {
+                          "EventType": "EventType",
+                          "StartTime": "StartTime",
+                          "EndTime": "EndTime",
+                          "Title": "Title",
+                          "VenueName": "VenueName",
+                          "VenueLocation": "VenueLocation",
+                          "SetList": "SetList",
+                          "ContactName": "ContactName",
+                          "ContactPhone": "ContactPhone",
+                          "ContactEmail": "ContactEmail",
+                          "Amount": "Amount",
+                          "PaymentMethod": "PaymentMethod",
+                          "Agent": "Agent",
+                          "PreviousGig": "PreviousGig",
+                          "Notes": "Notes"
+                        }
+                      }
+                    ],
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "Date",
+                          "format": {
+                            "kind": "date",
+                            "pattern": "EEE d MMM"
+                          }
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Title",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "VenueName"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BandInvitation",
+      "views": [
+        {
+          "name": "MyInvitationList",
+          "kind": "dashboard",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "readModel": "SentBandInvitations",
+          "fields": [
+            "InviteeEmail",
+            "Role",
+            "Status",
+            "SentAt",
+            "RespondedAt"
+          ],
+          "searchFields": [],
+          "sort": [
+            {
+              "field": "SentAt",
+              "direction": "desc"
+            }
+          ],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "comment": "Admin-facing counterpart to the `HomeDashboard` \"Invitations\" feed, which\nonly ever shows what is still `Pending`. `RevokeBandInvitation` exists and\nis exercised directly (see `band-reference-app.test.ts`), the same way\n`AcceptBandInvitation` has been since Phase 28; the `revoke` row ACTION\nbelow is what wires a one-click button to it. This was blocked until\nPhase 69: a presentation `ACTION`'s `INPUT ... FROM <expr>` only ever saw\na row's already-projected field values, with no way to reach a row's own\nrecord identity (`meta.guid`) -- see `docs/spec/language.md`'s \"Composed\nView Presentation\" section for the `id` token Phase 69 introduced to close\nexactly this gap, and `duplicateGig` above for the `PLACEMENT row` shape\nthis action reuses.",
+          "presentation": {
+            "state": [],
+            "iconMaps": [],
+            "statuses": [],
+            "statusMaps": [],
+            "legends": [],
+            "sections": [
+              {
+                "name": "SentInvitations",
+                "heading": "Sent invitations",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "SentInvitationsList",
+                    "sourceKind": "readModel",
+                    "source": "SentBandInvitations",
+                    "renderAs": "table",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "SentAt",
+                        "direction": "desc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No invitations sent yet"
+                    },
+                    "actions": [
+                      {
+                        "name": "revoke",
+                        "kind": "action",
+                        "label": "Revoke",
+                        "icon": {
+                          "kind": "named",
+                          "name": "x"
+                        },
+                        "placement": "row",
+                        "command": "RevokeBandInvitation",
+                        "comment": "`WHEN Status == 'Pending'` keeps the button off rows that cannot\nactually be revoked (already accepted, declined, or revoked), even\nthough `RevokeBandInvitation`'s own `REQUIRE Status == 'Pending'`\nstep guard makes this safe either way -- offering it everywhere\nwould just invite a confusing server-side rejection for no reason.",
+                        "input": {
+                          "Invitation": "id"
+                        },
+                        "visibleWhen": "Status == 'Pending'"
+                      }
+                    ],
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "InviteeEmail",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Role"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Status"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "SentAt",
+                          "format": {
+                            "kind": "date",
+                            "pattern": "EEE d MMM"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Availability",
+      "views": [
+        {
+          "name": "BandMemberAvailabilityBoard",
+          "kind": "dashboard",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "readModel": "BandMemberAvailability",
+          "fields": [
+            "Member",
+            "Role",
+            "Date",
+            "Status"
+          ],
+          "searchFields": [],
+          "sort": [
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "comment": "`BandMemberAvailabilityBoard` keeps its whole-band roster (`Who is free`,\nbacked by `BandMemberAvailability`, unchanged) and adds a second section:\nthe signed-in member's own schedule, overlaid with gigs booked with *any*\nband they belong to, not just the one currently selected. A gig-derived\nstatus outranks a plain availability status on the same date -- the same\n`PRECEDENCE 100` device `BandEventCalendar`'s `conflict` status already\nuses, reused here so a real booking outranks a stale \"I'm free\" note on\nthe same date.\n\nThe label deliberately says \"Gig booked\" rather than naming which band:\na read-model expression only ever sees `RUNTIME.userId` / `RUNTIME.now`\n(see `docs/spec/language.md`'s Read Models section), never which business\ncontext the *consuming view* currently has selected, so nothing here can\ntell the currently-selected band's own gig apart from another band's. Both\nare still correctly \"booked\" -- the wording just does not overclaim which\none.",
+          "presentation": {
+            "layout": "stack",
+            "density": "compact",
+            "state": [
+              {
+                "name": "visibleMonth",
+                "type": "date",
+                "defaultValue": "2026-08-01"
+              }
+            ],
+            "iconMaps": [],
+            "statuses": [
+              {
+                "name": "conflict",
+                "label": "Gig booked",
+                "accessibleLabel": "A gig or rehearsal is already booked on this date",
+                "icon": {
+                  "kind": "named",
+                  "name": "calendar"
+                },
+                "themeToken": "colorStatusConflict",
+                "precedence": 100
+              },
+              {
+                "name": "available",
+                "label": "Available",
+                "accessibleLabel": "Available",
+                "icon": {
+                  "kind": "named",
+                  "name": "calendar"
+                },
+                "themeToken": "colorStatusAvailable",
+                "precedence": 10
+              },
+              {
+                "name": "unavailable",
+                "label": "Unavailable",
+                "accessibleLabel": "Unavailable",
+                "icon": {
+                  "kind": "named",
+                  "name": "x"
+                },
+                "themeToken": "colorStatusUnavailable",
+                "precedence": 20
+              }
+            ],
+            "statusMaps": [
+              {
+                "name": "MyScheduleStatus",
+                "field": "ScheduleStatus",
+                "values": [
+                  {
+                    "value": "Gig",
+                    "status": "conflict"
+                  },
+                  {
+                    "value": "Rehearsal",
+                    "status": "conflict"
+                  },
+                  {
+                    "value": "Available",
+                    "status": "available"
+                  },
+                  {
+                    "value": "Unavailable",
+                    "status": "unavailable"
+                  }
+                ],
+                "defaultStatus": "unavailable"
+              }
+            ],
+            "legends": [
+              {
+                "name": "MyScheduleLegend",
+                "title": "My schedule",
+                "statuses": [
+                  "conflict",
+                  "available",
+                  "unavailable"
+                ]
+              }
+            ],
+            "sections": [
+              {
+                "name": "TeamAvailability",
+                "heading": "Who is free",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "TeamAvailabilityList",
+                    "sourceKind": "readModel",
+                    "source": "BandMemberAvailability",
+                    "renderAs": "table",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "Date",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No availability recorded yet"
+                    },
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "Member",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Role"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Date",
+                          "format": {
+                            "kind": "date",
+                            "pattern": "EEE d MMM"
+                          }
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Status"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              },
+              {
+                "name": "MySchedule",
+                "heading": "My schedule across bands",
+                "controls": [],
+                "lists": [],
+                "calendars": [
+                  {
+                    "name": "MyScheduleCalendar",
+                    "sourceKind": "readModel",
+                    "source": "MyAvailabilityWithGigs",
+                    "dateField": "ScheduleDate",
+                    "titleField": "Title",
+                    "summaryFields": [
+                      "VenueName"
+                    ],
+                    "fields": [
+                      "ScheduleDate",
+                      "ScheduleStatus",
+                      "Title",
+                      "VenueName"
+                    ],
+                    "sort": [
+                      {
+                        "field": "ScheduleDate",
+                        "direction": "asc"
+                      }
+                    ],
+                    "density": "compact",
+                    "month": {
+                      "state": "visibleMonth",
+                      "weekStart": "monday"
+                    },
+                    "status": {
+                      "candidates": [
+                        {
+                          "kind": "map",
+                          "map": "MyScheduleStatus",
+                          "field": "ScheduleStatus"
+                        }
+                      ]
+                    },
+                    "emptyState": {
+                      "text": "Nothing scheduled this month"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SetList",
+      "views": [
+        {
+          "name": "SetListForm",
+          "kind": "form",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "editContainer": "page",
+          "fields": [
+            "Name",
+            "Description"
+          ],
+          "searchFields": [],
+          "sort": [],
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
+          "editSections": [
+            {
+              "name": "Details",
+              "kind": "fields",
+              "heading": "Set list",
+              "fields": [
+                "Name",
+                "Description"
+              ]
+            },
+            {
+              "name": "Songs",
+              "kind": "childCollection",
+              "heading": "Songs",
+              "childObject": "SetListItem",
+              "parentField": "SetList",
+              "childView": "SetListItemList",
+              "operations": [
+                "createChild",
+                "updateChild",
+                "remove",
+                "reorder"
+              ],
+              "staged": true,
+              "orderField": "Position",
+              "emptyState": {
+                "text": "No songs in this set list yet."
+              },
+              "picker": {
+                "name": "SongPicker",
+                "sourceKind": "object",
+                "source": "Song",
+                "candidateField": "Song",
+                "selection": "multiple",
+                "displayFields": [
+                  "Title",
+                  "Composer"
+                ],
+                "searchFields": [
+                  "Title",
+                  "Composer"
+                ],
+                "sort": [
+                  {
+                    "field": "Title",
+                    "direction": "asc"
+                  }
+                ],
+                "excludeAlreadyLinked": true,
+                "emptyState": {
+                  "text": "Every song in the library is already in this set list."
+                },
+                "comment": "Adding a song is choosing one, not typing its record id. CANDIDATE_FIELD\nmakes each choice mint a SetListItem naming that Song, appended to the end\nof the set list and ready to be reordered. Songs already in this set list\nare excluded, so the same song cannot be added twice."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "contexts": [],
+  "readModels": [],
+  "decisionTables": [],
+  "commands": [],
+  "policies": [],
+  "sync": []
+}

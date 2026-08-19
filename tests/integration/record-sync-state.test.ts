@@ -46,7 +46,7 @@ const applicationId = "record-sync-state";
 const csrf = "csrf-value".padEnd(48, "s");
 const founderProof = "founder@record-sync.test";
 
-const model = createGiggleBandExampleModel();
+const model = await createGiggleBandExampleModel();
 
 const systemContext: RuntimeContext = {
   userId: "seed-system",

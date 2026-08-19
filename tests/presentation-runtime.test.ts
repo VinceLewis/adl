@@ -668,7 +668,7 @@ describe("presentation runtime", () => {
 });
 
 async function createSeededPresentationRuntime() {
-  const runtime = createBandReferenceRuntime();
+  const runtime = await createBandReferenceRuntime();
   return seedBandReferenceRuntime(runtime);
 }
 

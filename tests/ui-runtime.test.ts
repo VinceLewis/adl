@@ -1248,7 +1248,7 @@ async function createSeededBandUiRuntime(
 }
 
 async function createSeededGiggleRuntime() {
-  const runtime = createBandReferenceRuntime();
+  const runtime = await createBandReferenceRuntime();
   return seedBandReferenceRuntime(runtime);
 }
 
