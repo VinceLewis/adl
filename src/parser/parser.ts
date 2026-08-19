@@ -474,7 +474,7 @@ class AdlParser {
    *   OBJECT Gig
    *     SCHEMA_VERSION 2
    *     RENAME FIELD Venue TO VenueName
-   *     ADD FIELD PayoutCents DEFAULT 0
+   *     ADD FIELD PayoutCents DEFAULT(0)
    *     DROP FIELD LegacyNote
    *   END.OBJECT
    * END.MIGRATION

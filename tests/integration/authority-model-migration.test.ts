@@ -720,7 +720,7 @@ function writeMigrationProject(): string {
       `MIGRATION FROM '${OLD_VERSION}' TO '${NEW_VERSION}'`,
       "  OBJECT Gig",
       "    RENAME FIELD Venue TO VenueName",
-      "    ADD FIELD PayoutCents DEFAULT 0",
+      "    ADD FIELD PayoutCents DEFAULT(0)",
       "    DROP FIELD LegacyNote",
       "  END.OBJECT",
       "END.MIGRATION",
