@@ -467,6 +467,120 @@ printer change (or any change to code whose only proof is round-tripping
 through a fixture) is correct — run it against the richest real content
 available before considering it done.
 
+## Comments: a shared `comment` field on `Partial*Model`, not an `AdljSourceDocument`-only channel
+
+`.adlj` had no way to carry the design-rationale comments every real `.adl`
+file in this repository accumulates — strict `JSON.parse`, no JSON5/comment
+stripping, `additionalProperties: false` everywhere in the generated schema.
+This surfaced for real when the Jointly Care reference app was converted from
+`.adl` text to `.adlj`: the original, heavily-commented `.adl` files had to be
+left on disk unwired from `app.yaml`, headed with a note that they were
+rationale-only reference and not reparsed — a workaround, not a fix, and one
+that would have had to repeat for every future `.adlj`-sourced app.
+
+The fix adds one optional `comment?: string` field, sibling to a construct's
+other properties (`.adlj`'s `"comment"` key; `Partial*Model`'s `comment`
+field), to exactly the node shapes real usage needed. A multi-line comment is
+one string with `\n` separating the original lines, not a string array,
+matching the literal shape asked for and keeping the representation simple.
+
+**Why the field lives on `Partial*Model`, not only on `AdljSourceDocument`'s
+`AdljXModel` types.** The printer (`printPartialApplicationModelAsAdl`) reads
+`PartialApplicationModel`, and both front ends — `.adl` text via
+`compile-adl.ts`'s AST-to-partial conversion, `.adlj` via
+`compile-adlj.ts`'s JSON-to-partial conversion — already funnel into that one
+shared type before the printer or `resolveApplicationModel` ever sees the
+content. Putting `comment` only on `AdljSourceDocument` would have meant the
+printer needed a *second* code path to reach it depending on which front end
+produced the model, undermining the exact thing `PartialApplicationModel`
+exists to be: the single shared shape every producer targets and every
+consumer reads, regardless of source format. `comment` is deliberately
+**not** added to any `Resolved*Model` interface — it is authoring metadata
+consumed only by the printer, not runtime content, so it has no reason to
+survive `resolveApplicationModel` any more than a parser's own source ranges
+do.
+
+**This is also why `compile-adlj.ts` and `adl-to-adlj.ts` needed zero code
+changes.** Every `AdljXModel` type in `adlj-source.ts` is
+`Omit<PartialXModel, "expressionField"> & { expressionField: string }` (see
+above): adding `comment` to a `Partial*Model` interface makes it appear in
+the corresponding `AdljXModel` type automatically, with no `adlj-source.ts`
+edit, as long as no mapper's `Omit` list happens to exclude it (none did,
+since it is a new field nothing yet destructures). And because every mapper
+function in `compile-adlj.ts`/`adl-to-adlj.ts` follows the
+destructure-known-fields-then-spread-rest idiom this surface already
+established, `comment` — never named, never destructured — rides through
+every mapper's `...rest` spread for free in both directions. The only real
+code was the parser capturing it, `compile-adl.ts` threading it from the AST,
+the `Partial*Model` field declarations themselves, and the printer emitting
+it. `npm run generate:adlj-schema` picked up all 24 new `comment` properties
+from the type change alone.
+
+**Scope: the node shapes that actually receive a leading comment in real
+usage**, found by reading Jointly Care's and Giggle Band's real `.adl`
+files rather than adding support speculatively: `app`, the top-level `shell`
+block, a `role`, a `context` and a `contextGrant`, an `object`, a `field`,
+all three object constraint kinds (`unique`/`ordered`/`protectedRole`), an
+object `validation`, a `view`, a `readModel` and its `sources`/`fields`
+entries, a `command` and its `steps`, a `policy` and its `rules`, and the
+composed-presentation constructs `SECTION` (a `PartialPresentationSectionModel`),
+a row/section `ACTION` (`PartialPresentationActionControlModel` — not the
+`toggle` control kind, which had no real comment example), and a
+`CHILD_COLLECTION`'s `PICKER` (`PartialRelationshipPickerModel`). `ROLE` and
+`SHELL` were not named in the originating task's scope list but got comment
+support anyway because real content puts a leading comment directly above
+each (`domain.adl`'s file-scope comment sits immediately above its first
+`ROLE`; `ui.adl`'s file header sits immediately above `SHELL`) — the rule
+"add support for a shape you find a real comment attached to, even if it
+wasn't named" applied literally. `COMMAND STEP` got support even though
+no comment in either corpus attaches directly to a `STEP` line (the
+`REQUIRE`-rationale comments found always sit above the enclosing `COMMAND`
+instead) — it was added anyway because the originating task named it
+explicitly. A `LIFECYCLE`/decision-table/computed-field comment was not
+added: neither app uses `LIFECYCLE`, `DECISION_TABLE`, or an object
+`COMPUTED` field at all, so there was no real placement to check.
+
+**The attachment rule: a leading comment block, mechanically.** One or more
+consecutive whole-line `#`/`//` comments, with no blank line between them and
+none between the block and the declaration immediately following, belong to
+that declaration — the same leading-doc-comment shape as JSDoc/Python
+docstrings/Rust `///`. This was implemented as a pure line-number lookup
+(`AdlParser.takeLeadingComment`, called as the very first statement in each
+target `parseXxx` method, before that method consumes its own first token):
+walk backward from the current token's line, collecting consecutive comment
+lines from a `Map<line, text>` the lexer built, stopping at the first gap. No
+"consumed" bookkeeping is needed — each call queries a distinct line range by
+construction, so the same comment block can never be attached to two
+different declarations. A comment **not** immediately followed by a
+declaration — a truly freestanding remark, or one separated from what
+follows by a blank line — has no attachment point and is dropped, not an
+error. The real example found: Giggle Band's `domain.adl` has a comment
+directly above `END.OBJECT` inside `Availability` (explaining that
+`BandMemberAvailabilityBoard`'s presentation lives in `ui.adl`) with nothing
+after it to attach to inside that block — it is simply never queried by any
+`takeLeadingComment` call and stays unattached. A second, real,
+blank-line-separated case exists too but happens to still attach correctly:
+`domain.adl`'s post-`END.APP` comment describing the whole domain sits
+directly above `ROLE SystemAdmin` (no blank line between them), so it
+attaches to that first `ROLE` — a mechanical consequence of the rule, not a
+special case, and worth knowing before assuming every file-scope comment is
+freestanding.
+
+**The lexer change is additive and provably safe.** `skipLineComment` always
+discarded comment text before this change; it now also records `{ text,
+line }` into a side array **only when the comment is the first thing on its
+line** (a `contentSeenOnLine` flag, reset on every newline, set by every
+other token-producing branch) — a trailing same-line comment after code is
+never captured, matching the "whole-line block" attachment rule and avoiding
+a wrong attachment from `FIELD X TEXT # note\nFIELD Y TEXT` accidentally
+reading "note" as `Y`'s leading comment. The main token stream `lexAdl`
+returns is byte-for-byte unchanged — same tokens, same order, same
+`ADL_LEX_*`/`ADL_PARSE_*` diagnostics — so every existing parser test passed
+unmodified; nothing the parser used to accept or reject changed, only what it
+additionally captures. `AdlParser`'s constructor grew an optional second
+`comments` parameter defaulting to `[]`, so every other direct construction
+site is unaffected.
+
 ## Practical guidance
 
 - Every new `.adlj` construct needs three things kept in sync by hand: the

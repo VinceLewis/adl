@@ -131,8 +131,8 @@ import type {
   ViewDeclarationAst,
   ViewContextDeclarationAst,
 } from "./ast.js";
-import { lexAdl } from "./lexer.js";
-import type { Token } from "./lexer.js";
+import { lexAdlWithComments } from "./lexer.js";
+import type { LexedComment, Token } from "./lexer.js";
 
 export interface ParserDiagnostic {
   severity: "error";
@@ -157,7 +157,8 @@ export class ParseError extends Error {
 }
 
 export function parseAdl(source: string): AdlDocumentAst {
-  return new AdlParser(lexAdl(source)).parseDocument();
+  const { tokens, comments } = lexAdlWithComments(source);
+  return new AdlParser(tokens, comments).parseDocument();
 }
 
 /**
@@ -172,7 +173,7 @@ export function parseAdl(source: string): AdlDocumentAst {
  * prefix.
  */
 export function parseExpressionSource(text: string): ResolvedExpression {
-  return new AdlParser(lexAdl(text)).parseStandaloneExpression();
+  return new AdlParser(lexAdlWithComments(text).tokens).parseStandaloneExpression();
 }
 
 const PROCEDURAL_KEYWORDS = new Set([
@@ -248,8 +249,38 @@ class AdlParser {
   private readonly contextGrantTargets: { context: string; token: Token }[] = [];
   /** See `StyleWarningAst`. Populated by `recordDeprecatedSpelling` as parsing proceeds. */
   private readonly styleWarnings: StyleWarningAst[] = [];
+  /** `LexedComment[]` indexed by 1-based source line, for `takeLeadingComment`. */
+  private readonly commentsByLine: Map<number, string>;
 
-  constructor(private readonly tokens: Token[]) {}
+  constructor(
+    private readonly tokens: Token[],
+    comments: LexedComment[] = [],
+  ) {
+    this.commentsByLine = new Map(comments.map((comment) => [comment.line, comment.text]));
+  }
+
+  /**
+   * The leading comment block immediately above the current token, if any:
+   * one or more consecutive whole-line `#`/`//` comments with no blank line
+   * between them and none between the block and the current token's own
+   * line, joined with `\n` in source order. Call this as the first thing in
+   * a construct's `parseXxx` method, before consuming its first token, so
+   * "the current token" is still that construct's own opening keyword — the
+   * line the comment block must end immediately above. A comment separated
+   * by a blank line, or one trailing on the same line as other content, has
+   * no attachment point and is never returned by any call.
+   */
+  private takeLeadingComment(): string | undefined {
+    const lines: string[] = [];
+    let line = this.current().range.start.line - 1;
+
+    while (this.commentsByLine.has(line)) {
+      lines.unshift(this.commentsByLine.get(line) as string);
+      line -= 1;
+    }
+
+    return lines.length === 0 ? undefined : lines.join("\n");
+  }
 
   /**
    * Records use of a deprecated-but-still-accepted spelling. The parser
@@ -412,6 +443,7 @@ class AdlParser {
   }
 
   private parseApp(): AppDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("APP", "APP declaration");
     const name = this.consumeName("application name");
     let theme: string | undefined;
@@ -436,6 +468,7 @@ class AdlParser {
           ...(startView === undefined ? {} : { startView }),
           ...(offlineGraceDays === undefined ? {} : { offlineGraceDays }),
           ...(modelVersion === undefined ? {} : { modelVersion }),
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -603,6 +636,7 @@ class AdlParser {
   }
 
   private parseRole(): RoleDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("ROLE", "ROLE declaration");
     const name = this.consumeName("role name");
     let inherits: string[] = [];
@@ -624,11 +658,13 @@ class AdlParser {
       name,
       inherits,
       ...(description === undefined ? {} : { description }),
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
 
   private parseShell(): ShellDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("SHELL", "SHELL declaration");
     const navItems: ShellNavItemDeclarationAst[] = [];
     const controls: ShellControlDeclarationAst[] = [];
@@ -651,6 +687,7 @@ class AdlParser {
           controls,
           ...(topBar === undefined ? {} : { topBar }),
           ...(navDrawer === undefined ? {} : { navDrawer }),
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -876,6 +913,7 @@ class AdlParser {
   }
 
   private parseBusinessContext(): BusinessContextDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("CONTEXT", "CONTEXT declaration");
     const name = this.consumeName("context name");
     let object: string | undefined;
@@ -926,6 +964,7 @@ class AdlParser {
       ...(object === undefined ? {} : { object }),
       ...(selection === undefined ? {} : { selection }),
       ...(membership === undefined ? {} : { membership }),
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -990,6 +1029,7 @@ class AdlParser {
    * have several. `ON` says which context it attaches to.
    */
   private parseContextGrant(): ContextGrantDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectUnderscoreOrDottedWord(
       "top-level CONTEXT_GRANT block",
       "CONTEXT_GRANT",
@@ -1054,6 +1094,7 @@ class AdlParser {
       userField,
       contextField,
       ...(condition === undefined ? {} : { condition }),
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -1092,6 +1133,7 @@ class AdlParser {
   }
 
   private parseObject(): ObjectDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("OBJECT", "OBJECT declaration");
     const name = this.consumeName("object name");
     let businessKey: string | undefined;
@@ -1132,6 +1174,7 @@ class AdlParser {
           views,
           ...(sync === undefined ? {} : { sync }),
           policyRefs,
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -1238,6 +1281,7 @@ class AdlParser {
   }
 
   private parseObjectConstraint(): ObjectConstraintDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("CONSTRAINT", "OBJECT CONSTRAINT declaration");
     const name = this.consumeName("object constraint name");
     const constraintKind = normaliseKeyword(this.consumeName("object constraint kind"));
@@ -1267,6 +1311,7 @@ class AdlParser {
         name,
         fields,
         scopeFields,
+        ...(leadingComment === undefined ? {} : { leadingComment }),
         range: this.rangeFrom(startToken),
       };
     }
@@ -1319,6 +1364,7 @@ class AdlParser {
         ...(minPosition === undefined ? {} : { minPosition }),
         ...(reorder === undefined ? {} : { reorder }),
         ...(compaction === undefined ? {} : { compaction }),
+        ...(leadingComment === undefined ? {} : { leadingComment }),
         range: this.rangeFrom(startToken),
       };
     }
@@ -1363,6 +1409,7 @@ class AdlParser {
         roleField,
         roleValues,
         ...(minCount === undefined ? {} : { minCount }),
+        ...(leadingComment === undefined ? {} : { leadingComment }),
         range: this.rangeFrom(startToken),
       };
     }
@@ -1397,6 +1444,7 @@ class AdlParser {
   }
 
   private parseField(): FieldDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("FIELD", "FIELD declaration");
     const name = this.consumeName("field name");
     const { type, validators } = this.parseFieldType();
@@ -1498,11 +1546,13 @@ class AdlParser {
       hidden,
       ...(lookup === undefined ? {} : { lookup }),
       ...(autoId === undefined ? {} : { autoId }),
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
 
   private parseObjectValidation(): ObjectValidationDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.current();
     if (!this.matchCanonicalOrDeprecatedWord("OBJECT VALIDATE block", "VALIDATE", "VALIDATION")) {
       this.expectWord("VALIDATION", "object validation declaration");
@@ -1526,6 +1576,7 @@ class AdlParser {
       name,
       expression,
       ...(message === undefined ? {} : { message }),
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -1764,6 +1815,7 @@ class AdlParser {
   }
 
   private parseView(): ViewDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("VIEW", "VIEW declaration");
     const name = this.consumeName("view name");
     const viewKind = this.parseViewKind();
@@ -1829,6 +1881,7 @@ class AdlParser {
                   range: { start: startToken.range.start, end: end.range.end },
                 },
               }),
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -2033,6 +2086,7 @@ class AdlParser {
   }
 
   private parseRelationshipPicker(): RelationshipPickerDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("PICKER", "PICKER declaration");
     const name = this.consumeName("relationship picker name");
     let sourceKind: RelationshipPickerSourceKind | undefined;
@@ -2067,6 +2121,7 @@ class AdlParser {
           sort,
           ...(excludeAlreadyLinked === undefined ? {} : { excludeAlreadyLinked }),
           ...(emptyText === undefined ? {} : { emptyText }),
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -2457,6 +2512,7 @@ class AdlParser {
   }
 
   private parsePresentationSection(): PresentationSectionDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("SECTION", "SECTION declaration");
     const name = this.consumeName("section name");
     let heading: string | undefined;
@@ -2485,6 +2541,7 @@ class AdlParser {
           controls,
           lists,
           calendars,
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -2841,6 +2898,7 @@ class AdlParser {
   private parsePresentationAction(
     defaultPlacement?: PresentationActionPlacement,
   ): PresentationActionControlDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("ACTION", "presentation ACTION declaration");
     const name = this.consumeName("presentation action name");
     let label: string | undefined;
@@ -2899,6 +2957,7 @@ class AdlParser {
           ...(createView === undefined ? {} : { createView }),
           input,
           ...(visibleWhen === undefined ? {} : { visibleWhen }),
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -3062,6 +3121,7 @@ class AdlParser {
   }
 
   private parseReadModel(): ReadModelDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectUnderscoreOrDottedWord(
       "top-level READ_MODEL block",
       "READ_MODEL",
@@ -3094,6 +3154,7 @@ class AdlParser {
           sources,
           fields,
           sort,
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -3121,6 +3182,7 @@ class AdlParser {
   }
 
   private parseReadModelSource(): ReadModelSourceDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("SOURCE", "READ_MODEL SOURCE declaration");
     const firstName = this.consumeName("read model source name or object");
     let name = firstName;
@@ -3163,6 +3225,7 @@ class AdlParser {
       object,
       ...(scope === undefined ? {} : { scope }),
       ...(join === undefined ? {} : { join }),
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -3223,6 +3286,7 @@ class AdlParser {
   }
 
   private parseReadModelField(): ReadModelFieldDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("FIELD", "READ_MODEL FIELD declaration");
     const name = this.consumeName("read model field name");
     let type: FieldType | undefined;
@@ -3244,6 +3308,7 @@ class AdlParser {
         ...(type === undefined ? {} : { type }),
         source,
         field: fieldParts.join("."),
+        ...(leadingComment === undefined ? {} : { leadingComment }),
         range: this.rangeFrom(startToken),
       };
     }
@@ -3263,6 +3328,7 @@ class AdlParser {
       name,
       ...(type === undefined ? {} : { type }),
       expression,
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -3347,6 +3413,7 @@ class AdlParser {
   }
 
   private parsePolicy(): PolicyDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("POLICY", "POLICY declaration");
     const name = this.consumeName("policy name");
     this.expectWord("ON", "POLICY ON clause");
@@ -3368,6 +3435,7 @@ class AdlParser {
           name,
           object,
           rules,
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -3383,6 +3451,7 @@ class AdlParser {
   }
 
   private parsePolicyRule(index: number): PolicyRuleDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.current();
     let name: string | undefined;
 
@@ -3486,6 +3555,7 @@ class AdlParser {
       ...(lifecycleAction === undefined ? {} : { lifecycleAction }),
       ...(condition === undefined ? {} : { condition }),
       channels,
+      ...(leadingComment === undefined ? {} : { leadingComment }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -3777,6 +3847,7 @@ class AdlParser {
   }
 
   private parseCommand(): CommandDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("COMMAND", "COMMAND declaration");
     const name = this.consumeName("command name");
     let label: string | undefined;
@@ -3810,6 +3881,7 @@ class AdlParser {
           inputs,
           preconditions,
           steps,
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -3975,6 +4047,7 @@ class AdlParser {
   }
 
   private parseCommandStep(): CommandStepDeclarationAst {
+    const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("STEP", "COMMAND STEP declaration");
     const name = this.consumeName("command step name");
     const action = this.parseCommandStepAction();
@@ -4045,6 +4118,7 @@ class AdlParser {
           ...(establishesContext === undefined ? {} : { establishesContext }),
           values,
           preconditions,
+          ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };

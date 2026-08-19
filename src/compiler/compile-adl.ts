@@ -155,12 +155,14 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       ...(ast.app.offlineGraceDays === undefined
         ? {}
         : { offlineGraceDays: ast.app.offlineGraceDays }),
+      ...(ast.app.leadingComment === undefined ? {} : { comment: ast.app.leadingComment }),
     },
     ...(ast.shell === undefined ? {} : { shell: shellToPartial(ast.shell) }),
     roles: ast.roles.map((role) => ({
       name: role.name,
       ...(role.description === undefined ? {} : { description: role.description }),
       inherits: [...role.inherits],
+      ...(role.leadingComment === undefined ? {} : { comment: role.leadingComment }),
     })),
     contexts: ast.contexts.map((context) => contextToPartial(context, ast.contextGrants)),
     objects,
@@ -208,6 +210,7 @@ function shellToPartial(shell: ShellDeclarationAst): PartialShellModel {
       ? {}
       : { navDrawer: shellNavDrawerToPartial(shell.navDrawer) }),
     controls: shell.controls.map(shellControlToPartial),
+    ...(shell.leadingComment === undefined ? {} : { comment: shell.leadingComment }),
   };
 }
 
@@ -330,6 +333,7 @@ function objectToPartial(
       name: validation.name,
       expression: validation.expression,
       ...(validation.message === undefined ? {} : { message: validation.message }),
+      ...(validation.leadingComment === undefined ? {} : { comment: validation.leadingComment }),
     })),
     ...(object.lifecycle === undefined
       ? {}
@@ -337,6 +341,7 @@ function objectToPartial(
     policies: [...object.policyRefs],
     views: object.views.map(viewToPartial),
     ...(object.sync === undefined ? {} : { sync: objectSyncToPartial(object.sync) }),
+    ...(object.leadingComment === undefined ? {} : { comment: object.leadingComment }),
   };
 }
 
@@ -378,6 +383,7 @@ function contextToPartial(
           },
         }),
     ...(ownGrants.length === 0 ? {} : { grants: ownGrants.map(contextGrantToPartial) }),
+    ...(context.leadingComment === undefined ? {} : { comment: context.leadingComment }),
   };
 }
 
@@ -388,6 +394,7 @@ function contextGrantToPartial(grant: ContextGrantDeclarationAst): PartialContex
     userField: grant.userField,
     contextField: grant.contextField,
     ...(grant.condition === undefined ? {} : { condition: grant.condition }),
+    ...(grant.leadingComment === undefined ? {} : { comment: grant.leadingComment }),
   };
 }
 
@@ -400,6 +407,7 @@ function objectConstraintToPartial(
       kind: "unique",
       fields: [...constraint.fields],
       scopeFields: [...constraint.scopeFields],
+      ...(constraint.leadingComment === undefined ? {} : { comment: constraint.leadingComment }),
     };
   }
 
@@ -413,6 +421,7 @@ function objectConstraintToPartial(
       ...(constraint.minPosition === undefined ? {} : { minPosition: constraint.minPosition }),
       ...(constraint.reorder === undefined ? {} : { reorder: constraint.reorder }),
       ...(constraint.compaction === undefined ? {} : { compaction: constraint.compaction }),
+      ...(constraint.leadingComment === undefined ? {} : { comment: constraint.leadingComment }),
     };
   }
 
@@ -423,6 +432,7 @@ function objectConstraintToPartial(
     roleField: constraint.roleField,
     roleValues: [...constraint.roleValues],
     ...(constraint.minCount === undefined ? {} : { minCount: constraint.minCount }),
+    ...(constraint.leadingComment === undefined ? {} : { comment: constraint.leadingComment }),
   };
 }
 
@@ -468,6 +478,7 @@ function fieldToPartial(field: FieldDeclarationAst): PartialFieldModel {
               : { scopeField: field.autoId.scopeField }),
           },
         }),
+    ...(field.leadingComment === undefined ? {} : { comment: field.leadingComment }),
   };
 }
 
@@ -494,6 +505,7 @@ function readModelToPartial(readModel: ReadModelDeclarationAst): PartialReadMode
                 : { cardinality: source.join.cardinality }),
             },
           }),
+      ...(source.leadingComment === undefined ? {} : { comment: source.leadingComment }),
     })),
     fields: readModel.fields.map((field) => ({
       name: field.name,
@@ -501,11 +513,13 @@ function readModelToPartial(readModel: ReadModelDeclarationAst): PartialReadMode
       ...(field.source === undefined ? {} : { source: field.source }),
       ...(field.field === undefined ? {} : { field: field.field }),
       ...(field.expression === undefined ? {} : { expression: field.expression }),
+      ...(field.leadingComment === undefined ? {} : { comment: field.leadingComment }),
     })),
     sort: readModel.sort.map((sort) => ({
       field: sort.field,
       direction: sort.direction,
     })),
+    ...(readModel.leadingComment === undefined ? {} : { comment: readModel.leadingComment }),
   };
 }
 
@@ -621,6 +635,7 @@ function commandToPartial(command: CommandDeclarationAst): PartialCommandModel {
       ...(precondition.message === undefined ? {} : { message: precondition.message }),
     })),
     steps: command.steps.map(commandStepToPartial),
+    ...(command.leadingComment === undefined ? {} : { comment: command.leadingComment }),
   };
 }
 
@@ -656,6 +671,7 @@ function commandStepToPartial(step: CommandStepDeclarationAst): PartialCommandSt
       patch: { ...step.values },
       preconditions: [...step.preconditions],
       ...(step.forEach === undefined ? {} : { forEach: step.forEach }),
+      ...(step.leadingComment === undefined ? {} : { comment: step.leadingComment }),
     };
   }
 
@@ -666,6 +682,7 @@ function commandStepToPartial(step: CommandStepDeclarationAst): PartialCommandSt
       object: step.object,
       recordId: step.recordId ?? { kind: "literal", value: null },
       preconditions: [...step.preconditions],
+      ...(step.leadingComment === undefined ? {} : { comment: step.leadingComment }),
     };
   }
 
@@ -680,6 +697,7 @@ function commandStepToPartial(step: CommandStepDeclarationAst): PartialCommandSt
     ...(step.establishesContext === undefined
       ? {}
       : { establishesContext: step.establishesContext }),
+    ...(step.leadingComment === undefined ? {} : { comment: step.leadingComment }),
   };
 }
 
@@ -719,6 +737,7 @@ function viewToPartial(view: ViewDeclarationAst): PartialViewModel {
             sections: view.presentation.sections.map(presentationSectionToPartial),
           },
         }),
+    ...(view.leadingComment === undefined ? {} : { comment: view.leadingComment }),
   };
 }
 
@@ -769,6 +788,7 @@ function relationshipPickerToPartial(
       ? {}
       : { excludeAlreadyLinked: picker.excludeAlreadyLinked }),
     ...(picker.emptyText === undefined ? {} : { emptyState: { text: picker.emptyText } }),
+    ...(picker.leadingComment === undefined ? {} : { comment: picker.leadingComment }),
   };
 }
 
@@ -840,6 +860,7 @@ function presentationSectionToPartial(
     controls: section.controls.map(presentationControlToPartial),
     lists: section.lists.map(presentationListToPartial),
     calendars: section.calendars.map(presentationCalendarToPartial),
+    ...(section.leadingComment === undefined ? {} : { comment: section.leadingComment }),
   };
 }
 
@@ -884,6 +905,7 @@ function presentationActionToPartial(
           input: Object.fromEntries(action.input.map((input) => [input.name, input.expression])),
         }),
     ...(action.visibleWhen === undefined ? {} : { visibleWhen: action.visibleWhen }),
+    ...(action.leadingComment === undefined ? {} : { comment: action.leadingComment }),
   };
 }
 
@@ -1032,6 +1054,7 @@ function policyToPartial(policy: PolicyDeclarationAst): PartialPolicyModel {
     name: policy.name,
     object: policy.object,
     rules: policy.rules.map(policyRuleToPartial),
+    ...(policy.leadingComment === undefined ? {} : { comment: policy.leadingComment }),
   };
 }
 
@@ -1046,6 +1069,7 @@ function policyRuleToPartial(rule: PolicyRuleDeclarationAst): PartialPolicyRuleM
     ...(rule.lifecycleAction === undefined ? {} : { lifecycleAction: rule.lifecycleAction }),
     ...(rule.condition === undefined ? {} : { condition: rule.condition }),
     ...(rule.channels.length === 0 ? {} : { channels: [...rule.channels] }),
+    ...(rule.leadingComment === undefined ? {} : { comment: rule.leadingComment }),
   };
 }
 

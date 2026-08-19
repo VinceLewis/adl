@@ -91,29 +91,71 @@ silently-ignored one.
 - A `COMMAND STEP`'s `VALUE`/`SET`/`PATCH` assignment is the one exception:
   it is small structured JSON, not a string — see the command mapping below.
 
+### Comments
+
+`.adl` text carries design rationale as leading `#`-prefixed comment lines
+immediately above a declaration — every real `.adl` file in this repository
+does this heavily. `.adlj`, being strict JSON, has no comment syntax of its
+own, so a construct that accepts one gets an optional sibling `"comment"`
+string property instead — the same shape common JSON-with-annotations
+practice reaches for (a `"//"` or `"_comment"` key), deliberately close to
+that convention rather than a bolted-on comment channel:
+
+```json
+{ "comment": "Optional, not REQUIRED: see the field below.", "name": "Owner", "type": "text" }
+```
+
+A multi-line comment is one string with `\n` separating the original lines,
+not a string array. The printer (`printPartialApplicationModelAsAdl`) renders
+it back as one `# <line>` per `\n`-separated line, immediately before the
+construct, at that construct's own indentation — the identical convention
+every hand-written `.adl` file already uses, so a `.adlj`-authored app's
+printed `.adl` view carries its rationale the same way a person would have
+written it directly.
+
+`comment` is optional everywhere it appears; omitting it is exactly today's
+behaviour (nothing printed, no field populated) — it does not change what
+any existing `.adlj` document without one compiles to.
+
+The node shapes that accept `comment` were chosen by reading where two real,
+heavily-commented `.adl` apps (Jointly Care, Giggle Band) actually put
+design-rationale comments, not speculatively: `app`, the top-level `shell`
+block, a `role`, a business `context` and a `contextGrant`, an `object`, a
+`field`, all three `object` constraint kinds (`unique`/`ordered`/
+`protectedRole`), an `object` validation, a `view`, a `readModel` and its
+`sources`/`fields` entries, a `command` and its `steps`, a `policy` and its
+`rules`, and the composed-presentation constructs `SECTION`, a row/section
+`ACTION`, and a `CHILD_COLLECTION`'s `PICKER`. A comment not immediately
+followed by a declaration — a truly freestanding remark, or one separated
+from what follows by a blank line — has no attachment point in either
+`.adl` text or `.adlj` and is out of scope; see
+`learnings/implementation/adlj-json-authoring-surface.md` for the real
+example found in Giggle Band's own source and how it is handled (dropped,
+not an error).
+
 ### Construct-by-construct mapping
 
 | `.adl` construct | `.adlj` shape | Notes |
 | --- | --- | --- |
-| `APP Name` `START_VIEW`/`OFFLINE_GRACE` | `app: { name, startView?, offlineGraceDays?, theme? }` | Only `name` is required. |
-| `ROLE Name` | `roles: [{ name }]` | |
-| `CONTEXT Name ... MEMBERSHIP ...` | `contexts: [{ name, object?, selection?: { mode, ... }, membership?: { object, userField, contextField, roleField, roles? }, grants?: [AdljContextGrantModel] }]` | `selection.mode`/`membership.*` mirror the `.adl` `SELECTION`/`MEMBERSHIP` sub-directives field-for-field. |
-| `CONTEXT_GRANT Name ON Context` | one entry of `contexts[i].grants`: `{ name, object, userField, contextField, condition? }` | `condition` is an infix expression string. |
-| `OBJECT Name` | one entry of `objects`: `{ name, businessKey?, displayField?, fields?, computedFields?, validations?, lifecycle?, scope?, constraints?, sync?, views? }` | |
-| `FIELD Name TYPE [REQUIRED] [DEFAULT(...)]` | one entry of `objects[i].fields`: `{ name, type, required?, defaultValue?, readonly?, hidden?, storageName?, lookup?, autoId?, validators? }` | `type` is one of `text`, `number`, `date`, `datetime`, `time`, `boolean`, `attachment`. |
+| `APP Name` `START_VIEW`/`OFFLINE_GRACE` | `app: { name, startView?, offlineGraceDays?, theme?, comment? }` | Only `name` is required. |
+| `ROLE Name` | `roles: [{ name, comment? }]` | |
+| `CONTEXT Name ... MEMBERSHIP ...` | `contexts: [{ name, object?, selection?: { mode, ... }, membership?: { object, userField, contextField, roleField, roles? }, grants?: [AdljContextGrantModel], comment? }]` | `selection.mode`/`membership.*` mirror the `.adl` `SELECTION`/`MEMBERSHIP` sub-directives field-for-field. |
+| `CONTEXT_GRANT Name ON Context` | one entry of `contexts[i].grants`: `{ name, object, userField, contextField, condition?, comment? }` | `condition` is an infix expression string. |
+| `OBJECT Name` | one entry of `objects`: `{ name, businessKey?, displayField?, fields?, computedFields?, validations?, lifecycle?, scope?, constraints?, sync?, views?, comment? }` | Each `constraints[i]` (`unique`/`ordered`/`protectedRole`) also accepts its own `comment?`, though this table has no dedicated `CONSTRAINT` row today. |
+| `FIELD Name TYPE [REQUIRED] [DEFAULT(...)]` | one entry of `objects[i].fields`: `{ name, type, required?, defaultValue?, readonly?, hidden?, storageName?, lookup?, autoId?, validators?, comment? }` | `type` is one of `text`, `number`, `date`, `datetime`, `time`, `boolean`, `attachment`. |
 | `COMPUTED FIELD Name TYPE = expr` | one entry of `objects[i].computedFields`: `{ name, type, expression }` | `expression` is an infix string. |
-| `VALIDATE name expr MESSAGE '...'` | one entry of `objects[i].validations`: `{ name, expression, message }` | |
+| `VALIDATE name expr MESSAGE '...'` | one entry of `objects[i].validations`: `{ name, expression, message, comment? }` | |
 | `LIFECYCLE Name FIELD X INITIAL Y ... STATE ... ACTION ...` | `objects[i].lifecycle: { name, stateField, initialState, states: [{ name, terminal? }], actions: [{ name, from, to, guards?: [{ name, expression, message }] }] }` | |
 | `SYNC MODE SCOPE ... CONFLICT ...` (object-level) | `objects[i].sync: { mode, scope, predicate?, window?, conflict? }` | `mode` ∈ `localFirst`/`cacheReadonly`/`onlineRequired`/`localPrivate`; `scope` ∈ `all`/`currentUser`/`assignedToUser`/`ownedByUser`/`currentContext`/`allAvailableContexts`/`recent`/`custom`. |
-| `VIEW Name KIND ... FIELDS ... END.VIEW` | one entry of `objects[i].views`: `{ name, kind, fields?, searchFields?, actions?, sort?, context?, readModel?, presentation?, editContainer?, editSections? }` | `kind` ∈ `list`/`detail`/`form`/`dashboard`/`masterDetail`/`grid`/`composite`. |
-| `POLICY Name ON Object ... END.POLICY` | one entry of `policies`: `{ name, object, rules }` | |
-| `ALLOW ACTION [ROLE ...] [WHEN ...]` (a policy rule) | one entry of `policies[i].rules`: `{ name, effect, action, principal?, condition?, fields?, state?, lifecycleAction?, channels? }` | `effect` ∈ `allow`/`deny`/`readonly`/`mask`/`hidden`; `action` ∈ `*`/`create`/`read`/`update`/`delete`/`search`/`transition`/`export`/`import`; `condition` is an infix expression string. |
+| `VIEW Name KIND ... FIELDS ... END.VIEW` | one entry of `objects[i].views`: `{ name, kind, fields?, searchFields?, actions?, sort?, context?, readModel?, presentation?, editContainer?, editSections?, comment? }` | `kind` ∈ `list`/`detail`/`form`/`dashboard`/`masterDetail`/`grid`/`composite`. A `presentation.sections[i]` also accepts `comment?` (`SECTION`), a `presentation.sections[i].controls[i]`/list or calendar `actions[i]` of `kind: "action"` accepts `comment?` (`ACTION`), and an `editSections[i]` of `kind: "childCollection"`'s `picker` accepts `comment?` (`PICKER`) — none of these has a dedicated row in this table either. |
+| `POLICY Name ON Object ... END.POLICY` | one entry of `policies`: `{ name, object, rules, comment? }` | |
+| `ALLOW ACTION [ROLE ...] [WHEN ...]` (a policy rule) | one entry of `policies[i].rules`: `{ name, effect, action, principal?, condition?, fields?, state?, lifecycleAction?, channels?, comment? }` | `effect` ∈ `allow`/`deny`/`readonly`/`mask`/`hidden`; `action` ∈ `*`/`create`/`read`/`update`/`delete`/`search`/`transition`/`export`/`import`; `condition` is an infix expression string. |
 | a rule's principal (`ROLE X`, `EVERYONE`, `OWNER`, `CONTEXT_MEMBER ...`) | `principal: { match, roles?, groupRoles?, users?, owner?, contextMember? }` | `match` ∈ `everyone`/`authenticated`/`anonymous`/`owner`/`specific`/`contextMember` — **always write it explicitly**, see the `principal.match` gap below. |
-| `READ_MODEL Name ... SOURCE ... FIELD ...` | one entry of `readModels`: `{ name, sources, fields, strategy?, sort?, context? }` | `sources: [{ object, name?, scope?, join?: { source, localField, sourceField, cardinality? } }]` (`join` mirrors `SOURCE x OBJECT Y JOIN otherAlias ON LocalField == otherAlias.SourceField`); bare `UNION` → `"strategy": "union"` (default is `join`, no key needed). |
-| a read-model output field | one entry of `readModels[i].fields`: `{ name, source?, field?, type?, expression? }` | `FIELD X FROM alias.Y` → `{ name: "X", source: "alias", field: "Y" }`; a computed output field's `expression` is an infix string. |
+| `READ_MODEL Name ... SOURCE ... FIELD ...` | one entry of `readModels`: `{ name, sources, fields, strategy?, sort?, context?, comment? }` | `sources: [{ object, name?, scope?, join?: { source, localField, sourceField, cardinality? }, comment? }]` (`join` mirrors `SOURCE x OBJECT Y JOIN otherAlias ON LocalField == otherAlias.SourceField`); bare `UNION` → `"strategy": "union"` (default is `join`, no key needed). |
+| a read-model output field | one entry of `readModels[i].fields`: `{ name, source?, field?, type?, expression?, comment? }` | `FIELD X FROM alias.Y` → `{ name: "X", source: "alias", field: "Y" }`; a computed output field's `expression` is an infix string. |
 | `DECISION_TABLE Name ON Object MATCH ...` | one entry of `decisionTables`: `{ name, object, match?, inputs, rows, defaultOutputs? }` | `inputs: [{ name, expression }]`; `rows: [{ name, condition, outputs }]` — `expression`/`condition` are infix strings. |
-| `COMMAND Name INPUT ... STEP ...` | one entry of `commands`: `{ name, label?, inputs?, preconditions?, steps }` | `preconditions: [{ name, expression, message? }]` — infix strings. |
-| a `CREATE`/`UPDATE`/`READ` command step | one entry of `commands[i].steps`, discriminated by `action`: `{ action: "create", name, object, values?, establishesContext?, forEach?, authority?, preconditions? }` / `{ action: "update", name, object, recordId, patch?, forEach?, authority?, preconditions? }` / `{ action: "read", name, object, recordId, preconditions? }` | `preconditions` here are plain `string[]` (names of preconditions declared above), not inline objects. |
+| `COMMAND Name INPUT ... STEP ...` | one entry of `commands`: `{ name, label?, inputs?, preconditions?, steps, comment? }` | `preconditions: [{ name, expression, message? }]` — infix strings. |
+| a `CREATE`/`UPDATE`/`READ` command step | one entry of `commands[i].steps`, discriminated by `action`: `{ action: "create", name, object, values?, establishesContext?, forEach?, authority?, preconditions?, comment? }` / `{ action: "update", name, object, recordId, patch?, forEach?, authority?, preconditions?, comment? }` / `{ action: "read", name, object, recordId, preconditions?, comment? }` | `preconditions` here are plain `string[]` (names of preconditions declared above), not inline objects. |
 | a step's `VALUE`/`SET`/`PATCH` assignment | a `ResolvedCommandValueExpression`, e.g. `{ "kind": "input", "name": "Owner" }`, `{ "kind": "literal", "value": 3 }`, `{ "kind": "runtime", "property": "userId" }`, `{ "kind": "stepField", "step": "create1", "field": "Id" }`, `{ "kind": "stepMeta", "step": "create1", "property": "recordId" }`, `{ "kind": "item", "field": "Title" }`, `{ "kind": "itemIndex" }` | This is the one place JSON structure, not an infix string, represents "an expression." |
 | `THEME Name BASE ...` | `themes: [PartialThemeModel]` | No expression-bearing fields; passes straight through. |
 
@@ -141,7 +183,14 @@ this is deliberate. The one structured exception is a command step's
       "name": "Task",
       "businessKey": "Title",
       "displayField": "Title",
-      "fields": [{ "name": "Title", "type": "text", "required": true }],
+      "fields": [
+        {
+          "name": "Title",
+          "type": "text",
+          "required": true,
+          "comment": "The task's own display name; also the record's business key,\nso two tasks may never share one."
+        }
+      ],
       "views": [
         { "name": "TaskList", "kind": "list", "fields": ["Title"] }
       ]
@@ -164,6 +213,11 @@ this is deliberate. The one structured exception is a command step's
 }
 ```
 
+The field's `comment` — a two-line block joined by `\n` in the JSON, exactly
+as it would read on two consecutive `#` lines in hand-written `.adl` text —
+is the "Comments" section above in miniature: not printed as JSON structure
+anywhere else in this example, but the printer renders it back as prose.
+
 The equivalent `.adl` text (what `printPartialApplicationModelAsAdl` would
 render from the same content):
 
@@ -177,6 +231,8 @@ OBJECT Task
   KEY Title
   DISPLAY Title
 
+  # The task's own display name; also the record's business key,
+  # so two tasks may never share one.
   FIELD Title TEXT REQUIRED
 
   VIEW TaskList LIST

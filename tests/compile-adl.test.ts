@@ -1621,6 +1621,116 @@ END.OBJECT
   });
 });
 
+describe("comment threading: AST leadingComment -> PartialApplicationModel comment", () => {
+  it("survives adlAstToPartialApplicationModel unchanged for a representative construct on each mapper", () => {
+    const result = compileAdl(`# App comment
+APP CommentThreading
+END.APP
+
+# Role comment
+ROLE Admin
+
+# Object comment
+OBJECT Widget
+  # Constraint comment
+  CONSTRAINT uniqueWidgetName UNIQUE FIELDS Name
+  # Field comment
+  FIELD Name TEXT REQUIRED
+  # Validate comment
+  VALIDATE nameNotEmpty Name != ''
+
+  # View comment
+  VIEW WidgetList LIST
+    FIELDS Name
+    ACTIONS read search
+  END.VIEW
+END.OBJECT
+
+# Read model comment
+READ_MODEL WidgetSummary
+  # Source comment
+  SOURCE widget OBJECT Widget SCOPE all
+  # Read model field comment
+  FIELD Name FROM widget.Name
+END.READ_MODEL
+
+# Command comment
+COMMAND CreateWidget LABEL 'Create widget'
+  INPUT Name TEXT REQUIRED
+  # Step comment
+  STEP createWidget CREATE Widget
+    VALUE Name INPUT Name
+  END.STEP
+END.COMMAND
+
+# Policy comment
+POLICY WidgetPolicy ON Widget
+  # Rule comment
+  RULE allowRead ALLOW READ EVERYONE
+END.POLICY
+`);
+
+    expect(result.diagnostics).toEqual([]);
+    const { partialModel } = result;
+
+    expect(partialModel.app.comment).toBe("App comment");
+    expect(partialModel.roles?.[0]?.comment).toBe("Role comment");
+
+    const widget = partialModel.objects.find((object) => object.name === "Widget");
+    expect(widget?.comment).toBe("Object comment");
+    expect(widget?.constraints?.[0]?.comment).toBe("Constraint comment");
+    expect(widget?.fields?.[0]?.comment).toBe("Field comment");
+    expect(widget?.validations?.[0]?.comment).toBe("Validate comment");
+    expect(widget?.views?.[0]?.comment).toBe("View comment");
+
+    const readModel = partialModel.readModels?.find((rm) => rm.name === "WidgetSummary");
+    expect(readModel?.comment).toBe("Read model comment");
+    expect(readModel?.sources[0]?.comment).toBe("Source comment");
+    expect(readModel?.fields[0]?.comment).toBe("Read model field comment");
+
+    const command = partialModel.commands?.find((c) => c.name === "CreateWidget");
+    expect(command?.comment).toBe("Command comment");
+    expect(command?.steps?.[0]?.comment).toBe("Step comment");
+
+    const policy = partialModel.policies?.find((p) => p.name === "WidgetPolicy");
+    expect(policy?.comment).toBe("Policy comment");
+    expect(policy?.rules?.[0]?.comment).toBe("Rule comment");
+  });
+
+  it("omits comment entirely from every PartialApplicationModel node when no source comment is present", () => {
+    // Backward compatibility: existing .adl content with no comments must
+    // produce identical partial models (no stray `comment: undefined` key
+    // and, since `PartialFieldModel` etc. spread with a conditional, no key
+    // at all) to what compiled before this feature existed.
+    const result = compileAdl(readExample("task-tracker.adl"));
+    expect(result.diagnostics).toEqual([]);
+
+    function collectCommentKeys(value: unknown, seen = new Set<unknown>()): string[] {
+      if (value === null || typeof value !== "object") {
+        return [];
+      }
+      if (seen.has(value)) {
+        return [];
+      }
+      seen.add(value);
+      if (Array.isArray(value)) {
+        return value.flatMap((item) => collectCommentKeys(item, seen));
+      }
+      const found: string[] = [];
+      for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+        if (key === "comment") {
+          found.push("comment");
+        } else {
+          found.push(...collectCommentKeys(val, seen));
+        }
+      }
+      return found;
+    }
+
+    expect(collectCommentKeys(result.partialModel)).toEqual([]);
+  });
+});
+
 function readExample(name: string): string {
   return readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
 }

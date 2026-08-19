@@ -132,6 +132,62 @@ validator decide whether the combination means anything.
   (`parseAdl`/`compileAdl` over real ADL source text), not another
   resolved-model-JSON conformance case.
 
+## Leading comment capture (the `comment` field on `Partial*Model`)
+
+The lexer/parser used to discard every `#`/`//` comment as pure trivia with
+no representation anywhere downstream. It now additionally captures a
+leading comment block — one or more consecutive whole-line comments with no
+blank line between them and none between the block and the declaration that
+follows — and attaches it to that declaration's AST node as an optional
+`leadingComment?: string` field, which `compile-adl.ts` threads into a
+`comment?: string` field on the corresponding `Partial*Model` type (see
+`learnings/implementation/adlj-json-authoring-surface.md` for the full
+design writeup, including why the field lives on `Partial*Model` rather than
+only `.adlj`'s `AdljSourceDocument`).
+
+**The change is additive to the lexer, not a change to the main token
+stream.** `lexAdl`'s returned `Token[]` is byte-for-byte identical before and
+after — same tokens, same order. `lexAdlWithComments` (used internally by
+`parseAdl`/`parseExpressionSource`) is a new sibling entry point that returns
+that same token array plus a side array of `{ text, line }` records, one per
+whole-line comment (a trailing same-line comment after code is deliberately
+never captured, so a comment cannot be misattributed to the next
+declaration). This is why the change needed no new parser test to be added
+defensively for every *existing* parsing behaviour: nothing the grammar used
+to accept or reject changed, so the entire existing parser test suite passed
+unmodified.
+
+**Capture is a pure line-number lookup, not a token-stream concept.**
+`AdlParser.takeLeadingComment()` — called as the very first statement inside
+each target construct's `parseXxx` method, before that method consumes its
+own first token — walks backward from the current token's line through a
+`Map<line, text>` built from the comment side array, collecting consecutive
+lines until the first gap. No "already consumed" bookkeeping is needed: each
+call site queries a distinct line range by construction (the lines strictly
+above one specific declaration), so the same block can never double-attach.
+This is also what makes a comment separated by a blank line, or a comment
+with nothing following it at all (real example: Giggle Band's `domain.adl`
+has one immediately before `END.OBJECT` inside `Availability`), silently
+have no attachment point — it is simply a line number nothing ever queries
+for, not a special-cased refusal.
+
+**Which `parseXxx` methods call it**: `parseApp`, `parseShell`, `parseRole`,
+`parseBusinessContext`, `parseContextGrant`, `parseObject`, `parseField`,
+`parseObjectConstraint` (all three branches: unique/ordered/protectedRole),
+`parseObjectValidation`, `parseView`, `parseRelationshipPicker`,
+`parsePresentationSection`, `parsePresentationAction`, `parseReadModel`,
+`parseReadModelSource`, `parseReadModelField` (both branches),
+`parsePolicy`, `parsePolicyRule`, `parseCommand`, `parseCommandStep`. Adding
+comment support to a further construct means adding the same two-line
+pattern (`const leadingComment = this.takeLeadingComment();` before the
+method's first token consumption; `...(leadingComment === undefined ? {} :
+{ leadingComment })` in every branch that returns the AST node) to its
+`parseXxx` method, the matching field on its AST interface in `ast.ts`, and
+the matching `comment?: string` field on its `Partial*Model` interface in
+`resolved-model.ts` — nothing else, since `compile-adlj.ts`/`adl-to-adlj.ts`
+thread it for free via their existing destructure-then-spread mapper idiom
+(see `learnings/implementation/adlj-json-authoring-surface.md`).
+
 ## Practical guidance
 
 - Keep parser syntax declarative. Unsupported procedural keywords such as `FETCH`, `STORE`, `LOOP`, `SET`, `DART.INLINE`, and `SQL.INTO` should remain rejected.

@@ -40,10 +40,39 @@ export function lexAdl(source: string): Token[] {
   return new AdlLexer(source).lex();
 }
 
+/**
+ * One whole-line `#`/`//` comment, captured for the parser's leading-comment
+ * attachment (see `AdlParser.takeLeadingComment`). Only a comment that is the
+ * *only* thing on its line is captured — a trailing comment after code on the
+ * same line is deliberately dropped, since the leading-comment-block
+ * attachment rule only ever reads consecutive whole comment lines immediately
+ * above a declaration. `line` is 1-based, matching `SourcePosition.line`.
+ */
+export interface LexedComment {
+  text: string;
+  line: number;
+}
+
+/**
+ * `lexAdl` plus the whole-line comments the main token stream discards as
+ * trivia. The token stream itself is byte-for-byte identical to `lexAdl`'s —
+ * this only adds a side channel `AdlParser` uses to attach a leading comment
+ * block to the declaration immediately following it; it changes nothing
+ * about what the grammar accepts or how any existing token is produced.
+ */
+export function lexAdlWithComments(source: string): { tokens: Token[]; comments: LexedComment[] } {
+  const lexer = new AdlLexer(source);
+  const tokens = lexer.lex();
+  return { tokens, comments: lexer.comments };
+}
+
 class AdlLexer {
   private offset = 0;
   private line = 1;
   private column = 1;
+  /** True once a non-comment, non-whitespace token has been produced on the current line. */
+  private contentSeenOnLine = false;
+  readonly comments: LexedComment[] = [];
 
   constructor(private readonly source: string) {}
 
@@ -60,6 +89,7 @@ class AdlLexer {
 
       if (char === "\r" || char === "\n") {
         tokens.push(this.readNewline());
+        this.contentSeenOnLine = false;
         continue;
       }
 
@@ -75,21 +105,25 @@ class AdlLexer {
 
       if (isIdentifierStart(char)) {
         tokens.push(this.readIdentifierOrBoolean());
+        this.contentSeenOnLine = true;
         continue;
       }
 
       if (char === "'" || char === '"') {
         tokens.push(this.readString());
+        this.contentSeenOnLine = true;
         continue;
       }
 
       if (isDigit(char) || (char === "-" && isDigit(this.peekChar()))) {
         tokens.push(this.readNumber());
+        this.contentSeenOnLine = true;
         continue;
       }
 
       if (isSymbol(char)) {
         tokens.push(this.readSymbol());
+        this.contentSeenOnLine = true;
         continue;
       }
 
@@ -233,8 +267,16 @@ class AdlLexer {
   }
 
   private skipLineComment(): void {
+    const startLine = this.line;
+    const wasWholeLine = !this.contentSeenOnLine;
+    let raw = "";
+
     while (!this.isAtEnd() && this.currentChar() !== "\r" && this.currentChar() !== "\n") {
-      this.advanceChar();
+      raw += this.advanceChar();
+    }
+
+    if (wasWholeLine) {
+      this.comments.push({ text: stripCommentMarker(raw), line: startLine });
     }
   }
 
@@ -292,6 +334,24 @@ class AdlLexer {
       sourceRange: { start, end: this.position() },
     });
   }
+}
+
+/**
+ * Strips a comment line's leading `#`/`//` marker and one following space
+ * (the convention every real `.adl` file in this repository already writes,
+ * e.g. `# comment text`), leaving the rest of the line untouched. A marker
+ * with no following space, or no text at all (a bare `#`), is left/becomes
+ * empty rather than losing a real leading space that was actually part of
+ * the comment's content.
+ */
+function stripCommentMarker(raw: string): string {
+  let text = raw;
+  if (text.startsWith("//")) {
+    text = text.slice(2);
+  } else if (text.startsWith("#")) {
+    text = text.slice(1);
+  }
+  return text.startsWith(" ") ? text.slice(1) : text;
 }
 
 function isIdentifierStart(char: string): boolean {

@@ -128,6 +128,89 @@ END.OBJECT
   });
 });
 
+describe('comment threading: AdljSourceDocument "comment" -> PartialApplicationModel comment', () => {
+  it('reads the JSON "comment" key into the same field .adl text populates, and the printer emits it as a # line', () => {
+    const document: AdljSourceDocument = {
+      app: { name: "AdljComment", comment: "Why this app exists" },
+      contexts: [],
+      readModels: [],
+      objects: [
+        {
+          name: "Widget",
+          comment: "Why this object exists",
+          fields: [
+            {
+              name: "Name",
+              type: "text",
+              required: true,
+              comment: "Why this field is required",
+            },
+          ],
+        },
+      ],
+    };
+
+    const { partialModel, diagnostics } = compileAdlj(JSON.stringify(document));
+    expect(diagnostics).toEqual([]);
+    expect(partialModel.app.comment).toBe("Why this app exists");
+    expect(partialModel.objects[0]?.comment).toBe("Why this object exists");
+    expect(partialModel.objects[0]?.fields?.[0]?.comment).toBe("Why this field is required");
+
+    const printed = printPartialApplicationModelAsAdl(partialModel);
+    expect(printed).toContain("# Why this app exists\nAPP");
+    expect(printed).toContain("# Why this object exists\nOBJECT Widget");
+    expect(printed).toContain("  # Why this field is required\n  FIELD Name");
+
+    // And the printed text reparses through .adl's own front end carrying
+    // the identical comment, proving the two front ends agree on the shape.
+    const reparsed = compileAdl(printed);
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.partialModel.app.comment).toBe("Why this app exists");
+    expect(reparsed.partialModel.objects[0]?.comment).toBe("Why this object exists");
+    expect(reparsed.partialModel.objects[0]?.fields?.[0]?.comment).toBe(
+      "Why this field is required",
+    );
+  });
+
+  it("prints a multi-line comment field as one # line per \\n-separated line", () => {
+    const document: AdljSourceDocument = {
+      app: { name: "MultiLineComment" },
+      contexts: [],
+      readModels: [],
+      objects: [
+        {
+          name: "Widget",
+          comment: "First line\nSecond line",
+          fields: [{ name: "Name", type: "text", required: true }],
+        },
+      ],
+    };
+
+    const { partialModel, diagnostics } = compileAdlj(JSON.stringify(document));
+    expect(diagnostics).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(partialModel);
+    expect(printed).toContain("# First line\n# Second line\nOBJECT Widget");
+  });
+
+  it("omits the comment entirely (no printed # line, no field) when the .adlj document declares none", () => {
+    const document: AdljSourceDocument = {
+      app: { name: "NoComment" },
+      contexts: [],
+      readModels: [],
+      objects: [{ name: "Widget", fields: [{ name: "Name", type: "text", required: true }] }],
+    };
+
+    const { partialModel, diagnostics } = compileAdlj(JSON.stringify(document));
+    expect(diagnostics).toEqual([]);
+    expect(partialModel.app.comment).toBeUndefined();
+    expect(partialModel.objects[0]?.comment).toBeUndefined();
+
+    const printed = printPartialApplicationModelAsAdl(partialModel);
+    expect(printed).not.toContain("#");
+  });
+});
+
 describe("printPartialApplicationModelAsAdl", () => {
   // A permanent CI drift check (Phase 78): for both fixtures below, printing
   // the compiled `partialModel` back to `.adl` text and reparsing it must

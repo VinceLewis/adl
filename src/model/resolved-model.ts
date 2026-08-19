@@ -1684,6 +1684,8 @@ export interface PartialAppModel {
   startView?: string;
   theme?: string;
   offlineGraceDays?: number;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialShellModel {
@@ -1691,6 +1693,8 @@ export interface PartialShellModel {
   topBar?: PartialShellTopBarModel;
   navDrawer?: PartialShellNavDrawerModel;
   controls?: PartialShellControlModel[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialShellNavDrawerModel {
@@ -1738,6 +1742,8 @@ export interface PartialRoleModel {
   name: string;
   description?: string;
   inherits?: string[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialBusinessContextModel {
@@ -1746,6 +1752,8 @@ export interface PartialBusinessContextModel {
   selection?: PartialContextSelectionPolicyModel;
   membership?: PartialContextMembershipModel;
   grants?: PartialContextGrantModel[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialContextGrantModel {
@@ -1754,6 +1762,8 @@ export interface PartialContextGrantModel {
   userField: string;
   contextField: string;
   condition?: PartialPolicyConditionModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialContextSelectionPolicyModel {
@@ -1789,6 +1799,8 @@ export interface PartialObjectModel {
   views?: PartialViewModel[];
   sync?: PartialObjectSyncPolicyModel;
   audit?: PartialObjectAuditPolicyModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialComputedFieldModel {
@@ -1815,6 +1827,8 @@ export interface PartialFieldModel {
   hidden?: boolean;
   lookup?: PartialLookupModel;
   autoId?: PartialAutoIdModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export type PartialValidatorModel = PartialNamedValidatorModel | PartialPredicateValidatorModel;
@@ -1852,6 +1866,8 @@ export interface PartialUniqueObjectConstraintModel {
   kind: "unique";
   fields: string[];
   scopeFields?: string[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialOrderedObjectConstraintModel {
@@ -1863,6 +1879,8 @@ export interface PartialOrderedObjectConstraintModel {
   minPosition?: number;
   reorder?: OrderedCollectionReorder;
   compaction?: OrderedCollectionCompaction;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialProtectedRoleObjectConstraintModel {
@@ -1872,12 +1890,16 @@ export interface PartialProtectedRoleObjectConstraintModel {
   roleField: string;
   roleValues: JsonValue[];
   minCount?: number;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialObjectValidationModel {
   name: string;
   expression: PartialPolicyConditionModel;
   message?: string;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialLifecycleModel {
@@ -1920,6 +1942,8 @@ export interface PartialPolicyModel {
   object: string;
   defaultEffect?: "deny";
   rules?: PartialPolicyRuleModel[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialPolicyRuleModel {
@@ -1932,6 +1956,8 @@ export interface PartialPolicyRuleModel {
   lifecycleAction?: string;
   condition?: PartialPolicyConditionModel;
   channels?: RuntimeChannel[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export type PartialPolicyConditionModel = ResolvedExpression | ResolvedPolicyCondition;
@@ -1958,6 +1984,8 @@ export interface PartialViewModel {
   actions?: string[];
   editSections?: PartialEditSectionModel[];
   presentation?: PartialViewPresentationModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialViewContextModel {
@@ -2007,6 +2035,8 @@ export interface PartialRelationshipPickerModel {
   sort?: ResolvedSort[];
   excludeAlreadyLinked?: boolean;
   emptyState?: PartialRelationshipPickerEmptyStateModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialRelationshipPickerEmptyStateModel {
@@ -2081,6 +2111,8 @@ export interface PartialPresentationSectionModel {
   lists?: PartialPresentationListModel[];
   matrices?: PartialPresentationMatrixModel[];
   calendars?: PartialPresentationCalendarModel[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export type PartialPresentationControlModel =
@@ -2121,6 +2153,8 @@ export interface PartialPresentationActionControlModel extends PartialPresentati
   create?: PartialPresentationCreateTargetModel;
   input?: Record<string, ResolvedExpression>;
   visibleWhen?: PartialPolicyConditionModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialPresentationCreateTargetModel {
@@ -2305,6 +2339,8 @@ export interface PartialReadModelModel {
   sources: PartialReadModelSourceModel[];
   fields: PartialReadModelFieldModel[];
   sort?: ResolvedSort[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialReadModelSourceModel {
@@ -2312,6 +2348,8 @@ export interface PartialReadModelSourceModel {
   object: string;
   scope?: ReadModelSourceScope;
   join?: PartialReadModelSourceJoinModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialReadModelSourceJoinModel {
@@ -2327,6 +2365,8 @@ export interface PartialReadModelFieldModel {
   source?: string;
   field?: string;
   expression?: PartialPolicyConditionModel;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialDecisionTableModel {
@@ -2355,6 +2395,8 @@ export interface PartialCommandModel {
   preconditions?: PartialCommandPreconditionModel[];
   inputs?: PartialCommandInputModel[];
   steps?: PartialCommandStepModel[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialCommandPreconditionModel {
@@ -2392,6 +2434,8 @@ export interface PartialCommandCreateStepModel {
   preconditions?: PartialPolicyConditionModel[];
   forEach?: string;
   establishesContext?: string;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialCommandUpdateStepModel {
@@ -2403,6 +2447,8 @@ export interface PartialCommandUpdateStepModel {
   patch?: Record<string, ResolvedCommandValueExpression>;
   preconditions?: PartialPolicyConditionModel[];
   forEach?: string;
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialCommandReadStepModel {
@@ -2411,6 +2457,8 @@ export interface PartialCommandReadStepModel {
   object: string;
   recordId: ResolvedCommandValueExpression;
   preconditions?: PartialPolicyConditionModel[];
+  /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
+  comment?: string;
 }
 
 export interface PartialThemeModel {

@@ -138,6 +138,32 @@ function printLiteralValue(value: JsonValue): string {
   );
 }
 
+/**
+ * Renders a `comment` field as `# <line>` prose immediately before a
+ * construct, one line per `\n`-separated original line — the same leading
+ * comment-block convention every real `.adl` file in this repository already
+ * writes by hand. Pass `indent` for a construct printed as one
+ * manually-indented line by its caller (`FIELD`, `CONSTRAINT`, a `POLICY
+ * RULE`, a `READ_MODEL SOURCE`/`FIELD`); leave it `""` (the default) for a
+ * construct whose own returned block is embedded through `indentBlock`,
+ * since that wrapping cascades the comment lines the same as every other
+ * line of the block. Returns `""` when there is no comment, so every call
+ * site can prepend the result unconditionally. A blank comment line (a bare
+ * `#`, from an original blank `#` line) prints as a bare `#`, not `# `
+ * followed by trailing whitespace.
+ */
+function printLeadingComment(comment: string | undefined, indent = ""): string {
+  if (comment === undefined) {
+    return "";
+  }
+  return (
+    comment
+      .split("\n")
+      .map((line) => (line.length === 0 ? `${indent}#` : `${indent}# ${line}`))
+      .join("\n") + "\n"
+  );
+}
+
 function printStringLiteral(value: string): string {
   const escaped = value
     .replace(/\\/g, "\\\\")
@@ -246,7 +272,7 @@ function printApp(model: PartialApplicationModel): string {
     lines.push(`  MODEL_VERSION ${printStringLiteral(model.modelVersion)}`);
   }
   lines.push("END.APP");
-  return lines.join("\n");
+  return printLeadingComment(model.app.comment) + lines.join("\n");
 }
 
 function printRole(role: PartialRoleModel): string {
@@ -257,7 +283,7 @@ function printRole(role: PartialRoleModel): string {
   if (role.description !== undefined) {
     line += ` DESCRIPTION ${printStringLiteral(role.description)}`;
   }
-  return line;
+  return printLeadingComment(role.comment) + line;
 }
 
 /**
@@ -298,7 +324,7 @@ function printContext(context: PartialBusinessContextModel): string {
       line += ` ROLES ${membership.roles.join(" ")}`;
     }
   }
-  return line;
+  return printLeadingComment(context.comment) + line;
 }
 
 function printContextGrants(contexts: PartialBusinessContextModel[]): string[] {
@@ -316,7 +342,7 @@ function printContextGrant(contextName: string, grant: PartialContextGrantModel)
   if (grant.condition !== undefined) {
     line += ` WHEN ${printCondition(grant.condition, true)}`;
   }
-  return line;
+  return printLeadingComment(grant.comment) + line;
 }
 
 // --- SHELL -------------------------------------------------------------------
@@ -336,7 +362,7 @@ function printShell(shell: PartialShellModel): string {
     lines.push(`  ${printShellNavDrawer(shell.navDrawer)}`);
   }
   lines.push("END.SHELL");
-  return lines.join("\n");
+  return printLeadingComment(shell.comment) + lines.join("\n");
 }
 
 function printShellNavItem(item: PartialShellNavItemModel): string {
@@ -460,10 +486,12 @@ function printObject(object: PartialObjectModel): string {
     lines.push(`  SCOPE ${object.scope.context} FIELD ${object.scope.field}`);
   }
   for (const constraint of object.constraints ?? []) {
-    lines.push(`  ${printObjectConstraint(constraint)}`);
+    lines.push(
+      `${printLeadingComment(constraint.comment, "  ")}  ${printObjectConstraint(constraint)}`,
+    );
   }
   for (const field of object.fields ?? []) {
-    lines.push(`  ${printField(field)}`);
+    lines.push(`${printLeadingComment(field.comment, "  ")}  ${printField(field)}`);
   }
   for (const computed of object.computedFields ?? []) {
     lines.push(
@@ -475,7 +503,7 @@ function printObject(object: PartialObjectModel): string {
     if (validation.message !== undefined) {
       line += ` MESSAGE ${printStringLiteral(validation.message)}`;
     }
-    lines.push(line);
+    lines.push(`${printLeadingComment(validation.comment, "  ")}${line}`);
   }
   if (object.lifecycle !== undefined) {
     lines.push(indentBlock(printLifecycle(object.lifecycle), "  "));
@@ -487,7 +515,7 @@ function printObject(object: PartialObjectModel): string {
     lines.push(`  ${printSyncClause(object.sync)}`);
   }
   lines.push("END.OBJECT");
-  return lines.join("\n");
+  return printLeadingComment(object.comment) + lines.join("\n");
 }
 
 function printObjectConstraint(constraint: PartialObjectConstraintModel): string {
@@ -692,7 +720,7 @@ function printView(view: PartialViewModel): string {
   }
 
   lines.push("END.VIEW");
-  return lines.join("\n");
+  return printLeadingComment(view.comment) + lines.join("\n");
 }
 
 function printViewPresentationDirectives(
@@ -868,7 +896,7 @@ function printPresentationSection(section: PartialPresentationSectionModel): str
     lines.push(indentBlock(printPresentationCalendar(calendar), "  "));
   }
   lines.push("END.SECTION");
-  return lines.join("\n");
+  return printLeadingComment(section.comment) + lines.join("\n");
 }
 
 function printPresentationControl(
@@ -937,7 +965,7 @@ function printPresentationAction(action: PartialPresentationActionControlModel):
     lines.push(`  INPUT ${name} FROM ${printExpression(expression, true)}`);
   }
   lines.push("END.ACTION");
-  return lines.join("\n");
+  return printLeadingComment(action.comment) + lines.join("\n");
 }
 
 function printPresentationSourceRef(
@@ -1224,7 +1252,7 @@ function printRelationshipPicker(picker: PartialRelationshipPickerModel): string
     lines.push(`  EMPTY_TEXT ${printStringLiteral(picker.emptyState.text)}`);
   }
   lines.push("END.PICKER");
-  return lines.join("\n");
+  return printLeadingComment(picker.comment) + lines.join("\n");
 }
 
 function printSortList(sort: ResolvedSort[]): string {
@@ -1302,25 +1330,27 @@ function printReadModel(readModel: PartialReadModelModel): string {
         line += ` CARDINALITY ${source.join.cardinality}`;
       }
     }
-    lines.push(line);
+    lines.push(`${printLeadingComment(source.comment, "  ")}${line}`);
   }
   for (const field of readModel.fields) {
     const typeSuffix = field.type === undefined ? "" : ` ${field.type.toUpperCase()}`;
+    let line: string;
     if (field.expression !== undefined) {
-      lines.push(`  FIELD ${field.name}${typeSuffix} = ${printCondition(field.expression, true)}`);
+      line = `  FIELD ${field.name}${typeSuffix} = ${printCondition(field.expression, true)}`;
     } else if (field.source !== undefined && field.field !== undefined) {
-      lines.push(`  FIELD ${field.name}${typeSuffix} FROM ${field.source}.${field.field}`);
+      line = `  FIELD ${field.name}${typeSuffix} FROM ${field.source}.${field.field}`;
     } else {
       throw new Error(
         `printPartialApplicationModelAsAdl: read model '${readModel.name}' field '${field.name}' has neither a source.field reference nor an expression.`,
       );
     }
+    lines.push(`${printLeadingComment(field.comment, "  ")}${line}`);
   }
   if (readModel.sort !== undefined && readModel.sort.length > 0) {
     lines.push(`  SORT ${printSortList(readModel.sort)}`);
   }
   lines.push("END.READ_MODEL");
-  return lines.join("\n");
+  return printLeadingComment(readModel.comment) + lines.join("\n");
 }
 
 // --- DECISION_TABLE ------------------------------------------------------
@@ -1370,7 +1400,7 @@ function printCommand(command: PartialCommandModel): string {
     lines.push(indentBlock(printCommandStep(step), "  "));
   }
   lines.push("END.COMMAND");
-  return lines.join("\n");
+  return printLeadingComment(command.comment) + lines.join("\n");
 }
 
 /**
@@ -1438,7 +1468,7 @@ function printCommandStep(step: PartialCommandStepModel): string {
     lines.push(`  REQUIRE ${printCondition(precondition, true)}`);
   }
   lines.push("END.STEP");
-  return lines.join("\n");
+  return printLeadingComment(step.comment) + lines.join("\n");
 }
 
 function printCommandValueExpression(value: ResolvedCommandValueExpression): string {
@@ -1468,10 +1498,10 @@ function printPolicy(policy: PartialPolicyModel): string {
     lines.push(`  DEFAULT_EFFECT ${policy.defaultEffect.toUpperCase()}`);
   }
   for (const rule of policy.rules ?? []) {
-    lines.push(`  ${printPolicyRule(rule)}`);
+    lines.push(`${printLeadingComment(rule.comment, "  ")}  ${printPolicyRule(rule)}`);
   }
   lines.push("END.POLICY");
-  return lines.join("\n");
+  return printLeadingComment(policy.comment) + lines.join("\n");
 }
 
 /**

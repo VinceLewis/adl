@@ -5,6 +5,10 @@
     "AdljBusinessContextModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "grants": {
           "items": {
             "$ref": "#/definitions/AdljContextGrantModel"
@@ -38,6 +42,10 @@
         },
         "authority": {
           "$ref": "#/definitions/CommandStepAuthority"
+        },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
         },
         "establishesContext": {
           "type": "string"
@@ -74,6 +82,10 @@
     "AdljCommandModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "inputs": {
           "items": {
             "$ref": "#/definitions/PartialCommandInputModel"
@@ -130,6 +142,10 @@
           "const": "read",
           "type": "string"
         },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -176,6 +192,10 @@
         },
         "authority": {
           "$ref": "#/definitions/CommandStepAuthority"
+        },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
         },
         "forEach": {
           "type": "string"
@@ -239,6 +259,10 @@
     "AdljContextGrantModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "condition": {
           "type": "string"
         },
@@ -343,6 +367,10 @@
       "properties": {
         "autoId": {
           "$ref": "#/definitions/PartialAutoIdModel"
+        },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
         },
         "defaultValue": {
           "$ref": "#/definitions/JsonValue"
@@ -487,6 +515,10 @@
         "businessKey": {
           "type": "string"
         },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "computedFields": {
           "items": {
             "$ref": "#/definitions/AdljComputedFieldModel"
@@ -577,6 +609,10 @@
     "AdljObjectValidationModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "expression": {
           "type": "string"
         },
@@ -596,6 +632,10 @@
     "AdljPolicyModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "defaultEffect": {
           "const": "deny",
           "type": "string"
@@ -630,6 +670,10 @@
             "$ref": "#/definitions/RuntimeChannel"
           },
           "type": "array"
+        },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
         },
         "condition": {
           "type": "string"
@@ -697,6 +741,10 @@
       "additionalProperties": false,
       "properties": {
         "command": {
+          "type": "string"
+        },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
           "type": "string"
         },
         "create": {
@@ -936,6 +984,10 @@
           },
           "type": "array"
         },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "controls": {
           "items": {
             "$ref": "#/definitions/AdljPresentationControlModel"
@@ -975,6 +1027,10 @@
     "AdljReadModelFieldModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "expression": {
           "type": "string"
         },
@@ -999,6 +1055,10 @@
     "AdljReadModelModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "context": {
           "$ref": "#/definitions/PartialViewContextModel"
         },
@@ -1159,6 +1219,10 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
         },
         "context": {
           "$ref": "#/definitions/PartialViewContextModel"
@@ -1427,6 +1491,10 @@
     "PartialAppModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -1801,6 +1869,10 @@
     "PartialOrderedObjectConstraintModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "compaction": {
           "$ref": "#/definitions/OrderedCollectionCompaction"
         },
@@ -2583,6 +2655,10 @@
     "PartialProtectedRoleObjectConstraintModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "kind": {
           "const": "protectedRole",
           "type": "string"
@@ -2643,6 +2719,10 @@
     "PartialReadModelSourceModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "join": {
           "$ref": "#/definitions/PartialReadModelSourceJoinModel"
         },
@@ -2674,6 +2754,10 @@
       "additionalProperties": false,
       "properties": {
         "candidateField": {
+          "type": "string"
+        },
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
           "type": "string"
         },
         "displayFields": {
@@ -2718,6 +2802,10 @@
     "PartialRoleModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "description": {
           "type": "string"
         },
@@ -2770,6 +2858,10 @@
     "PartialShellModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "controls": {
           "items": {
             "$ref": "#/definitions/PartialShellControlModel"
@@ -3007,6 +3099,10 @@
     "PartialUniqueObjectConstraintModel": {
       "additionalProperties": false,
       "properties": {
+        "comment": {
+          "description": "A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `\"comment\"` key.",
+          "type": "string"
+        },
         "fields": {
           "items": {
             "type": "string"

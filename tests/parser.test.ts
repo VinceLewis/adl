@@ -1238,6 +1238,239 @@ FETCH FILE(User)
   });
 });
 
+describe("leading comment capture", () => {
+  // One source exercising every AST node kind that carries `leadingComment`
+  // (Comments feature), covering the attachment rule: a whole-line `#`/`//`
+  // block immediately above a declaration, with no blank line in between,
+  // belongs to that declaration. `parseAdl` alone is enough here — this is a
+  // syntax-capture question, not a semantic-validity one, so the source does
+  // not need to pass `compileAdl`'s validator.
+  const source = `# App header comment
+APP CommentDemo
+END.APP
+
+# Shell comment
+SHELL
+  NAV WidgetDashboard LABEL 'Widgets' ICON list GROUP Main ORDER 10
+END.SHELL
+
+# Role comment
+ROLE Admin
+
+CONTEXT User OBJECT User SELECTION REQUIRED
+
+# Context comment
+CONTEXT Team OBJECT Team SELECTION OPTIONAL AUTO_SELECT false PERSISTENCE local MEMBERSHIP TeamMember USER User CONTEXT_FIELD Team ROLE_FIELD Role ROLES Admin
+
+# Grant comment
+CONTEXT_GRANT pendingInvite ON Team OBJECT Invite USER Invitee CONTEXT_FIELD Team WHEN Status == 'pending'
+
+# Object comment
+OBJECT Widget
+  # Unique constraint comment
+  CONSTRAINT uniqueWidgetName UNIQUE FIELDS Name
+  # Ordered constraint comment
+  CONSTRAINT orderedWidget ORDERED PARENT Team POSITION Position
+  # Protected role constraint comment
+  CONSTRAINT lastAdminStanding PROTECTED_ROLE FIELD Role VALUES ('Admin')
+  # Field comment
+  FIELD Name TEXT REQUIRED
+  FIELD Count NUMBER
+  FIELD Role TEXT
+  FIELD Position NUMBER
+  # Validate comment
+  VALIDATE countPositive Count >= 0
+
+  # View comment
+  VIEW WidgetDashboard DASHBOARD
+    FIELDS Name Count
+    ACTIONS read search
+
+    # Section comment
+    SECTION Overview
+      HEADING 'Overview'
+
+      # Action comment
+      ACTION addWidget CREATE Widget LABEL 'Add' PLACEMENT primary
+      END.ACTION
+    END.SECTION
+  END.VIEW
+
+  VIEW WidgetForm FORM
+    EDIT_CONTAINER page
+    FIELDS Name
+    ACTIONS create read update delete
+
+    CHILD_COLLECTION Members HEADING 'Members'
+      CHILD Widget PARENT_FIELD Team
+      OPERATIONS createChild remove
+
+      # Picker comment
+      PICKER MemberPicker
+        SOURCE OBJECT Widget
+        SELECTION multiple
+      END.PICKER
+    END.CHILD_COLLECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT Team
+  FIELD Name TEXT REQUIRED
+END.OBJECT
+
+OBJECT Invite
+  FIELD Status TEXT
+  FIELD Invitee TEXT
+END.OBJECT
+
+# Read model comment
+READ_MODEL WidgetSummary
+  # Source comment
+  SOURCE widget OBJECT Widget SCOPE all
+  # Read model field comment
+  FIELD Name FROM widget.Name
+END.READ_MODEL
+
+# Command comment
+COMMAND CreateWidget LABEL 'Create widget'
+  INPUT Name TEXT REQUIRED
+  # Step comment
+  STEP createWidget CREATE Widget
+    VALUE Name INPUT Name
+  END.STEP
+END.COMMAND
+
+# Policy comment
+POLICY WidgetPolicy ON Widget
+  # Rule comment
+  RULE allowRead ALLOW READ EVERYONE
+END.POLICY
+`;
+
+  const ast = parseAdl(source);
+
+  it("attaches to APP and SHELL", () => {
+    expect(ast.app.leadingComment).toBe("App header comment");
+    expect(ast.shell?.leadingComment).toBe("Shell comment");
+  });
+
+  it("attaches to ROLE, CONTEXT, and CONTEXT_GRANT", () => {
+    expect(ast.roles.find((role) => role.name === "Admin")?.leadingComment).toBe("Role comment");
+    expect(ast.contexts.find((context) => context.name === "Team")?.leadingComment).toBe(
+      "Context comment",
+    );
+    expect(ast.contextGrants.find((grant) => grant.name === "pendingInvite")?.leadingComment).toBe(
+      "Grant comment",
+    );
+  });
+
+  it("attaches to OBJECT, its three CONSTRAINT kinds, FIELD, and VALIDATE", () => {
+    const widget = ast.objects.find((object) => object.name === "Widget");
+    expect(widget?.leadingComment).toBe("Object comment");
+    expect(widget?.constraints.find((c) => c.name === "uniqueWidgetName")?.leadingComment).toBe(
+      "Unique constraint comment",
+    );
+    expect(widget?.constraints.find((c) => c.name === "orderedWidget")?.leadingComment).toBe(
+      "Ordered constraint comment",
+    );
+    expect(widget?.constraints.find((c) => c.name === "lastAdminStanding")?.leadingComment).toBe(
+      "Protected role constraint comment",
+    );
+    expect(widget?.fields.find((f) => f.name === "Name")?.leadingComment).toBe("Field comment");
+    expect(widget?.validations[0]?.leadingComment).toBe("Validate comment");
+  });
+
+  it("attaches to VIEW, SECTION, ACTION, and PICKER", () => {
+    const widget = ast.objects.find((object) => object.name === "Widget");
+    const dashboard = widget?.views.find((v) => v.name === "WidgetDashboard");
+    expect(dashboard?.leadingComment).toBe("View comment");
+    expect(dashboard?.presentation?.sections[0]?.leadingComment).toBe("Section comment");
+    expect(dashboard?.presentation?.sections[0]?.controls[0]).toMatchObject({
+      kind: "PresentationActionControlDeclaration",
+      leadingComment: "Action comment",
+    });
+
+    const form = widget?.views.find((v) => v.name === "WidgetForm");
+    const collection = form?.editSections[0];
+    expect(collection?.kind).toBe("EditChildCollectionDeclaration");
+    expect(
+      collection?.kind === "EditChildCollectionDeclaration"
+        ? collection.picker?.leadingComment
+        : undefined,
+    ).toBe("Picker comment");
+  });
+
+  it("attaches to READ_MODEL, SOURCE, and FIELD", () => {
+    const readModel = ast.readModels.find((rm) => rm.name === "WidgetSummary");
+    expect(readModel?.leadingComment).toBe("Read model comment");
+    expect(readModel?.sources[0]?.leadingComment).toBe("Source comment");
+    expect(readModel?.fields[0]?.leadingComment).toBe("Read model field comment");
+  });
+
+  it("attaches to COMMAND and STEP", () => {
+    const command = ast.commands.find((c) => c.name === "CreateWidget");
+    expect(command?.leadingComment).toBe("Command comment");
+    expect(command?.steps[0]?.leadingComment).toBe("Step comment");
+  });
+
+  it("attaches to POLICY and RULE", () => {
+    const policy = ast.policies.find((p) => p.name === "WidgetPolicy");
+    expect(policy?.leadingComment).toBe("Policy comment");
+    expect(policy?.rules[0]?.leadingComment).toBe("Rule comment");
+  });
+
+  it("joins a multi-line comment block with \\n, in source order", () => {
+    const multiline = parseAdl(`APP Multi
+END.APP
+
+# First line
+# Second line
+# Third line
+ROLE Admin
+`);
+    expect(multiline.roles[0]?.leadingComment).toBe("First line\nSecond line\nThird line");
+  });
+
+  it("does not attach a comment separated from its declaration by a blank line", () => {
+    const separated = parseAdl(`APP Separated
+END.APP
+
+# Freestanding remark, not attached to anything below
+
+ROLE Admin
+`);
+    expect(separated.roles[0]?.leadingComment).toBeUndefined();
+  });
+
+  it("does not attach a trailing comment left with no declaration after it (e.g. one immediately before END.OBJECT)", () => {
+    // The real shape found in Giggle Band's domain.adl: a remark about the
+    // object's own future presentation, placed just before END.OBJECT with
+    // nothing else following it inside the block.
+    const trailing = parseAdl(`APP Trailing
+END.APP
+
+OBJECT Widget
+  FIELD Name TEXT REQUIRED
+
+  # This trails the object with nothing after it to attach to.
+END.OBJECT
+`);
+    const widget = trailing.objects.find((object) => object.name === "Widget");
+    expect(widget?.leadingComment).toBeUndefined();
+    expect(widget?.fields[0]?.leadingComment).toBeUndefined();
+  });
+
+  it("does not attach a same-line trailing comment to the next declaration", () => {
+    const trailing = parseAdl(`APP TrailingInline
+END.APP
+
+ROLE Admin # not a leading comment for the next role
+ROLE Viewer
+`);
+    expect(trailing.roles.find((r) => r.name === "Viewer")?.leadingComment).toBeUndefined();
+  });
+});
+
 function readExample(name: string): string {
   return readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
 }

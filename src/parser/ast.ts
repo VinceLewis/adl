@@ -162,6 +162,8 @@ export interface AppDeclarationAst {
   modelVersion?: string;
   /** Declared by `OFFLINE_GRACE <days> DAYS`; the unit word is required. */
   offlineGraceDays?: number;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -172,6 +174,8 @@ export interface ShellDeclarationAst {
   controls: ShellControlDeclarationAst[];
   topBar?: ShellTopBarDeclarationAst;
   navDrawer?: ShellNavDrawerDeclarationAst;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -234,6 +238,8 @@ export interface RoleDeclarationAst {
   name: string;
   inherits: string[];
   description?: string;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -243,6 +249,8 @@ export interface BusinessContextDeclarationAst {
   object?: string;
   selection?: ContextSelectionDeclarationAst;
   membership?: ContextMembershipDeclarationAst;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -270,6 +278,8 @@ export interface ContextGrantDeclarationAst {
   userField: string;
   contextField: string;
   condition?: ResolvedExpression;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -297,6 +307,8 @@ export interface ObjectDeclarationAst {
   views: ViewDeclarationAst[];
   sync?: SyncDeclarationAst;
   policyRefs: string[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -318,6 +330,8 @@ export interface UniqueObjectConstraintDeclarationAst {
   name: string;
   fields: string[];
   scopeFields: string[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -332,6 +346,8 @@ export interface OrderedObjectConstraintDeclarationAst {
   reorder?: OrderedCollectionReorder;
   /** `COMPACT none|onDelete`; absent leaves the resolved default (`none`). */
   compaction?: OrderedCollectionCompaction;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -351,6 +367,8 @@ export interface ProtectedRoleObjectConstraintDeclarationAst {
   roleValues: JsonValue[];
   /** `MIN <n>`; absent leaves the resolved default (`1`). */
   minCount?: number;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -359,6 +377,8 @@ export interface ObjectValidationDeclarationAst {
   name: string;
   expression: ResolvedExpression;
   message?: string;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -373,6 +393,8 @@ export interface FieldDeclarationAst {
   hidden: boolean;
   lookup?: LookupDeclarationAst;
   autoId?: AutoIdDeclarationAst;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -480,6 +502,8 @@ export interface ViewDeclarationAst {
    */
   editSections: EditSectionDeclarationAst[];
   presentation?: ViewPresentationDeclarationAst;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -530,6 +554,8 @@ export interface RelationshipPickerDeclarationAst {
   sort: SortDeclarationAst[];
   excludeAlreadyLinked?: boolean;
   emptyText?: string;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -619,6 +645,8 @@ export interface PresentationSectionDeclarationAst {
   controls: PresentationControlDeclarationAst[];
   lists: PresentationListDeclarationAst[];
   calendars: PresentationCalendarDeclarationAst[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -649,6 +677,8 @@ export interface PresentationActionControlDeclarationAst {
   createView?: string;
   input: PresentationActionInputDeclarationAst[];
   visibleWhen?: ResolvedExpression;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -769,6 +799,8 @@ export interface ReadModelDeclarationAst {
   sources: ReadModelSourceDeclarationAst[];
   fields: ReadModelFieldDeclarationAst[];
   sort: SortDeclarationAst[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -779,6 +811,8 @@ export interface ReadModelSourceDeclarationAst {
   object: string;
   scope?: ReadModelSourceScope;
   join?: ReadModelSourceJoinDeclarationAst;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -806,6 +840,8 @@ export interface ReadModelFieldDeclarationAst {
   source?: string;
   field?: string;
   expression?: ResolvedExpression;
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -814,6 +850,8 @@ export interface PolicyDeclarationAst {
   name: string;
   object: string;
   rules: PolicyRuleDeclarationAst[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -829,6 +867,8 @@ export interface PolicyRuleDeclarationAst {
   lifecycleAction?: string;
   condition?: ResolvedExpression;
   channels: RuntimeChannel[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   range: SourceRange;
 }
 
@@ -937,6 +977,8 @@ export interface CommandDeclarationAst {
   inputs: CommandInputDeclarationAst[];
   preconditions: CommandPreconditionDeclarationAst[];
   steps: CommandStepDeclarationAst[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -988,6 +1030,8 @@ export interface CommandStepDeclarationAst {
   establishesContext?: string;
   values: Record<string, ResolvedCommandValueExpression>;
   preconditions: ResolvedExpression[];
+  /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
+  leadingComment?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
