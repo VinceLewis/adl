@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import { ApplicationRuntime, resolveApplicationModel } from "../src/index.js";
 import type { PartialApplicationModel, RuntimeContext } from "../src/index.js";
 import { AdlListViewElement } from "../src/ui/components/adl-list-view.js";
+import { AdlFieldRendererElement } from "../src/ui/components/adl-field-renderer.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
+import { resolveFieldPresentation } from "../src/ui/policy-presentation.js";
 
 defineAdlComponents();
 
@@ -130,5 +132,69 @@ describe("adl-list-view TARGET_FIELD lookup label", () => {
     expect(cells).not.toContain("US-S1Z-99-00001");
 
     list.remove();
+  });
+});
+
+/**
+ * `AdlFieldRendererElement`'s lookup `<select>` used to give every candidate
+ * option a `value` of the candidate's own record id (`option.meta.guid`),
+ * which `getValue()` then writes straight back to the field on save. That is
+ * correct for an identity `LOOKUP`, but a `LOOKUP ... TARGET_FIELD` field is
+ * meant to hold the target's declared natural key (here, the song's `Isrc`)
+ * — so choosing an option wrote the wrong kind of value into the field
+ * entirely, the write-side counterpart of the read-side defect Phase 75
+ * fixed in `recordMatchesCurrentUser`/`loadLookupLabel`. See
+ * [[browser-ui-runtime]].
+ */
+describe("adl-field-renderer TARGET_FIELD lookup editor", () => {
+  it("writes the target's TARGET_FIELD value, not its record id, when a lookup option is chosen", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(partialModel));
+
+    await runtime.create("Song", { Isrc: "US-S1Z-99-00001", Title: "Neon Skyline" }, viewerContext);
+    await runtime.create(
+      "Song",
+      { Isrc: "US-S1Z-99-00002", Title: "Harbour Lights" },
+      viewerContext,
+    );
+
+    const model = resolveApplicationModel(partialModel);
+    const object = model.objects.find((candidate) => candidate.name === "SetListItem");
+    const field = object?.fields.find((candidate) => candidate.name === "Song");
+    if (object === undefined || field === undefined) {
+      throw new Error("Fixture is missing SetListItem.Song.");
+    }
+
+    const renderer = document.createElement("adl-field-renderer") as AdlFieldRendererElement;
+    document.body.append(renderer);
+    renderer.runtime = runtime;
+    renderer.object = object;
+    renderer.context = viewerContext;
+    renderer.field = field;
+    renderer.presentation = resolveFieldPresentation({
+      runtime,
+      object,
+      field,
+      context: viewerContext,
+      mode: "create",
+    });
+    await flushUi();
+    await flushUi();
+
+    const select = renderer.querySelector<HTMLSelectElement>("select[data-field-input]");
+    if (select === null) {
+      throw new Error("No <select> rendered for the Song lookup field.");
+    }
+
+    const optionValues = [...select.options].map((option) => option.value).filter(Boolean);
+    expect(optionValues).toEqual(expect.arrayContaining(["US-S1Z-99-00001", "US-S1Z-99-00002"]));
+    // Neither candidate's own record id ever appears as an option value.
+    for (const record of await runtime.search("Song", undefined, viewerContext)) {
+      expect(optionValues).not.toContain(record.meta.guid);
+    }
+
+    select.value = "US-S1Z-99-00002";
+    expect(renderer.getValue()).toBe("US-S1Z-99-00002");
+
+    renderer.remove();
   });
 });

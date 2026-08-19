@@ -127,13 +127,33 @@ before it — the guardrails named them, they did not fix them.
   [[read-model-runtime]]/[[browser-ui-runtime]]. `recordMatchesCurrentUser`
   now compares against the current user's own record's target-field value
   instead of matching by identity, and the browser lookup-label display now
-  does an exact-match search when a lookup declares `TARGET_FIELD`. Two
-  smaller, related gaps were found and deliberately left open during that
-  fix — `OfflineDatasetService`'s own `recordMatchesCurrentUser` (for `SYNC
-  ... SCOPE currentUser`, not a read-model source) has the identical
-  identity-only defect, and `adl-field-renderer.ts`'s `<select>`-based
-  lookup editor has the same assumption on a **write** path — see
-  [[offline-dataset-runtime]] and [[browser-ui-runtime]].
+  does an exact-match search when a lookup declares `TARGET_FIELD`.
+- ~~**The two smaller `TARGET_FIELD` gaps Phase 75 found and left open.**~~
+  Both closed in a later pass. `OfflineDatasetService`'s own
+  `recordMatchesCurrentUser` (for `SYNC ... SCOPE currentUser`/`assignedToUser`/`ownedByUser`,
+  not a read-model source) had the identical identity-only defect as
+  `ReadModelService`'s did before Phase 75 — fixed the same way, by reading
+  the current user's own record and comparing its `targetField` value, minus
+  the read-policy gate `ReadModelService` needs and this file does not (it
+  decides what a device *syncs*, not what a caller may *read*). Making the
+  fix async required converting its entire caller chain
+  (`recordMatchesSyncScope`, `recordMatchesReadModelSource`,
+  `getObjectSyncReasons`, `getReadModelSourceReasons`,
+  `recordSatisfiesWindowLimit`, `recordSatisfiesDeclaredBound`,
+  `getDatasetReasons`, `computeWindowLimitRecordIds`) to `async`/`await`,
+  replacing every `.filter()`/`.flatMap()` over an async predicate with a
+  sequential `for` loop — `Array.prototype.filter` cannot await. See
+  [[offline-dataset-runtime]]. `adl-field-renderer.ts`'s lookup `<select>`
+  had the write-side counterpart: every candidate `<option>`'s `value` was
+  the candidate's own record id (`option.meta.guid`) unconditionally, so
+  choosing an option wrote a record id into a field meant to hold a
+  `TARGET_FIELD` natural key. Fixed with a `lookupOptionValue` helper
+  (mirroring the existing `lookupLabel` helper's `displayField` pattern) that
+  reads the declared `targetField` off each candidate instead, falling back
+  to the record id only when `targetField` is unset. See
+  [[browser-ui-runtime]]. Both fixes verified with a regression test
+  confirmed to fail against the pre-fix code (stashed, re-run, restored) and
+  pass against the fix, not just written and assumed correct.
 
 ## Practical guidance
 

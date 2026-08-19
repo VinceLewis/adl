@@ -215,6 +215,53 @@ non-goals is an assertion made at planning time, and
 `learnings/process/phase-execution.md` requires checking it before executing on
 it. Two of the four gaps Phase 57 listed were checked; one was wrong.
 
+## `recordMatchesCurrentUser` had the identity-only defect `ReadModelService`'s had before Phase 75, closed the same way
+
+`OfflineDatasetService.recordMatchesCurrentUser` decides whether a record
+belongs in the offline dataset for `SYNC ... SCOPE currentUser` /
+`assignedToUser` / `ownedByUser` — a genuinely different question from
+`ReadModelService.recordMatchesCurrentUser` (which gates a *read-model
+source's* `currentUser` scope), but both existed to answer "does this
+record's `LOOKUP` field point at the signed-in user," and both had the same
+bug: comparing the field's stored value directly against `context.userId`,
+which is only ever correct for an identity `LOOKUP` (the stored value *is*
+the target user's id). A `TARGET_FIELD` lookup stores a natural key instead
+(an email, a business key), so that comparison never matched, and an object
+scoped `currentUser` through such a lookup silently synced to no device at
+all — findable only by noticing an offline dataset that should contain a
+record and does not, since nothing errors.
+
+Fixed the same way `ReadModelService`'s was in Phase 75: when the matching
+`LOOKUP` field declares a `targetField`, read the current user's own record
+by id and compare *that record's* `targetField` value against the field's
+stored value, rather than comparing the stored value to `context.userId`
+directly. The one deliberate divergence from `ReadModelService`'s version:
+no `canReadSourceRecord`-equivalent gate on the current user's own record.
+This file decides what a device *syncs*, not what a caller may *read*
+through the runtime API — none of its other matchers
+(`recordMatchesContextId`, `recordMatchesAvailableObjectContext`, ...)
+consult read policy either, so adding one gate here for this one path alone
+would have been a new, inconsistent policy surface, not a fix.
+
+The mechanical cost of the fix was in the caller chain, not the comparison
+logic: making `recordMatchesCurrentUser` async (it now reads from
+`ObjectStorageBackend` when a `targetField` is declared) meant every
+transitive caller had to become async too —
+`recordMatchesSyncScope`, `recordMatchesReadModelSource`,
+`getObjectSyncReasons`, `getReadModelSourceReasons`,
+`recordSatisfiesWindowLimit`, `recordSatisfiesDeclaredBound`,
+`getDatasetReasons`, and `computeWindowLimitRecordIds`. Two of those
+(`getReadModelSourceReasons`'s `.flatMap().filter()` chain and
+`computeWindowLimitRecordIds`'s `.filter()` chain) could not stay
+`Array.prototype`-based, since neither `.filter` nor `.flatMap` can await a
+predicate — both were rewritten as sequential `for` loops accumulating into
+a plain array. This is the same shape `ReadModelService.searchAuthorisedSourceRecords`
+uses (`Promise.all` + `.map(async ...)` then a synchronous `.filter()`) when
+the predicate is independent per item and can run concurrently; a sequential
+loop was used here instead because later items in this file's loops
+(`computeWindowLimitRecordIds`'s ranking, in particular) depend on filtering
+order, not just on the predicate result.
+
 ## Practical guidance
 
 - Do not use dataset membership as proof that a user can read a record. Always route user-facing local reads through `ApplicationRuntime.searchLocalDataset(...)`, `ApplicationRuntime.read(...)`, `executeReadModel(...)`, or another policy-enforcing runtime service.

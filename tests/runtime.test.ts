@@ -744,6 +744,103 @@ describe("ApplicationRuntime", () => {
     expect(resultForStranger.rows).toEqual([]);
   });
 
+  /**
+   * `OfflineDatasetService.recordMatchesCurrentUser` had the identical
+   * identity-only defect as `ReadModelService.recordMatchesCurrentUser` had
+   * before Phase 75 — it compared a lookup field's stored value directly
+   * against `context.userId`, which only ever matches an identity `LOOKUP`.
+   * A `TARGET_FIELD` lookup stores a natural key instead, so an object whose
+   * *own* `SYNC ... SCOPE currentUser` (not a read-model source) is matched
+   * through such a lookup silently synced to no device at all. See
+   * [[offline-dataset-runtime]].
+   */
+  it("matches an object's own currentUser sync scope through a TARGET_FIELD lookup", async () => {
+    const runtime = new ApplicationRuntime(
+      resolveApplicationModel({
+        ...runtimePartialModel,
+        objects: [
+          ...runtimePartialModel.objects,
+          {
+            name: "Assignment",
+            businessKey: "Title",
+            displayField: "Title",
+            sync: { mode: "localFirst", scope: "currentUser" },
+            fields: [
+              { name: "Title", type: "text", required: true },
+              {
+                name: "Owner",
+                type: "text",
+                lookup: { targetObject: "User", targetField: "Email", displayField: "Name" },
+              },
+            ],
+          },
+        ],
+        policies: [
+          ...runtimePartialModel.policies,
+          {
+            name: "AssignmentPolicy",
+            object: "Assignment",
+            rules: [
+              {
+                name: "allowAdminAllAssignmentOps",
+                effect: "allow",
+                principal: { match: "specific", roles: ["Admin"] },
+                action: "*",
+              },
+              {
+                name: "allowViewerReadAssignments",
+                effect: "allow",
+                principal: { match: "specific", roles: ["Viewer"] },
+                action: "read",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const ada = await runtime.create(
+      "User",
+      { Name: "Ada Lovelace", Email: "ada@example.com" },
+      adminContext,
+    );
+    const grace = await runtime.create(
+      "User",
+      { Name: "Grace Hopper", Email: "grace@example.com" },
+      adminContext,
+    );
+    const writeSpecs = await runtime.create(
+      "Assignment",
+      { Title: "Write specs", Owner: "ada@example.com" },
+      adminContext,
+    );
+    const reviewBudget = await runtime.create(
+      "Assignment",
+      { Title: "Review budget", Owner: "grace@example.com" },
+      adminContext,
+    );
+
+    const datasetForGrace = await runtime.evaluateOfflineDataset({
+      ...viewerContext,
+      userId: grace.meta.guid,
+    });
+    const datasetForAda = await runtime.evaluateOfflineDataset({
+      ...viewerContext,
+      userId: ada.meta.guid,
+    });
+
+    expect(
+      datasetForGrace.records
+        .filter((record) => record.objectName === "Assignment")
+        .map((record) => record.recordId),
+    ).toEqual([reviewBudget.meta.guid]);
+    expect(
+      datasetForAda.records
+        .filter((record) => record.objectName === "Assignment")
+        .map((record) => record.recordId),
+    ).toEqual([writeSpecs.meta.guid]);
+  });
+
   it("limits local dataset reads to current-context records", async () => {
     const seeded = await createSeededBandRuntime(
       createBandDatasetPartialModel({

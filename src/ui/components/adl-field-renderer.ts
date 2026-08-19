@@ -322,7 +322,7 @@ function renderInput(
     const selectedValue = toInputValue(value);
     const selectedKnown =
       selectedValue.length === 0 ||
-      lookupOptions.some((option) => option.meta.guid === selectedValue);
+      lookupOptions.some((option) => lookupOptionValue(field, option) === selectedValue);
     return `
       <select ${common} ${presentation.readonly ? "disabled" : ""}>
         <option value="">${escapeHtml(lookupLoading ? "Loading..." : `Choose ${titleCaseIdentifier(field.name)}`)}</option>
@@ -332,15 +332,16 @@ function renderInput(
             : `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedValue)}</option>`
         }
         ${lookupOptions
-          .map(
-            (option) => `
-              <option value="${escapeHtml(option.meta.guid)}" ${
-                option.meta.guid === selectedValue ? "selected" : ""
+          .map((option) => {
+            const optionValue = lookupOptionValue(field, option);
+            return `
+              <option value="${escapeHtml(optionValue)}" ${
+                optionValue === selectedValue ? "selected" : ""
               }>
                 ${escapeHtml(lookupLabel(field, option))}
               </option>
-            `,
-          )
+            `;
+          })
           .join("")}
       </select>
     `;
@@ -445,6 +446,28 @@ function lookupLabel(field: ResolvedField, record: StoredObjectRecord): string {
   }
 
   return record.meta.guid;
+}
+
+/**
+ * A candidate `<option>`'s `value` — and therefore what gets written back to
+ * the field on save — is the identity match every `LOOKUP` used before
+ * Phase 68: the candidate record's own id. A `TARGET_FIELD` lookup stores a
+ * natural key instead, so an option's value must be that field's value on
+ * the candidate, not the candidate's id — using the id here would silently
+ * write the wrong kind of value into the field on every save, the same
+ * defect `read-model-service.ts`'s `recordMatchesCurrentUser` had on the read
+ * side before Phase 75. Falls back to the record's own id if the declared
+ * `targetField` is unset on this particular candidate, matching
+ * `lookupLabel`'s fallback for the same situation on `displayField`.
+ */
+function lookupOptionValue(field: ResolvedField, record: StoredObjectRecord): string {
+  const targetField = field.lookup?.targetField;
+  if (targetField === undefined) {
+    return record.meta.guid;
+  }
+
+  const value = record.values[targetField];
+  return value !== undefined && value !== null ? String(value) : record.meta.guid;
 }
 
 function renderIssues(issues: RuntimeValidationIssue[]): string {

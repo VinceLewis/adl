@@ -97,12 +97,25 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   added as a new small file rather than folding into `html.ts`, because
   `html.ts` is pure string formatting with no runtime dependency and this
   helper needs `ApplicationRuntime`/`RuntimeContext`.
-- **Not fixed by this phase:** `adl-field-renderer.ts`'s `<select>` lookup
-  editor has the identical identity assumption for populating and matching
-  the selected `<option>`, but that is a *write* path (choosing an option
-  would still save an id into a `TARGET_FIELD` field), a materially larger
-  fix than the two display-only reads this phase closed. See
-  [[read-model-runtime]] for the same note.
+- **Not fixed by this phase, closed later:** `adl-field-renderer.ts`'s
+  `<select>` lookup editor had the identical identity assumption for
+  populating and matching the selected `<option>`, but that was a *write*
+  path (choosing an option saved an id into a field meant to hold a
+  `TARGET_FIELD` natural key) — a materially different fix than the two
+  display-only reads this phase closed, since a `<select>`'s `value`
+  attribute has to be right at render time, not resolved lazily like a label.
+  The fix, once made: a `lookupOptionValue(field, record)` helper mirroring
+  `lookupLabel`'s existing `displayField` fallback pattern — reads
+  `record.values[field.lookup.targetField]` when `targetField` is declared,
+  falling back to `record.meta.guid` only when it is not — used for both the
+  `<option value>` and the "is this option the selected one" comparison
+  (previously both compared against `option.meta.guid` unconditionally). No
+  shared helper with `lookup-resolution.ts` was worth extracting: that
+  module's job is resolving one record from a stored value (a *read*), this
+  one's job is picking the right string off an already-loaded candidate list
+  (no I/O at all) — different enough shapes that forcing them through one
+  abstraction would have been the wrong kind of DRY. See
+  [[read-model-runtime]] for the read-side note this mirrors.
 
 ## Practical guidance
 

@@ -63,7 +63,7 @@ export class OfflineDatasetService {
 
     for (const entry of activeRecords) {
       const object = this.index.getObject(entry.objectName);
-      const reasons = this.getDatasetReasons(object, entry.record, state);
+      const reasons = await this.getDatasetReasons(object, entry.record, state);
 
       if (reasons.length === 0) {
         continue;
@@ -170,7 +170,7 @@ export class OfflineDatasetService {
       availableContextRoles: uniqueContextRoleEntries(availableContextRoles),
       windowLimitRecordIds: new Map(),
     };
-    state.windowLimitRecordIds = this.computeWindowLimitRecordIds(activeRecords, state);
+    state.windowLimitRecordIds = await this.computeWindowLimitRecordIds(activeRecords, state);
 
     return state;
   }
@@ -186,10 +186,10 @@ export class OfflineDatasetService {
    * object's *declared* context scope, via the same matcher that decides its
    * `objectSync` reason.
    */
-  private computeWindowLimitRecordIds(
+  private async computeWindowLimitRecordIds(
     activeRecords: ActivePersistedObjectRecord[],
     state: DatasetEvaluationState,
-  ): Map<string, Set<string>> {
+  ): Promise<Map<string, Set<string>>> {
     const idsByObject = new Map<string, Set<string>>();
 
     for (const object of this.model.objects) {
@@ -198,31 +198,38 @@ export class OfflineDatasetService {
         continue;
       }
 
-      const candidates = activeRecords
-        .filter((entry) => entry.objectName === object.name)
-        .filter(
-          (entry) =>
-            this.recordMatchesSyncScope(object, entry.record, state) &&
-            this.recordMatchesWindowDays(object, entry.record, window, state),
-        )
-        .sort((left, right) => {
-          const leftDate = getSyncWindowDate(object, left.record, window);
-          const rightDate = getSyncWindowDate(object, right.record, window);
-          return (rightDate?.getTime() ?? 0) - (leftDate?.getTime() ?? 0);
-        })
-        .slice(0, window.limit);
+      const candidates: ActivePersistedObjectRecord[] = [];
+      for (const entry of activeRecords) {
+        if (entry.objectName !== object.name) {
+          continue;
+        }
 
-      idsByObject.set(object.name, new Set(candidates.map((entry) => entry.record.meta.guid)));
+        if (
+          (await this.recordMatchesSyncScope(object, entry.record, state)) &&
+          this.recordMatchesWindowDays(object, entry.record, window, state)
+        ) {
+          candidates.push(entry);
+        }
+      }
+
+      candidates.sort((left, right) => {
+        const leftDate = getSyncWindowDate(object, left.record, window);
+        const rightDate = getSyncWindowDate(object, right.record, window);
+        return (rightDate?.getTime() ?? 0) - (leftDate?.getTime() ?? 0);
+      });
+
+      const limited = candidates.slice(0, window.limit);
+      idsByObject.set(object.name, new Set(limited.map((entry) => entry.record.meta.guid)));
     }
 
     return idsByObject;
   }
 
-  private getDatasetReasons(
+  private async getDatasetReasons(
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
-  ): RuntimeOfflineDatasetReason[] {
+  ): Promise<RuntimeOfflineDatasetReason[]> {
     if (object.sync.mode === "onlineRequired") {
       return [];
     }
@@ -236,13 +243,13 @@ export class OfflineDatasetService {
     // deliberately, and before this check a source widened it by accident: a
     // record seven years outside a declared 90-day window stayed on the device
     // with no `objectSync` reason at all.
-    if (!this.recordSatisfiesDeclaredBound(object, record, state)) {
+    if (!(await this.recordSatisfiesDeclaredBound(object, record, state))) {
       return [];
     }
 
     return uniqueReasons([
-      ...this.getObjectSyncReasons(object, record, state),
-      ...this.getReadModelSourceReasons(object, record, state),
+      ...(await this.getObjectSyncReasons(object, record, state)),
+      ...(await this.getReadModelSourceReasons(object, record, state)),
     ]);
   }
 
@@ -254,11 +261,11 @@ export class OfflineDatasetService {
    * gates on what the model *declares*, not on the scope word — the scope word
    * only ever implied a bound because `recent` resolves a default window.
    */
-  private recordSatisfiesDeclaredBound(
+  private async recordSatisfiesDeclaredBound(
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
-  ): boolean {
+  ): Promise<boolean> {
     if (!this.recordSatisfiesRankableBound(object, record, state)) {
       return false;
     }
@@ -298,17 +305,17 @@ export class OfflineDatasetService {
    * not widen is the day span and the predicate, both of which are decided per
    * record above and do gate every route.
    */
-  private recordSatisfiesWindowLimit(
+  private async recordSatisfiesWindowLimit(
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
-  ): boolean {
+  ): Promise<boolean> {
     const limitedIds = state.windowLimitRecordIds.get(object.name);
     if (limitedIds === undefined || limitedIds.has(record.meta.guid)) {
       return true;
     }
 
-    return !this.recordMatchesSyncScope(object, record, state);
+    return !(await this.recordMatchesSyncScope(object, record, state));
   }
 
   private declaredBoundKind(
@@ -330,12 +337,12 @@ export class OfflineDatasetService {
     return hasPredicate ? "predicate" : undefined;
   }
 
-  private getObjectSyncReasons(
+  private async getObjectSyncReasons(
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
-  ): RuntimeOfflineDatasetReason[] {
-    if (!this.recordMatchesSyncScope(object, record, state)) {
+  ): Promise<RuntimeOfflineDatasetReason[]> {
+    if (!(await this.recordMatchesSyncScope(object, record, state))) {
       return [];
     }
 
@@ -348,37 +355,43 @@ export class OfflineDatasetService {
     ];
   }
 
-  private getReadModelSourceReasons(
+  private async getReadModelSourceReasons(
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
-  ): RuntimeOfflineDatasetReason[] {
+  ): Promise<RuntimeOfflineDatasetReason[]> {
     const boundedBy = this.declaredBoundKind(object);
+    const reasons: RuntimeOfflineDatasetReason[] = [];
 
-    return (this.model.readModels ?? []).flatMap((readModel) =>
-      readModel.sources
-        .filter((source) => source.object === object.name)
-        .filter((source) =>
-          this.recordMatchesReadModelSource(readModel, source, object, record, state),
-        )
-        .map(
-          (source): RuntimeOfflineDatasetReason => ({
-            kind: "readModelSource",
-            readModel: readModel.name,
-            source: source.name,
-            sourceScope: source.scope,
-            mode: object.sync.mode,
-            ...(boundedBy === undefined ? {} : { boundedBy }),
-          }),
-        ),
-    );
+    for (const readModel of this.model.readModels ?? []) {
+      for (const source of readModel.sources) {
+        if (source.object !== object.name) {
+          continue;
+        }
+
+        if (!(await this.recordMatchesReadModelSource(readModel, source, object, record, state))) {
+          continue;
+        }
+
+        reasons.push({
+          kind: "readModelSource",
+          readModel: readModel.name,
+          source: source.name,
+          sourceScope: source.scope,
+          mode: object.sync.mode,
+          ...(boundedBy === undefined ? {} : { boundedBy }),
+        });
+      }
+    }
+
+    return reasons;
   }
 
-  private recordMatchesSyncScope(
+  private async recordMatchesSyncScope(
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
-  ): boolean {
+  ): Promise<boolean> {
     switch (object.sync.scope) {
       case "all":
         return this.recordMatchesAvailableObjectContext(object, record, state);
@@ -386,7 +399,7 @@ export class OfflineDatasetService {
       case "assignedToUser":
       case "ownedByUser":
         return (
-          this.recordMatchesCurrentUser(object, record, state.context) &&
+          (await this.recordMatchesCurrentUser(object, record, state.context)) &&
           this.recordMatchesAvailableObjectContext(object, record, state)
         );
       case "currentContext":
@@ -444,16 +457,16 @@ export class OfflineDatasetService {
     return result.value.value === true;
   }
 
-  private recordMatchesReadModelSource(
+  private async recordMatchesReadModelSource(
     readModel: ResolvedReadModel,
     source: ResolvedReadModelSource,
     object: ResolvedObject,
     record: StoredObjectRecord,
     state: DatasetEvaluationState,
-  ): boolean {
+  ): Promise<boolean> {
     if (
       source.scope === "currentUser" &&
-      !this.recordMatchesCurrentUser(object, record, state.context)
+      !(await this.recordMatchesCurrentUser(object, record, state.context))
     ) {
       return false;
     }
@@ -609,11 +622,27 @@ export class OfflineDatasetService {
     ]);
   }
 
-  private recordMatchesCurrentUser(
+  /**
+   * A `currentUser`/`assignedToUser`/`ownedByUser` scope's `LOOKUP` field is
+   * normally an identity match: the field's stored value is the target user
+   * record's own id, compared directly against `context.userId`. A
+   * `TARGET_FIELD` lookup stores a natural key instead, so the same identity
+   * comparison always misses — the field never holds `context.userId` itself.
+   * Matching it correctly means reading the *current user's own record* and
+   * comparing this record's stored value against that record's `targetField`
+   * value, not against `context.userId` directly.
+   *
+   * Mirrors `ReadModelService.recordMatchesCurrentUser` (`read-model-service.ts`),
+   * minus its `canReadSourceRecord` gate: this file decides what a device
+   * *syncs*, not what a caller may *read* through the runtime API, and
+   * consults no read policy anywhere else in it either — see
+   * `recordMatchesContextId` and friends, none of which check policy.
+   */
+  private async recordMatchesCurrentUser(
     object: ResolvedObject,
     record: StoredObjectRecord,
     context: RuntimeContext,
-  ): boolean {
+  ): Promise<boolean> {
     if (context.userId.length === 0) {
       return false;
     }
@@ -627,11 +656,50 @@ export class OfflineDatasetService {
         (candidate) => candidate.name === "User" || candidate.object === "User",
       )?.object ?? "User";
 
-    return object.fields.some(
-      (field) =>
-        field.lookup?.targetObject === userObjectName &&
-        record.values[field.name] === context.userId,
-    );
+    for (const field of object.fields) {
+      if (field.lookup?.targetObject !== userObjectName) {
+        continue;
+      }
+
+      const value = record.values[field.name];
+      if (typeof value !== "string" || value.length === 0) {
+        continue;
+      }
+
+      if (field.lookup.targetField === undefined) {
+        if (value === context.userId) {
+          return true;
+        }
+        continue;
+      }
+
+      if (
+        await this.recordValueMatchesCurrentUserField(
+          userObjectName,
+          field.lookup.targetField,
+          value,
+          context.userId,
+        )
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private async recordValueMatchesCurrentUserField(
+    userObjectName: string,
+    targetField: string,
+    value: string,
+    currentUserId: string,
+  ): Promise<boolean> {
+    const currentUserRecord = await this.storage.read(userObjectName, currentUserId);
+    if (currentUserRecord === null || currentUserRecord.meta.deletedAt !== undefined) {
+      return false;
+    }
+
+    return currentUserRecord.values[targetField] === value;
   }
 
   private recordMatchesWindowDays(
