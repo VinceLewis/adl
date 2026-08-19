@@ -176,10 +176,18 @@ fixture, spec example, or conformance case, anything that will produce new
 including its "Authoring a `.adlj` document from scratch" section: top-level
 shape, per-construct JSON mapping, and a worked example). `.adlj`, not `.adl`
 text, is the surface to author; `.adl` text is generated from it via
-`print-adl.ts`. `implementation/adlj-json-authoring-surface.md` is the
-implementation-history companion — read it too when the task is likely to run
-into one of its documented gotchas (the `principal.match` default-inference
-gap, the `contexts`/`readModels` cosmetic-shape difference, or anything else
+`print-adl.ts`. For a real, full-scale, comment-carrying `.adlj` application
+to read rather than a small fixture, use `src/reference/jointly-care/domain.adlj`
++ `ui.adlj` (contexts, scope, read models with a `JOIN`, commands, and policy
+rules) and `src/reference/giggle-band/domain.adlj` + `ui.adlj` (the constructs
+Jointly Care doesn't exercise: `UNION` read models, `ORDERED` constraints,
+`CHILD_COLLECTION`/`PICKER`, `STATUS_MAP`/`ICON_MAP`, a multi-hop `JOIN`, and
+`EDIT_SECTION`) — between the two, every construct in `docs/spec/adlj.md`'s
+mapping table has a real, compiling worked example.
+`implementation/adlj-json-authoring-surface.md` is the implementation-history
+companion — read it too when the task is likely to run into one of its
+documented gotchas (the `principal.match` default-inference gap, the
+`contexts`/`readModels` cosmetic-shape difference, or anything else
 `docs/spec/adlj.md` itself flags as "see the learnings doc for why").
 
 Before tasks that change `.adlj` (`src/model/adlj-source.ts`, `src/compiler/compile-adlj.ts`, `src/compiler/print-adl.ts`, `src/compiler/adl-to-adlj.ts`, `parseExpressionSource`), that change `PartialApplicationModel`-level source merging (`src/compiler/merge-partial-model.ts`, `compileAdlProjectV2` in `src/compiler/compile-adl-project.ts`), or that add a new expression-bearing field to `PartialApplicationModel`, also read:
@@ -325,7 +333,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.
 - `implementation/sync-mode-delivery.md`: read before changing which sync modes queue, the client's delivery path, the authority's acceptance of a mode, undelivered-write presentation, or anything that decides whether an accepted write reaches the authority.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
-- `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work -- it carries the Jointly Care conversion of `OSV_PRD_Elixir_Canonical_Jointly.md` (`src/reference/jointly-care/`), including why `DISPLAY` can never name a `COMPUTED` field, why a `CONTEXT_GRANT` never extends to the context's own root object (a join across it silently drops rows rather than erroring), and why a row action still needs its own `WHEN` guard even when the command underneath it already refuses the write safely.
+- `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work -- it carries the Jointly Care conversion of `OSV_PRD_Elixir_Canonical_Jointly.md` (`src/reference/jointly-care/`), including why `DISPLAY` can never name a `COMPUTED` field, why a `CONTEXT_GRANT` never extends to the context's own root object (a join across it silently drops rows rather than erroring), and why a row action still needs its own `WHEN` guard even when the command underneath it already refuses the write safely -- and now also both apps' full conversion to `.adlj` as their real compiled source (`domain.adlj`/`ui.adlj`, comments included), with Giggle Band as the construct-richer second precedent (`UNION`, `ORDERED`, `CHILD_COLLECTION`/`PICKER`, `STATUS_MAP`/`ICON_MAP`, a multi-hop `JOIN`, `EDIT_SECTION`) and the dynamic-`import()` lazy-compilation pattern both `jointly-app.ts` and `band-app.ts` now use to keep `.adlj`/`ajv` tooling out of the main browser bundle.
 - `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, conformance cases, the conformance runner's operations and step options, or the generated-value guard that keeps minted text out of the corpus.
 - `implementation/authority-server.md`: read before changing authority replay, server sessions, accepted-state persistence, operation idempotency, browser/server reconciliation, or the `baseRevision` conflict check and the rule that mints a record revision.
 - `implementation/remote-bootstrap-and-sync-state.md`: read before changing authenticated remote bootstrap/pull, browser sync-state persistence, reconciliation, conflict recovery, or sync cursors.
