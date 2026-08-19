@@ -179,6 +179,56 @@ carries some Node-only surface the same way, but the size is real and worth
 a deliberate look (code-splitting `compile-adlj.ts` behind a dynamic
 `import()`, most plausibly) before it compounds with future additions.
 
+## Strategic direction: `.adlj` as the primary authoring surface
+
+The working assumption going forward is that `.adlj` — not `.adl` text — is
+what gets *authored*, because the author is overwhelmingly an LLM writing to
+a JSON Schema rather than a human hand-typing keyword syntax. `.adl` text's
+role narrows to what Phase 73's own originating conversation asked for: a
+generated, human-reviewable, diffable read surface (`printPartialApplicationModelAsAdl`),
+never a hand-edited source of truth. That reframing settles two open
+questions Phase 72 deliberately left as "real, larger ideas, not started
+here":
+
+- **An `adlfmt` formatter is redundant, not merely deferred.** Its whole job
+  was normalising inconsistent spelling in *hand-typed* `.adl` text — Phase
+  72's Class A problem (`MIN 0` vs `MIN(0)`, `VALIDATE` vs `PREDICATE`, and
+  the rest of the catalogue in `docs/spec/language.md`'s "Deprecated
+  Spellings" table). If `.adl` text is never hand-typed — only ever emitted
+  by the printer — that ambiguity cannot arise: a print function has exactly
+  one way to render each construct by construction. There is nothing left
+  for a formatter to normalise. The "check mode" a formatter would have
+  offered (is this checked-in `.adl` file still canonical?) is already
+  covered by the printer round-trip / drift-check tests described above, so
+  even that half of the idea is not a gap.
+- **A formal grammar file (PEG/ANTLR/Ohm) for the whole `.adl` declarative
+  language is superseded by the JSON Schema for the surface that actually
+  matters.** The idea existed to make the whole language provably
+  unambiguous and parseable by tooling independent of this TypeScript
+  implementation. `src/model/adlj-schema.json`, generated from
+  `AdljSourceDocument`'s TypeScript types, already is that formal,
+  machine-checkable, tooling-friendly specification — for the declarative
+  skeleton, which is the part of the language `.adlj` authors actually write
+  by hand (or rather, that an LLM writes to a schema).
+
+**One real exception, worth stating precisely rather than glossing over.**
+Expression-bearing fields in `.adlj` stay strings in infix syntax,
+deliberately (see above) — the JSON Schema can validate that such a field
+*is a string*, it cannot validate that the string is a *syntactically valid
+ADL expression*. That check still runs through `parseExpressionSource`,
+backed by the same hand-written expression grammar inside `src/parser/parser.ts`
+that `.adl` text has always used. So it is not quite accurate to say the
+formal-grammar idea is now "just a JSON Schema checker" — more precisely:
+the declarative-skeleton grammar is now just a JSON Schema checker, and the
+*expression* sub-grammar remains a real, load-bearing, hand-written text
+grammar — just a far smaller and more tractable one than the whole language
+was, and one already under conformance test coverage (see
+`learnings/implementation/expression-language.md`).
+
+Neither `adlfmt` nor a formal grammar file appears in the Non-goals list
+below as a deferred candidate: they are not future work, they are ideas this
+direction makes unnecessary.
+
 ## Non-goals (see Planning Handoff in `docs/phases/phase-73-*.md`)
 
 - Mixing `.adl` and `.adlj` sources in one app, or merging several `.adlj`
