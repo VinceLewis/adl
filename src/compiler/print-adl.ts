@@ -15,22 +15,28 @@
  * Coverage: the full declarative skeleton (`APP`, `ROLE`, `CONTEXT`,
  * `CONTEXT_GRANT`, `OBJECT` — fields, computed fields, validations,
  * lifecycle, constraints, scope, sync — `READ_MODEL`, `DECISION_TABLE`,
- * `COMMAND`, `POLICY`, `THEME`, top-level `SYNC`, `MIGRATION`) and every
+ * `COMMAND`, `POLICY`, `THEME`, top-level `SYNC`, `SHELL`) and every
  * expression-bearing field (`ResolvedExpression`/`PartialPolicyConditionModel`
  * printed back to infix syntax). Composed view presentation
  * (`PartialViewModel.presentation`) and edit surfaces
- * (`editContainer`/`editSections`) are not printed — `printView` throws a
- * clear error naming the gap rather than silently dropping that content.
- * Named as a candidate for a future phase, not attempted here.
+ * (`editContainer`/`editSections`) are printed too (Phase 78), with a small,
+ * named set of exceptions for constructs that have no ADL *text* syntax at
+ * all today (only a resolved-model/JSON shape) — see the "NO TEXT SYNTAX"
+ * comments below and `docs/spec/adlj.md`. Those throw a clear, named error
+ * rather than silently dropping content.
  */
 import type {
   JsonValue,
   PartialApplicationModel,
   PartialBusinessContextModel,
+  PartialCommandInputModel,
   PartialCommandModel,
   PartialCommandStepModel,
   PartialContextGrantModel,
   PartialDecisionTableModel,
+  PartialEditChildCollectionSectionModel,
+  PartialEditFieldsSectionModel,
+  PartialEditSectionModel,
   PartialFieldModel,
   PartialLifecycleActionModel,
   PartialLifecycleModel,
@@ -39,12 +45,35 @@ import type {
   PartialPolicyConditionModel,
   PartialPolicyModel,
   PartialPolicyRuleModel,
+  PartialPresentationActionControlModel,
+  PartialPresentationCalendarModel,
+  PartialPresentationControlModel,
+  PartialPresentationIconMapModel,
+  PartialPresentationIconRefModel,
+  PartialPresentationLegendModel,
+  PartialPresentationListModel,
+  PartialPresentationRowFragmentModel,
+  PartialPresentationRowTemplateModel,
+  PartialPresentationSectionModel,
+  PartialPresentationStateModel,
+  PartialPresentationStatusCandidateModel,
+  PartialPresentationStatusMapModel,
+  PartialPresentationStatusModel,
+  PartialPresentationToggleControlModel,
   PartialReadModelModel,
+  PartialRelationshipPickerModel,
   PartialRoleModel,
+  PartialShellControlModel,
+  PartialShellModel,
+  PartialShellNavDrawerModel,
+  PartialShellNavItemModel,
+  PartialShellTopBarModel,
+  PartialShellVisibilityModel,
   PartialSyncPolicyModel,
   PartialThemeModel,
   PartialValidatorModel,
   PartialViewModel,
+  PartialViewPresentationModel,
   ResolvedCommandValueExpression,
   ResolvedExpression,
   ResolvedPolicyCondition,
@@ -54,6 +83,9 @@ import type {
 export function printPartialApplicationModelAsAdl(model: PartialApplicationModel): string {
   const blocks: string[] = [printApp(model)];
 
+  if (model.shell !== undefined) {
+    blocks.push(printShell(model.shell));
+  }
   for (const role of model.roles ?? []) {
     blocks.push(printRole(role));
   }
@@ -196,7 +228,11 @@ function isResolvedExpression(
 // --- APP / ROLE / CONTEXT ---------------------------------------------------
 
 function printApp(model: PartialApplicationModel): string {
-  const lines = [`APP ${model.app.name}`];
+  // The app name is a display string, not a referenced identifier (unlike
+  // role/object/view names), so it may contain spaces — `APP 'Giggle Band
+  // ADL Example'`. `consumeName` accepts a quoted string token exactly like
+  // a bare identifier, so quoting unconditionally is always safe.
+  const lines = [`APP ${printStringLiteral(model.app.name)}`];
   if (model.app.theme !== undefined) {
     lines.push(`  THEME ${model.app.theme}`);
   }
@@ -224,41 +260,45 @@ function printRole(role: PartialRoleModel): string {
   return line;
 }
 
+/**
+ * `CONTEXT` is a single-line declaration: `parseBusinessContext` reads every
+ * directive (`OBJECT`, `SELECTION`, `AUTO_SELECT`, `PERSISTENCE`, `SOURCE`,
+ * `ROUTE_PARAM`, `MEMBERSHIP` and its own sub-options) in one
+ * `while (!isLineEnd())` loop and never calls `parseEnd` — there is no
+ * `END.CONTEXT`. `SELECTION`, `AUTO_SELECT`, and `PERSISTENCE` are also
+ * independent directives (not one grouped under `SELECTION`), so each is
+ * printed as its own space-separated `KEYWORD value` pair on that one line.
+ */
 function printContext(context: PartialBusinessContextModel): string {
-  const lines = [`CONTEXT ${context.name}`];
+  let line = `CONTEXT ${context.name}`;
   if (context.object !== undefined) {
-    lines.push(`  OBJECT ${context.object}`);
+    line += ` OBJECT ${context.object}`;
   }
   if (context.selection !== undefined) {
-    const parts: string[] = [];
     if (context.selection.mode !== undefined) {
-      parts.push(context.selection.mode.toUpperCase());
+      line += ` SELECTION ${context.selection.mode.toUpperCase()}`;
     }
-    if (context.selection.autoSelect === true) {
-      parts.push("AUTO_SELECT");
+    if (context.selection.autoSelect !== undefined) {
+      line += ` AUTO_SELECT ${printLiteralValue(context.selection.autoSelect)}`;
     }
     if (context.selection.persistence !== undefined) {
-      parts.push(`PERSISTENCE ${context.selection.persistence.toUpperCase()}`);
+      line += ` PERSISTENCE ${context.selection.persistence.toUpperCase()}`;
     }
     if (context.selection.source !== undefined) {
-      parts.push(`SOURCE ${context.selection.source.toUpperCase()}`);
+      line += ` SOURCE ${context.selection.source.toUpperCase()}`;
     }
     if (context.selection.routeParam !== undefined) {
-      parts.push(`ROUTE_PARAM ${context.selection.routeParam}`);
+      line += ` ROUTE_PARAM ${context.selection.routeParam}`;
     }
-    lines.push(`  SELECTION ${parts.join(" ")}`);
   }
   if (context.membership !== undefined) {
     const membership = context.membership;
-    lines.push(
-      `  MEMBERSHIP ${membership.object} USER ${membership.userField} CONTEXT_FIELD ${membership.contextField} ROLE_FIELD ${membership.roleField}` +
-        (membership.roles !== undefined && membership.roles.length > 0
-          ? ` ROLES ${membership.roles.join(" ")}`
-          : ""),
-    );
+    line += ` MEMBERSHIP ${membership.object} USER ${membership.userField} CONTEXT_FIELD ${membership.contextField} ROLE_FIELD ${membership.roleField}`;
+    if (membership.roles !== undefined && membership.roles.length > 0) {
+      line += ` ROLES ${membership.roles.join(" ")}`;
+    }
   }
-  lines.push("END.CONTEXT");
-  return lines.join("\n");
+  return line;
 }
 
 function printContextGrants(contexts: PartialBusinessContextModel[]): string[] {
@@ -275,6 +315,130 @@ function printContextGrant(contextName: string, grant: PartialContextGrantModel)
   let line = `CONTEXT_GRANT ${grant.name} ON ${contextName} OBJECT ${grant.object} USER ${grant.userField} CONTEXT_FIELD ${grant.contextField}`;
   if (grant.condition !== undefined) {
     line += ` WHEN ${printCondition(grant.condition, true)}`;
+  }
+  return line;
+}
+
+// --- SHELL -------------------------------------------------------------------
+
+function printShell(shell: PartialShellModel): string {
+  const lines = ["SHELL"];
+  for (const item of shell.nav?.items ?? []) {
+    lines.push(`  ${printShellNavItem(item)}`);
+  }
+  for (const control of shell.controls ?? []) {
+    lines.push(`  ${printShellControl(control)}`);
+  }
+  if (shell.topBar !== undefined) {
+    lines.push(`  ${printShellTopBar(shell.topBar)}`);
+  }
+  if (shell.navDrawer !== undefined) {
+    lines.push(`  ${printShellNavDrawer(shell.navDrawer)}`);
+  }
+  lines.push("END.SHELL");
+  return lines.join("\n");
+}
+
+function printShellNavItem(item: PartialShellNavItemModel): string {
+  let line = `NAV ${item.view}`;
+  if (item.name !== undefined) {
+    line += ` AS ${item.name}`;
+  }
+  if (item.label !== undefined) {
+    line += ` LABEL ${printStringLiteral(item.label)}`;
+  }
+  if (item.icon !== undefined) {
+    line += ` ICON ${item.icon}`;
+  }
+  if (item.group !== undefined) {
+    line += ` GROUP ${item.group}`;
+  }
+  if (item.order !== undefined) {
+    line += ` ORDER ${item.order}`;
+  }
+  if (item.visibility !== undefined) {
+    line += ` VISIBLE ${printShellVisibility(item.visibility)}`;
+  }
+  // `ACTIVE_WHEN` must be the last directive on the line: the parser's
+  // SHELL NAV loop breaks out of directive parsing as soon as it reads the
+  // name list that follows this keyword.
+  if (item.activeWhen !== undefined && item.activeWhen.length > 0) {
+    line += ` ACTIVE_WHEN ${item.activeWhen.join(" ")}`;
+  }
+  return line;
+}
+
+function printShellVisibility(visibility: PartialShellVisibilityModel): string {
+  const kind = visibility.kind ?? "always";
+  switch (kind) {
+    case "always":
+      return "ALWAYS";
+    case "online":
+      return "ONLINE";
+    case "offline":
+      return "OFFLINE";
+    case "contextAvailable":
+      if (visibility.context === undefined) {
+        throw new Error(
+          "printPartialApplicationModelAsAdl: a 'contextAvailable' shell visibility must declare context.",
+        );
+      }
+      return `WHEN CONTEXT ${visibility.context} AVAILABLE`;
+    case "contextSelected":
+      if (visibility.context === undefined) {
+        throw new Error(
+          "printPartialApplicationModelAsAdl: a 'contextSelected' shell visibility must declare context.",
+        );
+      }
+      return `WHEN CONTEXT ${visibility.context} SELECTED`;
+    default:
+      throw new Error(`printPartialApplicationModelAsAdl: unsupported shell visibility '${kind}'.`);
+  }
+}
+
+function printShellControl(control: PartialShellControlModel): string {
+  let line = `CONTROL ${control.name} KIND ${camelToUpperSnake(control.kind)}`;
+  if (control.label !== undefined) {
+    line += ` LABEL ${printStringLiteral(control.label)}`;
+  }
+  if (control.icon !== undefined) {
+    line += ` ICON ${control.icon}`;
+  }
+  if (control.placement !== undefined) {
+    line += ` PLACEMENT ${camelToUpperSnake(control.placement)}`;
+  }
+  if (control.visibility !== undefined) {
+    line += ` VISIBLE ${printShellVisibility(control.visibility)}`;
+  }
+  if (control.context !== undefined) {
+    line += ` CONTEXT ${control.context}`;
+  }
+  return line;
+}
+
+function printShellTopBar(topBar: PartialShellTopBarModel): string {
+  let line = "TOP_BAR";
+  if (topBar.contextSelector !== undefined) {
+    line += ` CONTEXT_SELECTOR ${camelToUpperSnake(topBar.contextSelector)}`;
+  }
+  if (topBar.mobileContextSelector !== undefined) {
+    line += ` MOBILE_CONTEXT_SELECTOR ${camelToUpperSnake(topBar.mobileContextSelector)}`;
+  }
+  // `CONTROLS` must be last: the parser's SHELL TOP_BAR loop breaks after it.
+  if (topBar.controls !== undefined && topBar.controls.length > 0) {
+    line += ` CONTROLS ${topBar.controls.join(" ")}`;
+  }
+  return line;
+}
+
+function printShellNavDrawer(navDrawer: PartialShellNavDrawerModel): string {
+  let line = "NAV_DRAWER";
+  if (navDrawer.title !== undefined) {
+    line += ` TITLE ${printStringLiteral(navDrawer.title)}`;
+  }
+  // `CONTROLS` must be last: the parser's SHELL NAV_DRAWER loop breaks after it.
+  if (navDrawer.controls !== undefined && navDrawer.controls.length > 0) {
+    line += ` CONTROLS ${navDrawer.controls.join(" ")}`;
   }
   return line;
 }
@@ -490,23 +654,9 @@ function printLifecycleAction(action: PartialLifecycleActionModel): string {
   return lines.join("\n");
 }
 
-/**
- * A view with composed presentation or an edit surface has no printer yet
- * (see the module doc comment). Every other view shape — plain field
- * lists, search fields, sort, actions, context, and a `READ_MODEL`
- * binding — prints normally.
- */
-function printView(view: PartialViewModel): string {
-  if (
-    view.presentation !== undefined ||
-    view.editSections !== undefined ||
-    view.editContainer !== undefined
-  ) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: view '${view.name}' declares composed presentation or an edit surface, which this printer does not yet support.`,
-    );
-  }
+// --- VIEW: fields, composed presentation, edit surfaces ----------------------
 
+function printView(view: PartialViewModel): string {
   const lines = [`VIEW ${view.name} ${camelToUpperSnake(view.kind)}`];
   if (view.context !== undefined) {
     lines.push(
@@ -515,6 +665,9 @@ function printView(view: PartialViewModel): string {
   }
   if (view.readModel !== undefined) {
     lines.push(`  READ_MODEL ${view.readModel}`);
+  }
+  if (view.editContainer !== undefined) {
+    lines.push(`  EDIT_CONTAINER ${camelToUpperSnake(view.editContainer)}`);
   }
   if (view.fields !== undefined && view.fields.length > 0) {
     lines.push(`  FIELDS ${view.fields.join(" ")}`);
@@ -528,7 +681,549 @@ function printView(view: PartialViewModel): string {
   if (view.actions !== undefined && view.actions.length > 0) {
     lines.push(`  ACTIONS ${view.actions.join(" ")}`);
   }
+
+  const presentation = view.presentation;
+  if (presentation !== undefined) {
+    lines.push(...printViewPresentationDirectives(view.name, presentation));
+  }
+
+  for (const section of view.editSections ?? []) {
+    lines.push(indentBlock(printEditSection(section), "  "));
+  }
+
   lines.push("END.VIEW");
+  return lines.join("\n");
+}
+
+function printViewPresentationDirectives(
+  viewName: string,
+  presentation: PartialViewPresentationModel,
+): string[] {
+  const lines: string[] = [];
+  if (presentation.layout !== undefined) {
+    lines.push(`  LAYOUT ${camelToUpperSnake(presentation.layout)}`);
+  }
+  if (presentation.density !== undefined) {
+    lines.push(`  DENSITY ${camelToUpperSnake(presentation.density)}`);
+  }
+  for (const state of presentation.state ?? []) {
+    lines.push(`  ${printPresentationState(state)}`);
+  }
+  for (const iconMap of presentation.iconMaps ?? []) {
+    lines.push(indentBlock(printPresentationIconMap(iconMap), "  "));
+  }
+  for (const status of presentation.statuses ?? []) {
+    lines.push(`  ${printPresentationStatus(status)}`);
+  }
+  for (const statusMap of presentation.statusMaps ?? []) {
+    lines.push(indentBlock(printPresentationStatusMap(statusMap), "  "));
+  }
+  for (const legend of presentation.legends ?? []) {
+    lines.push(`  ${printPresentationLegend(legend)}`);
+  }
+  // NO TEXT SYNTAX: per-view shell regions (`presentation.shell.regions`) are
+  // a JSON/TypeScript-only construct — `docs/spec/ui-language-addendum.md`
+  // ("Per-view `presentation.shell.regions` remains available in
+  // JSON/TypeScript partial models... but source syntax for view-declared
+  // shell regions is not implemented") — and the parser has no ADL directive
+  // that ever populates it. Global `SHELL ... END.SHELL` (printed above, at
+  // the top level) is the only shell surface ADL text can author.
+  if (presentation.shell !== undefined && (presentation.shell.regions?.length ?? 0) > 0) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: view '${viewName}' declares per-view presentation.shell.regions, which has no ADL text syntax (only the global SHELL block can be authored). See docs/spec/adlj.md.`,
+    );
+  }
+  for (const section of presentation.sections ?? []) {
+    lines.push(indentBlock(printPresentationSection(section), "  "));
+  }
+  return lines;
+}
+
+function printPresentationState(state: PartialPresentationStateModel): string {
+  let line = `STATE ${state.name}`;
+  if (state.type !== undefined) {
+    line += ` ${camelToUpperSnake(state.type)}`;
+  }
+  if (state.defaultValue !== undefined) {
+    line += ` DEFAULT(${printLiteralValue(state.defaultValue)})`;
+  }
+  if (state.persistence !== undefined) {
+    line += ` PERSISTENCE ${camelToUpperSnake(state.persistence)}`;
+  }
+  return line;
+}
+
+function printPresentationIconMap(iconMap: PartialPresentationIconMapModel): string {
+  let header = `ICON_MAP ${iconMap.name} FOR ${iconMap.field}`;
+  if (iconMap.defaultIcon !== undefined) {
+    header += ` DEFAULT ${iconMap.defaultIcon}`;
+  }
+  const lines = [header];
+  for (const value of iconMap.values ?? []) {
+    lines.push(`  ${printLiteralValue(value.value)} -> ${value.icon}`);
+  }
+  lines.push("END.ICON_MAP");
+  return lines.join("\n");
+}
+
+function printPresentationStatus(status: PartialPresentationStatusModel): string {
+  let line = `STATUS ${status.name}`;
+  if (status.label !== undefined) {
+    line += ` LABEL ${printStringLiteral(status.label)}`;
+  }
+  if (status.accessibleLabel !== undefined) {
+    line += ` ARIA_LABEL ${printStringLiteral(status.accessibleLabel)}`;
+  }
+  if (status.icon !== undefined) {
+    line += ` ICON ${printPresentationIconRef(status.icon)}`;
+  }
+  if (status.themeToken !== undefined) {
+    line += ` THEME ${camelToUpperSnake(status.themeToken)}`;
+  }
+  if (status.precedence !== undefined) {
+    line += ` PRECEDENCE ${status.precedence}`;
+  }
+  return line;
+}
+
+function printPresentationStatusMap(statusMap: PartialPresentationStatusMapModel): string {
+  let header = `STATUS_MAP ${statusMap.name} FOR ${statusMap.field}`;
+  if (statusMap.defaultStatus !== undefined) {
+    header += ` DEFAULT ${statusMap.defaultStatus}`;
+  }
+  const lines = [header];
+  for (const value of statusMap.values ?? []) {
+    lines.push(`  ${printLiteralValue(value.value)} -> ${value.status}`);
+  }
+  lines.push("END.STATUS_MAP");
+  return lines.join("\n");
+}
+
+function printPresentationLegend(legend: PartialPresentationLegendModel): string {
+  let line = `LEGEND ${legend.name}`;
+  if (legend.title !== undefined) {
+    line += ` TITLE ${printStringLiteral(legend.title)}`;
+  }
+  if (legend.include !== undefined) {
+    line += ` INCLUDE ${camelToUpperSnake(legend.include)}`;
+  }
+  // `STATUSES` must be last: the parser's LEGEND loop breaks after it.
+  if (legend.statuses !== undefined && legend.statuses.length > 0) {
+    line += ` STATUSES ${legend.statuses.join(" ")}`;
+  }
+  return line;
+}
+
+/**
+ * Prints an icon reference with an explicit `FIELD`/`VALUE` keyword rather
+ * than relying on the bare-identifier-vs-literal inference the parser also
+ * accepts. The parser's inference depends on which call site is parsing
+ * (`ROW ICON` reads a bare identifier as a field; `STATUS`/`TOGGLE ICON`
+ * read it as a literal value instead) — printing the explicit keyword always
+ * reparses correctly regardless of which context embeds it.
+ */
+function printPresentationIconRef(icon: PartialPresentationIconRefModel): string {
+  if (icon.kind === "named") {
+    return icon.name;
+  }
+  if (icon.field !== undefined) {
+    return `${icon.map}(FIELD ${icon.field})`;
+  }
+  if (icon.value !== undefined) {
+    return `${icon.map}(VALUE ${printLiteralValue(icon.value)})`;
+  }
+  throw new Error(
+    `printPartialApplicationModelAsAdl: icon map reference '${icon.map}' must declare field or value.`,
+  );
+}
+
+function printPresentationSection(section: PartialPresentationSectionModel): string {
+  const lines = [`SECTION ${section.name}`];
+  if (section.heading !== undefined) {
+    lines.push(`  HEADING ${printStringLiteral(section.heading)}`);
+  }
+  if (section.layout !== undefined) {
+    lines.push(`  LAYOUT ${camelToUpperSnake(section.layout)}`);
+  }
+  if (section.density !== undefined) {
+    lines.push(`  DENSITY ${camelToUpperSnake(section.density)}`);
+  }
+  for (const control of section.controls ?? []) {
+    lines.push(indentBlock(printPresentationControl(section.name, control), "  "));
+  }
+  for (const list of section.lists ?? []) {
+    lines.push(indentBlock(printPresentationList(list), "  "));
+  }
+  // NO TEXT SYNTAX: MATRIX has a full resolved-model/JSON shape
+  // (`PartialPresentationMatrixModel`) but the parser has no `MATRIX`
+  // construct at all — `docs/spec/ui-language-addendum.md` documents it as
+  // "intended language direction" only ("parser support remains future
+  // work"). Author it as a PartialApplicationModel/.adlj document instead.
+  if (section.matrices !== undefined && section.matrices.length > 0) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: section '${section.name}' declares a MATRIX, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
+    );
+  }
+  for (const calendar of section.calendars ?? []) {
+    lines.push(indentBlock(printPresentationCalendar(calendar), "  "));
+  }
+  lines.push("END.SECTION");
+  return lines.join("\n");
+}
+
+function printPresentationControl(
+  sectionName: string,
+  control: PartialPresentationControlModel,
+): string {
+  if (control.kind === "toggle") {
+    return printPresentationToggle(control);
+  }
+  if (control.kind === "action") {
+    return printPresentationAction(control);
+  }
+  // NO TEXT SYNTAX: `select` and `contextSelector` controls have a resolved
+  // model shape but no ADL directive produces them —
+  // `docs/spec/ui-language-addendum.md` ("The resolved model also has
+  // generic `select` and `contextSelector` control shapes for
+  // JSON/TypeScript partial models, but ADL source syntax for those
+  // controls is not implemented yet").
+  throw new Error(
+    `printPartialApplicationModelAsAdl: section '${sectionName}' declares a '${control.kind}' control, which has no ADL text syntax yet (only 'toggle' and 'action' controls can be authored). See docs/spec/adlj.md.`,
+  );
+}
+
+function printPresentationToggle(toggle: PartialPresentationToggleControlModel): string {
+  const lines = [`TOGGLE ${toggle.name}`];
+  if (toggle.state !== toggle.name) {
+    lines.push(`  STATE ${toggle.state}`);
+  }
+  if (toggle.label !== undefined) {
+    lines.push(`  LABEL ${printStringLiteral(toggle.label)}`);
+  }
+  if (toggle.icon !== undefined) {
+    lines.push(`  ICON ${printPresentationIconRef(toggle.icon)}`);
+  }
+  lines.push("END.TOGGLE");
+  return lines.join("\n");
+}
+
+function printPresentationAction(action: PartialPresentationActionControlModel): string {
+  const lines = [`ACTION ${action.name}`];
+  if (action.command !== undefined) {
+    lines.push(`  COMMAND ${action.command}`);
+  }
+  if (action.view !== undefined) {
+    lines.push(`  VIEW ${action.view}`);
+  }
+  if (action.create?.object !== undefined) {
+    lines.push(`  CREATE ${action.create.object}`);
+  }
+  if (action.create?.view !== undefined) {
+    lines.push(`  FORM ${action.create.view}`);
+  }
+  if (action.label !== undefined) {
+    lines.push(`  LABEL ${printStringLiteral(action.label)}`);
+  }
+  if (action.icon !== undefined) {
+    lines.push(`  ICON ${printPresentationIconRef(action.icon)}`);
+  }
+  if (action.placement !== undefined) {
+    lines.push(`  PLACEMENT ${camelToUpperSnake(action.placement)}`);
+  }
+  if (action.visibleWhen !== undefined) {
+    lines.push(`  WHEN ${printCondition(action.visibleWhen, true)}`);
+  }
+  for (const [name, expression] of Object.entries(action.input ?? {})) {
+    lines.push(`  INPUT ${name} FROM ${printExpression(expression, true)}`);
+  }
+  lines.push("END.ACTION");
+  return lines.join("\n");
+}
+
+function printPresentationSourceRef(
+  sourceKind: "readModel" | "object" | undefined,
+  source: string,
+): string {
+  const prefix = sourceKind === undefined ? "" : `${camelToUpperSnake(sourceKind)} `;
+  return `${prefix}${source}`;
+}
+
+function printPresentationList(list: PartialPresentationListModel): string {
+  // NO TEXT SYNTAX: the parser's `LIST ... END.LIST` body has no `FIELDS`
+  // directive (only `ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`,
+  // `EMPTY_TEXT`, `STATUS`, `ACTION`, `ROW`).
+  if (list.fields !== undefined && list.fields.length > 0) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: list '${list.name}' declares 'fields', which has no ADL LIST directive. See docs/spec/adlj.md.`,
+    );
+  }
+  const lines = [
+    `LIST ${list.name} FROM ${printPresentationSourceRef(list.sourceKind, list.source)}`,
+  ];
+  if (list.sort !== undefined && list.sort.length > 0) {
+    lines.push(`  ORDER BY ${printSortList(list.sort)}`);
+  }
+  if (list.filter !== undefined) {
+    lines.push(`  WHERE ${printCondition(list.filter, true)}`);
+  }
+  if (list.renderAs !== undefined) {
+    lines.push(`  RENDER_AS ${camelToUpperSnake(list.renderAs)}`);
+  }
+  if (list.density !== undefined) {
+    lines.push(`  DENSITY ${camelToUpperSnake(list.density)}`);
+  }
+  if (list.emptyState?.text !== undefined) {
+    lines.push(`  EMPTY_TEXT ${printStringLiteral(list.emptyState.text)}`);
+  }
+  // NO TEXT SYNTAX: `EMPTY_TEXT` only ever takes a literal string; there is
+  // no directive for an empty-state icon.
+  if (list.emptyState?.icon !== undefined) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: list '${list.name}' declares an empty-state icon, which has no ADL EMPTY_TEXT directive. See docs/spec/adlj.md.`,
+    );
+  }
+  for (const candidate of list.status?.candidates ?? []) {
+    lines.push(`  ${printPresentationStatusCandidate(candidate)}`);
+  }
+  for (const action of list.actions ?? []) {
+    lines.push(indentBlock(printPresentationAction(action), "  "));
+  }
+  if (list.row !== undefined) {
+    lines.push(indentBlock(printPresentationRowTemplate(list.row), "  "));
+  }
+  lines.push("END.LIST");
+  return lines.join("\n");
+}
+
+function printPresentationCalendar(calendar: PartialPresentationCalendarModel): string {
+  // NO TEXT SYNTAX: `calendar.month.labelFormat` has no `CALENDAR` directive
+  // (the parser's `MONTH`/`MONTH_STATE`/`WEEK_START`/`RANGE` directives never
+  // set it; `compile-adl.ts`'s calendar-to-partial mapping never populates it
+  // either).
+  if (calendar.month?.labelFormat !== undefined) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares month.labelFormat, which has no ADL CALENDAR directive. See docs/spec/adlj.md.`,
+    );
+  }
+  const lines = [
+    `CALENDAR ${calendar.name} FROM ${printPresentationSourceRef(calendar.sourceKind, calendar.source)}`,
+  ];
+  lines.push(`  DATE_FIELD ${calendar.dateField}`);
+  if (calendar.titleField !== undefined) {
+    lines.push(`  TITLE_FIELD ${calendar.titleField}`);
+  }
+  if (calendar.summaryFields !== undefined && calendar.summaryFields.length > 0) {
+    lines.push(`  SUMMARY_FIELDS ${calendar.summaryFields.join(" ")}`);
+  }
+  if (calendar.fields !== undefined && calendar.fields.length > 0) {
+    lines.push(`  FIELDS ${calendar.fields.join(" ")}`);
+  }
+  if (calendar.sort !== undefined && calendar.sort.length > 0) {
+    lines.push(`  ORDER BY ${printSortList(calendar.sort)}`);
+  }
+  if (calendar.density !== undefined) {
+    lines.push(`  DENSITY ${camelToUpperSnake(calendar.density)}`);
+  }
+  if (calendar.month?.value !== undefined) {
+    lines.push(`  MONTH ${printStringLiteral(calendar.month.value)}`);
+  }
+  if (calendar.month?.state !== undefined) {
+    lines.push(`  MONTH_STATE ${calendar.month.state}`);
+  }
+  if (calendar.month?.weekStart !== undefined) {
+    lines.push(`  WEEK_START ${camelToUpperSnake(calendar.month.weekStart)}`);
+  }
+  if (calendar.month?.minDate !== undefined || calendar.month?.maxDate !== undefined) {
+    if (calendar.month?.minDate === undefined || calendar.month?.maxDate === undefined) {
+      throw new Error(
+        `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares only one end of month.minDate/maxDate; ADL RANGE requires both.`,
+      );
+    }
+    lines.push(
+      `  RANGE ${printStringLiteral(calendar.month.minDate)} TO ${printStringLiteral(calendar.month.maxDate)}`,
+    );
+  }
+  if (calendar.emptyState?.text !== undefined) {
+    lines.push(`  EMPTY_TEXT ${printStringLiteral(calendar.emptyState.text)}`);
+  }
+  if (calendar.emptyState?.icon !== undefined) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares an empty-state icon, which has no ADL EMPTY_TEXT directive. See docs/spec/adlj.md.`,
+    );
+  }
+  for (const candidate of calendar.status?.candidates ?? []) {
+    lines.push(`  ${printPresentationStatusCandidate(candidate)}`);
+  }
+  for (const action of calendar.actions ?? []) {
+    lines.push(indentBlock(printPresentationAction(action), "  "));
+  }
+  lines.push("END.CALENDAR");
+  return lines.join("\n");
+}
+
+function printPresentationStatusCandidate(
+  candidate: PartialPresentationStatusCandidateModel,
+): string {
+  if (candidate.kind === "status") {
+    return `STATUS ${candidate.status}`;
+  }
+  if (candidate.field !== undefined) {
+    return `STATUS ${candidate.map}(FIELD ${candidate.field})`;
+  }
+  if (candidate.value !== undefined) {
+    return `STATUS ${candidate.map}(VALUE ${printLiteralValue(candidate.value)})`;
+  }
+  throw new Error(
+    `printPartialApplicationModelAsAdl: STATUS map reference '${candidate.map}' must declare field or value.`,
+  );
+}
+
+function printPresentationRowTemplate(row: PartialPresentationRowTemplateModel): string {
+  let header = "ROW";
+  if (row.layout !== undefined) {
+    header += ` LAYOUT ${camelToUpperSnake(row.layout)}`;
+  }
+  if (row.density !== undefined) {
+    header += ` DENSITY ${camelToUpperSnake(row.density)}`;
+  }
+  const lines = [header];
+  for (const fragment of row.fragments ?? []) {
+    lines.push(`  ${printPresentationRowFragment(fragment)}`);
+  }
+  lines.push("END.ROW");
+  return lines.join("\n");
+}
+
+function printPresentationRowFragment(fragment: PartialPresentationRowFragmentModel): string {
+  if (fragment.kind === "text") {
+    let text = `TEXT ${printStringLiteral(fragment.text)}`;
+    if (fragment.style !== undefined) {
+      text += ` STYLE ${camelToUpperSnake(fragment.style)}`;
+    }
+    return text;
+  }
+  if (fragment.kind === "field") {
+    // NO TEXT SYNTAX: `fallback` has no `TEXT` directive (only `FORMAT` and
+    // `STYLE` are parsed for a field text fragment).
+    if (fragment.fallback !== undefined) {
+      throw new Error(
+        `printPartialApplicationModelAsAdl: field text fragment '${fragment.field}' declares 'fallback', which has no ADL TEXT directive. See docs/spec/adlj.md.`,
+      );
+    }
+    let text = `TEXT ${fragment.field}`;
+    if (fragment.format !== undefined) {
+      text += ` FORMAT ${camelToUpperSnake(fragment.format.kind)}`;
+      if (fragment.format.pattern !== undefined) {
+        text += ` ${printStringLiteral(fragment.format.pattern)}`;
+      }
+    }
+    if (fragment.style !== undefined) {
+      text += ` STYLE ${camelToUpperSnake(fragment.style)}`;
+    }
+    return text;
+  }
+  if (fragment.kind === "icon") {
+    let text = `ICON ${printPresentationIconRef(fragment.icon)}`;
+    if (fragment.label !== undefined) {
+      text += ` LABEL ${printStringLiteral(fragment.label)}`;
+    }
+    return text;
+  }
+  // NO TEXT SYNTAX: conditional row fragments (`kind: "conditional"`) have a
+  // resolved-model shape but the parser's `ROW` body only ever produces
+  // `TEXT`/`ICON` fragments — there is no ADL construct that yields a
+  // `PartialPresentationConditionalFragmentModel`.
+  throw new Error(
+    "printPartialApplicationModelAsAdl: a conditional row fragment has no ADL text syntax. See docs/spec/adlj.md.",
+  );
+}
+
+// --- Edit surfaces -------------------------------------------------------
+
+function printEditSection(section: PartialEditSectionModel): string {
+  if (section.kind === "fields") {
+    return printEditFieldsSection(section);
+  }
+  return printEditChildCollection(section);
+}
+
+function printEditFieldsSection(section: PartialEditFieldsSectionModel): string {
+  let header = `EDIT_SECTION ${section.name}`;
+  if (section.heading !== undefined) {
+    header += ` HEADING ${printStringLiteral(section.heading)}`;
+  }
+  const lines = [header];
+  if (section.fields !== undefined && section.fields.length > 0) {
+    lines.push(`  FIELDS ${section.fields.join(" ")}`);
+  }
+  lines.push("END.EDIT_SECTION");
+  return lines.join("\n");
+}
+
+function printEditChildCollection(section: PartialEditChildCollectionSectionModel): string {
+  let header = `CHILD_COLLECTION ${section.name}`;
+  if (section.heading !== undefined) {
+    header += ` HEADING ${printStringLiteral(section.heading)}`;
+  }
+  const lines = [header];
+  lines.push(`  CHILD ${section.childObject} PARENT_FIELD ${section.parentField}`);
+  if (section.childView !== undefined) {
+    lines.push(`  CHILD_VIEW ${section.childView}`);
+  }
+  if (section.operations !== undefined && section.operations.length > 0) {
+    lines.push(`  OPERATIONS ${section.operations.map(camelToUpperSnake).join(" ")}`);
+  }
+  if (section.staged !== undefined) {
+    lines.push(section.staged ? "  STAGED" : `  STAGED ${printLiteralValue(false)}`);
+  }
+  if (section.orderField !== undefined) {
+    lines.push(`  ORDER_FIELD ${section.orderField}`);
+  }
+  if (section.emptyState?.text !== undefined) {
+    lines.push(`  EMPTY_TEXT ${printStringLiteral(section.emptyState.text)}`);
+  }
+  if (section.picker !== undefined) {
+    lines.push(indentBlock(printRelationshipPicker(section.picker), "  "));
+  }
+  lines.push("END.CHILD_COLLECTION");
+  return lines.join("\n");
+}
+
+function printRelationshipPicker(picker: PartialRelationshipPickerModel): string {
+  if (picker.name === undefined) {
+    throw new Error("printPartialApplicationModelAsAdl: a PICKER must declare a name.");
+  }
+  const lines = [`PICKER ${picker.name}`];
+  if (picker.source !== undefined) {
+    const kind = picker.sourceKind === "readModel" ? "READ_MODEL" : "OBJECT";
+    lines.push(`  SOURCE ${kind} ${picker.source}`);
+  }
+  if (picker.candidateField !== undefined) {
+    lines.push(`  CANDIDATE_FIELD ${picker.candidateField}`);
+  }
+  if (picker.selection !== undefined) {
+    lines.push(`  SELECTION ${camelToUpperSnake(picker.selection)}`);
+  }
+  if (picker.displayFields !== undefined && picker.displayFields.length > 0) {
+    lines.push(`  DISPLAY ${picker.displayFields.join(" ")}`);
+  }
+  if (picker.searchFields !== undefined && picker.searchFields.length > 0) {
+    lines.push(`  SEARCH ${picker.searchFields.join(" ")}`);
+  }
+  if (picker.sort !== undefined && picker.sort.length > 0) {
+    lines.push(`  SORT ${printSortList(picker.sort)}`);
+  }
+  if (picker.excludeAlreadyLinked !== undefined) {
+    lines.push(
+      picker.excludeAlreadyLinked
+        ? "  EXCLUDE_LINKED"
+        : `  EXCLUDE_LINKED ${printLiteralValue(false)}`,
+    );
+  }
+  if (picker.emptyState?.text !== undefined) {
+    lines.push(`  EMPTY_TEXT ${printStringLiteral(picker.emptyState.text)}`);
+  }
+  lines.push("END.PICKER");
   return lines.join("\n");
 }
 
@@ -586,8 +1281,11 @@ function printReadModel(readModel: PartialReadModelModel): string {
       `  CONTEXT ${readModel.context.mode.toUpperCase()}${readModel.context.context === undefined ? "" : ` ${readModel.context.context}`}`,
     );
   }
-  if (readModel.strategy !== undefined) {
-    lines.push(`  STRATEGY ${readModel.strategy.toUpperCase()}`);
+  // The parser has no `STRATEGY` keyword at all: `union` is authored as a
+  // bare `UNION` directive, and `join` (the default) has no keyword of its
+  // own — it is simply the absence of `UNION`.
+  if (readModel.strategy === "union") {
+    lines.push("  UNION");
   }
   for (const source of readModel.sources) {
     let line = `  SOURCE ${source.name ?? source.object} OBJECT ${source.object}`;
@@ -595,7 +1293,11 @@ function printReadModel(readModel: PartialReadModelModel): string {
       line += ` SCOPE ${source.scope}`;
     }
     if (source.join !== undefined) {
-      line += ` JOIN ${source.join.source} ON ${source.join.localField} == ${source.join.sourceField}`;
+      // `sourceField` is stored unqualified (the parser strips the
+      // `<joinSource>.` prefix it requires on the way in); it must be
+      // re-qualified here or the printed `ON` clause reparses as a bare
+      // field name, which `READ_MODEL SOURCE JOIN` always rejects.
+      line += ` JOIN ${source.join.source} ON ${source.join.localField} == ${source.join.source}.${source.join.sourceField}`;
       if (source.join.cardinality !== undefined) {
         line += ` CARDINALITY ${source.join.cardinality}`;
       }
@@ -603,10 +1305,11 @@ function printReadModel(readModel: PartialReadModelModel): string {
     lines.push(line);
   }
   for (const field of readModel.fields) {
+    const typeSuffix = field.type === undefined ? "" : ` ${field.type.toUpperCase()}`;
     if (field.expression !== undefined) {
-      lines.push(`  FIELD ${field.name} = ${printCondition(field.expression, true)}`);
+      lines.push(`  FIELD ${field.name}${typeSuffix} = ${printCondition(field.expression, true)}`);
     } else if (field.source !== undefined && field.field !== undefined) {
-      lines.push(`  FIELD ${field.name} FROM ${field.source}.${field.field}`);
+      lines.push(`  FIELD ${field.name}${typeSuffix} FROM ${field.source}.${field.field}`);
     } else {
       throw new Error(
         `printPartialApplicationModelAsAdl: read model '${readModel.name}' field '${field.name}' has neither a source.field reference nor an expression.`,
@@ -654,18 +1357,7 @@ function printCommand(command: PartialCommandModel): string {
     `COMMAND ${command.name}${command.label === undefined ? "" : ` LABEL ${printStringLiteral(command.label)}`}`,
   ];
   for (const input of command.inputs ?? []) {
-    let line = `  INPUT ${input.name}`;
-    if (input.repeated === true) {
-      line += " LIST";
-    }
-    if (input.type !== undefined) {
-      line += ` ${input.type.toUpperCase()}`;
-    }
-    line += input.required === false ? " OPTIONAL" : " REQUIRED";
-    if (input.defaultValue !== undefined) {
-      line += ` DEFAULT(${printLiteralValue(input.defaultValue)})`;
-    }
-    lines.push(line);
+    lines.push(indentBlock(printCommandInput(input), "  "));
   }
   for (const precondition of command.preconditions ?? []) {
     let line = `  REQUIRE ${printCondition(precondition.expression, true)}`;
@@ -678,6 +1370,41 @@ function printCommand(command: PartialCommandModel): string {
     lines.push(indentBlock(printCommandStep(step), "  "));
   }
   lines.push("END.COMMAND");
+  return lines.join("\n");
+}
+
+/**
+ * `INPUT ... LIST` may declare each list item as a record rather than a
+ * scalar of the header's own `type` (which the parser defaults to `text`
+ * and effectively ignores whenever item fields are declared) via a nested
+ * `FIELD` block terminated by `END.INPUT`. The block only exists in the
+ * parsed AST when at least one item field is present — a scalar input has
+ * no `END.INPUT` at all.
+ */
+function printCommandInput(input: PartialCommandInputModel): string {
+  let header = `INPUT ${input.name}`;
+  if (input.repeated === true) {
+    header += " LIST";
+  }
+  if (input.type !== undefined) {
+    header += ` ${input.type.toUpperCase()}`;
+  }
+  header += input.required === false ? " OPTIONAL" : " REQUIRED";
+  if (input.defaultValue !== undefined) {
+    header += ` DEFAULT(${printLiteralValue(input.defaultValue)})`;
+  }
+  if (input.itemFields === undefined || input.itemFields.length === 0) {
+    return header;
+  }
+  const lines = [header];
+  for (const field of input.itemFields) {
+    let fieldLine = `  FIELD ${field.name} ${(field.type ?? "text").toUpperCase()}`;
+    if (field.required === true) {
+      fieldLine += " REQUIRED";
+    }
+    lines.push(fieldLine);
+  }
+  lines.push("END.INPUT");
   return lines.join("\n");
 }
 
@@ -747,17 +1474,58 @@ function printPolicy(policy: PartialPolicyModel): string {
   return lines.join("\n");
 }
 
+/**
+ * `POLICY RULE` packs `FIELDS`/`STATE`/the principal selector/`ACTION`/
+ * `WHEN`/`CHANNELS` onto one line with no separating scope, so the parser
+ * recognises a fixed set of reserved words (`FIELD_LIST_STOP_WORDS` in
+ * parser.ts) to know where one name list ends and the next directive
+ * begins. A field or state literally named one of those words (Giggle
+ * Band's `BandInvitation` has a field called `Role`) is genuinely ambiguous
+ * as a bare identifier there — `consumeNameListUntilWords` stops the list
+ * the moment it sees a token matching one of these words. The original
+ * `.adl` source works around this by quoting (`'Role'`), which `consumeName`
+ * accepts identically to a bare identifier; the printer must do the same.
+ */
+const POLICY_RULE_LIST_STOP_WORDS = new Set([
+  "ROLE",
+  "ROLES",
+  "GROUP_ROLE",
+  "GROUP_ROLES",
+  "USER",
+  "USERS",
+  "OWNER",
+  "EVERYONE",
+  "AUTHENTICATED",
+  "ANONYMOUS",
+  "CONTEXT_MEMBER",
+  "STATE",
+  "ACTION",
+  "CHANNEL",
+  "CHANNELS",
+  "WHEN",
+]);
+
+function printPolicyRuleListName(name: string): string {
+  return POLICY_RULE_LIST_STOP_WORDS.has(name.toUpperCase()) ? printStringLiteral(name) : name;
+}
+
+function printPolicyRuleListNames(names: string[]): string {
+  return names.map(printPolicyRuleListName).join(" ");
+}
+
 function printPolicyRule(rule: PartialPolicyRuleModel): string {
   const parts = [
     `RULE ${rule.name} ${rule.effect.toUpperCase()} ${rule.action === "*" ? "ALL" : rule.action.toUpperCase()}`,
   ];
   parts.push(printPrincipal(rule.principal));
   if (rule.state !== undefined && (Array.isArray(rule.state) ? rule.state.length > 0 : true)) {
-    const states = Array.isArray(rule.state) ? rule.state.join(" ") : rule.state;
+    const states = Array.isArray(rule.state)
+      ? printPolicyRuleListNames(rule.state)
+      : printPolicyRuleListName(rule.state);
     parts.push(`STATE ${states}`);
   }
   if (rule.fields !== undefined && rule.fields.length > 0) {
-    parts.push(`FIELDS ${rule.fields.join(" ")}`);
+    parts.push(`FIELDS ${printPolicyRuleListNames(rule.fields)}`);
   }
   if (rule.lifecycleAction !== undefined) {
     parts.push(`ACTION ${rule.lifecycleAction}`);
@@ -793,13 +1561,13 @@ function printPrincipal(principal: PartialPolicyRuleModel["principal"]): string 
     case "specific": {
       const parts: string[] = [];
       if (principal.roles !== undefined && principal.roles.length > 0) {
-        parts.push(`ROLE ${principal.roles.join(" ")}`);
+        parts.push(`ROLE ${printPolicyRuleListNames(principal.roles)}`);
       }
       if (principal.groupRoles !== undefined && principal.groupRoles.length > 0) {
-        parts.push(`GROUP_ROLE ${principal.groupRoles.join(" ")}`);
+        parts.push(`GROUP_ROLE ${printPolicyRuleListNames(principal.groupRoles)}`);
       }
       if (principal.users !== undefined && principal.users.length > 0) {
-        parts.push(`USER ${principal.users.join(" ")}`);
+        parts.push(`USER ${printPolicyRuleListNames(principal.users)}`);
       }
       if (principal.owner === true) {
         parts.push("OWNER");

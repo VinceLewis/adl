@@ -1,4 +1,4 @@
-# `.adlj` JSON Authoring Surface (Phase 73, Phase 77)
+# `.adlj` JSON Authoring Surface (Phase 73; extended in Phases 76, 77, 78)
 
 Read this before changing `.adlj` (`src/model/adlj-source.ts`,
 `src/compiler/compile-adlj.ts`, `src/compiler/print-adl.ts`,
@@ -263,6 +263,99 @@ checks that `compileAdlj` on the *imported* document resolves to a
 `ResolvedApplicationModel` that `toEqual`s `compileAdl(task-tracker.adl).model`.
 This is the same "reparses to the identical tree" standard the printer's own
 round-trip test already uses, applied one stage further down the pipeline.
+
+## Phase 78: the printer now covers composed presentation and edit surfaces
+
+`printPartialApplicationModelAsAdl` used to throw for any view declaring
+`presentation` or an edit surface (`editContainer`/`editSections`). Phase 78
+closed that gap for every construct that has ADL text syntax at all, proven
+against Giggle Band's actual compiled `partialModel` — not a hand-built
+fixture — via `printPartialApplicationModelAsAdl` → `compileAdl` →
+`toEqual(original.model)` (`tests/compile-adlj.test.ts`).
+
+**A small, named set of constructs has no ADL text syntax at all** and the
+printer throws a clear, named error for each rather than guessing at
+invented syntax: `MATRIX`, `select`/`contextSelector` presentation controls,
+conditional row fragments, a field text fragment's `fallback`, a `LIST`'s
+`fields`, an empty state's `icon`, a calendar's `month.labelFormat`, and
+per-view `presentation.shell.regions` (only the global `SHELL` block has
+source syntax). See `docs/spec/adlj.md`'s printer section for the full list
+and the reasoning for each — every one was confirmed against the parser
+grammar (`src/parser/parser.ts`), not the spec prose, per this repository's
+standing rule that a diagnostic (or, here, an absent grammar branch) is
+ground truth over any assumption about what should parse.
+
+**Getting a real reference app to round-trip finds real printer defects a
+narrow fixture never would — this is the actual value of the Giggle Band
+proof, not a formality.** Every one of these was a pre-existing bug in
+`print-adl.ts` *outside* composed presentation/edit surfaces, invisible only
+because `examples/task-tracker.adl` never exercised the construct:
+
+- **`APP`'s name was never quoted.** `APP Giggle Band ADL Example` is not
+  parseable — the app's display name is the one declared name in the whole
+  language allowed to contain spaces, and `consumeName` accepts a quoted
+  string identically to a bare identifier. Fixed by quoting unconditionally
+  (harmless for a single-word name too, since both forms reparse to the same
+  string).
+- **`CONTEXT` was printed as a multi-line `... END.CONTEXT` block, but the
+  grammar has no `END.CONTEXT` at all** — `parseBusinessContext` reads every
+  directive (`OBJECT`, `SELECTION`, `AUTO_SELECT`, `PERSISTENCE`, `SOURCE`,
+  `ROUTE_PARAM`, `MEMBERSHIP` and its own sub-options) in one
+  `while (!isLineEnd())` loop and calls `consumeLineEnd` once, never
+  `parseEnd`. `SELECTION`/`AUTO_SELECT`/`PERSISTENCE` are also independent
+  directives, not one directive grouped under `SELECTION` the way the old
+  code assumed. Confirmed live in Giggle Band's own source:
+  `CONTEXT Band OBJECT Band SELECTION OPTIONAL AUTO_SELECT false PERSISTENCE local MEMBERSHIP ...`
+  — one physical line, no trailing `END`.
+- **`READ_MODEL`'s `union` strategy was printed as `STRATEGY UNION`, a
+  keyword the grammar does not have.** The parser only recognises a bare
+  `UNION` directive; `join` (the default) has no keyword of its own at all —
+  it is simply the absence of `UNION`.
+- **A `READ_MODEL SOURCE ... JOIN ... ON` clause printed an unqualified
+  right-hand field** (`ON User == User` instead of `ON User == member.User`).
+  `sourceField` is stored *unqualified* in the resolved/partial model — the
+  parser strips the `<joinSource>.` prefix `consumeQualifiedName` requires on
+  the way in — so the printer has to re-add it, or the printed clause
+  reparses as a bare field name and `READ_MODEL SOURCE JOIN` always rejects
+  that.
+- **A policy rule's `FIELDS`/`STATE`/`ROLE`/`GROUP_ROLE`/`USER` name lists
+  can collide with `POLICY RULE`'s own stop words.** `RULE ... FIELDS ...
+  WHEN ...` is one physical line with no separating scope, so the parser
+  recognises a fixed reserved-word set (`FIELD_LIST_STOP_WORDS` in
+  parser.ts: `ROLE`, `ROLES`, `GROUP_ROLE`, `GROUP_ROLES`, `USER`, `USERS`,
+  `OWNER`, `EVERYONE`, `AUTHENTICATED`, `ANONYMOUS`, `CONTEXT_MEMBER`,
+  `STATE`, `ACTION`, `CHANNEL`, `CHANNELS`, `WHEN`) to know where one name
+  list ends and the next directive begins. Giggle Band's `BandInvitation` has
+  a field literally named `Role`, and its own `.adl` source works around the
+  ambiguity by quoting it (`FIELDS ... 'Role' ...`) — `consumeName` accepts a
+  quoted string identically to a bare identifier, but a *bare* `Role` there
+  gets read as the `ROLE` principal-selector keyword instead, consuming
+  whatever follows as a (possibly empty, hence a parse error) role list. The
+  printer now quotes any list entry whose uppercased form is in that same
+  stop-word set, for every name list that shares this ambiguity: rule
+  `fields`, `state`, and principal `roles`/`groupRoles`/`users`.
+- **A list-typed `COMMAND INPUT` with structured item fields silently
+  dropped every item field's shape.** `INPUT Songs LIST ... \n FIELD Title
+  TEXT REQUIRED \n ... \n END.INPUT` is a real nested block the parser
+  supports (`ResolvedCommandInput.itemFields`/
+  `PartialCommandInputModel.itemFields`) for a list input whose items are
+  records rather than scalars — the printer never looked at `itemFields` at
+  all, so `ImportSongs`' `Songs` input (each item carrying `Title`/
+  `Composer`/`DurationSeconds`) reparsed as items with no fields, which
+  broke every command step reading `ITEM Title` etc.
+  (`ADL_COMMAND_STEP_ITEM_FIELD_UNKNOWN`).
+
+**The general lesson, restated for future phases that touch this printer:**
+a construct's printer code is only proven by an input that actually contains
+it. `examples/task-tracker.adl` is deliberately small and does not declare a
+`CONTEXT`, a `UNION`/`JOIN` read model, a policy field colliding with a
+principal keyword, or a structured list command input — so six real defects
+sat undetected in already-"finished" printer code until a phase that needed
+a richer fixture (Giggle Band) actually ran it end-to-end. Treat "the
+existing tests still pass" as necessary, never sufficient, evidence that a
+printer change (or any change to code whose only proof is round-tripping
+through a fixture) is correct — run it against the richest real content
+available before considering it done.
 
 ## Practical guidance
 

@@ -217,25 +217,69 @@ bidirectional sync tool for a generated `.adl` file edited afterward — a
 from `.adl` text to `.adlj` JSON, but it does not go through the printer at
 all — it converts the shared `PartialApplicationModel` stage directly.
 
-**Coverage**: the full declarative skeleton — `APP`, `ROLE`, `CONTEXT`,
-`CONTEXT_GRANT`, `OBJECT` (fields, computed fields, validations, lifecycle,
-constraints, scope, sync), `READ_MODEL`, `DECISION_TABLE`, `COMMAND`,
-`POLICY`, `THEME`, top-level `SYNC` — and every expression-bearing field,
-printed back to infix syntax with every compound sub-expression
+**Coverage**: the full declarative skeleton — `APP`, `SHELL`, `ROLE`,
+`CONTEXT`, `CONTEXT_GRANT`, `OBJECT` (fields, computed fields, validations,
+lifecycle, constraints, scope, sync), `READ_MODEL`, `DECISION_TABLE`,
+`COMMAND`, `POLICY`, `THEME`, top-level `SYNC` — and every expression-bearing
+field, printed back to infix syntax with every compound sub-expression
 unconditionally parenthesized (correctness over prettiness: the contract is
 "reparses to the identical tree," not "matches what a human would have
-written"). **Composed view presentation (`PartialViewModel.presentation`)
-and edit surfaces (`editContainer`/`editSections`) are not printed** —
-`printView` throws a clear error naming the view rather than silently
-dropping that content. Real, separable work; named as a candidate for a
-future phase, not attempted here.
+written"). **Composed view presentation (`PartialViewModel.presentation`) and
+edit surfaces (`editContainer`/`editSections`) are printed too (Phase 78)** —
+`LAYOUT`, `DENSITY`, local `STATE`, `ICON_MAP`, `STATUS`/`STATUS_MAP`,
+`LEGEND`, `SECTION` (toggles, actions, `LIST`, `CALENDAR`, `ROW` templates,
+status candidates), `EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION`, and
+`PICKER` all round-trip, proven against the Giggle Band reference app's
+actual compiled `partialModel` (`tests/compile-adlj.test.ts`), not just a
+hand-built fixture.
+
+A small, named set of constructs has a resolved-model/JSON shape but **no
+ADL text syntax at all** — the parser has no grammar that ever produces
+them, so the printer throws a clear, named error naming the construct rather
+than guessing at invented syntax or silently dropping content:
+
+- `MATRIX` (`PartialPresentationSectionModel.matrices`) — the parser has no
+  `MATRIX` construct; `docs/spec/ui-language-addendum.md` documents it as
+  "intended language direction... parser support remains future work."
+- `select` and `contextSelector` presentation controls — only `toggle` and
+  `action` controls have ADL source syntax.
+- Conditional row fragments (`PartialPresentationRowFragmentModel` of kind
+  `"conditional"`) — `ROW` only ever produces `TEXT`/`ICON` fragments.
+- A field text fragment's `fallback`.
+- A list's `fields` (`PartialPresentationListModel.fields`) — `LIST` has no
+  `FIELDS` directive.
+- An empty state's `icon` (list or calendar) — `EMPTY_TEXT` only ever takes a
+  literal string.
+- A calendar's `month.labelFormat`.
+- Per-view `presentation.shell.regions` — only the global `SHELL` block (now
+  printed too) has ADL source syntax; per-view shell regions are
+  JSON/TypeScript-only per `docs/spec/ui-language-addendum.md`.
+
+Getting the Giggle Band round-trip to actually pass also surfaced and fixed
+several **pre-existing** printer defects outside composed presentation/edit
+surfaces — real gaps the task-tracker fixture's narrower construct coverage
+had never exercised: `APP`'s display name is now quoted (it may contain
+spaces, unlike every other declared name); `CONTEXT` now prints as the
+single physical line the parser actually requires (no `END.CONTEXT`, and
+`SELECTION`/`AUTO_SELECT`/`PERSISTENCE` are independent directives, not one
+grouped under `SELECTION`); a `READ_MODEL`'s `union` strategy now prints the
+bare `UNION` directive the parser actually has (there is no `STRATEGY`
+keyword at all); a `READ_MODEL SOURCE ... JOIN ... ON` clause now
+re-qualifies the joined field (`member.User`, not a bare `User`) the way
+`consumeQualifiedName` requires it on the way back in; a policy rule's
+`FIELDS`/`STATE`/`ROLE`/`GROUP_ROLE`/`USER` name lists now quote any entry
+that collides with a `POLICY RULE` stop word (Giggle Band has a field
+literally named `Role`, ambiguous with the `ROLE` principal selector on the
+same physical line); and a list-typed `COMMAND INPUT` with structured item
+fields now prints its nested `FIELD ... END.INPUT` block instead of silently
+dropping every item field's shape.
 
 A useful side effect of sharing `PartialApplicationModel` with the text
 parser: `.adl` text → `parseAdl` → `PartialApplicationModel` → print →
 `parseAdl` again is a round-trip check available for free, proven for the
-fixture app (`tests/compile-adlj.test.ts`). It is not required to preserve
-whitespace or comments — only to resolve to an identical
-`ResolvedApplicationModel` after reparsing.
+fixture app and for Giggle Band (`tests/compile-adlj.test.ts`). It is not
+required to preserve whitespace or comments — only to resolve to an
+identical `ResolvedApplicationModel` after reparsing.
 
 ## The importer: `.adl` text into `.adlj` JSON
 
@@ -354,12 +398,16 @@ Neither `adlfmt` nor a formal grammar file appears in the Non-goals list
 below as a deferred candidate: they are not future work, they are ideas this
 direction makes unnecessary.
 
-## Non-goals (see Planning Handoff in `docs/phases/phase-73-*.md` and `phase-76-*.md`)
+## Non-goals (see Planning Handoff in `docs/phases/phase-73-*.md`, `phase-76-*.md`, and `phase-78-*.md`)
 
 - A bidirectional sync/merge tool between a generated `.adl` file and a
   hand-edit made to it afterward.
-- Composed view presentation / edit-surface printing.
-- Automated CI drift-checking that a checked-in generated `.adl` file still
-  matches a fresh run of the printer.
+- Printing the small, named set of presentation/edit-surface constructs that
+  have no ADL text syntax at all (see above) — they would need new parser
+  grammar first, not a printer change.
 - Editor/LSP tooling for `.adlj` (the generated JSON Schema is a
   prerequisite for that, not the tooling itself).
+
+Composed view presentation and edit-surface printing (Phase 73's gap) and a
+permanent CI drift check against a real reference app (Phase 73's other
+listed gap) are both now done — see "The printer" above.

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileAdl } from "../src/compiler/compile-adl.js";
+import { compileAdlProject } from "../src/compiler/compile-adl-project.js";
 import {
   AdljParseError,
   compileAdlj,
@@ -13,6 +14,10 @@ import type { AdljSourceDocument } from "../src/model/adlj-source.js";
 
 function readExample(name: string): string {
   return readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
+}
+
+function readReference(name: string): string {
+  return readFileSync(new URL(`../src/reference/${name}`, import.meta.url), "utf8");
 }
 
 describe("parseExpressionSource", () => {
@@ -124,8 +129,42 @@ END.OBJECT
 });
 
 describe("printPartialApplicationModelAsAdl", () => {
+  // A permanent CI drift check (Phase 78): for both fixtures below, printing
+  // the compiled `partialModel` back to `.adl` text and reparsing it must
+  // resolve to a model deep-equal to the original. If a future change to
+  // either fixture's source, the printer, or the resolver introduces a
+  // divergence the printer cannot round-trip, one of these two tests catches
+  // it — task-tracker for the plain declarative skeleton, Giggle Band for
+  // composed presentation and edit surfaces, the richest real content in
+  // this repository for both.
   it("round-trips the task-tracker fixture: print, reparse, resolve to the identical model", () => {
     const original = compileAdl(readExample("task-tracker.adl"));
+    expect(original.diagnostics).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
+    const reparsed = compileAdl(printed);
+
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.model).toEqual(original.model);
+  });
+
+  it("round-trips the Giggle Band reference app: print, reparse, resolve to the identical model", () => {
+    // Giggle Band is the richest real presentation/edit-surface content in
+    // this repository — composed dashboards, icon/status maps, legends,
+    // toggles, row-scoped actions, calendars, CRUD edit sections, child
+    // collections, both relationship-picker modes, a global SHELL, `UNION`
+    // read models, a qualified `READ_MODEL SOURCE JOIN`, a policy `FIELDS`
+    // clause naming a field that collides with a principal-selector keyword
+    // (`Role`), and list-typed command inputs with structured item fields.
+    // This is the actual proof the printer's construct coverage is real,
+    // not just what a hand-built small fixture happens to exercise.
+    const original = compileAdlProject({
+      manifestSource: readReference("giggle-band/app.yaml"),
+      sources: {
+        "domain.adl": readReference("giggle-band/domain.adl"),
+        "ui.adl": readReference("giggle-band/ui.adl"),
+      },
+    });
     expect(original.diagnostics).toEqual([]);
 
     const printed = printPartialApplicationModelAsAdl(original.partialModel);

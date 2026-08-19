@@ -238,3 +238,19 @@ that record's storage id (`meta.guid`) into the expression scope the action's
   `INPUT` to some other unique-looking business field (an email, a natural
   key): it will send the wrong value to the command's `ID INPUT` and fail on
   every click.
+
+## The `.adlj` printer now round-trips composed presentation and edit surfaces (Phase 78)
+
+`printPartialApplicationModelAsAdl` (`src/compiler/print-adl.ts`) can now
+print every composed-presentation and edit-surface construct that has ADL
+text syntax, proven against Giggle Band's own compiled `partialModel`
+reparsing to a `toEqual`-identical resolved model
+(`tests/compile-adlj.test.ts`). See
+[[adlj-json-authoring-surface]]'s "Phase 78" section for the full account,
+including the small named set of constructs (`MATRIX`, `select`/
+`contextSelector` controls, conditional row fragments, a few other JSON-only
+fields) that have no ADL text syntax at all and so cannot be printed — and
+the six unrelated pre-existing printer defects the Giggle Band round-trip
+proof surfaced along the way (a policy field named `Role` colliding with the
+`ROLE` principal keyword being the one most likely to recur if this app
+grows more policy rules on fields with common English names).
