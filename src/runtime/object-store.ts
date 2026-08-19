@@ -6,6 +6,7 @@ import type {
   LocalOperationKind,
   PlatformRecordMetadata,
   ResolvedApplicationModel,
+  ResolvedField,
   ResolvedObject,
   ResolvedOrderedObjectConstraint,
   ResolvedProtectedRoleObjectConstraint,
@@ -217,6 +218,7 @@ export class ObjectStore {
       );
     }
     const preparedValues = this.validationEngine.prepareCreateValues(objectName, values, context);
+    await this.mintAutoIdFields(object, preparedValues, values);
     const currentState = getInitialLifecycleState(object);
 
     requireObjectScopeForValues(this.index, objectName, preparedValues, context, "create");
@@ -1079,6 +1081,79 @@ export class ObjectStore {
       applyComputedFieldsToRecord(object, record, context),
       context,
     );
+  }
+
+  /**
+   * Mints a value for every `AUTO_ID` field on `object` that the caller did not
+   * supply explicitly, mutating `values` (the prepared/defaulted create values)
+   * in place. `originalValues` is the caller's own argument to `create`/
+   * `planCreateForTransaction`, checked instead of `values` so a plain `DEFAULT`
+   * applied by `prepareCreateValues` is never mistaken for an explicit caller
+   * value and left in place — minting is meant to win over a placeholder
+   * `DEFAULT` the same way it wins over "no value at all".
+   *
+   * This is local best-effort, not a coordination protocol: two offline devices
+   * can independently mint the same value before either syncs, exactly as two
+   * offline creates can independently pick colliding business-key values today.
+   * The existing authority-side conflict/rejection machinery is the backstop —
+   * see docs/spec/language.md's `AUTO_ID` section and
+   * learnings/implementation/auto-id-minting.md for why no new cross-device
+   * coordination mechanism is built here.
+   */
+  private async mintAutoIdFields(
+    object: ResolvedObject,
+    values: Record<string, JsonValue>,
+    originalValues: Record<string, JsonValue>,
+  ): Promise<void> {
+    for (const field of object.fields) {
+      if (field.autoId === undefined) {
+        continue;
+      }
+      if (originalValues[field.name] !== undefined) {
+        // The caller named this record's identity itself — an import or a
+        // migration, most likely. Respect it, the same way a supplied
+        // `options.recordId` overrides a minted `_guid`.
+        continue;
+      }
+      values[field.name] = await this.mintAutoIdValue(object, field, values);
+    }
+  }
+
+  private async mintAutoIdValue(
+    object: ResolvedObject,
+    field: ResolvedField,
+    values: Record<string, JsonValue>,
+  ): Promise<string> {
+    const autoId = field.autoId;
+    // Callers only reach this method when `field.autoId` is already set
+    // (`mintAutoIdFields` filters on it); this is unreachable defensive code.
+    if (autoId === undefined) {
+      throw new StorageError(
+        `mintAutoIdValue called for field '${field.name}' on object '${object.name}' with no AUTO_ID declaration.`,
+        { objectName: object.name, field: field.name },
+      );
+    }
+
+    const prefix = autoId.prefix ?? "";
+    const scopeField = autoId.scopeField;
+    const scopeValue = scopeField === undefined ? undefined : values[scopeField];
+
+    const candidates = await this.storage.search({ object, fields: [], includeDeleted: true });
+    let maxSequence = 0;
+    for (const candidate of candidates) {
+      if (scopeField !== undefined && candidate.values[scopeField] !== scopeValue) {
+        continue;
+      }
+
+      const sequence = parseAutoIdSequence(candidate.values[field.name], prefix);
+      if (sequence !== undefined && sequence > maxSequence) {
+        maxSequence = sequence;
+      }
+    }
+
+    const nextSequence = maxSequence + 1;
+    const pad = autoId.pad ?? 0;
+    return `${prefix}${String(nextSequence).padStart(pad, "0")}`;
   }
 
   private buildNewRecord(
@@ -1973,6 +2048,27 @@ function stateProperty(currentState: string | undefined): { currentState: string
 
 function hasComputedField(object: ResolvedObject, fieldName: string): boolean {
   return object.computedFields.some((field) => field.name === fieldName);
+}
+
+/**
+ * Reads the numeric sequence out of an existing record's own `AUTO_ID` field
+ * value, for `mintAutoIdValue` to find the next one. A value that is not a
+ * string, does not start with `prefix`, or whose remainder is not entirely
+ * digits is a foreign or hand-entered value, not part of this field's minted
+ * sequence — it is ignored rather than let it corrupt the count.
+ */
+function parseAutoIdSequence(value: JsonValue | undefined, prefix: string): number | undefined {
+  if (typeof value !== "string" || !value.startsWith(prefix)) {
+    return undefined;
+  }
+
+  const suffix = value.slice(prefix.length);
+  if (!/^[0-9]+$/.test(suffix)) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(suffix, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function sortRecords(

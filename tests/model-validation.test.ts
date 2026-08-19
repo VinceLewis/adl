@@ -610,7 +610,12 @@ END.OBJECT
     );
   });
 
-  it("refuses an AUTO_ID field declared with no DEFAULT", () => {
+  it("accepts an AUTO_ID field declared with no DEFAULT", () => {
+    // Phase 74: AUTO_ID mints a runtime value on create when the caller
+    // supplies none, so a REQUIRED AUTO_ID field with no DEFAULT is a normal,
+    // fully-supported declaration rather than a refused one. See
+    // ObjectStore.planCreateForTransaction and
+    // learnings/implementation/auto-id-minting.md.
     const resolved = resolveApplicationModel({
       ...validPartialModel,
       objects: validPartialModel.objects.map((object) =>
@@ -629,25 +634,13 @@ END.OBJECT
       ),
     });
 
-    expect(
-      validateApplicationModel(resolved).map((diagnostic) => [
-        diagnostic.code,
-        diagnostic.severity,
-        diagnostic.path,
-      ]),
-    ).toEqual([
-      [MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT, "error", "objects[0].fields[0].autoId"],
-    ]);
+    expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
   it("accepts an AUTO_ID field declared with a DEFAULT", () => {
     const resolved = resolveApplicationModel(validPartialModel);
 
-    expect(
-      validateApplicationModel(resolved).filter(
-        (diagnostic) => diagnostic.code === MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT,
-      ),
-    ).toEqual([]);
+    expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
   it("refuses a CONTEXT_MEMBER principal granted the object-level SEARCH action", () => {

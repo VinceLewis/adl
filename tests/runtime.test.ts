@@ -13,6 +13,8 @@ import {
   RuntimeContextError,
   StorageError,
   SyncPolicyError,
+  compileAdl,
+  compileAdlj,
   resolveApplicationModel,
 } from "../src/index.js";
 import type {
@@ -1862,6 +1864,202 @@ describe("ApplicationRuntime", () => {
     await expect(runtime.search("Event", {}, adminContext)).resolves.toHaveLength(1);
   });
 });
+
+describe("AUTO_ID minting (Phase 74)", () => {
+  it("mints PREFIX/PAD values in order when no explicit value is supplied", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createAutoIdModel()));
+
+    const first = await runtime.create("Invoice", { Branch: "Denver", Amount: 10 }, adminContext);
+    const second = await runtime.create("Invoice", { Branch: "Denver", Amount: 20 }, adminContext);
+    const third = await runtime.create("Invoice", { Branch: "Denver", Amount: 30 }, adminContext);
+
+    expect(first.values.InvoiceNumber).toBe("INV-0001");
+    expect(second.values.InvoiceNumber).toBe("INV-0002");
+    expect(third.values.InvoiceNumber).toBe("INV-0003");
+  });
+
+  it("respects an explicit caller-supplied value instead of minting one", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createAutoIdModel()));
+
+    const supplied = await runtime.create(
+      "Invoice",
+      { Branch: "Denver", Amount: 10, InvoiceNumber: "LEGACY-42" },
+      adminContext,
+    );
+    expect(supplied.values.InvoiceNumber).toBe("LEGACY-42");
+
+    // Minting still resumes from the highest number it can find, ignoring the
+    // foreign, non-prefixed value rather than letting it corrupt the sequence.
+    const minted = await runtime.create("Invoice", { Branch: "Denver", Amount: 20 }, adminContext);
+    expect(minted.values.InvoiceNumber).toBe("INV-0001");
+  });
+
+  it("gives each SCOPE value its own independent sequence", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createAutoIdModel()));
+
+    const denver1 = await runtime.create("Invoice", { Branch: "Denver", Amount: 10 }, adminContext);
+    const austin1 = await runtime.create("Invoice", { Branch: "Austin", Amount: 10 }, adminContext);
+    const denver2 = await runtime.create("Invoice", { Branch: "Denver", Amount: 20 }, adminContext);
+    const austin2 = await runtime.create("Invoice", { Branch: "Austin", Amount: 20 }, adminContext);
+
+    expect(denver1.values.InvoiceNumber).toBe("INV-0001");
+    expect(austin1.values.InvoiceNumber).toBe("INV-0001");
+    expect(denver2.values.InvoiceNumber).toBe("INV-0002");
+    expect(austin2.values.InvoiceNumber).toBe("INV-0002");
+  });
+
+  it("does not reuse a deleted record's minted number", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createAutoIdModel()));
+
+    const first = await runtime.create("Invoice", { Branch: "Denver", Amount: 10 }, adminContext);
+    expect(first.values.InvoiceNumber).toBe("INV-0001");
+
+    await runtime.delete("Invoice", first.meta.guid, adminContext);
+
+    const second = await runtime.create("Invoice", { Branch: "Denver", Amount: 20 }, adminContext);
+    expect(second.values.InvoiceNumber).toBe("INV-0002");
+  });
+
+  it("mints for a command CREATE step exactly as it does for a direct create", async () => {
+    const runtime = new ApplicationRuntime(resolveApplicationModel(createAutoIdModel()));
+
+    await runtime.create("Invoice", { Branch: "Denver", Amount: 10 }, adminContext);
+
+    const result = await runtime.executeCommand(
+      "CreateInvoiceViaCommand",
+      { Branch: "Denver" },
+      adminContext,
+    );
+
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0]?.record.values.InvoiceNumber).toBe("INV-0002");
+  });
+
+  it("compiles a REQUIRED AUTO_ID field with no DEFAULT cleanly and mints it at runtime", async () => {
+    // Proves the Phase 72 refusal (ADL_AUTO_ID_NO_DEFAULT) is gone and the
+    // construct it used to refuse is now fully functional, through both the
+    // .adl and .adlj front ends.
+    const adlResult = compileAdl(`APP AutoIdNoDefaultRuntime
+END.APP
+
+ROLE Admin
+
+OBJECT Item
+  FIELD Code TEXT REQUIRED AUTO_ID
+  FIELD Label TEXT
+END.OBJECT
+
+POLICY ItemPolicy ON Item
+  RULE allowAdminAllItemOps ALLOW * ROLE Admin
+END.POLICY
+`);
+    expect(adlResult.diagnostics).toEqual([]);
+
+    const adljResult = compileAdlj(
+      JSON.stringify({
+        app: { name: "AutoIdNoDefaultRuntime" },
+        // Declared explicitly (both empty) to match what .adl always resolves
+        // for undeclared contexts/readModels — see
+        // learnings/implementation/adlj-json-authoring-surface.md.
+        contexts: [],
+        readModels: [],
+        roles: [{ name: "Admin" }],
+        objects: [
+          {
+            name: "Item",
+            fields: [
+              { name: "Code", type: "text", required: true, autoId: {} },
+              { name: "Label", type: "text" },
+            ],
+          },
+        ],
+        policies: [
+          {
+            name: "ItemPolicy",
+            object: "Item",
+            rules: [
+              {
+                name: "allowAdminAllItemOps",
+                effect: "allow",
+                principal: { match: "specific", roles: ["Admin"] },
+                action: "*",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(adljResult.diagnostics).toEqual([]);
+    expect(adljResult.model).toEqual(adlResult.model);
+
+    // Both front ends resolve to the same model, but exercise each compiled
+    // result directly through its own runtime rather than assuming one
+    // stands in for the other.
+    const adlRuntime = new ApplicationRuntime(adlResult.model);
+    const createdViaAdl = await adlRuntime.create("Item", { Label: "First" }, adminContext);
+    expect(createdViaAdl.values.Code).toBe("1");
+
+    const adljRuntime = new ApplicationRuntime(adljResult.model);
+    const createdViaAdlj = await adljRuntime.create("Item", { Label: "First" }, adminContext);
+    expect(createdViaAdlj.values.Code).toBe("1");
+  });
+});
+
+function createAutoIdModel(): PartialApplicationModel {
+  return {
+    app: { name: "AutoIdDemo" },
+    roles: [{ name: "Admin" }],
+    objects: [
+      {
+        name: "Invoice",
+        businessKey: "InvoiceNumber",
+        displayField: "InvoiceNumber",
+        fields: [
+          {
+            name: "InvoiceNumber",
+            type: "text",
+            required: true,
+            autoId: { prefix: "INV-", pad: 4, scopeField: "Branch" },
+          },
+          { name: "Branch", type: "text", required: true },
+          { name: "Amount", type: "number" },
+        ],
+      },
+    ],
+    commands: [
+      {
+        name: "CreateInvoiceViaCommand",
+        label: "Create invoice via command",
+        inputs: [{ name: "Branch", type: "text", required: true }],
+        steps: [
+          {
+            name: "invoice",
+            action: "create",
+            object: "Invoice",
+            authority: "command",
+            values: {
+              Branch: { kind: "input", name: "Branch" },
+            },
+          },
+        ],
+      },
+    ],
+    policies: [
+      {
+        name: "InvoicePolicy",
+        object: "Invoice",
+        rules: [
+          {
+            name: "allowAdminInvoiceOps",
+            effect: "allow",
+            principal: { match: "specific", roles: ["Admin"] },
+            action: "*",
+          },
+        ],
+      },
+    ],
+  } satisfies PartialApplicationModel;
+}
 
 function createRuntime(): ApplicationRuntime {
   return new ApplicationRuntime(resolveApplicationModel(runtimePartialModel));

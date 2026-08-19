@@ -80,10 +80,13 @@ assertion pattern).
 None of the four got the same fix shape — read `docs/phases/phase-72-*.md`'s
 "The Decision" section for the reasoning behind each, not just the outcome:
 
-1. **`AUTO_ID` with no `DEFAULT`** — refused (`ADL_AUTO_ID_NO_DEFAULT`).
-   `AUTO_ID` mints nothing at runtime yet (unchanged — see below), so a field
-   declaring it with no fallback value has no reading that produces correct
-   behaviour.
+1. **`AUTO_ID` with no `DEFAULT`** — refused at the time (`ADL_AUTO_ID_NO_DEFAULT`),
+   because `AUTO_ID` minted nothing at runtime yet, so a field declaring it
+   with no fallback value had no reading that produced correct behaviour.
+   **Superseded by Phase 74**: `ObjectStore.planCreateForTransaction` now
+   mints a value on create, so the refusal was removed — see
+   [[auto-id-minting]]. This entry is kept as the historical record of why the
+   refusal existed, not as current behaviour.
 2. **`CONTEXT_MEMBER` granted `SEARCH`** — refused
    (`ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE`). Confirmed genuinely
    unchecked before this phase (not already refused, as the plan flagged as a
@@ -106,12 +109,15 @@ None of the four got the same fix shape — read `docs/phases/phase-72-*.md`'s
 
 ## Two real capability gaps this phase makes visible but does not close
 
-Both remain exactly as true after this phase as before it — the guardrails
-name them, they do not fix them:
+At the time this phase shipped, both remained exactly as true after it as
+before it — the guardrails named them, they did not fix them. `AUTO_ID`
+runtime minting no longer belongs on this list; see the update below.
 
-- **`AUTO_ID` runtime minting.** `ADL_AUTO_ID_NO_DEFAULT` refuses the
-  currently-broken declaration shape; it does not build the mechanism that
-  would make `AUTO_ID` alone (no `DEFAULT`) a legal, meaningful declaration.
+- ~~**`AUTO_ID` runtime minting.**~~ Closed by Phase 74 — see
+  [[auto-id-minting]]. `ObjectStore.planCreateForTransaction` now mints a
+  value for every `AUTO_ID` field with no caller-supplied value, and
+  `ADL_AUTO_ID_NO_DEFAULT` was removed because it would now refuse a
+  perfectly legal, functional declaration.
 - **The two `LOOKUP TARGET_FIELD`-unhonoured paths.** The `currentUser`
   read-model source match now warns. The browser UI's lookup-label display
   still silently falls back to the raw stored value, with no diagnostic at

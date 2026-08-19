@@ -167,7 +167,6 @@ export const MODEL_VALIDATION_CODES = {
   APP_START_VIEW_UNKNOWN: "ADL_APP_START_VIEW_UNKNOWN",
   APP_THEME_UNKNOWN: "ADL_APP_THEME_UNKNOWN",
   AUTO_ID_NON_TEXT: "ADL_AUTO_ID_NON_TEXT",
-  AUTO_ID_NO_DEFAULT: "ADL_AUTO_ID_NO_DEFAULT",
   AUTO_ID_SCOPE_FIELD_UNKNOWN: "ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN",
   CONTEXT_DUPLICATE: "ADL_CONTEXT_DUPLICATE",
   CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN: "ADL_CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN",
@@ -2309,21 +2308,9 @@ function validateField(
       );
     }
 
-    // AUTO_ID is declarative only today: nothing mints a value from it at
-    // runtime, so a field declared AUTO_ID with no DEFAULT parses and
-    // resolves cleanly and then never receives a value from the mechanism
-    // its own declaration names. Refusing it costs an author nothing, since
-    // no reading of "AUTO_ID with no DEFAULT" produces correct behaviour
-    // today. See learnings/implementation/model-validator.md.
-    if (field.defaultValue === undefined) {
-      diagnostics.push(
-        diagnostic(
-          MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT,
-          `Auto ID field '${field.name}' on object '${object.name}' has no DEFAULT. AUTO_ID does not yet mint a runtime value, so the field needs an authored or DEFAULT value like any other field.`,
-          `${fieldPath}.autoId`,
-        ),
-      );
-    }
+    // AUTO_ID no longer requires a DEFAULT: ObjectStore.planCreateForTransaction
+    // mints a value for it on create when the caller supplies none (Phase 74).
+    // See learnings/implementation/auto-id-minting.md.
 
     if (field.autoId.scopeField !== undefined && !fieldNames.has(field.autoId.scopeField)) {
       diagnostics.push(

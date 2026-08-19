@@ -37,7 +37,7 @@ export class ValidationEngine {
     this.copyProvidedValues(object, values, output, issues, "values", true);
     this.applyFieldDefaults(object, output);
     this.applyInitialLifecycleState(object, output, values, issues);
-    this.validateRecordValues(object, output, issues, "values", context);
+    this.validateRecordValues(object, output, issues, "values", context, true);
     this.throwIfInvalid(issues, `Record for object '${objectName}' is invalid.`);
     this.logger.debug("EXIT ValidationEngine.prepareCreateValues", { objectName });
 
@@ -59,7 +59,7 @@ export class ValidationEngine {
     const output = cloneJson(record.values);
 
     this.copyProvidedValues(object, patch, output, issues, "patch", false);
-    this.validateRecordValues(object, output, issues, "values", context);
+    this.validateRecordValues(object, output, issues, "values", context, false);
     this.throwIfInvalid(issues, `Patch for object '${objectName}' is invalid.`);
     this.logger.debug("EXIT ValidationEngine.prepareUpdateValues", {
       objectName,
@@ -85,7 +85,7 @@ export class ValidationEngine {
     const output = setValuesState(object, record.values, targetState);
 
     this.validateLifecycleStateValue(object, targetState, issues, "lifecycle.to");
-    this.validateRecordValues(object, output, issues, "values", context);
+    this.validateRecordValues(object, output, issues, "values", context, false);
     this.throwIfInvalid(issues, `Lifecycle transition for object '${objectName}' is invalid.`);
     this.logger.debug("EXIT ValidationEngine.prepareTransitionValues", {
       objectName,
@@ -198,11 +198,23 @@ export class ValidationEngine {
     issues: RuntimeValidationIssue[],
     path: string,
     context: RuntimeContext,
+    isCreate: boolean,
   ): void {
     for (const field of object.fields) {
       const value = values[field.name];
 
-      if (field.required && isMissingRequiredValue(value)) {
+      // A REQUIRED `AUTO_ID` field with no supplied value is not "missing" on
+      // create: `ObjectStore.planCreateForTransaction` mints one immediately
+      // after this validation succeeds, before the record is built (Phase 74).
+      // Without this exemption a REQUIRED `AUTO_ID` field with no `DEFAULT` —
+      // a normal shape now that model validation accepts it — could never
+      // actually create a record, since this check runs before minting ever
+      // gets a chance to run. Update/transition are not exempted: by then the
+      // field was already minted or supplied on create, so a value genuinely
+      // missing there is a real defect, not a pending mint.
+      const pendingMint = isCreate && field.autoId !== undefined;
+
+      if (field.required && !pendingMint && isMissingRequiredValue(value)) {
         issues.push({
           code: "ADL_RUNTIME_FIELD_REQUIRED",
           message: `Field '${field.name}' is required on object '${object.name}'.`,

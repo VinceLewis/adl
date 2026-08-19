@@ -38,8 +38,21 @@ any future source that embeds a NUL as a key separator, which is a reasonable
 thing to do — an unambiguous separator is worth more than greppability — so the
 fix is the habit, not the byte.
 
+## Key decisions from Phase 74
+
+- `ADL_AUTO_ID_NO_DEFAULT` (added Phase 72 as a stopgap because `AUTO_ID`
+  minted nothing at runtime) was removed once `ObjectStore` actually mints a
+  value. Its own refusal became actively wrong once minting existed, since it
+  would have refused a legal, functional field declaration. A diagnostic
+  added to cover a missing capability must be revisited — not just left in
+  place — once that capability is built. See [[auto-id-minting]] for the full
+  design, including why `ValidationEngine`'s required-field check also needed
+  a small change so a `REQUIRED AUTO_ID` field with no `DEFAULT` can actually
+  create a record rather than fail before minting gets a chance to run.
+
 ## Practical guidance
 
 - Add new validator rules with stable diagnostic codes and focused tests. Avoid changing existing code strings unless downstream tooling has a migration path.
 - Keep model validation separate from runtime enforcement. Phase 3 should call validation before runtime use, then enforce policy, lifecycle, and field constraints in runtime services.
 - When adding new metadata-backed runtime fields, decide explicitly whether they are allowed in author-facing references, runtime-only references, or both.
+- A refusal added because a capability doesn't exist yet is not permanent: when a later phase builds that capability, re-check whether the refusal's own justification still holds, and remove it if not (see Phase 74 above).

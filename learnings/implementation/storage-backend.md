@@ -95,8 +95,20 @@ survives.**
 
 There is no reset-revisions path in the codebase and there must not be one.
 
+## Key decisions from Phase 74
+
+- `ObjectStore.mintAutoIdValue` depends on `ObjectStorageBackend.search`'s
+  `includeDeleted: true` behaviour to find the highest number an `AUTO_ID`
+  field has ever used, deleted records included, so a tombstoned record's
+  number is never reissued. Any new `ObjectStorageBackend` implementation
+  must honour `includeDeleted` faithfully or `AUTO_ID` minting will silently
+  reuse numbers over that backend. See [[auto-id-minting]] for the full
+  design.
+
 ## Practical guidance
 
 - Keep future sync policy, replay, and migration checks above the backend unless they are pure persistence concerns. Policy enforcement should still happen before the backend write.
 - Do not make browser UI components write to `ObjectStorageBackend` directly. UI workflows should continue to call `ApplicationRuntime`.
 - If a future phase persists audit or operation-log data, preserve `operation: "transition"`, `lifecycleAction`, `fromState`, and `toState`; do not reclassify lifecycle transitions as ordinary updates.
+- A new `ObjectStorageBackend` must implement `search` (including
+  `includeDeleted`) correctly before it can support `AUTO_ID` fields.

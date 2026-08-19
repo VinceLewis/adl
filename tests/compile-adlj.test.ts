@@ -83,9 +83,21 @@ describe("compileAdlj", () => {
     expect(() => adljSourceToPartialApplicationModel(document)).toThrowError();
   });
 
-  it("fires the same model-validation diagnostic .adl reports for an AUTO_ID field with no DEFAULT", () => {
+  it("compiles an AUTO_ID field with no DEFAULT cleanly through both .adl and .adlj (Phase 74)", () => {
+    // Phase 72 refused this shape (ADL_AUTO_ID_NO_DEFAULT) because nothing
+    // minted a runtime value from AUTO_ID yet. Phase 74 built that minting
+    // (ObjectStore.planCreateForTransaction) and removed the refusal, so both
+    // front ends must now resolve this to the identical, diagnostic-free model.
+    // See tests/runtime.test.ts's "AUTO_ID minting" suite for proof the field
+    // actually mints a value at runtime.
     const document: AdljSourceDocument = {
       app: { name: "AutoIdNoDefault" },
+      // Declared explicitly (both empty) so this matches what .adl always
+      // resolves for an undeclared contexts/readModels — see
+      // learnings/implementation/adlj-json-authoring-surface.md for why a
+      // JSON front-end does not infer these defaults for free.
+      contexts: [],
+      readModels: [],
       objects: [
         {
           name: "Item",
@@ -94,27 +106,20 @@ describe("compileAdlj", () => {
       ],
     };
 
-    const { diagnostics } = compileAdlj(JSON.stringify(document));
-    expect(diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT }),
-      ]),
-    );
+    const adljResult = compileAdlj(JSON.stringify(document));
+    expect(adljResult.diagnostics).toEqual([]);
 
-    // The same shape, hand-ported to .adl text, must fire the identical code —
+    // The same shape, hand-ported to .adl text, must resolve identically —
     // proving both front-ends reach validateApplicationModel unchanged.
-    const adlDiagnostics = compileAdl(`APP AutoIdNoDefault
+    const adlResult = compileAdl(`APP AutoIdNoDefault
 END.APP
 
 OBJECT Item
   FIELD Code TEXT REQUIRED AUTO_ID
 END.OBJECT
-`).diagnostics;
-    expect(adlDiagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT }),
-      ]),
-    );
+`);
+    expect(adlResult.diagnostics).toEqual([]);
+    expect(adljResult.model).toEqual(adlResult.model);
   });
 });
 

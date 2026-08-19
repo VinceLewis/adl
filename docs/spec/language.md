@@ -244,14 +244,40 @@ FIELD LegacyId TEXT HIDDEN
   scoped within, such as a per-branch invoice sequence instead of one global
   one. `AUTO_ID` is refused on a non-text field (`ADL_AUTO_ID_NON_TEXT`), and
   `SCOPE` is refused naming a field that does not exist on the object
-  (`ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN`). **A caveat worth knowing before relying
-  on it.** `AUTO_ID` is declarative only today: it is captured and validated
-  on the resolved field, but no runtime path mints a value from it, so an
-  `AUTO_ID` field still needs an authored or `DEFAULT` value like any other
-  field — an `AUTO_ID` field with no `DEFAULT` is refused
-  (`ADL_AUTO_ID_NO_DEFAULT`, Phase 72): every reading of that combination
-  produces a field that never gets a value, so refusing it costs a real
-  author nothing.
+  (`ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN`).
+
+  **How minting works (Phase 74).** `ObjectStore.planCreateForTransaction`
+  mints the value on every create — direct `create` calls and every other
+  write path that plans a create (command `CREATE` steps included) — right
+  after ordinary `DEFAULT`s are applied and before the record is built. If the
+  caller supplies an explicit value for the field, that value is used as-is
+  and nothing is minted, the same way an explicit `_guid` overrides a minted
+  one; this lets an import or migration author the field directly. Otherwise
+  the runtime finds the object's existing records (including deleted ones, so
+  a deleted record's number is never handed to a new record), narrows them to
+  the same `SCOPE` value when one is declared, reads each candidate's own
+  value for the field, strips a leading `PREFIX` match and parses the
+  remaining digits, and mints one past the highest number it finds (starting
+  at 1 if there is none). A value that does not start with `PREFIX` or whose
+  remainder is not entirely digits is treated as foreign or hand-entered and
+  ignored rather than letting it corrupt the sequence. Because a `DEFAULT`
+  applies before minting runs and minting always overwrites it when the
+  caller supplied nothing else, an `AUTO_ID` field no longer needs a
+  `DEFAULT` — declaring one alongside `AUTO_ID` is harmless but has no
+  effect on a normal create.
+
+  **What minting does not do.** It is local best-effort, not a cross-device
+  coordination protocol: two offline devices can each mint the same value for
+  the same object (and the same `SCOPE`) before either syncs, because each
+  device only ever sees its own storage. This is accepted, not a defect — it
+  is the same optimistic-write philosophy every other offline write in this
+  system already relies on, and the existing authority-side conflict/rejection
+  machinery is the backstop, not a bespoke `AUTO_ID` mechanism. An author who
+  needs a real collision caught rather than silently duplicated should pair
+  `AUTO_ID` with `CONSTRAINT ... UNIQUE FIELDS <thatField>` (optionally
+  `SCOPE`-qualified to match) on the same field, so the authority refuses the
+  losing write on sync the same way it already refuses any other uniqueness
+  violation.
 
 Objects can declare business context scope and backend-neutral constraints:
 
