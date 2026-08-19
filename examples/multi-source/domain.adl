@@ -1,0 +1,13 @@
+APP TaskTrackerMixedSource
+END.APP
+
+ROLE Admin
+
+OBJECT Task
+  KEY Title
+  DISPLAY Title
+
+  FIELD Title TEXT REQUIRED
+  FIELD Priority NUMBER REQUIRED
+  FIELD Status TEXT REQUIRED DEFAULT('Open')
+END.OBJECT

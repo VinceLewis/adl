@@ -1,0 +1,29 @@
+{
+  "app": { "name": "TaskTrackerMultiSource" },
+  "roles": [{ "name": "Admin" }],
+  "objects": [
+    {
+      "name": "Task",
+      "businessKey": "Title",
+      "displayField": "Title",
+      "fields": [
+        { "name": "Title", "type": "text", "required": true },
+        { "name": "Priority", "type": "number", "required": true },
+        { "name": "Status", "type": "text", "required": true, "defaultValue": "Open" }
+      ],
+      "lifecycle": {
+        "name": "TaskLifecycle",
+        "stateField": "Status",
+        "initialState": "Open",
+        "states": [{ "name": "Open" }, { "name": "Closed", "terminal": true }],
+        "actions": [
+          {
+            "name": "close",
+            "from": "Open",
+            "to": "Closed"
+          }
+        ]
+      }
+    }
+  ]
+}

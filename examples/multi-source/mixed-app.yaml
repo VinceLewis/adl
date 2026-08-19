@@ -1,0 +1,5 @@
+name: Task Tracker Mixed Source
+id: task-tracker-mixed-source
+sources:
+  - domain.adl
+  - extra.adlj

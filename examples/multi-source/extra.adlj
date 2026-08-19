@@ -1,0 +1,29 @@
+{
+  "app": { "name": "TaskTrackerMixedSourceExtra" },
+  "objects": [
+    {
+      "name": "Task",
+      "views": [
+        {
+          "name": "TaskList",
+          "kind": "list",
+          "fields": ["Title", "Priority", "Status"]
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "name": "TaskPolicy",
+      "object": "Task",
+      "rules": [
+        {
+          "name": "allowAll1",
+          "effect": "allow",
+          "principal": { "match": "specific", "roles": ["Admin"] },
+          "action": "*"
+        }
+      ]
+    }
+  ]
+}

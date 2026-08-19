@@ -1652,6 +1652,21 @@ export interface PartialApplicationModel {
   migrations?: PartialModelMigrationModel[];
 }
 
+/**
+ * One source's contribution to a `PartialApplicationModel` that has not yet
+ * been combined with any other source's. Identical to `PartialApplicationModel`
+ * except `app` and `shell` are also optional (`modelVersion` already is) — a
+ * single `.adl`/`.adlj` source file in a multi-source project may declare
+ * neither. `mergePartialApplicationModelFragments`
+ * (`src/compiler/merge-partial-model.ts`) combines an ordered array of these
+ * into one `PartialApplicationModel` for resolution. See `docs/spec/adlj.md`
+ * for the merge rules this type supports.
+ */
+export type PartialApplicationModelFragment = Omit<PartialApplicationModel, "app" | "shell"> & {
+  app?: PartialAppModel;
+  shell?: PartialShellModel;
+};
+
 export interface PartialModelMigrationModel {
   from: string;
   to: string;

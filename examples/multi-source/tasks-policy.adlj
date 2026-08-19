@@ -1,0 +1,26 @@
+{
+  "app": { "name": "TaskTrackerMultiSourcePolicyOnly" },
+  "objects": [],
+  "policies": [
+    {
+      "name": "TaskPolicy",
+      "object": "Task",
+      "rules": [
+        {
+          "name": "allowAll1",
+          "effect": "allow",
+          "principal": { "match": "specific", "roles": ["Admin"] },
+          "action": "*"
+        },
+        {
+          "name": "allowTransition2",
+          "effect": "allow",
+          "principal": { "match": "specific", "roles": ["Admin"] },
+          "action": "transition",
+          "lifecycleAction": "close",
+          "state": "Open"
+        }
+      ]
+    }
+  ]
+}

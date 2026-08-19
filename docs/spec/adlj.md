@@ -21,27 +21,110 @@ app that resolve to the same `PartialApplicationModel` are indistinguishable
 to everything downstream — the runtime, the authority server, `explainResolvedModel`
 — none of which this format touches at all.
 
-## Scope: one self-contained document, v1
+## Scope: one self-contained document (`compileAdlj`), or several merged (`compileAdlProjectV2`)
 
 `compileAdlj` compiles exactly one `.adlj` document into one
 `ResolvedApplicationModel` — the JSON analogue of `compileAdl` on a single
-`.adl` file, not of `compileAdlProject`. **Mixing `.adl` and `.adlj` sources
-in one `app.yaml`, and merging several `.adlj` files, are both out of
-scope.** `compileAdlProject`'s only multi-file mechanism today is
-string-concatenating `.adl` text and parsing it once; the one non-trivial
-merge rule that depends on ("later object declaration with only `VIEW`
-blocks extends the earlier one") runs at the AST level over that
-concatenation. Giving `.adlj` parity would need a new merge function
-operating on `PartialApplicationModel` values instead of AST nodes — real,
-separable work, not a natural side effect of adding a JSON front-end. See
-`learnings/process/adlj-json-authoring-surface.md`.
+`.adl` file, not of `compileAdlProject`. That single-document scope is
+unchanged.
+
+As of Phase 76, mixing `.adl` and `.adlj` sources in one `app.yaml`, and
+merging several `.adlj` files, are both supported — through a second project
+compiler, `compileAdlProjectV2` (`src/compiler/compile-adl-project.ts`), that
+sits alongside the original `compileAdlProject` rather than replacing it.
+`compileAdlProject` itself is unchanged: an all-`.adl` `sources` list still
+compiles exactly as it always has (string-concatenate every source, parse
+the concatenation once). Reach for `compileAdlProjectV2` only when a project
+actually needs a `.adlj` source, mixed or standalone.
+
+**How `compileAdlProjectV2` builds its sources.** `compileAdlProject`'s only
+multi-file mechanism is string-concatenating `.adl` text and parsing it
+once; the one non-trivial merge rule it depends on ("later object
+declaration with only `VIEW` blocks extends the earlier one") runs at the
+AST level over that concatenation
+(`mergeViewOnlyObjectDeclarations` in `compile-adl.ts`). An individual `.adl`
+fragment with no `APP` block (a typical `ui.adl`) cannot be parsed on its
+own — `.adl`'s parser requires `APP ... END.APP` as the literal first thing
+in any document — so `compileAdlProjectV2` does not try to parse each `.adl`
+source separately. Instead it partitions `manifest.sources` by extension (a
+source is `.adlj` only if its listed path ends in `.adlj`; everything else
+is treated as `.adl`), concatenates **all** `.adl`-extension entries
+together — in their relative manifest order, regardless of whether they are
+contiguous — into one text blob and parses it once via the existing
+`.adl` path, producing a single `PartialApplicationModelFragment`. Each
+`.adlj`-extension entry compiles independently into its own fragment via
+`parseAdljDocument` + `adljSourceToPartialApplicationModel`.
+
+**Fragment ordering.** The single `.adl`-derived fragment is placed at the
+position of the *first* `.adl` entry in the manifest's overall source order;
+each `.adlj` fragment is placed at its own manifest position. A manifest
+listing `domain.adl`, `extra.adlj`, `ui.adl` therefore produces two
+fragments in this order: `[domain.adl+ui.adl fragment, extra.adlj fragment]`
+— the combined `.adl` fragment takes the position of `domain.adl` (the first
+`.adl` entry), and `extra.adlj` keeps its own position after it, even though
+`ui.adl` is textually last in the manifest. This is a deliberate, documented
+choice among more than one reasonable option (a fully positional interleave
+that split the `.adl` blob itself was considered and rejected as
+unimplementable, per the parser constraint above) — a future phase could
+revisit it if a project's ordering needs turn out to require finer-grained
+control over where the `.adl`-derived content sits relative to `.adlj`
+sources that come both before and after it.
+
+**Merge rules**, applied by `mergePartialApplicationModelFragments`
+(`src/compiler/merge-partial-model.ts`) to the resulting fragment array:
+
+- `app`: the FIRST fragment (in the order above) that declares one wins.
+  Every individual `.adlj` document's own schema requires `app`, so in
+  practice every fragment always carries one; only the first fragment's
+  survives merging, and every other fragment's `app` is discarded silently.
+  Throws `at least one source must declare APP` if literally no fragment
+  declares one (only reachable when every source is `.adl` text with no
+  `APP` block anywhere in the concatenation, which `.adl`'s parser itself
+  already refuses before this code path is reached).
+- `modelVersion`: same rule — first fragment that declares one wins;
+  undefined if none do.
+- `shell`: the LAST fragment that declares one wins. This matches what
+  `.adl` text concatenation already does today: `parseDocument`'s main loop
+  just overwrites `shell = this.parseShell()` with no merging every time it
+  sees a `SHELL` block, so whichever block is textually last in the
+  concatenated document survives — the merge function reproduces that same
+  outcome one level up, across fragments instead of across `SHELL` blocks
+  within one fragment.
+- `roles`, `contexts`, `readModels`, `decisionTables`, `commands`,
+  `policies`, `themes`, `sync`, `migrations`: concatenated across all
+  fragments, in fragment order, with each fragment's own internal order
+  preserved.
+- `objects`: concatenated the same way, then the view-only-object merge rule
+  runs over the concatenated sequence: for each object entry (after the ones
+  before it), if it declares nothing but a `name` and `views` — `businessKey`,
+  `displayField`, `fields`, `computedFields`, `scope`, `constraints`,
+  `validations`, `lifecycle`, and `sync` are all undefined — and an earlier
+  entry in the sequence has the same `name`, its `views` are appended to the
+  end of that earlier entry's own `views` (creating one if the earlier entry
+  had none), and the later duplicate entry is dropped. This is the
+  `PartialApplicationModel`-level equivalent of `compile-adl.ts`'s
+  `isViewOnlyObjectDeclaration`/`mergeViewOnlyObjectDeclarations`, which does
+  the same job at the AST level for an all-`.adl` project. Any other
+  same-named-object collision — one that is not view-only — is left alone:
+  both entries stay in the array, and `validateApplicationModel`'s existing
+  `OBJECT_DUPLICATE` check refuses it downstream. That refusal is the
+  correct outcome for a genuine naming conflict; the merge step must not
+  paper over it.
+
+See `learnings/implementation/adlj-json-authoring-surface.md` for the
+implementation-side notes on this merge design.
 
 Giggle Band is not migrated to `.adlj` and has no `.adlj` counterpart. A
 small standalone fixture app (`examples/task-tracker.adl` /
-`examples/task-tracker.adlj`) proves the format instead, exercising computed
-fields, an object validation, a lifecycle guard, a decision table, and policy
-rules with a condition — the constructs whose expression fields are the
-format's one interesting design decision (below).
+`examples/task-tracker.adlj`) proves the single-document format, exercising
+computed fields, an object validation, a lifecycle guard, a decision table,
+and policy rules with a condition — the constructs whose expression fields
+are the format's one interesting design decision (below).
+`examples/multi-source/` proves multi-source merging: an `.adlj`-only
+three-file split (`tasks-core.adlj` declaring the object's fields and
+lifecycle, `tasks-views.adlj` declaring only a view for that same object,
+`tasks-policy.adlj` declaring a policy) and a mixed `.adl` + `.adlj` pair
+(`domain.adl` + `extra.adlj`).
 
 ## Expressions stay as strings
 
@@ -229,10 +312,8 @@ Neither `adlfmt` nor a formal grammar file appears in the Non-goals list
 below as a deferred candidate: they are not future work, they are ideas this
 direction makes unnecessary.
 
-## Non-goals (see Planning Handoff in `docs/phases/phase-73-*.md`)
+## Non-goals (see Planning Handoff in `docs/phases/phase-73-*.md` and `phase-76-*.md`)
 
-- Mixing `.adl` and `.adlj` sources in one app, or merging several `.adlj`
-  files — needs `PartialApplicationModel`-level source merging.
 - An `.adl` → `.adlj` importer.
 - A bidirectional sync/merge tool between a generated `.adl` file and a
   hand-edit made to it afterward.

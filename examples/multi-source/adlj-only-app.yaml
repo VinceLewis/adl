@@ -1,0 +1,6 @@
+name: Task Tracker Multi Source (adlj only)
+id: task-tracker-multi-source-adlj
+sources:
+  - tasks-core.adlj
+  - tasks-views.adlj
+  - tasks-policy.adlj

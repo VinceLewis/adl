@@ -1,0 +1,15 @@
+{
+  "app": { "name": "TaskTrackerMultiSourceViewsOnly" },
+  "objects": [
+    {
+      "name": "Task",
+      "views": [
+        {
+          "name": "TaskList",
+          "kind": "list",
+          "fields": ["Title", "Priority", "Status"]
+        }
+      ]
+    }
+  ]
+}

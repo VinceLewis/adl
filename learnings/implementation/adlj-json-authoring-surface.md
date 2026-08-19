@@ -16,6 +16,77 @@ one-directional policy and its known gaps) is in `docs/spec/adlj.md`; read it
 first for anything a `.adlj` *consumer* needs to know. This document is for
 whoever next touches the *implementation*.
 
+## Phase 76: `PartialApplicationModel`-level source merging
+
+Phase 73 deliberately left "mixing `.adl` and `.adlj` sources in one
+`app.yaml`" and "merging several `.adlj` files" out of scope, because
+`compileAdlProject`'s only merge rule (`mergeViewOnlyObjectDeclarations`) ran
+at the AST level over one string-concatenated `.adl` parse, and no
+equivalent existed at the `PartialApplicationModel` level. Phase 76 built
+that equivalent. Full user-facing contract in `docs/spec/adlj.md`'s "Scope"
+section; this is the implementation-side record.
+
+- **New type, not a new pipeline stage**: `PartialApplicationModelFragment`
+  (`src/model/resolved-model.ts`) is `PartialApplicationModel` with `app` and
+  `shell` also made optional (`modelVersion` already was). One source file —
+  `.adl` or `.adlj` — produces one fragment; `mergePartialApplicationModelFragments`
+  (`src/compiler/merge-partial-model.ts`) combines an ordered array of them
+  into one real `PartialApplicationModel`, which then goes through
+  `resolveApplicationModel`/`validateApplicationModel` exactly once, same as
+  always. Nothing about the resolve/validate stage changed.
+- **Three different merge policies, one per field shape**: `app` and
+  `modelVersion` are "first fragment that declares one wins"; `shell` is
+  "last fragment that declares one wins" (chosen specifically to reproduce
+  today's actual `.adl`-concatenation behaviour — `parseDocument`'s loop
+  just overwrites `shell` with no merging every time it sees a `SHELL`
+  block, so whichever block is textually last already wins); every other
+  array field (`roles`, `contexts`, `readModels`, `decisionTables`,
+  `commands`, `policies`, `themes`, `sync`, `migrations`) is a plain
+  fragment-order concatenation; `objects` is a concatenation followed by the
+  view-only-object merge pass. Four different rules for what looks like one
+  "combine several partial models" operation — worth remembering as a
+  pattern the next time a similar merge is needed: don't assume one policy
+  fits every field, ask what each field's *first-declaration-wins* vs.
+  *last-wins* vs. *union* semantics should be by checking what the existing
+  single-parse behaviour already does for it.
+- **The view-only-object check must test `undefined`, not `.length === 0`**.
+  `compile-adl.ts`'s AST-level `isViewOnlyObjectDeclaration` checks
+  `object.fields.length === 0` etc., because `ObjectDeclarationAst`'s array
+  fields are never `undefined` — the parser always produces an array, empty
+  or not. `PartialObjectModel`'s equivalent fields are genuinely optional,
+  so the `PartialApplicationModel`-level check
+  (`isViewOnlyObject` in `merge-partial-model.ts`) tests `=== undefined`
+  instead: "declares nothing but a name and views" means the fragment never
+  mentioned the field, not that it mentioned it with an empty array. Porting
+  an AST-level structural check to the `Partial*Model` level is not a
+  mechanical find-and-replace of the field names — the "unset" representation
+  is genuinely different between the two layers.
+- **`compileAdlProjectV2` cannot parse each `.adl` source separately**, for
+  the same reason `.adlj` couldn't originally be given parity by a small
+  patch: `.adl`'s parser requires `APP ... END.APP` as the literal first
+  thing in any document (`parseDocument` calls `parseApp()` unconditionally
+  before its main loop), so a fragment like `ui.adl` with no `APP` block is
+  not independently parseable. `compileAdlProjectV2` sidesteps this by
+  concatenating *all* `.adl`-extension manifest entries into one text blob
+  first (exactly as `compileAdlProject` already does), parsing that once
+  into a single fragment, and only compiling `.adlj` entries independently.
+  This is why fragment ordering places that one `.adl`-derived fragment at
+  the position of the *first* `.adl` entry rather than truly interleaving
+  fragment-per-file — a real, named limitation (see `docs/spec/adlj.md`), not
+  an oversight.
+- **`compileAdlProject` itself was not touched.** `compileAdlProjectV2` is an
+  additive sibling in the same file, sharing `parseAdlProjectManifest`
+  unchanged. The existing Giggle Band `compileAdlProject` test continues to
+  pass unmodified, and a dedicated regression test
+  (`tests/compile-adl-project-v2.test.ts`) recompiles Giggle Band through
+  `compileAdlProject` again to confirm no shared code path regressed.
+- **Fixtures**: `examples/multi-source/` holds both a three-file `.adlj`-only
+  split (`tasks-core.adlj` + `tasks-views.adlj` + `tasks-policy.adlj`,
+  proving array concatenation and the view-only merge together) and a mixed
+  `.adl` + `.adlj` pair (`domain.adl` + `extra.adlj`). Neither reuses
+  `examples/task-tracker.adl`/`.adlj` — those stay the single-document
+  fixture Phase 73 introduced.
+
 ## `AdljSourceDocument`: derive with `Omit`/intersection, never hand-copy
 
 `AdljSourceDocument`'s ~24 nested types are each declared as
