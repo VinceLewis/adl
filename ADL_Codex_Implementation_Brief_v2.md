@@ -492,6 +492,22 @@ The runtime should already know how to update state, audit the transition, valid
 
 # 6. Recommended ADL Language Direction
 
+> **Superseded, on who authors new content.** This section's call — ADL text
+> as the primary authoring language, YAML/JSON as secondary — held through
+> Phase 72. Phase 73 added `.adlj`, a JSON authoring surface with a real JSON
+> Schema (`src/model/adlj-schema.json`); by the time an `.adl` → `.adlj`
+> importer and full printer coverage landed (Phases 77-79), the balance this
+> section describes had inverted for anything an LLM generates rather than a
+> person hand-types: `.adlj` is now the primary authoring surface, and `.adl`
+> text is the *derived*, human-reviewable view rendered from it via
+> `print-adl.ts` — not a source to hand-author for new work. See
+> `docs/spec/adlj.md` (its "Authoring a `.adlj` document from scratch"
+> section) and `AGENTS.md`/`CLAUDE.md`'s "Read Before Working" for the
+> current guidance. The architecture reasoning below — a readable authoring
+> surface, business-readable rather than raw-format-first, everything
+> resolving to the same model — still holds; only which concrete surface a
+> new author (increasingly, an LLM) writes to first has changed.
+
 ADL should be its own readable authoring language, not raw YAML as the primary language.
 
 YAML and JSON are still useful for:
@@ -1284,6 +1300,12 @@ Validation: TypeScript validator first; JSON Schema can follow
 Server later: optional authoritative sync service; Go + PostgreSQL is one candidate
 Sync later: object-level local-first sync
 ```
+
+Superseded on the "Authoring language" line specifically: `.adlj` (JSON,
+schema-validated) is now the primary authoring surface for new content, with
+`.adl` text generated from it for human review — see the note under "6.
+Recommended ADL Language Direction" above and `docs/spec/adlj.md`. Every
+other line in this stack held.
 
 Do not introduce React, Vue, Angular, Flutter, LiveView, or code generation at the start unless there is a strong reason.
 
