@@ -45,7 +45,7 @@
         "OBJECT OrderLine",
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
-        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "  FIELD Position NUMBER REQUIRED MIN(1)",
         "",
         "  VIEW OrderLineList LIST",
         "    FIELDS Description Position",
@@ -277,7 +277,7 @@
         "OBJECT SetListItem",
         "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
         "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
-        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "  FIELD Position NUMBER REQUIRED MIN(1)",
         "",
         "  VIEW SetListItemList LIST",
         "    FIELDS Song Position",
@@ -455,7 +455,7 @@
         "OBJECT SetListItem",
         "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
         "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
-        "  FIELD Position NUMBER REQUIRED MIN 1",
+        "  FIELD Position NUMBER REQUIRED MIN(1)",
         "END.OBJECT"
       ]
     },

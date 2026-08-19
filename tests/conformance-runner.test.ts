@@ -1281,7 +1281,7 @@ const setListMintingAdl = [
   "  CONSTRAINT orderedSetListItems ORDERED PARENT SetList POSITION Position REORDER shift COMPACT onDelete",
   "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
   "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
-  "  FIELD Position NUMBER REQUIRED MIN 1",
+  "  FIELD Position NUMBER REQUIRED MIN(1)",
   "  SYNC LOCAL_FIRST SCOPE all",
   "END.OBJECT",
   "",

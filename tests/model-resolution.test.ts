@@ -484,12 +484,12 @@ describe("resolveApplicationModel", () => {
     expect(
       resolved.objects.find((object) => object.name === "DefaultRecentRecord")?.sync,
     ).toMatchObject({
-      window: { field: "_updatedAt", days: 30 },
+      window: { field: "_updatedAt", days: 30, windowSource: "impliedByScope" },
     });
     expect(
       resolved.objects.find((object) => object.name === "WindowedRecentRecord")?.sync,
     ).toMatchObject({
-      window: { field: "UpdatedAt", days: 7, limit: 20 },
+      window: { field: "UpdatedAt", days: 7, limit: 20, windowSource: "authored" },
     });
   });
 

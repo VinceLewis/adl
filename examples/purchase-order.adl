@@ -24,7 +24,7 @@ OBJECT PurchaseOrder
   KEY PONumber
   DISPLAY Supplier
 
-  FIELD PONumber TEXT REQUIRED AUTO_ID PREFIX('PO-') PAD(6)
+  FIELD PONumber TEXT REQUIRED DEFAULT('PO-000000') AUTO_ID PREFIX('PO-') PAD(6)
   FIELD Supplier TEXT(120) REQUIRED
   FIELD Value NUMBER REQUIRED MIN(0)
   FIELD Status TEXT REQUIRED
@@ -37,11 +37,11 @@ OBJECT PurchaseOrder
     STATE Approved TERMINAL
     STATE Cancelled TERMINAL
 
-    ACTION submit FROM Draft TO Submitted LABEL 'Submit'
+    ACTION submit FROM (Draft) TO Submitted LABEL 'Submit'
       ALLOW ROLE Requester
     END.ACTION
 
-    ACTION approve FROM Submitted TO Approved LABEL 'Approve'
+    ACTION approve FROM (Submitted) TO Approved LABEL 'Approve'
       ALLOW ROLE Approver
     END.ACTION
   END.LIFECYCLE
@@ -115,8 +115,8 @@ POLICY PurchaseOrderPolicy ON PurchaseOrder
   ALLOW READ ROLE Requester Approver Buyer Auditor Admin
   ALLOW SEARCH ROLE Requester Approver Buyer Auditor Admin
   ALLOW UPDATE ROLE Requester STATE Draft
-  READONLY UPDATE FIELD InternalNotes ROLE Requester STATE Draft
-  HIDDEN READ FIELD InternalNotes ROLE Requester
+  READONLY UPDATE FIELDS InternalNotes ROLE Requester STATE Draft
+  HIDDEN READ FIELDS InternalNotes ROLE Requester
   ALLOW TRANSITION ROLE Requester STATE Draft ACTION submit
   ALLOW TRANSITION ROLE Approver STATE Submitted ACTION approve
   DENY UPDATE ROLE Requester Approver Auditor STATE Approved

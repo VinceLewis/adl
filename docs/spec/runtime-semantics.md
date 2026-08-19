@@ -823,6 +823,13 @@ a spelling for available contexts plus a predicate that may not be omitted; that
 is a validation refusal, not a runtime one. Neither is a different kind of scope
 from the others, and neither is required in order to declare a bound.
 
+`ResolvedSyncWindow.windowSource` (Phase 72) is `"authored"` when the model
+wrote a `WINDOW` clause and `"impliedByScope"` when a bare `SCOPE recent`
+derived one. Two resolved models built from `SCOPE recent WHERE ...` and from
+`SCOPE currentContext WINDOW ... 30 DAYS` used to look identical downstream;
+`windowSource` makes the origin inspectable without already knowing `recent`'s
+special case.
+
 A window names a date or datetime field, an optional day span measured back from
 the runtime context's current moment, and an optional limit that keeps only that
 many records, newest first. A record whose window field is absent or is not a

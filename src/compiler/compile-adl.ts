@@ -1,6 +1,7 @@
 import { parseAdl } from "../parser/parser.js";
 import { resolveApplicationModel } from "./resolve-model.js";
 import { validateApplicationModel } from "./validate-model.js";
+import { MODEL_VALIDATION_CODES } from "./validate-model.js";
 import type { Diagnostic } from "./validate-model.js";
 import type {
   ActionDeclarationAst,
@@ -43,6 +44,7 @@ import type {
   ShellNavItemDeclarationAst,
   ShellTopBarDeclarationAst,
   ShellVisibilityDeclarationAst,
+  StyleWarningAst,
   SyncDeclarationAst,
   SyncWindowDeclarationAst,
   ThemeDeclarationAst,
@@ -108,13 +110,33 @@ export function compileAdl(source: string): CompileAdlResult {
   const ast = parseAdl(source);
   const partialModel = adlAstToPartialApplicationModel(ast);
   const model = resolveApplicationModel(partialModel);
-  const diagnostics = validateApplicationModel(model);
+  const diagnostics = [
+    ...ast.styleWarnings.map(styleWarningToDiagnostic),
+    ...validateApplicationModel(model),
+  ];
 
   return {
     ast,
     partialModel,
     model,
     diagnostics,
+  };
+}
+
+/**
+ * A deprecated-but-still-accepted spelling (Phase 72) is a parser-level
+ * fact — the resolved model carries no trace of which spelling produced it —
+ * so `compileAdl` is where it becomes a diagnostic rather than
+ * `validateApplicationModel`, which only ever sees the resolved model. One
+ * code (`ADL_STYLE_DEPRECATED_SPELLING`) is reused across every construct;
+ * `construct`/`deprecated`/`canonical` distinguish the message.
+ */
+function styleWarningToDiagnostic(warning: StyleWarningAst): Diagnostic {
+  return {
+    severity: "warning",
+    code: MODEL_VALIDATION_CODES.STYLE_DEPRECATED_SPELLING,
+    message: `${warning.construct} uses the deprecated spelling '${warning.deprecated}'. Use '${warning.canonical}' instead.`,
+    sourceRange: warning.range,
   };
 }
 

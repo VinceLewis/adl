@@ -83,7 +83,7 @@ describe("MIGRATION declarations", () => {
         declareSchemaVersion: false,
         steps: [
           "    RENAME FIELD Venue TO VenueName",
-          "    ADD FIELD PayoutCents DEFAULT 0",
+          "    ADD FIELD PayoutCents DEFAULT(0)",
           "    DROP FIELD LegacyNote",
         ],
       }),
@@ -117,7 +117,7 @@ describe("MIGRATION declarations", () => {
         steps: [
           "    DROP FIELD LegacyNote",
           "    RENAME FIELD Venue TO VenueName",
-          "    ADD FIELD PayoutCents DEFAULT 0",
+          "    ADD FIELD PayoutCents DEFAULT(0)",
         ],
       }),
     );
@@ -1008,7 +1008,7 @@ function migrationAdlSource(
 ): string {
   const steps = options.steps ?? [
     "    RENAME FIELD Venue TO VenueName",
-    "    ADD FIELD PayoutCents DEFAULT 0",
+    "    ADD FIELD PayoutCents DEFAULT(0)",
     "    DROP FIELD LegacyNote",
   ];
 

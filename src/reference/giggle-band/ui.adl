@@ -30,9 +30,9 @@ OBJECT Event
     LAYOUT stack
     DENSITY compact
 
-    STATE showGigs BOOLEAN DEFAULT true
-    STATE showRehearsals BOOLEAN DEFAULT true
-    STATE showUnavailable BOOLEAN DEFAULT true
+    STATE showGigs BOOLEAN DEFAULT(true)
+    STATE showRehearsals BOOLEAN DEFAULT(true)
+    STATE showUnavailable BOOLEAN DEFAULT(true)
 
     ICON_MAP EventTypeIcon FOR EventType DEFAULT calendar
       Gig -> music
@@ -129,7 +129,7 @@ OBJECT Event
     LAYOUT stack
     DENSITY compact
 
-    STATE visibleMonth DATE DEFAULT '2026-08-01'
+    STATE visibleMonth DATE DEFAULT('2026-08-01')
 
     ICON_MAP CalendarEventTypeIcon FOR EventType DEFAULT calendar
       Gig -> music
@@ -305,7 +305,7 @@ OBJECT Availability
     LAYOUT stack
     DENSITY compact
 
-    STATE visibleMonth DATE DEFAULT '2026-08-01'
+    STATE visibleMonth DATE DEFAULT('2026-08-01')
 
     STATUS conflict LABEL 'Gig booked' ARIA_LABEL 'A gig or rehearsal is already booked on this date' ICON calendar THEME colorStatusConflict PRECEDENCE 100
     STATUS available LABEL 'Available' ARIA_LABEL 'Available' ICON calendar THEME colorStatusAvailable PRECEDENCE 10

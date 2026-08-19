@@ -368,14 +368,15 @@ END.OBJECT
 
     expect(result.diagnostics).toEqual([]);
     expect(result.model.objects.map((object) => [object.name, object.sync.window])).toEqual([
-      ["Gig", { field: "GigDate", days: 14, limit: 50 }],
+      ["Gig", { field: "GigDate", days: 14, limit: 50, windowSource: "authored" }],
       // An omitted field still falls back to `_updatedAt`, so a window may
       // declare only the part the author cares about.
-      ["Note", { field: "_updatedAt", days: 7 }],
-      ["Receipt", { field: "_updatedAt", limit: 5 }],
+      ["Note", { field: "_updatedAt", days: 7, windowSource: "authored" }],
+      ["Receipt", { field: "_updatedAt", limit: 5, windowSource: "authored" }],
       // The 30-day default for an undeclared window is unchanged: every
-      // existing model must resolve exactly as it did before Phase 62.
-      ["Ledger", { field: "_updatedAt", days: 30 }],
+      // existing model must resolve exactly as it did before Phase 62. It is
+      // now visibly implied rather than authored (Phase 72's `windowSource`).
+      ["Ledger", { field: "_updatedAt", days: 30, windowSource: "impliedByScope" }],
     ]);
   });
 
@@ -453,7 +454,7 @@ OBJECT Ticket
     STATE Draft
     STATE Open
 
-    ACTION open FROM Draft TO Open LABEL 'Open'
+    ACTION open FROM (Draft) TO Open LABEL 'Open'
       ALLOW ROLE Operator
     END.ACTION
   END.LIFECYCLE
@@ -519,7 +520,7 @@ ROLE Requester
 OBJECT PurchaseOrder
   FIELD Owner TEXT REQUIRED
   FIELD Value NUMBER REQUIRED VALIDATE Value > 0 MESSAGE 'Value must be positive.'
-  FIELD Status TEXT REQUIRED DEFAULT Draft
+  FIELD Status TEXT REQUIRED DEFAULT('Draft')
 END.OBJECT
 
 POLICY PurchaseOrderPolicy ON PurchaseOrder
@@ -574,7 +575,7 @@ ROLE Admin
 OBJECT LineItem
   FIELD UnitPrice NUMBER REQUIRED
   FIELD Quantity NUMBER REQUIRED
-  FIELD Discount NUMBER DEFAULT 0
+  FIELD Discount NUMBER DEFAULT(0)
   COMPUTED FIELD Gross NUMBER = UnitPrice * Quantity
   COMPUTED FIELD Net NUMBER = Gross - Discount
 END.OBJECT
@@ -623,14 +624,14 @@ OBJECT PurchaseOrder
   FIELD Owner TEXT REQUIRED
   FIELD Value NUMBER REQUIRED
   FIELD ApprovalComment TEXT
-  FIELD Reviewed BOOLEAN DEFAULT FALSE
-  FIELD Status TEXT REQUIRED DEFAULT Draft
+  FIELD Reviewed BOOLEAN DEFAULT(FALSE)
+  FIELD Status TEXT REQUIRED DEFAULT('Draft')
   VALIDATE ApprovalCommentRequired WHEN Value <= 10000 OR ApprovalComment != NULL MESSAGE 'Approval comment is required above 10000.'
 
   LIFECYCLE PurchaseOrderLifecycle FIELD Status INITIAL Draft
     STATE Draft
     STATE Approved
-    ACTION approve FROM Draft TO Approved WHEN Reviewed == TRUE MESSAGE 'Purchase order must be reviewed before approval.'
+    ACTION approve FROM (Draft) TO Approved WHEN Reviewed == TRUE MESSAGE 'Purchase order must be reviewed before approval.'
       ALLOW ROLE Approver
     END.ACTION
   END.LIFECYCLE
@@ -773,7 +774,7 @@ OBJECT Event
     FIELDS EventDate StartTime EventType Title
     LAYOUT stack
     DENSITY compact
-    STATE showGigs BOOLEAN DEFAULT true
+    STATE showGigs BOOLEAN DEFAULT(true)
 
     ICON_MAP EventTypeIcon FOR EventType
       Gig -> music
@@ -972,7 +973,7 @@ END.OBJECT
 OBJECT BandInvitation
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
   FIELD Invitee TEXT REQUIRED LOOKUP User DISPLAY Name
-  FIELD Status TEXT REQUIRED DEFAULT Pending
+  FIELD Status TEXT REQUIRED DEFAULT('Pending')
 END.OBJECT
 
 OBJECT Availability
@@ -1362,6 +1363,129 @@ END.POLICY
     );
 
     expect(item.values.Position).toBe(1);
+  });
+});
+
+describe("Phase 72 syntax uniformity", () => {
+  const modifierValueSource = (min: string) => `APP ModifierValues
+END.APP
+
+OBJECT Item
+  FIELD Quantity NUMBER REQUIRED ${min}
+END.OBJECT
+`;
+
+  it("refuses a bare modifier value now that parentheses are mandatory", () => {
+    expect(() => compileAdl(modifierValueSource("MIN 0"))).toThrowError(/Expected MIN value/);
+  });
+
+  it("still accepts a parenthesized modifier value", () => {
+    const result = compileAdl(modifierValueSource("MIN(0)"));
+
+    expect(result.diagnostics).toEqual([]);
+    expect(
+      result.model.objects[0]?.fields.find((field) => field.name === "Quantity")?.validators,
+    ).toEqual([{ kind: "min", value: 0 }]);
+  });
+
+  const stateListSource = (from: string) => `APP StateLists
+END.APP
+
+OBJECT Ticket
+  FIELD Status TEXT REQUIRED DEFAULT('Draft')
+
+  LIFECYCLE TicketLifecycle FIELD Status INITIAL Draft
+    STATE Draft
+    STATE Open
+    ACTION open ${from} TO Open
+    END.ACTION
+  END.LIFECYCLE
+END.OBJECT
+`;
+
+  it("refuses a bare space-separated ACTION FROM state list", () => {
+    expect(() => compileAdl(stateListSource("FROM Draft"))).toThrowError(
+      /Expected ACTION FROM state list/,
+    );
+  });
+
+  it("still accepts a parenthesized ACTION FROM state list", () => {
+    const result = compileAdl(stateListSource("FROM (Draft)"));
+
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  const fieldValidatorSource = (keyword: string) => `APP FieldValidatorAlias
+END.APP
+
+OBJECT Item
+  FIELD Value NUMBER REQUIRED
+  FIELD Status TEXT REQUIRED ${keyword} Value > 0 MESSAGE 'Value must be positive.'
+END.OBJECT
+`;
+
+  it("still compiles the deprecated PREDICATE spelling, with a style warning naming VALIDATE", () => {
+    const result = compileAdl(fieldValidatorSource("PREDICATE"));
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: MODEL_VALIDATION_CODES.STYLE_DEPRECATED_SPELLING,
+        message: expect.stringContaining("Use 'VALIDATE'") as unknown as string,
+      }),
+    ]);
+  });
+
+  it("compiles the canonical VALIDATE spelling with no style warning", () => {
+    const result = compileAdl(fieldValidatorSource("VALIDATE"));
+
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  const decisionTableRowSource = (row: string) => `APP DecisionTableWhen
+END.APP
+
+OBJECT PurchaseOrder
+  FIELD Value NUMBER REQUIRED
+END.OBJECT
+
+DECISION_TABLE ApprovalTier ON PurchaseOrder MATCH SINGLE
+  INPUT amount = Value
+  ${row}
+  DEFAULT OUTPUT tier 'unknown'
+END.DECISION_TABLE
+`;
+
+  it("refuses a DECISION_TABLE ROW with no WHEN", () => {
+    expect(() =>
+      compileAdl(decisionTableRowSource("ROW bulk amount >= 1000 OUTPUT tier 'bulk'")),
+    ).toThrowError(/DECISION_TABLE ROW WHEN clause/);
+  });
+
+  it("still accepts a DECISION_TABLE ROW with WHEN", () => {
+    const result = compileAdl(
+      decisionTableRowSource("ROW bulk WHEN amount >= 1000 OUTPUT tier 'bulk'"),
+    );
+
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still compiles the deprecated dotted spelling of an underscore keyword, with a style warning", () => {
+    const result = compileAdl(`APP DottedAlias
+END.APP
+
+OBJECT Item
+  FIELD Code TEXT REQUIRED DEFAULT('ITM-000000') AUTO.ID PREFIX('ITM-') PAD(6)
+END.OBJECT
+`);
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: MODEL_VALIDATION_CODES.STYLE_DEPRECATED_SPELLING,
+        message: expect.stringContaining("Use 'AUTO_ID'") as unknown as string,
+      }),
+    ]);
   });
 });
 

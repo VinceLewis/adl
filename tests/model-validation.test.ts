@@ -24,7 +24,13 @@ const validPartialModel = {
       businessKey: "PatientNumber",
       displayField: "Name",
       fields: [
-        { name: "PatientNumber", type: "text", required: true, autoId: { prefix: "PAT-", pad: 6 } },
+        {
+          name: "PatientNumber",
+          type: "text",
+          required: true,
+          defaultValue: "PAT-000000",
+          autoId: { prefix: "PAT-", pad: 6 },
+        },
         { name: "Name", type: "text", required: true },
         { name: "DateOfBirth", type: "date" },
       ],
@@ -602,6 +608,175 @@ END.OBJECT
         MODEL_VALIDATION_CODES.VIEW_SORT_FIELD_UNKNOWN,
       ]),
     );
+  });
+
+  it("refuses an AUTO_ID field declared with no DEFAULT", () => {
+    const resolved = resolveApplicationModel({
+      ...validPartialModel,
+      objects: validPartialModel.objects.map((object) =>
+        object.name === "PatientRecord"
+          ? {
+              ...object,
+              fields: object.fields.map((field) => {
+                if (field.name !== "PatientNumber") {
+                  return field;
+                }
+                const { defaultValue: _defaultValue, ...rest } = field;
+                return rest;
+              }),
+            }
+          : object,
+      ),
+    });
+
+    expect(
+      validateApplicationModel(resolved).map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.severity,
+        diagnostic.path,
+      ]),
+    ).toEqual([
+      [MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT, "error", "objects[0].fields[0].autoId"],
+    ]);
+  });
+
+  it("accepts an AUTO_ID field declared with a DEFAULT", () => {
+    const resolved = resolveApplicationModel(validPartialModel);
+
+    expect(
+      validateApplicationModel(resolved).filter(
+        (diagnostic) => diagnostic.code === MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT,
+      ),
+    ).toEqual([]);
+  });
+
+  it("refuses a CONTEXT_MEMBER principal granted the object-level SEARCH action", () => {
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "BandMemberContextMemberSearchPolicy",
+          object: "BandMember",
+          rules: [
+            {
+              name: "unreachableContextMemberSearch",
+              effect: "allow",
+              principal: {
+                match: "contextMember",
+                contextMember: { context: "Band", field: "User" },
+              },
+              action: "search",
+            },
+          ],
+        },
+      ],
+    });
+
+    const rulePath = `policies[${resolved.policies.length - 1}].rules[0].principal`;
+    expect(
+      validateApplicationModel(resolved).map((diagnostic) => [diagnostic.code, diagnostic.path]),
+    ).toEqual(
+      expect.arrayContaining([
+        [MODEL_VALIDATION_CODES.POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE, rulePath],
+      ]),
+    );
+  });
+
+  /**
+   * `getCurrentUserSourceRecordId`/`recordMatchesCurrentUser` in
+   * `read-model-service.ts` match a `currentUser` source scope's lookup field
+   * against `RUNTIME.userId` by identity. A `TARGET_FIELD` lookup stores a
+   * natural-key value there instead of the target's own id, so the match can
+   * never hold — a real gap this warning names rather than silently leaves as
+   * a spec caveat. See [[read-model-runtime]].
+   */
+  it("warns when a currentUser read-model source's lookup field declares TARGET_FIELD", () => {
+    const partialModel = {
+      app: { name: "CurrentUserTargetField" },
+      objects: [
+        {
+          name: "User",
+          fields: [
+            { name: "Name", type: "text", required: true },
+            { name: "Email", type: "text", required: true },
+          ],
+        },
+        {
+          name: "Task",
+          fields: [
+            { name: "Title", type: "text", required: true },
+            {
+              name: "Owner",
+              type: "text",
+              lookup: { targetObject: "User", targetField: "Email", displayField: "Name" },
+            },
+          ],
+        },
+      ],
+      readModels: [
+        {
+          name: "MyTasks",
+          sources: [{ object: "Task", scope: "currentUser" }],
+          fields: [{ name: "Title", source: "Task", field: "Title" }],
+        },
+      ],
+    } satisfies PartialApplicationModel;
+
+    const resolved = resolveApplicationModel(partialModel);
+
+    expect(
+      validateApplicationModel(resolved).map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.severity,
+        diagnostic.path,
+      ]),
+    ).toEqual([
+      [
+        MODEL_VALIDATION_CODES.LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED,
+        "warning",
+        "readModels[0].sources[0]",
+      ],
+    ]);
+  });
+
+  it("does not warn when a currentUser read-model source's lookup field matches by id", () => {
+    const partialModel = {
+      app: { name: "CurrentUserIdMatch" },
+      objects: [
+        {
+          name: "User",
+          fields: [{ name: "Name", type: "text", required: true }],
+        },
+        {
+          name: "Task",
+          fields: [
+            { name: "Title", type: "text", required: true },
+            {
+              name: "Owner",
+              type: "text",
+              lookup: { targetObject: "User", displayField: "Name" },
+            },
+          ],
+        },
+      ],
+      readModels: [
+        {
+          name: "MyTasks",
+          sources: [{ object: "Task", scope: "currentUser" }],
+          fields: [{ name: "Title", source: "Task", field: "Title" }],
+        },
+      ],
+    } satisfies PartialApplicationModel;
+
+    const resolved = resolveApplicationModel(partialModel);
+
+    expect(
+      validateApplicationModel(resolved).filter(
+        (diagnostic) =>
+          diagnostic.code ===
+          MODEL_VALIDATION_CODES.LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED,
+      ),
+    ).toEqual([]);
   });
 
   it("treats metadata fields as invalid for ordinary author-facing field references", () => {
@@ -2040,13 +2215,23 @@ function createInvalidResolvedModel(): ResolvedApplicationModel {
   formView.sort.push({ field: "MissingSortField", direction: "asc" });
 
   (patient.sync as unknown as { mode: string }).mode = "occasionally";
-  patient.sync.window = { field: "MissingSyncWindowField", days: 0, limit: -1 };
+  patient.sync.window = {
+    field: "MissingSyncWindowField",
+    days: 0,
+    limit: -1,
+    windowSource: "authored",
+  };
   const topLevelSync = invalid.sync[0];
   if (topLevelSync === undefined) {
     throw new Error("Expected valid top-level sync policy.");
   }
   (topLevelSync as unknown as { mode: string }).mode = "sometimes";
-  topLevelSync.window = { field: "MissingTopLevelSyncWindowField", days: -2, limit: 0 };
+  topLevelSync.window = {
+    field: "MissingTopLevelSyncWindowField",
+    days: -2,
+    limit: 0,
+    windowSource: "authored",
+  };
   invalid.sync.push({
     object: "MissingSyncObject",
     mode: "badMode",

@@ -377,8 +377,8 @@ OBJECT OrderLine
 
   FIELD Order TEXT LOOKUP Order DISPLAY Code
   FIELD Sku TEXT REQUIRED
-  FIELD Grade TEXT DEFAULT Standard IN ('Standard', 'Express', 'Fragile')
-  FIELD Priority BOOLEAN DEFAULT false
+  FIELD Grade TEXT DEFAULT('Standard') IN ('Standard', 'Express', 'Fragile')
+  FIELD Priority BOOLEAN DEFAULT(false)
   FIELD DueOn DATE
   FIELD Ledger TEXT
   FIELD Position NUMBER REQUIRED
@@ -400,7 +400,7 @@ END.POLICY
 
 POLICY OrderLinePolicy ON OrderLine
   ALLOW * ROLE Clerk
-  READONLY UPDATE FIELD Ledger ROLE Clerk
+  READONLY UPDATE FIELDS Ledger ROLE Clerk
 END.POLICY
 `;
 

@@ -29,11 +29,11 @@ OBJECT User
     STATE Active
     STATE Suspended TERMINAL
 
-    ACTION activate FROM Draft TO Active LABEL 'Activate'
+    ACTION activate FROM (Draft) TO Active LABEL 'Activate'
       ALLOW ROLE Admin
     END.ACTION
 
-    ACTION suspend FROM Active TO Suspended LABEL 'Suspend'
+    ACTION suspend FROM (Active) TO Suspended LABEL 'Suspend'
       ALLOW ROLE Admin
     END.ACTION
   END.LIFECYCLE

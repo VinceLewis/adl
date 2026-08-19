@@ -675,6 +675,7 @@ function resolveSyncWindow(
       field: input.field ?? "_updatedAt",
       ...(input.days === undefined ? {} : { days: input.days }),
       ...(input.limit === undefined ? {} : { limit: input.limit }),
+      windowSource: "authored",
     };
   }
 
@@ -683,7 +684,9 @@ function resolveSyncWindow(
   // spelling for available-contexts plus a default 30-day window over
   // `_updatedAt`, which is what a bare `SCOPE recent` has always meant. Every
   // other scope bounds nothing unless the model says so.
-  return scope === "recent" ? { field: "_updatedAt", days: 30 } : undefined;
+  return scope === "recent"
+    ? { field: "_updatedAt", days: 30, windowSource: "impliedByScope" }
+    : undefined;
 }
 
 function resolveObjectAudit(

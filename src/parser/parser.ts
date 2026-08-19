@@ -118,6 +118,7 @@ import type {
   SourcePosition,
   SourceRange,
   StateDeclarationAst,
+  StyleWarningAst,
   SyncDeclarationAst,
   SyncWindowDeclarationAst,
   MigrationDeclarationAst,
@@ -230,8 +231,91 @@ class AdlParser {
    * end-of-document check can point at the name rather than the whole line.
    */
   private readonly contextGrantTargets: { context: string; token: Token }[] = [];
+  /** See `StyleWarningAst`. Populated by `recordDeprecatedSpelling` as parsing proceeds. */
+  private readonly styleWarnings: StyleWarningAst[] = [];
 
   constructor(private readonly tokens: Token[]) {}
+
+  /**
+   * Records use of a deprecated-but-still-accepted spelling. The parser
+   * never refuses these; `compileAdl` turns the collection into
+   * warning-severity `ADL_STYLE_DEPRECATED_SPELLING` diagnostics so an
+   * author sees the drift without a build ever breaking. `token` should be
+   * the first token of the deprecated spelling.
+   */
+  private recordDeprecatedSpelling(
+    construct: string,
+    deprecated: string,
+    canonical: string,
+    token: Token,
+  ): void {
+    this.styleWarnings.push({
+      construct,
+      deprecated,
+      canonical,
+      range: { start: token.range.start, end: this.previous().range.end },
+    });
+  }
+
+  /**
+   * `this.matchWord(canonical) || this.matchWord(deprecated)`, tracking
+   * which spelling matched. Use for a plain alias pair with no structural
+   * difference between the two spellings.
+   */
+  private matchCanonicalOrDeprecatedWord(
+    construct: string,
+    canonical: string,
+    deprecated: string,
+  ): boolean {
+    const token = this.current();
+    if (this.matchWord(canonical)) {
+      return true;
+    }
+    if (this.matchWord(deprecated)) {
+      this.recordDeprecatedSpelling(construct, deprecated, canonical, token);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * `this.matchWord(underscoreWord) || this.matchDottedWord(first, second)`,
+   * tracking which spelling matched. Every `X_Y`/`X.Y` keyword pair in this
+   * grammar shares this shape (Phase 59 established underscore as the
+   * canonical form; the dotted spelling is accepted for compatibility only).
+   */
+  private matchUnderscoreOrDottedWord(
+    construct: string,
+    underscoreWord: string,
+    first: string,
+    second: string,
+  ): boolean {
+    const token = this.current();
+    if (this.matchWord(underscoreWord)) {
+      return true;
+    }
+    if (this.matchDottedWord(first, second)) {
+      this.recordDeprecatedSpelling(construct, `${first}.${second}`, underscoreWord, token);
+      return true;
+    }
+    return false;
+  }
+
+  /** `expectWord`/`expectDottedWord` counterpart to `matchUnderscoreOrDottedWord`. */
+  private expectUnderscoreOrDottedWord(
+    construct: string,
+    underscoreWord: string,
+    first: string,
+    second: string,
+    context: string,
+  ): Token {
+    if (this.checkWord(underscoreWord)) {
+      return this.expectWord(underscoreWord, context);
+    }
+    const token = this.expectDottedWord(first, second, context);
+    this.recordDeprecatedSpelling(construct, `${first}.${second}`, underscoreWord, token);
+    return token;
+  }
 
   parseDocument(): AdlDocumentAst {
     this.skipNewlines();
@@ -307,6 +391,7 @@ class AdlParser {
       themes,
       sync,
       migrations,
+      styleWarnings: this.styleWarnings,
       range: { start, end: this.previous().range.end },
     };
   }
@@ -353,7 +438,9 @@ class AdlParser {
         offlineGraceDays = this.consumeNumber("APP OFFLINE_GRACE day count");
         this.expectWord("DAYS", "APP OFFLINE_GRACE unit");
         this.consumeLineEnd("APP OFFLINE_GRACE directive");
-      } else if (this.matchWord("MODEL_VERSION") || this.matchDottedWord("MODEL", "VERSION")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord("APP MODEL_VERSION", "MODEL_VERSION", "MODEL", "VERSION")
+      ) {
         // Quoted, and read as text rather than a number, so `1.1.0` survives:
         // a bare dotted literal is not a number the lexer can carry intact.
         modelVersion = this.consumeName("APP MODEL_VERSION value");
@@ -447,7 +534,14 @@ class AdlParser {
 
       const stepToken = this.current();
 
-      if (this.matchWord("SCHEMA_VERSION") || this.matchDottedWord("SCHEMA", "VERSION")) {
+      if (
+        this.matchUnderscoreOrDottedWord(
+          "MIGRATION OBJECT SCHEMA_VERSION",
+          "SCHEMA_VERSION",
+          "SCHEMA",
+          "VERSION",
+        )
+      ) {
         schemaVersion = this.consumeNumber("MIGRATION OBJECT SCHEMA_VERSION value");
         this.consumeLineEnd("MIGRATION OBJECT SCHEMA_VERSION directive");
       } else if (this.matchWord("RENAME")) {
@@ -585,7 +679,9 @@ class AdlParser {
         group = this.consumeName("shell navigation group");
       } else if (this.matchWord("ORDER")) {
         order = this.consumeNumber("shell navigation order");
-      } else if (this.matchWord("ACTIVE_WHEN") || this.matchDottedWord("ACTIVE", "WHEN")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord("SHELL NAV ACTIVE_WHEN", "ACTIVE_WHEN", "ACTIVE", "WHEN")
+      ) {
         activeWhen = this.consumeNameListUntilLine("shell navigation active views");
         break;
       } else if (this.matchWord("VISIBLE")) {
@@ -657,9 +753,13 @@ class AdlParser {
   }
 
   private parseShellTopBar(): ShellTopBarDeclarationAst {
-    const startToken = this.checkWord("TOP_BAR")
-      ? this.expectWord("TOP_BAR", "SHELL TOP_BAR declaration")
-      : this.expectDottedWord("TOP", "BAR", "SHELL TOP.BAR declaration");
+    const startToken = this.expectUnderscoreOrDottedWord(
+      "SHELL TOP_BAR block",
+      "TOP_BAR",
+      "TOP",
+      "BAR",
+      "SHELL TOP_BAR declaration",
+    );
     let contextSelector: ShellContextSelectorPlacement | undefined;
     let mobileContextSelector: ShellMobileContextSelectorMode | undefined;
     // Left undeclared rather than defaulted to empty: an empty list means
@@ -702,9 +802,13 @@ class AdlParser {
    * controls declared `PLACEMENT navDrawer`.
    */
   private parseShellNavDrawer(): ShellNavDrawerDeclarationAst {
-    const startToken = this.checkWord("NAV_DRAWER")
-      ? this.expectWord("NAV_DRAWER", "SHELL NAV_DRAWER declaration")
-      : this.expectDottedWord("NAV", "DRAWER", "SHELL NAV.DRAWER declaration");
+    const startToken = this.expectUnderscoreOrDottedWord(
+      "SHELL NAV_DRAWER block",
+      "NAV_DRAWER",
+      "NAV",
+      "DRAWER",
+      "SHELL NAV_DRAWER declaration",
+    );
     let title: string | undefined;
     let controls: string[] | undefined;
 
@@ -821,9 +925,17 @@ class AdlParser {
     while (!this.isLineEnd()) {
       if (this.matchWord("USER")) {
         userField = this.consumeName("context membership user field");
-      } else if (this.matchWord("CONTEXT_FIELD") || this.matchWord("CONTEXT")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord(
+          "CONTEXT MEMBERSHIP CONTEXT_FIELD",
+          "CONTEXT_FIELD",
+          "CONTEXT",
+        )
+      ) {
         contextField = this.consumeName("context membership context field");
-      } else if (this.matchWord("ROLE_FIELD") || this.matchWord("ROLE")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord("CONTEXT MEMBERSHIP ROLE_FIELD", "ROLE_FIELD", "ROLE")
+      ) {
         roleField = this.consumeName("context membership role field");
       } else if (this.matchWord("ROLES")) {
         roles = this.consumeNameListUntilLine("context membership roles");
@@ -863,9 +975,13 @@ class AdlParser {
    * have several. `ON` says which context it attaches to.
    */
   private parseContextGrant(): ContextGrantDeclarationAst {
-    const startToken = this.checkWord("CONTEXT_GRANT")
-      ? this.expectWord("CONTEXT_GRANT", "CONTEXT_GRANT declaration")
-      : this.expectDottedWord("CONTEXT", "GRANT", "CONTEXT.GRANT declaration");
+    const startToken = this.expectUnderscoreOrDottedWord(
+      "top-level CONTEXT_GRANT block",
+      "CONTEXT_GRANT",
+      "CONTEXT",
+      "GRANT",
+      "CONTEXT_GRANT declaration",
+    );
     const name = this.consumeName("context grant name");
     let context: string | undefined;
     let contextToken: Token | undefined;
@@ -882,7 +998,13 @@ class AdlParser {
         object = this.consumeName("context grant object");
       } else if (this.matchWord("USER")) {
         userField = this.consumeName("context grant user field");
-      } else if (this.matchWord("CONTEXT_FIELD") || this.matchWord("CONTEXT")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord(
+          "CONTEXT_GRANT CONTEXT_FIELD",
+          "CONTEXT_FIELD",
+          "CONTEXT",
+        )
+      ) {
         contextField = this.consumeName("context grant context field");
       } else if (this.matchWord("WHEN")) {
         condition = this.parseExpressionUntil(new Set());
@@ -1006,7 +1128,14 @@ class AdlParser {
       } else if (this.matchWord("DISPLAY")) {
         displayField = this.consumeName("display field name");
         this.consumeLineEnd("OBJECT DISPLAY directive");
-      } else if (this.matchWord("SCHEMA_VERSION") || this.matchDottedWord("SCHEMA", "VERSION")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord(
+          "OBJECT SCHEMA_VERSION",
+          "SCHEMA_VERSION",
+          "SCHEMA",
+          "VERSION",
+        )
+      ) {
         // Without this an object could never leave schema version 1, which made
         // `SCHEMA_VERSION` inside a MIGRATION block unusable from ADL source: a
         // migration bumping a record to 2 was refused because the model still
@@ -1047,7 +1176,12 @@ class AdlParser {
     }
     const name = this.consumeName("computed field name");
     const { type } = this.parseFieldType();
-    if (!this.matchSymbol("=") && !this.matchWord("AS")) {
+    const binderToken = this.current();
+    if (this.matchSymbol("=")) {
+      // Canonical form.
+    } else if (this.matchWord("AS")) {
+      this.recordDeprecatedSpelling("COMPUTED field binder", "AS", "=", binderToken);
+    } else {
       this.failExpected("= or AS before computed field expression", this.current());
     }
     const expression = this.parseExpressionUntil(new Set());
@@ -1103,7 +1237,9 @@ class AdlParser {
             "unique constraint scope fields",
             new Set(["FIELDS"]),
           );
-        } else if (this.matchWord("FIELDS") || this.matchWord("FIELD")) {
+        } else if (
+          this.matchCanonicalOrDeprecatedWord("CONSTRAINT UNIQUE FIELDS list", "FIELDS", "FIELD")
+        ) {
           fields = this.consumeNameListUntilLine("unique constraint fields");
         } else {
           this.failUnexpected("UNIQUE CONSTRAINT option SCOPE, FIELDS, or end of line");
@@ -1305,7 +1441,7 @@ class AdlParser {
         validators.push(
           this.validator("mimeType", this.previous(), this.consumeValueList("MIME_TYPE values")),
         );
-      } else if (this.matchWord("VALIDATE") || this.matchWord("PREDICATE")) {
+      } else if (this.matchCanonicalOrDeprecatedWord("FIELD validator", "VALIDATE", "PREDICATE")) {
         const validatorStart = this.previous();
         const expression = this.parseExpressionUntil(new Set(["MESSAGE"]));
         let message: string | undefined;
@@ -1317,7 +1453,7 @@ class AdlParser {
         readonly = true;
       } else if (this.matchWord("HIDDEN")) {
         hidden = true;
-      } else if (this.matchWord("AUTO_ID") || this.matchDottedWord("AUTO", "ID")) {
+      } else if (this.matchUnderscoreOrDottedWord("FIELD AUTO_ID", "AUTO_ID", "AUTO", "ID")) {
         autoId = this.ensureAutoId(autoId, this.previous());
       } else if (this.matchWord("PREFIX")) {
         autoId = this.ensureAutoId(autoId, this.previous());
@@ -1353,10 +1489,14 @@ class AdlParser {
 
   private parseObjectValidation(): ObjectValidationDeclarationAst {
     const startToken = this.current();
-    if (!this.matchWord("VALIDATE")) {
+    if (!this.matchCanonicalOrDeprecatedWord("OBJECT VALIDATE block", "VALIDATE", "VALIDATION")) {
       this.expectWord("VALIDATION", "object validation declaration");
     }
     const name = this.consumeName("object validation name");
+    // Unlike DECISION_TABLE ROW's WHEN (required, Phase 72), this WHEN stays
+    // optional noise: real content (`domain.adl`'s
+    // respondedAtRequiredAfterResponse) omits it, so requiring it here would
+    // break existing content rather than only teach one spelling.
     if (this.matchWord("WHEN")) {
       // WHEN is optional noise after the validation name.
     }
@@ -1492,7 +1632,9 @@ class AdlParser {
     while (!this.isLineEnd()) {
       if (this.matchWord("LABEL")) {
         label = this.consumeName("action label");
-      } else if (this.matchWord("POLICY") || this.matchWord("POLICIES")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord("ACTION POLICY reference list", "POLICY", "POLICIES")
+      ) {
         policyRefs.push(...this.consumeNameListUntilLine("action policy reference list"));
       } else if (this.matchWord("WHEN")) {
         guards.push(this.parseLifecycleGuardFromCurrent(startToken, `${name}Guard`, true));
@@ -1530,7 +1672,9 @@ class AdlParser {
         allowRules.push(this.parseActionAllow());
       } else if (this.matchWord("WHEN")) {
         guards.push(this.parseLifecycleGuardFromCurrent(this.previous(), `${name}Guard`, false));
-      } else if (this.matchWord("POLICY") || this.matchWord("POLICIES")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord("ACTION POLICY reference list", "POLICY", "POLICIES")
+      ) {
         policyRefs.push(...this.consumeNameListUntilLine("action policy reference list"));
         this.consumeLineEnd("ACTION POLICY directive");
       } else if (this.matchWord("BEFORE")) {
@@ -1556,7 +1700,7 @@ class AdlParser {
     let states: string[] = [];
 
     while (!this.isLineEnd()) {
-      if (this.matchWord("ROLE") || this.matchWord("ROLES")) {
+      if (this.matchCanonicalOrDeprecatedWord("ACTION ALLOW ROLE list", "ROLE", "ROLES")) {
         roles = this.consumeNameListUntilWords("role list", new Set(["STATE"]));
       } else if (this.matchWord("STATE")) {
         states = this.consumeNameListUntilLine("state list");
@@ -1678,7 +1822,9 @@ class AdlParser {
       if (this.matchWord("CONTEXT")) {
         context = this.parseViewContextAfterKeyword();
         this.consumeLineEnd("VIEW CONTEXT directive");
-      } else if (this.matchWord("READ_MODEL") || this.matchDottedWord("READ", "MODEL")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord("VIEW READ_MODEL", "READ_MODEL", "READ", "MODEL")
+      ) {
         readModel = this.consumeName("view read model name");
         this.consumeLineEnd("VIEW READ_MODEL directive");
       } else if (this.matchWord("EDIT_CONTAINER")) {
@@ -2087,9 +2233,13 @@ class AdlParser {
   }
 
   private parsePresentationIconMap(): PresentationIconMapDeclarationAst {
-    const startToken = this.checkWord("ICON_MAP")
-      ? this.expectWord("ICON_MAP", "ICON_MAP declaration")
-      : this.expectDottedWord("ICON", "MAP", "ICON.MAP declaration");
+    const startToken = this.expectUnderscoreOrDottedWord(
+      "ICON_MAP block",
+      "ICON_MAP",
+      "ICON",
+      "MAP",
+      "ICON_MAP declaration",
+    );
     const name = this.consumeName("icon map name");
     this.expectWord("FOR", "ICON_MAP FOR clause");
     const field = this.consumeName("icon map field");
@@ -2162,7 +2312,9 @@ class AdlParser {
     while (!this.isLineEnd()) {
       if (this.matchWord("LABEL")) {
         label = String(this.consumeLiteral("status label"));
-      } else if (this.matchWord("ARIA_LABEL") || this.matchDottedWord("ARIA", "LABEL")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord("STATUS ARIA_LABEL", "ARIA_LABEL", "ARIA", "LABEL")
+      ) {
         accessibleLabel = String(this.consumeLiteral("status accessible label"));
       } else if (this.matchWord("ICON")) {
         icon = this.parsePresentationIconRef("value");
@@ -2191,9 +2343,13 @@ class AdlParser {
   }
 
   private parsePresentationStatusMap(): PresentationStatusMapDeclarationAst {
-    const startToken = this.checkWord("STATUS_MAP")
-      ? this.expectWord("STATUS_MAP", "STATUS_MAP declaration")
-      : this.expectDottedWord("STATUS", "MAP", "STATUS.MAP declaration");
+    const startToken = this.expectUnderscoreOrDottedWord(
+      "STATUS_MAP block",
+      "STATUS_MAP",
+      "STATUS",
+      "MAP",
+      "STATUS_MAP declaration",
+    );
     const name = this.consumeName("status map name");
     this.expectWord("FOR", "STATUS_MAP FOR clause");
     const field = this.consumeName("status map field");
@@ -2407,7 +2563,7 @@ class AdlParser {
 
     if (this.matchWord("OBJECT")) {
       sourceKind = "object";
-    } else if (this.matchWord("READ_MODEL") || this.matchDottedWord("READ", "MODEL")) {
+    } else if (this.matchUnderscoreOrDottedWord("FROM READ_MODEL", "READ_MODEL", "READ", "MODEL")) {
       sourceKind = "readModel";
     }
 
@@ -2456,7 +2612,7 @@ class AdlParser {
       } else if (this.matchWord("WHERE")) {
         filter = this.parseExpressionUntil(new Set());
         this.consumeLineEnd("LIST WHERE directive");
-      } else if (this.matchWord("RENDER_AS") || this.matchDottedWord("RENDER", "AS")) {
+      } else if (this.matchUnderscoreOrDottedWord("LIST RENDER_AS", "RENDER_AS", "RENDER", "AS")) {
         renderAs = this.parsePresentationListRenderStyle();
         this.consumeLineEnd("LIST RENDER_AS directive");
       } else if (this.matchWord("DENSITY")) {
@@ -2489,7 +2645,7 @@ class AdlParser {
 
     if (this.matchWord("OBJECT")) {
       sourceKind = "object";
-    } else if (this.matchWord("READ_MODEL") || this.matchDottedWord("READ", "MODEL")) {
+    } else if (this.matchUnderscoreOrDottedWord("FROM READ_MODEL", "READ_MODEL", "READ", "MODEL")) {
       sourceKind = "readModel";
     }
 
@@ -2543,13 +2699,22 @@ class AdlParser {
         };
       }
 
-      if (this.matchWord("DATE_FIELD") || this.matchDottedWord("DATE", "FIELD")) {
+      if (this.matchUnderscoreOrDottedWord("CALENDAR DATE_FIELD", "DATE_FIELD", "DATE", "FIELD")) {
         dateField = this.consumeName("CALENDAR DATE_FIELD value");
         this.consumeLineEnd("CALENDAR DATE_FIELD directive");
-      } else if (this.matchWord("TITLE_FIELD") || this.matchDottedWord("TITLE", "FIELD")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord("CALENDAR TITLE_FIELD", "TITLE_FIELD", "TITLE", "FIELD")
+      ) {
         titleField = this.consumeName("CALENDAR TITLE_FIELD value");
         this.consumeLineEnd("CALENDAR TITLE_FIELD directive");
-      } else if (this.matchWord("SUMMARY_FIELDS") || this.matchDottedWord("SUMMARY", "FIELDS")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord(
+          "CALENDAR SUMMARY_FIELDS",
+          "SUMMARY_FIELDS",
+          "SUMMARY",
+          "FIELDS",
+        )
+      ) {
         summaryFields.push(...this.consumeNameListUntilLine("calendar summary fields"));
         this.consumeLineEnd("CALENDAR SUMMARY_FIELDS directive");
       } else if (this.matchWord("FIELDS")) {
@@ -2565,10 +2730,14 @@ class AdlParser {
       } else if (this.matchWord("MONTH")) {
         monthValue = String(this.consumeLiteral("CALENDAR MONTH value"));
         this.consumeLineEnd("CALENDAR MONTH directive");
-      } else if (this.matchWord("MONTH_STATE") || this.matchDottedWord("MONTH", "STATE")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord("CALENDAR MONTH_STATE", "MONTH_STATE", "MONTH", "STATE")
+      ) {
         monthState = this.consumeName("CALENDAR MONTH_STATE value");
         this.consumeLineEnd("CALENDAR MONTH_STATE directive");
-      } else if (this.matchWord("WEEK_START") || this.matchDottedWord("WEEK", "START")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord("CALENDAR WEEK_START", "WEEK_START", "WEEK", "START")
+      ) {
         weekStart = this.parsePresentationCalendarWeekStart();
         this.consumeLineEnd("CALENDAR WEEK_START directive");
       } else if (this.matchWord("RANGE")) {
@@ -2878,9 +3047,13 @@ class AdlParser {
   }
 
   private parseReadModel(): ReadModelDeclarationAst {
-    const startToken = this.checkWord("READ_MODEL")
-      ? this.expectWord("READ_MODEL", "READ_MODEL declaration")
-      : this.expectDottedWord("READ", "MODEL", "READ.MODEL declaration");
+    const startToken = this.expectUnderscoreOrDottedWord(
+      "top-level READ_MODEL block",
+      "READ_MODEL",
+      "READ",
+      "MODEL",
+      "READ_MODEL declaration",
+    );
     const name = this.consumeName("read model name");
     let context: ViewContextDeclarationAst | undefined;
     let strategy: ReadModelDeclarationAst["strategy"];
@@ -3060,7 +3233,12 @@ class AdlParser {
       };
     }
 
-    if (!this.matchSymbol("=") && !this.matchWord("AS")) {
+    const binderToken = this.current();
+    if (this.matchSymbol("=")) {
+      // Canonical form.
+    } else if (this.matchWord("AS")) {
+      this.recordDeprecatedSpelling("READ_MODEL FIELD binder", "AS", "=", binderToken);
+    } else {
       this.failExpected("FROM, =, or AS in READ_MODEL FIELD declaration", this.current());
     }
     const expression = this.parseExpressionUntil(new Set());
@@ -3212,27 +3390,39 @@ class AdlParser {
     let condition: ResolvedExpression | undefined;
 
     while (!this.isLineEnd()) {
-      if (this.matchWord("FIELD") || this.matchWord("FIELDS")) {
+      if (this.matchCanonicalOrDeprecatedWord("POLICY rule FIELDS list", "FIELDS", "FIELD")) {
         fields.push(...this.consumeNameListUntilWords("policy field list", FIELD_LIST_STOP_WORDS));
       } else if (this.matchWord("STATE")) {
         state.push(...this.consumeNameListUntilWords("policy state list", FIELD_LIST_STOP_WORDS));
       } else if (this.matchWord("ACTION")) {
         lifecycleAction = this.consumeName("policy lifecycle action");
-      } else if (this.matchWord("CHANNEL") || this.matchWord("CHANNELS")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord("POLICY rule CHANNELS list", "CHANNELS", "CHANNEL")
+      ) {
         channels.push(...this.consumeChannelsUntilWords(FIELD_LIST_STOP_WORDS));
       } else if (this.matchWord("WHEN")) {
         condition = this.parseExpressionUntil(new Set());
-      } else if (this.matchWord("ROLE") || this.matchWord("ROLES")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord("POLICY principal ROLE list", "ROLE", "ROLES")
+      ) {
         principal.roles.push(
           ...this.consumeNameListUntilWords("principal role list", FIELD_LIST_STOP_WORDS),
         );
         principal.match = "specific";
-      } else if (this.matchWord("GROUP_ROLE") || this.matchWord("GROUP_ROLES")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord(
+          "POLICY principal GROUP_ROLE list",
+          "GROUP_ROLE",
+          "GROUP_ROLES",
+        )
+      ) {
         principal.groupRoles.push(
           ...this.consumeNameListUntilWords("principal group role list", FIELD_LIST_STOP_WORDS),
         );
         principal.match = "specific";
-      } else if (this.matchWord("USER") || this.matchWord("USERS")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord("POLICY principal USER list", "USER", "USERS")
+      ) {
         principal.users.push(
           ...this.consumeNameListUntilWords("principal user list", FIELD_LIST_STOP_WORDS),
         );
@@ -3246,7 +3436,14 @@ class AdlParser {
         principal.match = "authenticated";
       } else if (this.matchWord("ANONYMOUS")) {
         principal.match = "anonymous";
-      } else if (this.matchWord("CONTEXT_MEMBER") || this.matchDottedWord("CONTEXT", "MEMBER")) {
+      } else if (
+        this.matchUnderscoreOrDottedWord(
+          "POLICY principal CONTEXT_MEMBER",
+          "CONTEXT_MEMBER",
+          "CONTEXT",
+          "MEMBER",
+        )
+      ) {
         // `FIELD` is consumed here rather than left to the rule's own FIELD
         // option: it names the record field holding the co-member, not a field
         // the effect applies to.
@@ -3450,9 +3647,13 @@ class AdlParser {
   }
 
   private parseDecisionTable(): DecisionTableDeclarationAst {
-    const startToken = this.checkWord("DECISION_TABLE")
-      ? this.expectWord("DECISION_TABLE", "DECISION_TABLE declaration")
-      : this.expectDottedWord("DECISION", "TABLE", "DECISION.TABLE declaration");
+    const startToken = this.expectUnderscoreOrDottedWord(
+      "top-level DECISION_TABLE block",
+      "DECISION_TABLE",
+      "DECISION",
+      "TABLE",
+      "DECISION_TABLE declaration",
+    );
     const name = this.consumeName("decision table name");
     this.expectWord("ON", "DECISION_TABLE ON clause");
     const object = this.consumeName("decision table object name");
@@ -3523,8 +3724,11 @@ class AdlParser {
   private parseDecisionTableInput(): DecisionTableInputDeclarationAst {
     const startToken = this.expectWord("INPUT", "DECISION_TABLE INPUT directive");
     const name = this.consumeName("decision table input name");
-    if (this.matchSymbol("=") || this.matchWord("FROM")) {
-      // Both forms are accepted for readability.
+    const binderToken = this.current();
+    if (this.matchSymbol("=")) {
+      // Canonical form.
+    } else if (this.matchWord("FROM")) {
+      this.recordDeprecatedSpelling("DECISION_TABLE INPUT binder", "FROM", "=", binderToken);
     }
     const expression = this.parseExpressionUntil(new Set());
     this.consumeLineEnd("DECISION_TABLE INPUT directive");
@@ -3539,9 +3743,11 @@ class AdlParser {
   private parseDecisionTableRow(): DecisionTableRowDeclarationAst {
     const startToken = this.expectWord("ROW", "DECISION_TABLE ROW directive");
     const name = this.consumeName("decision table row name");
-    if (this.matchWord("WHEN")) {
-      // WHEN is optional noise after the row name.
-    }
+    // Required, not optional (Phase 72): a bare condition immediately after
+    // the row name read worse than costing one word to require permanently.
+    // Every real DECISION_TABLE ROW already writes WHEN, so this breaks no
+    // existing content.
+    this.expectWord("WHEN", "DECISION_TABLE ROW WHEN clause");
     const condition = this.parseExpressionUntil(new Set(["OUTPUT"]));
     this.expectWord("OUTPUT", "DECISION_TABLE ROW OUTPUT clause");
     const outputs = this.consumeOutputMapUntilLine("decision table row output");
@@ -3732,6 +3938,27 @@ class AdlParser {
     };
   }
 
+  /**
+   * `VALUE`/`SET`/`PATCH` is a three-way alias, not a pair: `VALUE` is
+   * canonical (23 real uses in `domain.adl` against zero for `SET` and one
+   * for `PATCH`, itself only in a test proving the alias still parses).
+   */
+  private matchCommandStepValueDirective(): boolean {
+    const token = this.current();
+    if (this.matchWord("VALUE")) {
+      return true;
+    }
+    if (this.matchWord("SET")) {
+      this.recordDeprecatedSpelling("COMMAND STEP value directive", "SET", "VALUE", token);
+      return true;
+    }
+    if (this.matchWord("PATCH")) {
+      this.recordDeprecatedSpelling("COMMAND STEP value directive", "PATCH", "VALUE", token);
+      return true;
+    }
+    return false;
+  }
+
   private parseCommandStep(): CommandStepDeclarationAst {
     const startToken = this.expectWord("STEP", "COMMAND STEP declaration");
     const name = this.consumeName("command step name");
@@ -3745,13 +3972,24 @@ class AdlParser {
     while (!this.isLineEnd()) {
       if (action !== "read" && this.matchWord("AUTHORITY")) {
         authority = this.parseCommandStepAuthority();
-      } else if (this.matchWord("ID") || this.matchWord("RECORD")) {
+      } else if (
+        this.matchCanonicalOrDeprecatedWord("COMMAND STEP record identity", "ID", "RECORD")
+      ) {
         recordId = this.parseCommandValueExpression();
-      } else if (action !== "read" && this.matchWord("FOR_EACH")) {
-        forEach = this.consumeName("command step FOR_EACH input name");
+      } else if (action !== "read" && this.checkWord("FOR_EACH")) {
+        // `FOR EACH` as two words is canonical (Phase 72; it is what
+        // `domain.adl` uses) — `FOR_EACH` spelled as one word, like
+        // ACTIVE_WHEN and TOP_BAR elsewhere, still parses but is deprecated.
+        const token = this.current();
+        this.matchWord("FOR_EACH");
+        this.recordDeprecatedSpelling(
+          "COMMAND STEP FOR EACH clause",
+          "FOR_EACH",
+          "FOR EACH",
+          token,
+        );
+        forEach = this.consumeName("command step FOR EACH input name");
       } else if (action !== "read" && this.matchWord("FOR")) {
-        // `FOR EACH` as two words reads better in source; `FOR_EACH` is the
-        // same clause spelled as one, like ACTIVE_WHEN and TOP_BAR elsewhere.
         this.expectWord("EACH", "command step FOR EACH clause");
         forEach = this.consumeName("command step FOR EACH input name");
       } else if (action === "create" && this.matchWord("ESTABLISHES")) {
@@ -3799,10 +4037,7 @@ class AdlParser {
 
       // A read step writes nothing, so it has no VALUE/SET/PATCH directive —
       // only REQUIRE, evaluated against the record it read, and END.STEP.
-      if (
-        action !== "read" &&
-        (this.matchWord("VALUE") || this.matchWord("SET") || this.matchWord("PATCH"))
-      ) {
+      if (action !== "read" && this.matchCommandStepValueDirective()) {
         const field = this.consumeName("command step field name");
         if (this.matchSymbol("=")) {
           // Optional readability separator.
@@ -4764,24 +4999,23 @@ class AdlParser {
     }
   }
 
+  // Parenthesized is mandatory (Phase 72), matching `IN`/`MIME_TYPE`'s
+  // established list-value shape: a bare space-separated list is a parse
+  // error now, not a style warning.
   private consumeStateListUntilTo(): string[] {
-    if (this.matchSymbol("(")) {
-      const states: string[] = [];
+    this.expectSymbol("(", "ACTION FROM state list");
+    const states: string[] = [];
 
-      while (!this.checkSymbol(")") && !this.isAtEnd()) {
-        this.skipComma();
-        if (this.checkSymbol(")")) {
-          break;
-        }
-        states.push(this.consumeName("from-state name"));
-        this.skipComma();
+    while (!this.checkSymbol(")") && !this.isAtEnd()) {
+      this.skipComma();
+      if (this.checkSymbol(")")) {
+        break;
       }
-
-      this.expectSymbol(")", "ACTION FROM state list");
-      return states;
+      states.push(this.consumeName("from-state name"));
+      this.skipComma();
     }
 
-    const states = this.consumeNameListUntilWords("from-state list", new Set(["TO"]));
+    this.expectSymbol(")", "ACTION FROM state list");
     if (states.length === 0) {
       this.failExpected("at least one from-state before TO", this.current());
     }
@@ -4851,14 +5085,17 @@ class AdlParser {
     return segments.join(".");
   }
 
+  // Parentheses are mandatory (Phase 72): `MIN(0)`, `MAX(150)`, `DEFAULT(0)`
+  // and every other modifier value join `IN(...)`/`MIME_TYPE(...)` (always
+  // parenthesized, via `consumeValueList`) as the only legal forms. A bare
+  // value is a genuine parse error, not a style warning — unlike a keyword
+  // alias, there is no way to keep accepting it without the two shapes
+  // staying two facts to remember forever.
   private consumeModifierValue(context: string): JsonValue {
-    if (this.matchSymbol("(")) {
-      const value = this.consumeLiteral(context);
-      this.expectSymbol(")", context);
-      return value;
-    }
-
-    return this.consumeLiteral(context);
+    this.expectSymbol("(", context);
+    const value = this.consumeLiteral(context);
+    this.expectSymbol(")", context);
+    return value;
   }
 
   private consumeIntegerModifierValue(context: string): number {

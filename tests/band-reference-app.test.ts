@@ -95,14 +95,14 @@ describe("band reference app model", () => {
     expect(syncByObject.get("Event")).toMatchObject({
       mode: "localFirst",
       scope: "currentContext",
-      window: { field: "Date", days: 90, limit: 200 },
+      window: { field: "Date", days: 90, limit: 200, windowSource: "authored" },
     });
     // The object that actually needed a bound and could not have one: one record
     // per user per date, growing for as long as the user keeps using the app.
     expect(syncByObject.get("Availability")).toMatchObject({
       mode: "localFirst",
       scope: "currentUser",
-      window: { field: "Date", days: 90, limit: 400 },
+      window: { field: "Date", days: 90, limit: 400, windowSource: "authored" },
     });
     expect(syncByObject.get("Band")).toMatchObject({
       mode: "localFirst",

@@ -35,9 +35,9 @@ OBJECT Band
   FIELD Description TEXT
   FIELD Biography TEXT
   FIELD CreatedBy TEXT LOOKUP User DISPLAY Name
-  FIELD Facebook TEXT REGEXP '^https?://'
-  FIELD Instagram TEXT REGEXP '^https?://'
-  FIELD YouTube TEXT REGEXP '^https?://'
+  FIELD Facebook TEXT REGEXP('^https?://')
+  FIELD Instagram TEXT REGEXP('^https?://')
+  FIELD YouTube TEXT REGEXP('^https?://')
   FIELD ProfilePicture ATTACHMENT
   SYNC LOCAL_FIRST SCOPE allAvailableContexts
 
@@ -58,7 +58,7 @@ END.OBJECT
 OBJECT BandMember
   SCOPE Band FIELD Band
   CONSTRAINT uniqueBandMemberUser UNIQUE SCOPE Band FIELDS User
-  CONSTRAINT lastBandAdminStanding PROTECTED_ROLE SCOPE Band FIELD Role VALUES ('BandAdmin') MIN 1
+  CONSTRAINT lastBandAdminStanding PROTECTED_ROLE SCOPE Band FIELD Role VALUES ('BandAdmin') MIN(1)
   FIELD User TEXT REQUIRED LOOKUP User DISPLAY Name
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
   FIELD Role TEXT REQUIRED IN ('BandAdmin', 'BandMember')
@@ -80,8 +80,8 @@ OBJECT BandInvitation
   FIELD Inviter TEXT REQUIRED LOOKUP User DISPLAY Name
   FIELD Invitee TEXT LOOKUP User DISPLAY Name
   FIELD InviteeEmail TEXT REQUIRED EMAIL
-  FIELD Role TEXT REQUIRED DEFAULT BandMember IN ('BandMember')
-  FIELD Status TEXT REQUIRED DEFAULT Pending IN ('Pending', 'Accepted', 'Declined', 'Revoked')
+  FIELD Role TEXT REQUIRED DEFAULT('BandMember') IN ('BandMember')
+  FIELD Status TEXT REQUIRED DEFAULT('Pending') IN ('Pending', 'Accepted', 'Declined', 'Revoked')
   FIELD SentAt DATE
   FIELD RespondedAt DATE
   # A revoke is the sender side withdrawing an invitation nobody has answered
@@ -104,7 +104,7 @@ OBJECT Event
   DISPLAY Title
   SCOPE Band FIELD Band
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
-  FIELD EventType TEXT REQUIRED DEFAULT Gig IN ('Gig', 'Rehearsal')
+  FIELD EventType TEXT REQUIRED DEFAULT('Gig') IN ('Gig', 'Rehearsal')
   FIELD Date DATE REQUIRED
   FIELD StartTime TIME
   FIELD EndTime TIME
@@ -120,9 +120,9 @@ OBJECT Event
   # `'GBP'` looks like, not a fee -- giggle-new itself has no separate currency
   # field, so there is nothing here for `CURRENCY_CODE` to validate.
   FIELD ContactName TEXT
-  FIELD ContactPhone TEXT REGEXP '^[0-9 +()-]{7,20}$'
+  FIELD ContactPhone TEXT REGEXP('^[0-9 +()-]{7,20}$')
   FIELD ContactEmail TEXT EMAIL
-  FIELD Amount NUMBER MIN 0
+  FIELD Amount NUMBER MIN(0)
   FIELD PaymentMethod TEXT IN ('Cash', 'Cheque', 'Bank Transfer')
   FIELD Agent TEXT
   # Self-referencing: naming the gig this one repeats lets a repeat booking
@@ -174,7 +174,7 @@ OBJECT Song
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
   FIELD Title TEXT REQUIRED
   FIELD Composer TEXT
-  FIELD DurationSeconds NUMBER MIN 0
+  FIELD DurationSeconds NUMBER MIN(0)
   FIELD Notes TEXT
   SYNC LOCAL_FIRST SCOPE currentContext
 
@@ -211,13 +211,13 @@ OBJECT SetListItem
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
   FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name
   FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
-  FIELD Position NUMBER REQUIRED MIN 1
+  FIELD Position NUMBER REQUIRED MIN(1)
   # A set-list item is not just a link to a song: how it is played, whether it
   # closes the night, and when it was last rehearsed all belong to the item.
   # These are what make the child collection's inline editor exercise the real
   # field renderer -- an enum, a boolean and a date beside the song lookup.
-  FIELD Arrangement TEXT DEFAULT Full IN ('Full', 'Acoustic', 'Instrumental')
-  FIELD Encore BOOLEAN DEFAULT false
+  FIELD Arrangement TEXT DEFAULT('Full') IN ('Full', 'Acoustic', 'Instrumental')
+  FIELD Encore BOOLEAN DEFAULT(false)
   FIELD RehearsedOn DATE
   FIELD Notes TEXT
   SYNC LOCAL_FIRST SCOPE currentContext
@@ -245,7 +245,7 @@ OBJECT StreamingLink
   FIELD Band TEXT REQUIRED LOOKUP Band DISPLAY Name
   FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
   FIELD Platform TEXT REQUIRED IN ('YouTube', 'Spotify', 'Apple Music', 'SoundCloud', 'Bandcamp', 'Tidal', 'Amazon Music', 'Google Drive', 'Device Gallery', 'Other')
-  FIELD Url TEXT REQUIRED REGEXP '^https?://'
+  FIELD Url TEXT REQUIRED REGEXP('^https?://')
   SYNC LOCAL_FIRST SCOPE currentContext
 
   VIEW StreamingLinkList LIST

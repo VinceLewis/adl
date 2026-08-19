@@ -94,14 +94,14 @@ END.APP
 OBJECT PurchaseOrder
   FIELD Owner TEXT REQUIRED
   FIELD Value NUMBER REQUIRED
-  FIELD Status TEXT DEFAULT Draft
-  FIELD Reviewed BOOLEAN DEFAULT FALSE
+  FIELD Status TEXT DEFAULT('Draft')
+  FIELD Reviewed BOOLEAN DEFAULT(FALSE)
   VALIDATE ApprovalCommentRequired WHEN Value <= 10000 OR Reviewed == TRUE MESSAGE 'Review required.'
 
   LIFECYCLE PurchaseOrderLifecycle FIELD Status INITIAL Draft
     STATE Draft
     STATE Approved
-    ACTION approve FROM Draft TO Approved WHEN Reviewed == TRUE MESSAGE 'Review first.'
+    ACTION approve FROM (Draft) TO Approved WHEN Reviewed == TRUE MESSAGE 'Review first.'
       ALLOW ROLE Approver
     END.ACTION
   END.LIFECYCLE
@@ -158,7 +158,7 @@ OBJECT Event
   VIEW HomeDashboard DASHBOARD
     LAYOUT stack
     DENSITY compact
-    STATE showGigs BOOLEAN DEFAULT true
+    STATE showGigs BOOLEAN DEFAULT(true)
 
     ICON_MAP EventTypeIcon FOR EventType
       Gig -> music
@@ -424,7 +424,7 @@ END.APP
 OBJECT TeamMember
   FIELD Team TEXT REQUIRED
   FIELD Role TEXT REQUIRED
-  CONSTRAINT lastTeamAdminStanding PROTECTED_ROLE SCOPE Team FIELD Role VALUES ('Admin', 'Owner') MIN 1
+  CONSTRAINT lastTeamAdminStanding PROTECTED_ROLE SCOPE Team FIELD Role VALUES ('Admin', 'Owner') MIN(1)
 END.OBJECT
 `);
 

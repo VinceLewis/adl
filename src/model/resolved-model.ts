@@ -1398,6 +1398,16 @@ export interface ResolvedSyncWindow {
   field: string;
   days?: number;
   limit?: number;
+  /**
+   * Whether this window was written by the author (`"authored"`) or implied
+   * by a bare `SCOPE recent` with no declared `WINDOW` (`"impliedByScope"`,
+   * a 30-day `_updatedAt` default). `recent` is the one scope that implies a
+   * window; every other scope bounds nothing unless the model says so. This
+   * lets a resolved model, or a human reading a dumped one, tell an
+   * intentional bound from a default without already knowing `recent`'s
+   * special case.
+   */
+  windowSource: "authored" | "impliedByScope";
 }
 
 export interface ResolvedObjectAuditPolicy {

@@ -62,7 +62,9 @@ Resolution applies platform defaults consistently:
 - View presentation defaults, when a view declares presentation, are `stack`
   layout, `comfortable` density, `table` list rendering, `inline` row layout,
   `plain` text fragments, memory-backed local state, and empty list text.
-- Recent sync scopes default to a 30-day `_updatedAt` window.
+- Recent sync scopes default to a 30-day `_updatedAt` window. A resolved
+  window records whether it was authored or defaulted this way
+  (`ResolvedSyncWindow.windowSource: "authored" | "impliedByScope"`, Phase 72).
 
 ## Objects
 

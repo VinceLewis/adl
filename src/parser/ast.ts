@@ -108,6 +108,25 @@ export interface AdlDocumentAst {
   themes: ThemeDeclarationAst[];
   sync: SyncDeclarationAst[];
   migrations: MigrationDeclarationAst[];
+  /**
+   * Every use of a deprecated-but-still-accepted spelling encountered while
+   * parsing this document (a bare modifier value where parentheses are now
+   * canonical, an alias keyword, a dotted `X.Y` spelling of an `X_Y`
+   * keyword, or an omitted `WHEN`). The parser never refuses these — see
+   * Phase 72 — `compileAdl` turns each into a warning-severity
+   * `ADL_STYLE_DEPRECATED_SPELLING` diagnostic.
+   */
+  styleWarnings: StyleWarningAst[];
+  range: SourceRange;
+}
+
+export interface StyleWarningAst {
+  /** What construct this deprecated spelling was used on, e.g. "FIELD MIN value". */
+  construct: string;
+  /** The spelling actually written. */
+  deprecated: string;
+  /** The spelling that should be used instead going forward. */
+  canonical: string;
   range: SourceRange;
 }
 

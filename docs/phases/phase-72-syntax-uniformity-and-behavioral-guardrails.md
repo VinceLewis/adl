@@ -445,3 +445,33 @@ plan. The "compile-check ADL source before presenting it" process change
 this document's provenance note references is not part of this phase's
 scope — it was added directly to `AGENTS.md` and `CLAUDE.md` as an
 immediate, zero-risk process change, separately from this document.
+
+## Execution Note
+
+Executed. Full details, including the one place this document's own prose and
+its Acceptance Criteria disagreed on enforcement mechanism (resolved in favour
+of the Acceptance Criteria — parenthesization and `DECISION_TABLE ROW`'s
+`WHEN` are hard parse errors, not warnings), live in
+`learnings/process/syntax-uniformity-and-behavioral-guardrails.md`. Summary:
+
+- **Class A.** The full re-verification this document flagged as incomplete
+  found a much larger surface than the four originally-named sites: 21
+  constructs total, including a 14-construct dotted-keyword family
+  (`AUTO_ID`/`AUTO.ID` and 13 siblings) the original evidence pass missed
+  entirely. All 21 now warn on their deprecated spelling
+  (`ADL_STYLE_DEPRECATED_SPELLING`) while still compiling. Parenthesization
+  (`MIN(0)` etc.) and `DECISION_TABLE ROW`'s `WHEN` became hard parse errors
+  instead, per the Acceptance Criteria. `src/reference/giggle-band/domain.adl`,
+  `ui.adl`, `examples/*.adl`, and every affected test/conformance fixture were
+  migrated to canonical spellings.
+- **Class B.** All four items landed exactly as decided: `ADL_AUTO_ID_NO_DEFAULT`,
+  `ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE` (confirmed not already
+  refused), `ResolvedSyncWindow.windowSource`, and
+  `ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`.
+- `npm test` (985 tests), `npm run typecheck`, `npm run format:check`, and
+  `npm run verify:push` (36 Playwright visual cases, screenshots inspected)
+  all pass. `npm run test:integration` was not required — nothing here
+  touches the authority server, PostgreSQL, or the HTTP edge.
+- The two named capability gaps (`AUTO_ID` runtime minting; the two
+  `LOOKUP TARGET_FIELD`-unhonoured paths) remain open, exactly as this
+  document's Non-goals scoped them.

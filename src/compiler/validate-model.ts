@@ -139,6 +139,14 @@ export interface Diagnostic {
 }
 
 export const MODEL_VALIDATION_CODES = {
+  /**
+   * Emitted by `compileAdl`, not by `validateApplicationModel` itself — the
+   * spelling used is a parser-level fact with no representation on the
+   * resolved model. Listed here anyway, alongside every other diagnostic
+   * code this project defines, so it is discoverable in one place. See
+   * Phase 72 and `learnings/implementation/adl-parser.md`.
+   */
+  STYLE_DEPRECATED_SPELLING: "ADL_STYLE_DEPRECATED_SPELLING",
   APP_OFFLINE_GRACE_INVALID: "ADL_APP_OFFLINE_GRACE_INVALID",
   MODEL_VERSION_INVALID: "ADL_MODEL_VERSION_INVALID",
   MIGRATION_DUPLICATE: "ADL_MIGRATION_DUPLICATE",
@@ -151,6 +159,7 @@ export const MODEL_VALIDATION_CODES = {
   APP_START_VIEW_UNKNOWN: "ADL_APP_START_VIEW_UNKNOWN",
   APP_THEME_UNKNOWN: "ADL_APP_THEME_UNKNOWN",
   AUTO_ID_NON_TEXT: "ADL_AUTO_ID_NON_TEXT",
+  AUTO_ID_NO_DEFAULT: "ADL_AUTO_ID_NO_DEFAULT",
   AUTO_ID_SCOPE_FIELD_UNKNOWN: "ADL_AUTO_ID_SCOPE_FIELD_UNKNOWN",
   CONTEXT_DUPLICATE: "ADL_CONTEXT_DUPLICATE",
   CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN: "ADL_CONTEXT_GRANT_CONDITION_FIELD_UNKNOWN",
@@ -204,6 +213,8 @@ export const MODEL_VALIDATION_CODES = {
   LIFECYCLE_STATE_FIELD_UNKNOWN: "ADL_LIFECYCLE_STATE_FIELD_UNKNOWN",
   LOOKUP_DISPLAY_FIELD_UNKNOWN: "ADL_LOOKUP_DISPLAY_FIELD_UNKNOWN",
   LOOKUP_TARGET_FIELD_UNKNOWN: "ADL_LOOKUP_TARGET_FIELD_UNKNOWN",
+  LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED:
+    "ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED",
   LOOKUP_TARGET_OBJECT_UNKNOWN: "ADL_LOOKUP_TARGET_OBJECT_UNKNOWN",
   OBJECT_BUSINESS_KEY_UNKNOWN: "ADL_OBJECT_BUSINESS_KEY_UNKNOWN",
   COMMAND_AUTHORITY_INVALID: "ADL_COMMAND_AUTHORITY_INVALID",
@@ -304,6 +315,7 @@ export const MODEL_VALIDATION_CODES = {
     "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_FIELD_UNKNOWN",
   POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING: "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING",
   POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED: "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED",
+  POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE: "ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE",
   POLICY_PRINCIPAL_CONTEXT_UNKNOWN: "ADL_POLICY_PRINCIPAL_CONTEXT_UNKNOWN",
   POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
   POLICY_CHANNEL_INVALID: "ADL_POLICY_CHANNEL_INVALID",
@@ -2289,6 +2301,22 @@ function validateField(
       );
     }
 
+    // AUTO_ID is declarative only today: nothing mints a value from it at
+    // runtime, so a field declared AUTO_ID with no DEFAULT parses and
+    // resolves cleanly and then never receives a value from the mechanism
+    // its own declaration names. Refusing it costs an author nothing, since
+    // no reading of "AUTO_ID with no DEFAULT" produces correct behaviour
+    // today. See learnings/implementation/model-validator.md.
+    if (field.defaultValue === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.AUTO_ID_NO_DEFAULT,
+          `Auto ID field '${field.name}' on object '${object.name}' has no DEFAULT. AUTO_ID does not yet mint a runtime value, so the field needs an authored or DEFAULT value like any other field.`,
+          `${fieldPath}.autoId`,
+        ),
+      );
+    }
+
     if (field.autoId.scopeField !== undefined && !fieldNames.has(field.autoId.scopeField)) {
       diagnostics.push(
         diagnostic(
@@ -2814,6 +2842,22 @@ function validatePolicyRule(
         MODEL_VALIDATION_CODES.POLICY_ACTION_INVALID,
         `Policy rule '${rule.name}' has invalid action '${String(rule.action)}'.`,
         `${rulePath}.action`,
+      ),
+    );
+  }
+
+  // A `contextMember` principal is matched against a record
+  // (`recordBelongsToContextMember`); `search` is an object-level check
+  // evaluated with no record, so there is nothing for the principal to read
+  // from and a rule combining the two can never fire. That is worse than a
+  // parse error: it looks like a working grant. See
+  // learnings/implementation/policy-engine.md.
+  if (rule.principal.match === "contextMember" && rule.action === "search") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE,
+        `Policy rule '${rule.name}' grants SEARCH to a CONTEXT_MEMBER principal, which can never match: the object-level search check has no record for the principal to read a context roster from. Grant SEARCH to a wider principal and let per-record read policy restrict rows instead.`,
+        `${rulePath}.principal`,
       ),
     );
   }
@@ -5891,6 +5935,17 @@ function validateReadModel(
     `Output field names must be unique within read model '${readModel.name}'.`,
   );
 
+  // Mirrors ReadModelService's own resolution of which object stands in for
+  // "current user": a context literally named "User", or whose object is
+  // "User", names that object; otherwise "User" itself is assumed.
+  let currentUserObjectName = "User";
+  for (const [contextName, contextRef] of indexes.contextsByName) {
+    if (contextName === "User" || contextRef.item.object === "User") {
+      currentUserObjectName = contextRef.item.object;
+      break;
+    }
+  }
+
   const earlierSourcesByName = new Map<string, ResolvedReadModelSource>();
   for (let sourceIndex = 0; sourceIndex < readModel.sources.length; sourceIndex += 1) {
     const source = readModel.sources[sourceIndex];
@@ -5908,7 +5963,8 @@ function validateReadModel(
       );
     }
 
-    if (!indexes.objectsByName.has(source.object)) {
+    const sourceObject = indexes.objectsByName.get(source.object)?.item;
+    if (sourceObject === undefined) {
       diagnostics.push(
         diagnostic(
           MODEL_VALIDATION_CODES.READ_MODEL_SOURCE_OBJECT_UNKNOWN,
@@ -5916,6 +5972,30 @@ function validateReadModel(
           `${readModelPath}.sources[${sourceIndex}].object`,
         ),
       );
+    }
+
+    // A `currentUser` source scope matches a lookup field against
+    // `RUNTIME.userId` by identity (`recordMatchesCurrentUser`), which does
+    // not yet honour `LOOKUP ... TARGET_FIELD`: a lookup stored as a natural
+    // key never equals a user id, so the match silently never holds. Not
+    // fixed here (see learnings/implementation/read-model-runtime.md) but
+    // named at compile time rather than left as a spec caveat only.
+    if (source.scope === "currentUser" && sourceObject !== undefined) {
+      for (const field of sourceObject.fields) {
+        if (
+          field.lookup?.targetObject === currentUserObjectName &&
+          field.lookup.targetField !== undefined
+        ) {
+          diagnostics.push(
+            diagnostic(
+              MODEL_VALIDATION_CODES.LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED,
+              `Read model '${readModel.name}' source '${source.name}' has scope currentUser and object '${sourceObject.name}' matches the current user through lookup field '${field.name}', but that field declares TARGET_FIELD '${field.lookup.targetField}'. The currentUser match compares by identity and does not yet honour TARGET_FIELD, so it will not match here.`,
+              `${readModelPath}.sources[${sourceIndex}]`,
+              "warning",
+            ),
+          );
+        }
+      }
     }
 
     validateReadModelSourceJoin(

@@ -151,6 +151,16 @@ Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, 
 
 - `implementation/adl-parser.md`
 - `implementation/expression-language.md`
+- `process/syntax-uniformity-and-behavioral-guardrails.md`
+
+Before tasks that change a parser keyword alias, modifier-value parenthesization, `AUTO_ID`, `CONTEXT_MEMBER` policy principals, sync scope windows, or `LOOKUP TARGET_FIELD`, also read:
+
+- `process/syntax-uniformity-and-behavioral-guardrails.md`
+- `implementation/adl-parser.md`
+- `implementation/model-validator.md`
+- `implementation/policy-engine.md`
+- `implementation/offline-dataset-runtime.md`
+- `implementation/read-model-runtime.md`
 
 Before tasks that change an object's declared sync scope, the `SYNC ... WINDOW`
 or `SYNC ... WHERE` clauses, what a declared window, limit or predicate selects,
@@ -315,3 +325,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.
 - `implementation/edit-surface-language.md`: read before changing ADL edit-surface syntax, the edit-surface runtime, how a staged batch of child changes commits or queues, the `batch` local-operation kind, or anything that adds another ad-hoc multi-record write.
 - `implementation/protected-role-constraint.md`: read before changing object constraints, `ObjectStore.requireConstraintsForWrites`, or any future guard that must count sibling records rather than validate one record in isolation — it carries the Phase 65 "last admin standing" design: the check fires on the transition, not the state, and is deliberately not retroactive.
+- `process/syntax-uniformity-and-behavioral-guardrails.md`: read before changing a parser keyword alias, modifier-value parenthesization, `AUTO_ID`, `CONTEXT_MEMBER` policy principals, sync scope windows, or `LOOKUP TARGET_FIELD` — it carries the Phase 72 catalogue of canonical vs. deprecated spellings, the hard-parse-error-vs-warning distinction between parenthesization and keyword aliases, and the four Class B behavioural-trap decisions (`AUTO_ID` no-default refusal, `CONTEXT_MEMBER`+`SEARCH` refusal, sync window `windowSource` provenance, and the `LOOKUP TARGET_FIELD` current-user-source warning).

@@ -40,6 +40,49 @@ them in manifest order. Later object declarations that contain only `VIEW`
 blocks extend the earlier object declaration, which allows UI source such as
 `ui.adl` to live beside domain source without redefining fields or policies.
 
+## Deprecated Spellings
+
+Phase 72 found several places where the grammar accepted more than one legal
+spelling for the same construct, with no rule for which one an author should
+reach for — a fact to memorize rather than infer, for no benefit. Each pair now
+has exactly one canonical spelling, picked by whichever the reference app and
+conformance corpus already predominantly used. The deprecated spelling still
+parses — no existing `.adl` file needs to change to keep compiling — but
+`compileAdl` reports a warning-severity `ADL_STYLE_DEPRECATED_SPELLING`
+diagnostic naming the deprecated spelling and its canonical replacement. This
+is a parser-level fact with no representation on the resolved model, so it
+never appears for a model built from JSON (a hand-built `PartialApplicationModel`,
+or the `.adlj` format) — there is no spelling to have gotten wrong.
+
+| Construct | Canonical | Deprecated |
+| --- | --- | --- |
+| Field validator | `VALIDATE` | `PREDICATE` |
+| Policy rule channel list | `CHANNELS` | `CHANNEL` |
+| Policy rule field list | `FIELDS` | `FIELD` |
+| Policy principal role list | `ROLE` | `ROLES` |
+| Policy principal group-role list | `GROUP_ROLE` | `GROUP_ROLES` |
+| Policy principal user list | `USER` | `USERS` |
+| `ACTION ALLOW` role list | `ROLE` | `ROLES` |
+| `ACTION` policy reference list | `POLICY` | `POLICIES` |
+| `CONSTRAINT UNIQUE` field list | `FIELDS` | `FIELD` |
+| `CONTEXT MEMBERSHIP` context field | `CONTEXT_FIELD` | `CONTEXT` |
+| `CONTEXT MEMBERSHIP` role field | `ROLE_FIELD` | `ROLE` |
+| `CONTEXT_GRANT` context field | `CONTEXT_FIELD` | `CONTEXT` |
+| `DECISION_TABLE INPUT` binder | `=` | `FROM` |
+| `COMPUTED FIELD` binder | `=` | `AS` |
+| `READ_MODEL FIELD` expression binder | `=` | `AS` |
+| `COMMAND STEP` record identity header | `ID` | `RECORD` |
+| `COMMAND STEP` value directive | `VALUE` | `SET`, `PATCH` |
+| `COMMAND STEP` iteration clause | `FOR EACH` (two words) | `FOR_EACH` (one word) |
+| Every `X_Y` keyword's dotted spelling — `AUTO_ID`, `MODEL_VERSION`, `SCHEMA_VERSION`, `ACTIVE_WHEN`, `READ_MODEL`, `ARIA_LABEL`, `RENDER_AS`, `DATE_FIELD`, `TITLE_FIELD`, `SUMMARY_FIELDS`, `MONTH_STATE`, `WEEK_START`, `CONTEXT_MEMBER`, `TOP_BAR`, `NAV_DRAWER`, `CONTEXT_GRANT`, `ICON_MAP`, `STATUS_MAP`, `DECISION_TABLE` | the underscore form | the dotted form, e.g. `AUTO.ID` |
+
+A modifier value's parentheses (`MIN(0)`, `DEFAULT('Draft')`, an `ACTION FROM`
+state list) are a different kind of fix and are **not** in this table: a bare
+value is a parse error now, not a warning. See "Field Validators" below for
+why the two are treated differently. `DECISION_TABLE ROW`'s `WHEN` is the same
+kind of hard requirement — see "Decision Tables" below — because every real
+`ROW` already wrote it, so making it required broke nothing.
+
 ## Application Declaration
 
 ```text
@@ -120,48 +163,59 @@ Band exercises several of them directly and unmixed with the others: `EMAIL` on
 (`src/reference/giggle-band/domain.adl:21,82`), `MIN` on `Event.Amount`
 (`domain.adl:125`), `IN` on `Event.EventType` (`domain.adl:107`), and `REGEXP`
 on `Band.Facebook` (`domain.adl:38`). `MIN_LENGTH`, `MAX_LENGTH`,
-`CURRENCY_CODE`, `MAX_SIZE`, and the field-level `VALIDATE`/`PREDICATE` form
-are not exercised anywhere in the reference app and are shown here only to
-document that the syntax exists.
+`CURRENCY_CODE`, `MAX_SIZE`, and the field-level `VALIDATE` form are not
+exercised anywhere in the reference app and are shown here only to document
+that the syntax exists.
 
 - `EMAIL` (text) checks the value is shaped like `local@domain.tld`; it is not
   full RFC 5322 validation.
-- `MIN <n>` / `MAX <n>` apply to `NUMBER` fields only (not date or datetime)
+- `MIN(<n>)` / `MAX(<n>)` apply to `NUMBER` fields only (not date or datetime)
   and bound the value inclusively.
-- `MIN_LENGTH <n>` / `MAX_LENGTH <n>` (text) bound a string's character length
-  inclusively.
+- `MIN_LENGTH(<n>)` / `MAX_LENGTH(<n>)` (text) bound a string's character
+  length inclusively.
 - `IN (<values>, ...)` (text, number, or boolean) restricts the value to the
-  given literal set. Unlike the other validators, its value is always a
-  parenthesised, comma-separated list — the parentheses are not optional here.
-- `REGEXP <pattern>` (text) tests the value against `pattern` using
+  given literal set. Like every other validator's value, its own value is
+  always a parenthesised, comma-separated list — the parentheses are not
+  optional here, and never have been.
+- `REGEXP(<pattern>)` (text) tests the value against `pattern` using
   JavaScript `RegExp` semantics with no flags. The pattern's own syntactic
   validity is not checked until a value is evaluated against it at runtime.
 - `CURRENCY_CODE` (text, no value) checks the value is three uppercase
   letters; it does not check membership in an actual ISO 4217 list.
-- `MAX_SIZE <n>` (attachment) bounds an approximate size of the field's stored
-  value.
+- `MAX_SIZE(<n>)` (attachment) bounds an approximate size of the field's
+  stored value.
 - `MIME_TYPE (<values>, ...)` (attachment) restricts an attachment to the
   given set of allowed MIME types. Like `IN`, its value is always a
   parenthesised, comma-separated list — even a single allowed type needs the
   parentheses: `MIME_TYPE ('application/pdf')`.
-- `VALIDATE <expression> [MESSAGE '<text>']`, and its exact alias `PREDICATE
-  <expression> [MESSAGE '<text>']`, run an [expression](#expressions) over the
-  object's own fields and `RUNTIME.userId` / `RUNTIME.now`. Unlike an object
-  `VALIDATE`/`VALIDATION` declaration, the field-level form takes no name —
-  the keyword is followed directly by the expression. The expression must
-  resolve to boolean (`ADL_FIELD_VALIDATOR_EXPRESSION_TYPE` otherwise).
+- `VALIDATE <expression> [MESSAGE '<text>']` runs an [expression](#expressions)
+  over the object's own fields and `RUNTIME.userId` / `RUNTIME.now`. Unlike an
+  object `VALIDATE`/`VALIDATION` declaration, the field-level form takes no
+  name — the keyword is followed directly by the expression. The expression
+  must resolve to boolean (`ADL_FIELD_VALIDATOR_EXPRESSION_TYPE` otherwise).
   `MESSAGE` supplies the runtime failure text and defaults to a generic
-  message naming the field when omitted.
+  message naming the field when omitted. `PREDICATE <expression>` is the exact
+  same clause, kept as a deprecated spelling — see "Deprecated spellings"
+  below.
 
 Model validation checks every named validator's kind against the field's type
 and checks that a value it needs is present and the right JSON shape
 (`ADL_FIELD_VALIDATOR_KIND_INVALID`, `ADL_FIELD_VALIDATOR_VALUE_INVALID`) —
 this is why a validator that could never fire, such as `MIN` on a text field,
-is refused rather than silently accepted. `MIN`, `MAX`, `MIN_LENGTH`,
-`MAX_LENGTH`, `MAX_SIZE`, and `DEFAULT` all accept their value either bare or
-parenthesised — `MIN 0` and `MIN(0)` declare the same thing — because the
-parser treats the parentheses as optional grouping, not a different clause
-shape.
+is refused rather than silently accepted.
+
+**Parentheses are mandatory, not optional grouping.** `MIN`, `MAX`,
+`MIN_LENGTH`, `MAX_LENGTH`, `MAX_SIZE`, `REGEXP`, `DEFAULT`, `AUTO_ID PREFIX`,
+`AUTO_ID PAD`, a `MIGRATION ADD FIELD`'s `DEFAULT`, a presentation `STATE`'s
+`DEFAULT`, and a `COMMAND INPUT`'s `DEFAULT` all take their value
+parenthesised — `MIN(0)`, not `MIN 0` — joining `IN(...)`/`MIME_TYPE(...)`,
+whose value was always a parenthesised list. A bare value is a parse error
+(`ADL_PARSE_EXPECTED_TOKEN`), not a deprecated spelling: unlike the alias pairs
+below, the two shapes were never accepted side by side once this rule shipped
+(Phase 72), so there is no warning-and-still-compiles path for it. The same
+rule applies to an `ACTION FROM` state list — `FROM (Draft)`, not
+`FROM Draft` — for the same reason `IN`/`MIME_TYPE` always required
+parentheses: a bare, unparenthesised list has no unambiguous end.
 
 ### Field Modifiers
 
@@ -190,7 +244,10 @@ FIELD LegacyId TEXT HIDDEN
   on it.** `AUTO_ID` is declarative only today: it is captured and validated
   on the resolved field, but no runtime path mints a value from it, so an
   `AUTO_ID` field still needs an authored or `DEFAULT` value like any other
-  field.
+  field — an `AUTO_ID` field with no `DEFAULT` is refused
+  (`ADL_AUTO_ID_NO_DEFAULT`, Phase 72): every reading of that combination
+  produces a field that never gets a value, so refusing it costs a real
+  author nothing.
 
 Objects can declare business context scope and backend-neutral constraints:
 
@@ -198,7 +255,7 @@ Objects can declare business context scope and backend-neutral constraints:
 SCOPE Band FIELD Band
 CONSTRAINT uniqueSongTitleInBand UNIQUE SCOPE Band FIELDS Title
 CONSTRAINT orderedSetListItems ORDERED SCOPE Band PARENT SetList POSITION Position REORDER shift COMPACT onDelete
-CONSTRAINT lastBandAdminStanding PROTECTED_ROLE SCOPE Band FIELD Role VALUES ('BandAdmin') MIN 1
+CONSTRAINT lastBandAdminStanding PROTECTED_ROLE SCOPE Band FIELD Role VALUES ('BandAdmin') MIN(1)
 ```
 
 The compiler maps these declarations to the resolved model; runtime services
@@ -310,6 +367,11 @@ evicted by it. The day span and the predicate bound every route.
 `SCOPE recent` with no window resolves to 30 days over `_updatedAt`, which is
 what a model that declares no window has always meant. It is the one scope that
 *implies* a window; every other scope bounds nothing unless the model says so.
+The resolved window carries `windowSource: "impliedByScope"` for this implied
+case and `"authored"` for a window the model actually wrote (Phase 72), so a
+resolved model — or a human reading a dumped one — can tell which happened
+without already knowing `recent`'s special case. See
+[resolved-model.md](resolved-model.md).
 
 `WHERE` gives a scope a predicate to select by, and gives `SCOPE custom` the one
 it cannot do without:
@@ -335,8 +397,9 @@ CONTEXT_GRANT pendingBandInvitation ON Band OBJECT BandInvitation USER Invitee C
 ```
 
 `ON` names the business context, `OBJECT` the records that carry the grant,
-`USER` the field naming the granted user, and `CONTEXT_FIELD` (or `CONTEXT`) the
-field naming the context instance. The optional `WHEN` clause is an expression
+`USER` the field naming the granted user, and `CONTEXT_FIELD` the field naming
+the context instance (bare `CONTEXT` is the deprecated spelling — see
+"Deprecated spellings" below). The optional `WHEN` clause is an expression
 over the grant record and consumes the rest of the line.
 
 A grant **confers no roles**. It only makes records of that context instance
@@ -395,7 +458,10 @@ Two properties are part of the contract:
   does not, so the roster is resolved onto the runtime context beforehand. A
   missing roster never matches.
 - It **cannot gate `search`.** The object-level search check is evaluated with no
-  record, so there is nothing for the field to be read from. Grant `SEARCH` to a
+  record, so there is nothing for the field to be read from. A policy rule
+  granting `SEARCH` to a `CONTEXT_MEMBER` principal is refused at compile time
+  (`ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE`, Phase 72) — a rule that can
+  never match would otherwise look like a working grant. Grant `SEARCH` to a
   wider principal and let the per-record read filter do the work; that is where
   the roster is consulted.
 
@@ -405,16 +471,17 @@ specific fields. Conditions compile to resolved expressions.
 A rule may also restrict itself to specific runtime channels:
 
 ```adl
-RULE apiOnlyExport ALLOW EXPORT EVERYONE CHANNEL api
+RULE apiOnlyExport ALLOW EXPORT EVERYONE CHANNELS api
 RULE syncAndUiWrite ALLOW UPDATE ROLE Admin CHANNELS ui sync
 ```
 
-`CHANNEL` and `CHANNELS` are the same clause and take one or more of `ui`,
-`api`, `sync`, `import`, and `test` — the runtime channels a `RuntimeContext`
-carries, naming the browser UI, the HTTP API, sync replay, a bulk import, and
-the conformance/test harness respectively. A rule with no `CHANNEL`/`CHANNELS`
-clause matches all five, which is why every rule written before channels
-existed keeps working unchanged. The check happens right after the rule's
+`CHANNELS` takes one or more of `ui`, `api`, `sync`, `import`, and `test` —
+the runtime channels a `RuntimeContext` carries, naming the browser UI, the
+HTTP API, sync replay, a bulk import, and the conformance/test harness
+respectively. `CHANNEL` (singular) is the same clause, kept as a deprecated
+spelling — see "Deprecated spellings" below. A rule with no `CHANNELS` clause
+matches all five, which is why every rule written before channels existed
+keeps working unchanged. The check happens right after the rule's
 action match and before role, owner, state, field, or condition matching, so a
 request on a channel the rule does not name skips it entirely, as if the rule
 were not declared — this is how a model can grant a wider principal through
@@ -432,7 +499,7 @@ LIFECYCLE TicketLifecycle FIELD Status INITIAL Open
   STATE Open
   STATE Closed TERMINAL
 
-  ACTION close FROM Open TO Closed LABEL 'Close'
+  ACTION close FROM (Open) TO Closed LABEL 'Close'
     ALLOW ROLE Admin
     WHEN Resolution != ''
     BEFORE hooks.ticket.beforeClose
@@ -560,13 +627,15 @@ END.DECISION_TABLE
   returns the first row whose condition is true, in declaration order.
   `SINGLE` requires at most one matching row and raises a `DecisionTableError`
   at evaluation time when more than one row matches.
-- `INPUT <name> = <expression>` (`FROM` is accepted in place of `=`) declares
-  one named input. Its expression evaluates once, against the caller-supplied
-  source values keyed by `Object`'s field names, before any row is
-  considered.
-- `ROW <name> [WHEN] <condition> OUTPUT <key> <value>[, <key> <value>...]`
-  declares one row. The condition evaluates over the table's `INPUT` names —
-  not the object's raw fields — and must resolve to `boolean`
+- `INPUT <name> = <expression>` declares one named input. Its expression
+  evaluates once, against the caller-supplied source values keyed by
+  `Object`'s field names, before any row is considered. `FROM` is accepted in
+  place of `=` as a deprecated spelling — see "Deprecated spellings" below.
+- `ROW <name> WHEN <condition> OUTPUT <key> <value>[, <key> <value>...]`
+  declares one row. `WHEN` is required (Phase 72): a bare condition
+  immediately after the row name no longer parses
+  (`ADL_PARSE_EXPECTED_TOKEN`). The condition evaluates over the table's
+  `INPUT` names — not the object's raw fields — and must resolve to `boolean`
   (`ADL_DECISION_TABLE_ROW_CONDITION_TYPE` otherwise). `OUTPUT` takes one or
   more `name value` literal pairs, comma- or newline-separated.
 - `DEFAULT [OUTPUT] <key> <value>...` declares the output returned when no row
@@ -595,7 +664,7 @@ Implemented view-level declarations:
 
 - `LAYOUT stack|grid|split|sidebar`
 - `DENSITY compact|comfortable|spacious`
-- local `STATE Name Type DEFAULT Literal`
+- local `STATE Name Type DEFAULT(Literal)`
 - `ICON_MAP Name FOR Field ... END.ICON_MAP`
 - `STATUS name LABEL 'Label' ARIA_LABEL 'Accessible label' ICON iconRef
 THEME colorStatusEvent PRECEDENCE 10`
@@ -613,9 +682,9 @@ VIEW HomeDashboard DASHBOARD
   READ_MODEL HomeUpcomingEvents
   LAYOUT stack
   DENSITY compact
-  STATE showGigs BOOLEAN DEFAULT true
-  STATE showRehearsals BOOLEAN DEFAULT true
-  STATE showUnavailable BOOLEAN DEFAULT true
+  STATE showGigs BOOLEAN DEFAULT(true)
+  STATE showRehearsals BOOLEAN DEFAULT(true)
+  STATE showUnavailable BOOLEAN DEFAULT(true)
 
   ICON_MAP EventTypeIcon FOR EventType DEFAULT calendar
     Gig -> music
@@ -876,7 +945,7 @@ END.OBJECT
 OBJECT SetListItem
   FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name
   FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title
-  FIELD Position NUMBER REQUIRED MIN 1
+  FIELD Position NUMBER REQUIRED MIN(1)
 
   VIEW SetListItemList LIST
     FIELDS Song Position
@@ -929,7 +998,13 @@ user" read-model source scope matching a lookup field against
 `RUNTIME.userId`, and the browser UI's lookup-label display. Both degrade
 gracefully (a "current user" match that should hold does not, and a lookup
 label falls back to the raw stored value) rather than returning wrong data,
-but neither resolves a `TARGET_FIELD` lookup correctly yet.
+but neither resolves a `TARGET_FIELD` lookup correctly yet. The first of the
+two is now named at compile time: a read model source with `SCOPE currentUser`
+whose object matches the current user through a `TARGET_FIELD` lookup gets a
+warning (`ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`, Phase 72).
+The browser UI's label display has no equivalent compile-time check yet, and
+neither path's underlying behaviour is fixed by that warning — see
+`learnings/implementation/read-model-runtime.md` for the tracked gap.
 
 `EDIT_SECTION` is spelled differently from the composed-presentation `SECTION`
 because a view may declare both, and two different things cannot share one
@@ -1034,8 +1109,10 @@ This is Giggle Band's own `ImportSongs` command, verbatim
 an `END.INPUT` terminator declares a list of records instead. Item `FIELD` lines
 default to optional, matching the object `FIELD` line they are shaped like.
 
-`FOR EACH <input>` (or `FOR_EACH`) makes a step plan one write per item into the
-same transaction, so a batch either lands whole or not at all. Inside such a step
+`FOR EACH <input>` makes a step plan one write per item into the same
+transaction, so a batch either lands whole or not at all. `FOR_EACH` (one
+word) is the deprecated spelling of the same clause — see "Deprecated
+spellings" below. Inside such a step
 `ITEM` is the whole item, `ITEM <field>` one of its fields, and `ITEM_INDEX` its
 zero-based position. `ITEM` and `ITEM_INDEX` are refused outside an iterating
 step.
@@ -1116,10 +1193,12 @@ for "a field of a record a READ step bound" — a `READ` step's binding and a
 `create`/`update` step's own written record are the same kind of thing to a
 later step's value expressions, so they share the one reference syntax.
 
-A `READ` step's header takes only `ID <expr>`: no `AUTHORITY`, no `FOR EACH`,
-and its body accepts only `REQUIRE` (evaluated against the record it read, the
-same as any other step precondition) and `END.STEP` — never `VALUE`, `SET`, or
-`PATCH`, because a read step writes nothing.
+A `READ` step's header takes only `ID <expr>` (`RECORD` is the deprecated
+spelling of the same header — see "Deprecated spellings" below): no
+`AUTHORITY`, no `FOR EACH`, and its body accepts only `REQUIRE` (evaluated
+against the record it read, the same as any other step precondition) and
+`END.STEP` — never `VALUE` (or its deprecated spellings `SET`/`PATCH`),
+because a read step writes nothing.
 
 `AUTHORITY` does not apply to a `READ` step because there is no write for it to
 authorize. A `READ` step always goes through the caller's own read policy —
