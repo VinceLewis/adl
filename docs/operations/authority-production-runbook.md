@@ -38,9 +38,12 @@ the application's model metadata row, which accepted records reference by
 foreign key.
 
 Additional process variables: `ADL_HOST`, `ADL_PORT`, `ADL_APPLICATION_ID`
-(required; pins the projection this process owns) and `ADL_MODEL_PATH` (the ADL
-project directory whose `app.yaml` and sources are compiled at startup). See
-[`.env.authority.sample`](../../.env.authority.sample) for the full list.
+(required; pins the projection this process owns) and `ADL_MODEL_PATH`
+(required; the ADL project directory whose `app.yaml` and sources are compiled
+at startup). Neither has a default — an unset `ADL_MODEL_PATH` refuses to
+start rather than silently serving the bundled Giggle Band reference app
+behind a real deployment. See [`.env.authority.sample`](../../.env.authority.sample)
+for the full list.
 
 ## Identity verification mode
 

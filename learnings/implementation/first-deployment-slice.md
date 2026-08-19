@@ -62,6 +62,30 @@ bootstrap paging.
   role; the process registers only the application model metadata row, which
   accepted records reference by foreign key.
 
+## Decisions from the `ADL_MODEL_PATH` default removal
+
+- **`loadAuthorityProcessConfiguration` no longer defaults `ADL_MODEL_PATH` to
+  `src/reference/giggle-band`.** An unset value now throws
+  `AuthorityConfigurationError("ADL_MODEL_PATH is required.")`, matching the
+  precedent already set by `ADL_APPLICATION_ID` in the same function: a
+  deployment must name what it is, not silently inherit a bundled reference
+  app's identity. The old default meant an operator who forgot to set this env
+  var would not learn about it — the process would start anyway and quietly
+  serve the demo model in place of a real one.
+  `docs/operations/authority-production-runbook.md` and
+  `.env.authority.sample` were updated to mark `ADL_MODEL_PATH` required, the
+  same way `ADL_APPLICATION_ID` already was.
+- Nothing in `tests/integration/` relied on the removed default — every
+  existing test already set `ADL_MODEL_PATH` explicitly. A new test in
+  `authority-deployment-slice.test.ts` (`the composed authority process >
+  refuses to start with no ADL_MODEL_PATH...`) proves the fail-closed
+  behavior directly against the pure config function, no PostgreSQL required
+  (mirroring how `authority-retention-scheduling.test.ts` tests
+  `loadRetentionProcessConfiguration`'s equivalent guard).
+- `tests/visual/administration-authority.ts` and `passkey-authority.ts` call
+  `loadAuthorityModel("src/reference/giggle-band")` directly — a literal path,
+  not a default — so they were unaffected.
+
 ## Practical guidance
 
 - `__Host-` cookies require HTTPS, and SameSite=Strict requires the browser app

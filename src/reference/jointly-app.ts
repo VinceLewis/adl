@@ -1,11 +1,13 @@
 import { compileAdlProject } from "../compiler/compile-adl-project.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
+import { IndexedDbObjectStorageBackend } from "../runtime/indexeddb-object-storage.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import jointlyCareManifestSource from "./jointly-care/app.yaml?raw";
 import jointlyCareDomainSource from "./jointly-care/domain.adl?raw";
 import jointlyCareUiSource from "./jointly-care/ui.adl?raw";
+import type { ReferenceDemoDefinition, ReferenceDemoSeedOutcome } from "./reference-demo.js";
 import type {
   PartialApplicationModel,
   ResolvedApplicationModel,
@@ -350,3 +352,30 @@ export function contextForCircle(context: RuntimeContext, circleId: string): Run
 function getSeedNow(context: RuntimeContext): Date {
   return context.now ?? jointlyReferenceSystemContext.now ?? new Date("2026-08-15T09:00:00.000Z");
 }
+
+export const JOINTLY_CARE_EXAMPLE_DATABASE_NAME = "adl-jointly-care-example";
+
+export function createPersistentJointlyReferenceRuntime(
+  model: ResolvedApplicationModel = createJointlyReferenceModel(),
+): ApplicationRuntime {
+  return new ApplicationRuntime(model, {
+    storage: new IndexedDbObjectStorageBackend({
+      databaseName: JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
+    }),
+  });
+}
+
+async function seedJointlyReferenceDemo(
+  runtime: ApplicationRuntime,
+): Promise<ReferenceDemoSeedOutcome> {
+  const seeded = await seedJointlyReferenceRuntimeIfEmpty(runtime);
+  return { context: seeded.carerContext, seeded: seeded.seeded };
+}
+
+export const jointlyReferenceDemo: ReferenceDemoDefinition = {
+  id: "jointly-care",
+  createModel: createJointlyReferenceModel,
+  databaseName: JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
+  createPersistentRuntime: createPersistentJointlyReferenceRuntime,
+  seedIfEmpty: seedJointlyReferenceDemo,
+};

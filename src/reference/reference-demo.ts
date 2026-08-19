@@ -1,0 +1,31 @@
+import type { ApplicationRuntime } from "../runtime/application-runtime.js";
+import type { ResolvedApplicationModel } from "../model/resolved-model.js";
+import type { RuntimeContext } from "../runtime/runtime-types.js";
+
+/**
+ * What a reference demo's seed-if-empty function produced, normalized across
+ * every reference app so `src/ui/main.ts` never has to know each app's own
+ * seed shape (Giggle Band/Band return `musicianContext`, Jointly Care returns
+ * `carerContext`, and a future app will return something else again).
+ */
+export interface ReferenceDemoSeedOutcome {
+  context: RuntimeContext;
+  seeded: boolean;
+}
+
+/**
+ * Everything the generic browser demo dispatch (`mountDemo` in
+ * `src/ui/main.ts`) needs to mount one reference app, gathered in one place so
+ * adding a reference app to the `?demo=` picker means adding one of these
+ * (colocated with the app's own integration module) rather than editing an
+ * `if`/`else if` chain in shared dispatch code.
+ */
+export interface ReferenceDemoDefinition {
+  /** Matches the `?demo=` query value that selects this app. */
+  id: string;
+  createModel: () => ResolvedApplicationModel;
+  /** Database name for this demo's IndexedDB-backed persistent runtime. */
+  databaseName: string;
+  createPersistentRuntime: (model?: ResolvedApplicationModel) => ApplicationRuntime;
+  seedIfEmpty: (runtime: ApplicationRuntime) => Promise<ReferenceDemoSeedOutcome>;
+}

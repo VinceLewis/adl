@@ -117,6 +117,61 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   abstraction would have been the wrong kind of DRY. See
   [[read-model-runtime]] for the read-side note this mirrors.
 
+## Key decisions from the reference-demo registry refactor
+
+- **`src/ui/main.ts`'s `mountDemo()` used to be a hardcoded
+  `if (demo === "giggle-band") … else if (demo === "band") … else if (demo ===
+  "jointly-care")` chain**, and `src/ui/demo-fixture.ts` re-exported a
+  `createPersistent*Runtime` function, a database-name constant, and a
+  seed/seed-if-empty function pair, one full set per reference app. That shape
+  is exactly how a demo's specific seeding/model logic bled into shared
+  dispatch code once already: before the Jointly Care addition,
+  `startingContext()` called `seedBandReferenceRuntimeIfEmpty` — a
+  Band-specific function — *unconditionally* for every demo, including
+  `giggle-band`; it only happened to "work" there because Giggle Band's model
+  reuses Band's own object names.
+- **Fixed by a `ReferenceDemoDefinition` registry** (`src/reference/
+  reference-demo.ts` for the shared type, `src/reference/reference-demos.ts`
+  for the aggregating array `mountDemo()` looks a `?demo=` id up in). Each
+  reference app now owns one self-contained definition — id, model factory,
+  database name, persistent-runtime factory, and a `seedIfEmpty` normalized to
+  `{ context, seeded }` — colocated with that app's own integration module
+  (`bandReferenceDemo`/`giggleBandExampleDemo` in `src/reference/band-app.ts`,
+  `jointlyReferenceDemo` in `src/reference/jointly-app.ts`). `mountDemo()`
+  itself now contains zero app literals: no demo id, no database name, no
+  per-app branch. Adding a reference app to the picker means adding one
+  definition to its own module plus one array entry in `reference-demos.ts`,
+  not editing an `if`/`else if` chain.
+- **The normalized `{ context, seeded }` seed shape existed ad hoc in
+  `main.ts` before this** (`return { context: seeded.musicianContext }` /
+  `... .carerContext`, once per demo). It is now each app's own
+  `seedIfEmpty` wrapper (e.g. `seedBandReferenceDemo` in `band-app.ts`) doing
+  that translation once, at the source, rather than three near-identical
+  inline lambdas in dispatch code.
+- **`band` and `giggle-band` deliberately share one seed function.**
+  `createGiggleBandExampleModel()` only renames `app.name` on top of
+  `createBandReferenceModel()`'s model, so both `ReferenceDemoDefinition`s
+  point at the same `seedBandReferenceDemo`. That is a fact about those two
+  apps' content, decided in `band-app.ts` by the apps themselves — the
+  registry never assumes any two demos share anything; if a future demo
+  needs its own seed function, it just writes one.
+- **`IndexedDbObjectStorageBackend` moved into `src/reference/*-app.ts`**
+  (constructing each app's persistent runtime) rather than staying in
+  `src/ui/demo-fixture.ts`. This keeps the dependency direction the codebase
+  already had (`src/ui` depends on `src/reference`, never the reverse) while
+  still letting each app module be fully self-contained; the class is
+  side-effect-free to import (no eager `indexedDB` global touch), so this is
+  safe even though `band-app.ts`/`jointly-app.ts` also run under
+  `fake-indexeddb` in non-browser tests.
+- **`demo-fixture.ts` is now scoped to only the generic "ADL Runtime Demo"
+  fixture** (`browserDemoContext`, `browserDemoPartialModel`,
+  `LOCAL_DEMO_IDENTITY`, `createBrowserDemoModel`/`Runtime`,
+  `seedBrowserDemoRuntime[IfEmpty]`) — a fixture that was never wired to any
+  `?demo=` value in the first place. It re-exports nothing from
+  `band-app.ts`/`jointly-app.ts` any more; the two tests that imported
+  `createGiggleBandExampleModel` through that re-export now import it
+  directly from `../src/reference/band-app.js`.
+
 ## Practical guidance
 
 - Keep UI behavior generic over `ResolvedObject` and `ResolvedView`; do not add per-object component forks.

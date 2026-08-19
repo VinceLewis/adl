@@ -27,7 +27,10 @@ import type {
 // The Node deployment adapter and the composed entrypoint pull in `node:http`,
 // `node:fs` and `pg`; both are intentionally kept out of the browser-safe barrel.
 import { createAuthorityNodeServer } from "../../src/server/authority-node.js";
-import { createAuthorityProcess } from "../../src/server/authority-entrypoint.js";
+import {
+  createAuthorityProcess,
+  loadAuthorityProcessConfiguration,
+} from "../../src/server/authority-entrypoint.js";
 import { authorityPool, resetProjections, seedApplication } from "./pg-harness.js";
 
 const applicationId = "deployment-slice";
@@ -884,6 +887,20 @@ describe("Phase 46 deployment slice over a real socket and real PostgreSQL", () 
 });
 
 describe("the composed authority process", () => {
+  it("refuses to start with no ADL_MODEL_PATH rather than defaulting to a reference app", () => {
+    expect(() =>
+      loadAuthorityProcessConfiguration({
+        ADL_APPLICATION_ID: "entrypoint-app",
+      }),
+    ).toThrow("ADL_MODEL_PATH is required.");
+    expect(() =>
+      loadAuthorityProcessConfiguration({
+        ADL_APPLICATION_ID: "entrypoint-app",
+        ADL_MODEL_PATH: "   ",
+      }),
+    ).toThrow("ADL_MODEL_PATH is required.");
+  });
+
   it("starts against real PostgreSQL and serves health, readiness and metrics", async () => {
     const port = await freePort();
     const started = await createAuthorityProcess({

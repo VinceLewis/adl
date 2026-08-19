@@ -1,18 +1,7 @@
 import { defineAdlComponents } from "./components/register.js";
 import type { AdlAppElement } from "./components/adl-app.js";
-import {
-  BAND_REFERENCE_DATABASE_NAME,
-  GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
-  JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
-  createBandReferenceModel,
-  createGiggleBandExampleModel,
-  createJointlyReferenceModel,
-  createPersistentBandReferenceRuntime,
-  createPersistentGiggleBandExampleRuntime,
-  createPersistentJointlyReferenceRuntime,
-  seedBandReferenceRuntimeIfEmpty,
-  seedJointlyReferenceRuntimeIfEmpty,
-} from "./demo-fixture.js";
+import { findReferenceDemo } from "../reference/reference-demos.js";
+import type { ReferenceDemoDefinition } from "../reference/reference-demo.js";
 import { readBrowserAuthorityConfiguration } from "./authority-sync.js";
 import { IndexedDbSessionIdentityStorage, SIGNED_OUT_IDENTITY } from "./offline-session.js";
 import { connectAuthority } from "./session-startup.js";
@@ -29,73 +18,44 @@ defineAdlComponents();
 
 void mountDemo();
 
+/**
+ * Generic dispatch only: which reference app to mount, if any, comes entirely
+ * from looking `?demo=` up in the registry (`../reference/reference-demos.js`).
+ * No demo id, database name, model factory or seed function is named here —
+ * that is each app's own `ReferenceDemoDefinition`, colocated with its
+ * integration module. Adding a reference app to the picker means adding one
+ * definition there, not another branch in this function.
+ */
 async function mountDemo(): Promise<void> {
   const app = document.createElement("adl-app") as AdlAppElement;
   const search = globalThis.location?.search ?? "";
-  const demo = new URLSearchParams(search).get("demo");
+  const demo = findReferenceDemo(new URLSearchParams(search).get("demo"));
   // Opt-in: with no configured authority the browser stays a purely local demo.
   const authority = readBrowserAuthorityConfiguration(import.meta.env ?? {});
 
-  if (demo === "giggle-band") {
-    const model = createGiggleBandExampleModel();
-    const runtime = createDemoRuntime(model, GIGGLE_BAND_EXAMPLE_DATABASE_NAME, authority, () =>
-      createPersistentGiggleBandExampleRuntime(model),
-    );
-
-    document.title = model.app.name;
-    app.model = model;
-    app.runtime = runtime;
-    app.context = await startingContext(runtime, authority, async (r) => {
-      const seeded = await seedBandReferenceRuntimeIfEmpty(r);
-      return { context: seeded.musicianContext };
-    });
-    await connectAuthority(
-      app,
-      runtime,
-      withIdentityStorage(authority, GIGGLE_BAND_EXAMPLE_DATABASE_NAME),
-    );
-    void registerAdlServiceWorker(model.modelVersion);
-  } else if (demo === "band") {
-    const model = createBandReferenceModel();
-    const runtime = createDemoRuntime(model, BAND_REFERENCE_DATABASE_NAME, authority, () =>
-      createPersistentBandReferenceRuntime(model),
-    );
-
-    document.title = model.app.name;
-    app.model = model;
-    app.runtime = runtime;
-    app.context = await startingContext(runtime, authority, async (r) => {
-      const seeded = await seedBandReferenceRuntimeIfEmpty(r);
-      return { context: seeded.musicianContext };
-    });
-    await connectAuthority(
-      app,
-      runtime,
-      withIdentityStorage(authority, BAND_REFERENCE_DATABASE_NAME),
-    );
-    void registerAdlServiceWorker(model.modelVersion);
-  } else if (demo === "jointly-care") {
-    const model = createJointlyReferenceModel();
-    const runtime = createDemoRuntime(model, JOINTLY_CARE_EXAMPLE_DATABASE_NAME, authority, () =>
-      createPersistentJointlyReferenceRuntime(model),
-    );
-
-    document.title = model.app.name;
-    app.model = model;
-    app.runtime = runtime;
-    app.context = await startingContext(runtime, authority, async (r) => {
-      const seeded = await seedJointlyReferenceRuntimeIfEmpty(r);
-      return { context: seeded.carerContext };
-    });
-    await connectAuthority(
-      app,
-      runtime,
-      withIdentityStorage(authority, JOINTLY_CARE_EXAMPLE_DATABASE_NAME),
-    );
-    void registerAdlServiceWorker(model.modelVersion);
+  if (demo !== undefined) {
+    await mountReferenceDemo(app, demo, authority);
   }
 
   document.body.append(app);
+}
+
+async function mountReferenceDemo(
+  app: AdlAppElement,
+  demo: ReferenceDemoDefinition,
+  authority: BrowserAuthorityConfiguration | null,
+): Promise<void> {
+  const model = demo.createModel();
+  const runtime = createDemoRuntime(model, demo.databaseName, authority, () =>
+    demo.createPersistentRuntime(model),
+  );
+
+  document.title = model.app.name;
+  app.model = model;
+  app.runtime = runtime;
+  app.context = await startingContext(runtime, authority, demo.seedIfEmpty);
+  await connectAuthority(app, runtime, withIdentityStorage(authority, demo.databaseName));
+  void registerAdlServiceWorker(model.modelVersion);
 }
 
 /**
@@ -118,7 +78,7 @@ async function mountDemo(): Promise<void> {
 async function startingContext(
   runtime: ApplicationRuntime,
   authority: BrowserAuthorityConfiguration | null,
-  seedIfEmpty: (runtime: ApplicationRuntime) => Promise<{ context: RuntimeContext }>,
+  seedIfEmpty: ReferenceDemoDefinition["seedIfEmpty"],
 ): Promise<RuntimeContext> {
   if (authority !== null) {
     return { userId: SIGNED_OUT_IDENTITY, roles: [], channel: "ui" };

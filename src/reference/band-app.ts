@@ -1,11 +1,13 @@
 import { compileAdlProject } from "../compiler/compile-adl-project.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
+import { IndexedDbObjectStorageBackend } from "../runtime/indexeddb-object-storage.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import giggleBandManifestSource from "./giggle-band/app.yaml?raw";
 import giggleBandDomainSource from "./giggle-band/domain.adl?raw";
 import giggleBandUiSource from "./giggle-band/ui.adl?raw";
+import type { ReferenceDemoDefinition, ReferenceDemoSeedOutcome } from "./reference-demo.js";
 import type {
   PartialApplicationModel,
   ResolvedApplicationModel,
@@ -497,3 +499,57 @@ export function contextForBand(context: RuntimeContext, bandId: string): Runtime
 function getSeedNow(context: RuntimeContext): Date {
   return context.now ?? bandReferenceSystemContext.now ?? new Date("2026-07-07T08:00:00.000Z");
 }
+
+export const BAND_REFERENCE_DATABASE_NAME = "adl-band-reference-demo";
+export const GIGGLE_BAND_EXAMPLE_DATABASE_NAME = "adl-giggle-band-example";
+
+export function createPersistentBandReferenceRuntime(
+  model: ResolvedApplicationModel = createBandReferenceModel(),
+): ApplicationRuntime {
+  return new ApplicationRuntime(model, {
+    storage: new IndexedDbObjectStorageBackend({
+      databaseName: BAND_REFERENCE_DATABASE_NAME,
+    }),
+  });
+}
+
+export function createPersistentGiggleBandExampleRuntime(
+  model: ResolvedApplicationModel = createGiggleBandExampleModel(),
+): ApplicationRuntime {
+  return new ApplicationRuntime(model, {
+    storage: new IndexedDbObjectStorageBackend({
+      databaseName: GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
+    }),
+  });
+}
+
+async function seedBandReferenceDemo(
+  runtime: ApplicationRuntime,
+): Promise<ReferenceDemoSeedOutcome> {
+  const seeded = await seedBandReferenceRuntimeIfEmpty(runtime);
+  return { context: seeded.musicianContext, seeded: seeded.seeded };
+}
+
+/**
+ * `band` and `giggle-band` are two demo ids over the identical seeded schema:
+ * `createGiggleBandExampleModel` only renames `app.name` on top of
+ * `createBandReferenceModel`'s model (see above), so both definitions
+ * deliberately share the same seed function. That sharing is a fact about
+ * these two apps' content, decided here by the apps themselves — not a
+ * default any generic dispatch code assumes.
+ */
+export const bandReferenceDemo: ReferenceDemoDefinition = {
+  id: "band",
+  createModel: createBandReferenceModel,
+  databaseName: BAND_REFERENCE_DATABASE_NAME,
+  createPersistentRuntime: createPersistentBandReferenceRuntime,
+  seedIfEmpty: seedBandReferenceDemo,
+};
+
+export const giggleBandExampleDemo: ReferenceDemoDefinition = {
+  id: "giggle-band",
+  createModel: createGiggleBandExampleModel,
+  databaseName: GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
+  createPersistentRuntime: createPersistentGiggleBandExampleRuntime,
+  seedIfEmpty: seedBandReferenceDemo,
+};

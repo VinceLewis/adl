@@ -5,7 +5,7 @@ import {
   StaticSessionAdapter,
   resolveApplicationModel,
 } from "../src/index.js";
-import { createGiggleBandExampleModel } from "../src/ui/demo-fixture.js";
+import { createGiggleBandExampleModel } from "../src/reference/band-app.js";
 import type {
   AuthorityCommandRecordId,
   AuthorityOperationIntent,

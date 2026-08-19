@@ -92,11 +92,20 @@ export function loadAuthorityProcessConfiguration(
   // every projection row hangs off; reject control characters before startup.
   if (applicationId.length > 200 || /[\u0000-\u001f\u007f]/u.test(applicationId))
     throw new AuthorityConfigurationError("ADL_APPLICATION_ID is invalid.");
+  // No reference app is silently promoted to "the deployed application" here.
+  // This used to default to `src/reference/giggle-band`, which meant a
+  // deployment that forgot to set this env var quietly served the bundled
+  // demo model instead of failing to start. `ADL_APPLICATION_ID` above already
+  // fails closed for the same reason -- a deployment must name what it is, not
+  // inherit an example's identity -- and the model path decides which ADL
+  // project this process actually serves, so it gets the same treatment.
+  const modelPath = nonEmpty(environment.ADL_MODEL_PATH);
+  if (modelPath === undefined) throw new AuthorityConfigurationError("ADL_MODEL_PATH is required.");
   return {
     host: nonEmpty(environment.ADL_HOST) ?? "127.0.0.1",
     port: port(environment.ADL_PORT),
     applicationId,
-    modelPath: nonEmpty(environment.ADL_MODEL_PATH) ?? "src/reference/giggle-band",
+    modelPath,
   };
 }
 
