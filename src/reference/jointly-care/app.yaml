@@ -4,8 +4,8 @@ version: 0.1.0
 startView: HomeDashboard
 
 sources:
-  - domain.adl
-  - ui.adl
+  - domain.adlj
+  - ui.adlj
 
 demo:
   route: jointly-care

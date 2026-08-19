@@ -10,6 +10,7 @@ import {
   validateApplicationModel,
 } from "../src/index.js";
 import type { RuntimeContext } from "../src/index.js";
+import { compileAdlProjectV2 } from "../src/compiler/compile-adl-project-v2.js";
 
 const adminContext: RuntimeContext = {
   userId: "admin-1",
@@ -1366,18 +1367,18 @@ END.POLICY
   });
 
   it("compiles the Jointly Care ADL reference app from app.yaml into the runtime model", async () => {
-    const result = compileAdlProject({
+    const result = compileAdlProjectV2({
       manifestSource: readReference("jointly-care/app.yaml"),
       sources: {
-        "domain.adl": readReference("jointly-care/domain.adl"),
-        "ui.adl": readReference("jointly-care/ui.adl"),
+        "domain.adlj": readReference("jointly-care/domain.adlj"),
+        "ui.adlj": readReference("jointly-care/ui.adlj"),
       },
     });
 
     expect(result.manifest).toMatchObject({
       name: "Jointly Care ADL Example",
       id: "jointly-care",
-      sources: ["domain.adl", "ui.adl"],
+      sources: ["domain.adlj", "ui.adlj"],
     });
     expect(result.diagnostics).toEqual([]);
     expect(validateApplicationModel(result.model)).toEqual([]);

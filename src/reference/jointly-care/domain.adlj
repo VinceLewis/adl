@@ -1,0 +1,2225 @@
+{
+  "modelVersion": "1.0.0",
+  "app": {
+    "name": "Jointly Care ADL Example",
+    "startView": "HomeDashboard",
+    "theme": "MinimalLight",
+    "offlineGraceDays": 30
+  },
+  "roles": [
+    {
+      "name": "SystemAdmin",
+      "inherits": []
+    },
+    {
+      "name": "CircleMember",
+      "inherits": []
+    },
+    {
+      "name": "CircleOwner",
+      "inherits": [
+        "CircleMember"
+      ]
+    }
+  ],
+  "themes": [],
+  "migrations": [],
+  "objects": [
+    {
+      "name": "User",
+      "businessKey": "Email",
+      "displayField": "Email",
+      "constraints": [],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Email",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": [
+            {
+              "kind": "email"
+            }
+          ]
+        },
+        {
+          "name": "DisplayName",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "Timezone",
+          "type": "text",
+          "required": false,
+          "defaultValue": "UTC",
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [],
+      "views": [
+        {
+          "name": "UserProfileList",
+          "kind": "list",
+          "fields": [
+            "DisplayName",
+            "Email",
+            "Timezone"
+          ],
+          "searchFields": [
+            "DisplayName",
+            "Email"
+          ],
+          "sort": [],
+          "actions": [
+            "read",
+            "search"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "currentUser"
+      }
+    },
+    {
+      "name": "Circle",
+      "displayField": "Name",
+      "constraints": [],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Name",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": [
+            {
+              "kind": "maxLength",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "name": "Description",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "Owner",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [],
+      "views": [
+        {
+          "name": "CircleDirectory",
+          "kind": "list",
+          "context": {
+            "mode": "all",
+            "context": "Circle"
+          },
+          "fields": [
+            "Name",
+            "Description"
+          ],
+          "searchFields": [
+            "Name"
+          ],
+          "sort": [],
+          "actions": [
+            "read",
+            "search"
+          ]
+        },
+        {
+          "name": "CircleProfile",
+          "kind": "form",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "Name",
+            "Description"
+          ],
+          "searchFields": [],
+          "sort": [],
+          "actions": [
+            "save",
+            "delete"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "allAvailableContexts"
+      }
+    },
+    {
+      "name": "CircleMember",
+      "scope": {
+        "context": "Circle",
+        "field": "Circle"
+      },
+      "constraints": [
+        {
+          "name": "uniqueCircleMemberUser",
+          "kind": "unique",
+          "fields": [
+            "User"
+          ],
+          "scopeFields": [
+            "Circle"
+          ]
+        },
+        {
+          "name": "lastCircleOwnerStanding",
+          "kind": "protectedRole",
+          "scopeFields": [
+            "Circle"
+          ],
+          "roleField": "Role",
+          "roleValues": [
+            "CircleOwner"
+          ],
+          "minCount": 1
+        }
+      ],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Circle",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Circle",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "User",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        },
+        {
+          "name": "Role",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": [
+            {
+              "kind": "in",
+              "value": [
+                "CircleOwner",
+                "CircleMember"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "JoinedAt",
+          "type": "date",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [],
+      "views": [
+        {
+          "name": "CircleMemberList",
+          "kind": "list",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "User",
+            "Role",
+            "JoinedAt"
+          ],
+          "searchFields": [
+            "Role"
+          ],
+          "sort": [],
+          "actions": [
+            "read",
+            "search"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "allAvailableContexts"
+      }
+    },
+    {
+      "name": "CircleInvite",
+      "scope": {
+        "context": "Circle",
+        "field": "Circle"
+      },
+      "constraints": [
+        {
+          "name": "uniqueCircleInviteEmail",
+          "kind": "unique",
+          "fields": [
+            "InviteeEmail"
+          ],
+          "scopeFields": [
+            "Circle"
+          ]
+        }
+      ],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Circle",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Circle",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "InvitedBy",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        },
+        {
+          "name": "Invitee",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        },
+        {
+          "name": "InviteeEmail",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": [
+            {
+              "kind": "email"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "type": "text",
+          "required": true,
+          "defaultValue": "pending",
+          "readonly": false,
+          "hidden": false,
+          "validators": [
+            {
+              "kind": "in",
+              "value": [
+                "pending",
+                "accepted",
+                "declined"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "SentAt",
+          "type": "date",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "RespondedAt",
+          "type": "date",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [
+        {
+          "name": "respondedAtRequiredAfterResponse",
+          "expression": "(Status == 'pending') OR (RespondedAt != NULL)",
+          "message": "RespondedAt is required once an invite has been accepted or declined."
+        }
+      ],
+      "views": [
+        {
+          "name": "CircleInviteList",
+          "kind": "list",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "InviteeEmail",
+            "Status",
+            "SentAt"
+          ],
+          "searchFields": [
+            "InviteeEmail",
+            "Status"
+          ],
+          "sort": [],
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "onlineRequired",
+        "scope": "currentContext"
+      }
+    },
+    {
+      "name": "Event",
+      "displayField": "Title",
+      "scope": {
+        "context": "Circle",
+        "field": "Circle"
+      },
+      "constraints": [],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Circle",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Circle",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "CreatedBy",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        },
+        {
+          "name": "Title",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "Description",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "Location",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "StartsAt",
+          "type": "datetime",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "EndsAt",
+          "type": "datetime",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "AllDay",
+          "type": "boolean",
+          "required": false,
+          "defaultValue": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [
+        {
+          "name": "endsAtNotBeforeStartsAt",
+          "expression": "(EndsAt == NULL) OR (EndsAt >= StartsAt)",
+          "message": "EndsAt must not be before StartsAt."
+        }
+      ],
+      "views": [
+        {
+          "name": "CircleEventList",
+          "kind": "list",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "StartsAt",
+            "Title",
+            "Location",
+            "AllDay"
+          ],
+          "searchFields": [
+            "Title",
+            "Location"
+          ],
+          "sort": [
+            {
+              "field": "StartsAt",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ]
+        },
+        {
+          "name": "CircleEventForm",
+          "kind": "form",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "Title",
+            "Description",
+            "Location",
+            "StartsAt",
+            "EndsAt",
+            "AllDay"
+          ],
+          "searchFields": [],
+          "sort": [],
+          "actions": [
+            "save",
+            "delete"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "currentContext",
+        "window": {
+          "field": "StartsAt",
+          "days": 90,
+          "limit": 2000
+        }
+      }
+    },
+    {
+      "name": "Note",
+      "displayField": "Title",
+      "scope": {
+        "context": "Circle",
+        "field": "Circle"
+      },
+      "constraints": [],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Circle",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Circle",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "CreatedBy",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        },
+        {
+          "name": "Title",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "Body",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [],
+      "views": [
+        {
+          "name": "CircleNoteList",
+          "kind": "list",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "Title",
+            "CreatedBy"
+          ],
+          "searchFields": [
+            "Title",
+            "Body"
+          ],
+          "sort": [],
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ]
+        },
+        {
+          "name": "CircleNoteForm",
+          "kind": "form",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "Title",
+            "Body"
+          ],
+          "searchFields": [],
+          "sort": [],
+          "actions": [
+            "save",
+            "delete"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "currentContext"
+      }
+    },
+    {
+      "name": "Message",
+      "scope": {
+        "context": "Circle",
+        "field": "Circle"
+      },
+      "constraints": [],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Circle",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Circle",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "SentBy",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        },
+        {
+          "name": "Body",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": [
+            {
+              "kind": "maxLength",
+              "value": 2000
+            }
+          ]
+        }
+      ],
+      "computedFields": [],
+      "validations": [],
+      "views": [
+        {
+          "name": "CircleMessageList",
+          "kind": "list",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "SentBy",
+            "Body"
+          ],
+          "searchFields": [
+            "Body"
+          ],
+          "sort": [],
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "currentContext"
+      }
+    },
+    {
+      "name": "Reminder",
+      "displayField": "Title",
+      "scope": {
+        "context": "Circle",
+        "field": "Circle"
+      },
+      "constraints": [],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Circle",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Circle",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "Event",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Event",
+            "displayField": "Title"
+          },
+          "validators": []
+        },
+        {
+          "name": "CreatedBy",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Email"
+          },
+          "validators": []
+        },
+        {
+          "name": "Title",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "RemindAt",
+          "type": "datetime",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        },
+        {
+          "name": "Delivered",
+          "type": "boolean",
+          "required": false,
+          "defaultValue": false,
+          "readonly": false,
+          "hidden": false,
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [],
+      "views": [
+        {
+          "name": "ReminderList",
+          "kind": "list",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "RemindAt",
+            "Title",
+            "Event",
+            "Delivered"
+          ],
+          "searchFields": [
+            "Title"
+          ],
+          "sort": [
+            {
+              "field": "RemindAt",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "currentContext",
+        "window": {
+          "field": "RemindAt",
+          "days": 90,
+          "limit": 200
+        }
+      }
+    }
+  ],
+  "contexts": [
+    {
+      "name": "User",
+      "object": "User",
+      "selection": {
+        "mode": "required"
+      }
+    },
+    {
+      "name": "Circle",
+      "object": "Circle",
+      "selection": {
+        "mode": "optional",
+        "autoSelect": false,
+        "persistence": "local"
+      },
+      "membership": {
+        "object": "CircleMember",
+        "userField": "User",
+        "contextField": "Circle",
+        "roleField": "Role",
+        "roles": [
+          "CircleOwner",
+          "CircleMember"
+        ]
+      },
+      "grants": [
+        {
+          "name": "pendingCircleInvite",
+          "object": "CircleInvite",
+          "userField": "Invitee",
+          "contextField": "Circle",
+          "condition": "Status == 'pending'"
+        }
+      ]
+    }
+  ],
+  "readModels": [
+    {
+      "name": "HomeUpcomingEvents",
+      "context": {
+        "mode": "all",
+        "context": "Circle"
+      },
+      "sources": [
+        {
+          "name": "event",
+          "object": "Event",
+          "scope": "allAvailableContexts"
+        },
+        {
+          "name": "circle",
+          "object": "Circle",
+          "scope": "allAvailableContexts"
+        }
+      ],
+      "sort": [
+        {
+          "field": "StartsAt",
+          "direction": "asc"
+        }
+      ],
+      "fields": [
+        {
+          "name": "StartsAt",
+          "source": "event",
+          "field": "StartsAt"
+        },
+        {
+          "name": "Title",
+          "source": "event",
+          "field": "Title"
+        },
+        {
+          "name": "Location",
+          "source": "event",
+          "field": "Location"
+        },
+        {
+          "name": "AllDay",
+          "source": "event",
+          "field": "AllDay"
+        },
+        {
+          "name": "CircleName",
+          "source": "circle",
+          "field": "Name"
+        }
+      ]
+    },
+    {
+      "name": "CircleCalendarItems",
+      "context": {
+        "mode": "required",
+        "context": "Circle"
+      },
+      "sources": [
+        {
+          "name": "event",
+          "object": "Event",
+          "scope": "currentContext"
+        }
+      ],
+      "sort": [
+        {
+          "field": "StartsAt",
+          "direction": "asc"
+        }
+      ],
+      "fields": [
+        {
+          "name": "StartsAt",
+          "source": "event",
+          "field": "StartsAt"
+        },
+        {
+          "name": "Title",
+          "source": "event",
+          "field": "Title"
+        },
+        {
+          "name": "Location",
+          "source": "event",
+          "field": "Location"
+        },
+        {
+          "name": "AllDay",
+          "source": "event",
+          "field": "AllDay"
+        }
+      ]
+    },
+    {
+      "name": "MyPendingCircleInvites",
+      "context": {
+        "mode": "all",
+        "context": "Circle"
+      },
+      "sources": [
+        {
+          "name": "invite",
+          "object": "CircleInvite",
+          "scope": "allAvailableContexts"
+        }
+      ],
+      "sort": [
+        {
+          "field": "SentAt",
+          "direction": "asc"
+        }
+      ],
+      "fields": [
+        {
+          "name": "InviteeEmail",
+          "source": "invite",
+          "field": "InviteeEmail"
+        },
+        {
+          "name": "Status",
+          "source": "invite",
+          "field": "Status"
+        },
+        {
+          "name": "SentAt",
+          "source": "invite",
+          "field": "SentAt"
+        },
+        {
+          "name": "Invitee",
+          "source": "invite",
+          "field": "Invitee"
+        }
+      ]
+    },
+    {
+      "name": "CircleMemberRoster",
+      "context": {
+        "mode": "required",
+        "context": "Circle"
+      },
+      "sources": [
+        {
+          "name": "member",
+          "object": "CircleMember",
+          "scope": "currentContext"
+        },
+        {
+          "name": "user",
+          "object": "User",
+          "scope": "all"
+        }
+      ],
+      "sort": [
+        {
+          "field": "Role",
+          "direction": "asc"
+        }
+      ],
+      "fields": [
+        {
+          "name": "MemberEmail",
+          "source": "user",
+          "field": "Email"
+        },
+        {
+          "name": "Role",
+          "source": "member",
+          "field": "Role"
+        },
+        {
+          "name": "JoinedAt",
+          "source": "member",
+          "field": "JoinedAt"
+        }
+      ]
+    },
+    {
+      "name": "CircleRecentNotes",
+      "context": {
+        "mode": "required",
+        "context": "Circle"
+      },
+      "sources": [
+        {
+          "name": "note",
+          "object": "Note",
+          "scope": "currentContext"
+        }
+      ],
+      "sort": [
+        {
+          "field": "Title",
+          "direction": "asc"
+        }
+      ],
+      "fields": [
+        {
+          "name": "Title",
+          "source": "note",
+          "field": "Title"
+        },
+        {
+          "name": "Body",
+          "source": "note",
+          "field": "Body"
+        }
+      ]
+    },
+    {
+      "name": "CircleRecentMessages",
+      "context": {
+        "mode": "required",
+        "context": "Circle"
+      },
+      "sources": [
+        {
+          "name": "message",
+          "object": "Message",
+          "scope": "currentContext"
+        }
+      ],
+      "sort": [
+        {
+          "field": "Body",
+          "direction": "asc"
+        }
+      ],
+      "fields": [
+        {
+          "name": "SentBy",
+          "source": "message",
+          "field": "SentBy"
+        },
+        {
+          "name": "Body",
+          "source": "message",
+          "field": "Body"
+        }
+      ]
+    }
+  ],
+  "decisionTables": [],
+  "commands": [
+    {
+      "name": "CreateCircle",
+      "label": "Create circle",
+      "inputs": [
+        {
+          "name": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "Description",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "preconditions": [],
+      "steps": [
+        {
+          "name": "createCircle",
+          "action": "create",
+          "object": "Circle",
+          "values": {
+            "Name": {
+              "kind": "input",
+              "name": "Name"
+            },
+            "Description": {
+              "kind": "input",
+              "name": "Description"
+            },
+            "Owner": {
+              "kind": "runtime",
+              "property": "userId"
+            }
+          },
+          "establishesContext": "Circle",
+          "preconditions": []
+        },
+        {
+          "name": "createOwnerMembership",
+          "action": "create",
+          "object": "CircleMember",
+          "authority": "command",
+          "values": {
+            "User": {
+              "kind": "runtime",
+              "property": "userId"
+            },
+            "Circle": {
+              "kind": "stepMeta",
+              "step": "createCircle",
+              "property": "guid"
+            },
+            "Role": {
+              "kind": "literal",
+              "value": "CircleOwner"
+            },
+            "JoinedAt": {
+              "kind": "runtime",
+              "property": "today"
+            }
+          },
+          "preconditions": []
+        }
+      ]
+    },
+    {
+      "name": "AcceptCircleInvite",
+      "label": "Accept invite",
+      "inputs": [
+        {
+          "name": "Invite",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "preconditions": [],
+      "steps": [
+        {
+          "name": "acceptInvite",
+          "action": "update",
+          "object": "CircleInvite",
+          "recordId": {
+            "kind": "input",
+            "name": "Invite"
+          },
+          "patch": {
+            "Status": {
+              "kind": "literal",
+              "value": "accepted"
+            },
+            "RespondedAt": {
+              "kind": "runtime",
+              "property": "today"
+            }
+          },
+          "preconditions": [
+            "Invitee == RUNTIME.userId",
+            "Status == 'pending'"
+          ]
+        },
+        {
+          "name": "createMembership",
+          "action": "create",
+          "object": "CircleMember",
+          "authority": "command",
+          "values": {
+            "User": {
+              "kind": "runtime",
+              "property": "userId"
+            },
+            "Circle": {
+              "kind": "stepField",
+              "step": "acceptInvite",
+              "field": "Circle"
+            },
+            "Role": {
+              "kind": "literal",
+              "value": "CircleMember"
+            },
+            "JoinedAt": {
+              "kind": "runtime",
+              "property": "today"
+            }
+          },
+          "preconditions": []
+        }
+      ]
+    },
+    {
+      "name": "DeclineCircleInvite",
+      "label": "Decline invite",
+      "inputs": [
+        {
+          "name": "Invite",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "preconditions": [],
+      "steps": [
+        {
+          "name": "declineInvite",
+          "action": "update",
+          "object": "CircleInvite",
+          "recordId": {
+            "kind": "input",
+            "name": "Invite"
+          },
+          "patch": {
+            "Status": {
+              "kind": "literal",
+              "value": "declined"
+            },
+            "RespondedAt": {
+              "kind": "runtime",
+              "property": "today"
+            }
+          },
+          "preconditions": [
+            "Invitee == RUNTIME.userId",
+            "Status == 'pending'"
+          ]
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "name": "UserSystemAdminPolicy",
+      "object": "User",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllUserOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "CircleSystemAdminPolicy",
+      "object": "Circle",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllCircleOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "CircleMemberSystemAdminPolicy",
+      "object": "CircleMember",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllCircleMemberOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "CircleInviteSystemAdminPolicy",
+      "object": "CircleInvite",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllCircleInviteOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "EventSystemAdminPolicy",
+      "object": "Event",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllEventOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "NoteSystemAdminPolicy",
+      "object": "Note",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllNoteOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "MessageSystemAdminPolicy",
+      "object": "Message",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllMessageOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "ReminderSystemAdminPolicy",
+      "object": "Reminder",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllReminderOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "UserPolicy",
+      "object": "User",
+      "rules": [
+        {
+          "name": "allowAuthenticatedSearchUsers",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowAuthenticatedReadUsers",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "CirclePolicy",
+      "object": "Circle",
+      "rules": [
+        {
+          "name": "allowCircleMemberSearchCircles",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberReadCircle",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowAuthenticatedCreateOwnCircle",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": [],
+          "condition": "Owner == RUNTIME.userId"
+        },
+        {
+          "name": "allowCircleCreatorReadOwnCircle",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": [],
+          "condition": "Owner == RUNTIME.userId"
+        },
+        {
+          "name": "allowCircleOwnerUpdateCircle",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleOwnerDeleteCircle",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "CircleMemberPolicy",
+      "object": "CircleMember",
+      "rules": [
+        {
+          "name": "allowCircleMemberSearchMembers",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberReadMembers",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowAuthenticatedReadOwnMembership",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": [],
+          "condition": "User == RUNTIME.userId"
+        },
+        {
+          "name": "allowCircleOwnerCreateMembers",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleOwnerUpdateMembers",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleOwnerDeleteMembers",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "CircleInvitePolicy",
+      "object": "CircleInvite",
+      "rules": [
+        {
+          "name": "allowCircleOwnerCreateInvites",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleOwnerReadInvites",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowInviteeReadOwnInvite",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": [],
+          "condition": "Invitee == RUNTIME.userId"
+        },
+        {
+          "name": "allowAuthenticatedSearchInvites",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleOwnerUpdateInvites",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowInviteeRespondToInvite",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": [],
+          "condition": "(Invitee == RUNTIME.userId) AND ((Status == 'accepted') OR (Status == 'declined'))"
+        },
+        {
+          "name": "denyInviteeIdentityInviteUpdates",
+          "effect": "deny",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": [
+            "Circle",
+            "InvitedBy",
+            "Invitee",
+            "InviteeEmail"
+          ],
+          "condition": "(Invitee == RUNTIME.userId) AND ((Status == 'accepted') OR (Status == 'declined'))"
+        },
+        {
+          "name": "allowCircleOwnerDeleteInvites",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleOwner"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "EventPolicy",
+      "object": "Event",
+      "rules": [
+        {
+          "name": "allowCircleMemberSearchEvents",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberReadEvents",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberCreateEvents",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberUpdateEvents",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberDeleteEvents",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "NotePolicy",
+      "object": "Note",
+      "rules": [
+        {
+          "name": "allowCircleMemberSearchNotes",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberReadNotes",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberCreateNotes",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberUpdateNotes",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberDeleteNotes",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "MessagePolicy",
+      "object": "Message",
+      "rules": [
+        {
+          "name": "allowCircleMemberSearchMessages",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberReadMessages",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberCreateMessages",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberUpdateMessages",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberDeleteMessages",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "ReminderPolicy",
+      "object": "Reminder",
+      "rules": [
+        {
+          "name": "allowCircleMemberSearchReminders",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberReadReminders",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberCreateReminders",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberUpdateReminders",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowCircleMemberDeleteReminders",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "CircleMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    }
+  ],
+  "sync": []
+}

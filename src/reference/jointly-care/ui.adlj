@@ -1,0 +1,763 @@
+{
+  "app": {
+    "name": "Jointly Care UI Views (placeholder, discarded on merge)"
+  },
+  "shell": {
+    "nav": {
+      "items": [
+        {
+          "view": "HomeDashboard",
+          "label": "Home",
+          "icon": "home",
+          "group": "Main",
+          "order": 10
+        },
+        {
+          "view": "MyPendingInvites",
+          "label": "My Invites",
+          "icon": "list",
+          "group": "Main",
+          "order": 15
+        },
+        {
+          "view": "CircleDirectory",
+          "label": "Circles",
+          "icon": "users",
+          "group": "Main",
+          "order": 20
+        },
+        {
+          "view": "CircleOverview",
+          "label": "Circle",
+          "icon": "list",
+          "group": "Main",
+          "order": 25,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        },
+        {
+          "view": "CircleEventList",
+          "label": "Events",
+          "icon": "calendar",
+          "group": "Main",
+          "order": 30,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        },
+        {
+          "view": "CircleEventCalendar",
+          "label": "Calendar",
+          "icon": "calendar",
+          "group": "Main",
+          "order": 35,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        },
+        {
+          "view": "CircleNoteList",
+          "label": "Notes",
+          "icon": "list",
+          "group": "Main",
+          "order": 40,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        },
+        {
+          "view": "CircleMessageList",
+          "label": "Messages",
+          "icon": "list",
+          "group": "Main",
+          "order": 50,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        },
+        {
+          "view": "ReminderList",
+          "label": "Reminders",
+          "icon": "calendar",
+          "group": "Main",
+          "order": 60,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        },
+        {
+          "view": "CircleMemberList",
+          "label": "Members",
+          "icon": "users",
+          "group": "Admin",
+          "order": 70,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        },
+        {
+          "view": "CircleInviteList",
+          "label": "Invites",
+          "icon": "list",
+          "group": "Admin",
+          "order": 80,
+          "visibility": {
+            "kind": "contextSelected",
+            "context": "Circle"
+          }
+        }
+      ]
+    },
+    "topBar": {
+      "contextSelector": "topBar",
+      "mobileContextSelector": "sheet",
+      "controls": [
+        "contextSelector",
+        "connection",
+        "syncStatus",
+        "themeSwitch",
+        "installApp"
+      ]
+    },
+    "navDrawer": {
+      "title": "Jointly Care",
+      "controls": [
+        "signOut"
+      ]
+    },
+    "controls": [
+      {
+        "name": "contextSelector",
+        "kind": "contextSelector",
+        "placement": "topBar"
+      },
+      {
+        "name": "connection",
+        "kind": "connectivity",
+        "placement": "topBar"
+      },
+      {
+        "name": "syncStatus",
+        "kind": "syncStatus",
+        "placement": "topBar"
+      },
+      {
+        "name": "themeSwitch",
+        "kind": "themeSwitch",
+        "label": "Theme",
+        "placement": "topBar"
+      },
+      {
+        "name": "installApp",
+        "kind": "pwaInstall",
+        "label": "Install",
+        "placement": "topBar"
+      },
+      {
+        "name": "signOut",
+        "kind": "logout",
+        "label": "Sign out",
+        "icon": "x",
+        "placement": "navDrawer"
+      }
+    ]
+  },
+  "roles": [],
+  "themes": [],
+  "migrations": [],
+  "objects": [
+    {
+      "name": "Event",
+      "views": [
+        {
+          "name": "HomeDashboard",
+          "kind": "dashboard",
+          "context": {
+            "mode": "all",
+            "context": "Circle"
+          },
+          "readModel": "HomeUpcomingEvents",
+          "fields": [
+            "StartsAt",
+            "Title",
+            "Location",
+            "CircleName"
+          ],
+          "searchFields": [],
+          "sort": [
+            {
+              "field": "StartsAt",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "presentation": {
+            "layout": "stack",
+            "density": "compact",
+            "state": [],
+            "iconMaps": [],
+            "statuses": [
+              {
+                "name": "event",
+                "label": "Event",
+                "accessibleLabel": "Circle event",
+                "icon": {
+                  "kind": "named",
+                  "name": "calendar"
+                },
+                "themeToken": "colorStatusEvent",
+                "precedence": 10
+              }
+            ],
+            "statusMaps": [],
+            "legends": [
+              {
+                "name": "ScheduleStatus",
+                "title": "Schedule status",
+                "statuses": [
+                  "event"
+                ]
+              }
+            ],
+            "sections": [
+              {
+                "name": "Welcome",
+                "heading": "Welcome back",
+                "controls": [],
+                "lists": [],
+                "calendars": []
+              },
+              {
+                "name": "Schedule",
+                "heading": "Upcoming across your circles",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "UpcomingEvents",
+                    "source": "HomeUpcomingEvents",
+                    "renderAs": "compactFeed",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "StartsAt",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "Nothing scheduled yet"
+                    },
+                    "status": {
+                      "candidates": [
+                        {
+                          "kind": "status",
+                          "status": "event"
+                        }
+                      ]
+                    },
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "icon",
+                          "icon": {
+                            "kind": "named",
+                            "name": "calendar"
+                          }
+                        },
+                        {
+                          "kind": "field",
+                          "field": "StartsAt",
+                          "format": {
+                            "kind": "datetime",
+                            "pattern": "EEE d MMM h:mma"
+                          }
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Title",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Location"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " ("
+                        },
+                        {
+                          "kind": "field",
+                          "field": "CircleName"
+                        },
+                        {
+                          "kind": "text",
+                          "text": ")"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "CircleEventCalendar",
+          "kind": "dashboard",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "StartsAt",
+            "Title",
+            "Location",
+            "AllDay"
+          ],
+          "searchFields": [],
+          "sort": [],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "presentation": {
+            "layout": "stack",
+            "density": "compact",
+            "state": [
+              {
+                "name": "visibleMonth",
+                "type": "date",
+                "defaultValue": "2026-08-01"
+              }
+            ],
+            "iconMaps": [],
+            "statuses": [
+              {
+                "name": "event",
+                "label": "Event",
+                "accessibleLabel": "Circle event",
+                "icon": {
+                  "kind": "named",
+                  "name": "calendar"
+                },
+                "themeToken": "colorStatusEvent",
+                "precedence": 10
+              }
+            ],
+            "statusMaps": [],
+            "legends": [
+              {
+                "name": "CircleCalendarStatus",
+                "title": "Calendar status",
+                "statuses": [
+                  "event"
+                ]
+              }
+            ],
+            "sections": [
+              {
+                "name": "PlanningCalendar",
+                "heading": "Calendar",
+                "controls": [],
+                "lists": [],
+                "calendars": [
+                  {
+                    "name": "MonthPlanner",
+                    "sourceKind": "readModel",
+                    "source": "CircleCalendarItems",
+                    "dateField": "StartsAt",
+                    "titleField": "Title",
+                    "summaryFields": [
+                      "Location"
+                    ],
+                    "fields": [
+                      "StartsAt",
+                      "Title",
+                      "Location",
+                      "AllDay"
+                    ],
+                    "sort": [
+                      {
+                        "field": "StartsAt",
+                        "direction": "asc"
+                      }
+                    ],
+                    "density": "compact",
+                    "month": {
+                      "state": "visibleMonth",
+                      "weekStart": "monday"
+                    },
+                    "status": {
+                      "candidates": [
+                        {
+                          "kind": "status",
+                          "status": "event"
+                        }
+                      ]
+                    },
+                    "emptyState": {
+                      "text": "No events in this month"
+                    },
+                    "actions": [
+                      {
+                        "name": "addEventOnDate",
+                        "kind": "action",
+                        "label": "Add Event",
+                        "icon": {
+                          "kind": "named",
+                          "name": "calendar"
+                        },
+                        "placement": "primary",
+                        "create": {
+                          "object": "Event"
+                        },
+                        "input": {
+                          "StartsAt": "StartsAt"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CircleInvite",
+      "views": [
+        {
+          "name": "MyPendingInvites",
+          "kind": "dashboard",
+          "context": {
+            "mode": "all",
+            "context": "Circle"
+          },
+          "readModel": "MyPendingCircleInvites",
+          "fields": [
+            "InviteeEmail",
+            "Status",
+            "SentAt"
+          ],
+          "searchFields": [],
+          "sort": [
+            {
+              "field": "SentAt",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "presentation": {
+            "state": [],
+            "iconMaps": [],
+            "statuses": [],
+            "statusMaps": [],
+            "legends": [],
+            "sections": [
+              {
+                "name": "Invites",
+                "heading": "Your pending invites",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "PendingInvitesList",
+                    "sourceKind": "readModel",
+                    "source": "MyPendingCircleInvites",
+                    "renderAs": "table",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "SentAt",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No pending invites"
+                    },
+                    "filter": "Status == 'pending'",
+                    "actions": [
+                      {
+                        "name": "accept",
+                        "kind": "action",
+                        "label": "Accept",
+                        "icon": {
+                          "kind": "named",
+                          "name": "calendar"
+                        },
+                        "placement": "row",
+                        "command": "AcceptCircleInvite",
+                        "input": {
+                          "Invite": "id"
+                        },
+                        "visibleWhen": "Invitee == RUNTIME.userId"
+                      },
+                      {
+                        "name": "decline",
+                        "kind": "action",
+                        "label": "Decline",
+                        "icon": {
+                          "kind": "named",
+                          "name": "x"
+                        },
+                        "placement": "row",
+                        "command": "DeclineCircleInvite",
+                        "input": {
+                          "Invite": "id"
+                        },
+                        "visibleWhen": "Invitee == RUNTIME.userId"
+                      }
+                    ],
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "InviteeEmail",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - invited "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "SentAt",
+                          "format": {
+                            "kind": "date",
+                            "pattern": "EEE d MMM"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Circle",
+      "views": [
+        {
+          "name": "CircleOverview",
+          "kind": "dashboard",
+          "context": {
+            "mode": "required",
+            "context": "Circle"
+          },
+          "fields": [
+            "Name",
+            "Description"
+          ],
+          "searchFields": [],
+          "sort": [],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "presentation": {
+            "layout": "stack",
+            "density": "compact",
+            "state": [],
+            "iconMaps": [],
+            "statuses": [],
+            "statusMaps": [],
+            "legends": [],
+            "sections": [
+              {
+                "name": "Members",
+                "heading": "Who is here",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "MembersList",
+                    "sourceKind": "readModel",
+                    "source": "CircleMemberRoster",
+                    "renderAs": "table",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "Role",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No members yet"
+                    },
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "MemberEmail",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Role"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              },
+              {
+                "name": "UpcomingEvents",
+                "heading": "Upcoming",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "UpcomingEventsList",
+                    "sourceKind": "readModel",
+                    "source": "CircleCalendarItems",
+                    "renderAs": "compactFeed",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "StartsAt",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "Nothing scheduled"
+                    },
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "StartsAt",
+                          "format": {
+                            "kind": "datetime",
+                            "pattern": "EEE d MMM h:mma"
+                          }
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Title",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Location"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              },
+              {
+                "name": "RecentNotes",
+                "heading": "Recent notes",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "RecentNotesList",
+                    "sourceKind": "readModel",
+                    "source": "CircleRecentNotes",
+                    "renderAs": "compactFeed",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "Title",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No notes yet"
+                    },
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "Title",
+                          "style": "bold"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              },
+              {
+                "name": "RecentMessages",
+                "heading": "Recent messages",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "RecentMessagesList",
+                    "sourceKind": "readModel",
+                    "source": "CircleRecentMessages",
+                    "renderAs": "compactFeed",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "Body",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No messages yet"
+                    },
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "Body"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "contexts": [],
+  "readModels": [],
+  "decisionTables": [],
+  "commands": [],
+  "policies": [],
+  "sync": []
+}

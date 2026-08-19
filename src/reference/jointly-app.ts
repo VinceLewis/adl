@@ -1,12 +1,12 @@
-import { compileAdlProject } from "../compiler/compile-adl-project.js";
+import { compileAdlProjectV2 } from "../compiler/compile-adl-project-v2.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import { IndexedDbObjectStorageBackend } from "../runtime/indexeddb-object-storage.js";
 import type { ObjectStorageBackend } from "../runtime/object-storage-backend.js";
 import type { RuntimeContext } from "../runtime/runtime-types.js";
 import jointlyCareManifestSource from "./jointly-care/app.yaml?raw";
-import jointlyCareDomainSource from "./jointly-care/domain.adl?raw";
-import jointlyCareUiSource from "./jointly-care/ui.adl?raw";
+import jointlyCareDomainSource from "./jointly-care/domain.adlj?raw";
+import jointlyCareUiSource from "./jointly-care/ui.adlj?raw";
 import type { ReferenceDemoDefinition, ReferenceDemoSeedOutcome } from "./reference-demo.js";
 import type {
   PartialApplicationModel,
@@ -21,11 +21,11 @@ export const jointlyReferenceSystemContext: RuntimeContext = {
   now: new Date("2026-08-15T09:00:00.000Z"),
 };
 
-const jointlyReferenceCompileResult = compileAdlProject({
+const jointlyReferenceCompileResult = compileAdlProjectV2({
   manifestSource: jointlyCareManifestSource,
   sources: {
-    "domain.adl": jointlyCareDomainSource,
-    "ui.adl": jointlyCareUiSource,
+    "domain.adlj": jointlyCareDomainSource,
+    "ui.adlj": jointlyCareUiSource,
   },
 });
 
@@ -37,7 +37,6 @@ if (
   );
 }
 
-export const jointlyReferenceAdlSource = jointlyReferenceCompileResult.source;
 export const jointlyReferenceAppManifest = jointlyReferenceCompileResult.manifest;
 export const jointlyReferencePartialModel: PartialApplicationModel =
   jointlyReferenceCompileResult.partialModel;

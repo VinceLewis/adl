@@ -1,3 +1,11 @@
+# SUPERSEDED AS COMPILED SOURCE: `app.yaml` now compiles `ui.adlj`, not this
+# file. Kept on disk, unmodified, only because `.adlj` (JSON) has no comment
+# syntax and this file's inline comments carry real design rationale that the
+# `.adlj` conversion cannot carry forward -- see
+# `learnings/implementation/reference-app-models.md`. Not reparsed, tested,
+# or kept in sync with `ui.adlj` going forward; treat it as a historical
+# reference, not a source of truth.
+#
 # Composed presentation for the Jointly Care ADL example. Mirrors Giggle
 # Band's `ui.adl`: `domain.adl` holds the plain object/read-model/policy
 # source, this file holds every view with composed SECTION/STATUS/CALENDAR

@@ -1,3 +1,13 @@
+# SUPERSEDED AS COMPILED SOURCE: `app.yaml` now compiles `domain.adlj`, not
+# this file. Kept on disk, unmodified, only because `.adlj` (JSON) has no
+# comment syntax and this file's inline comments carry real design rationale
+# (several deliberate platform-gap workarounds) that the `.adlj` conversion
+# cannot carry forward -- see the "Jointly Care ADL conversion" section of
+# `learnings/implementation/reference-app-models.md` for where that rationale
+# is otherwise recorded. Not reparsed, tested, or kept in sync with
+# `domain.adlj` going forward; treat it as a historical reference, not a
+# source of truth.
+
 APP 'Jointly Care ADL Example'
   MODEL_VERSION '1.0.0'
   THEME MinimalLight
