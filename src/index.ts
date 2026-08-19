@@ -31,6 +31,17 @@ export * from "./compiler/compile-adl-project.js";
 // `./compiler/adl-to-adlj.js`, `./compiler/compile-adl-project-v2.js`,
 // `./model/adlj-source.js`) instead — the same treatment already applied to
 // `simplewebauthn-adapter.ts` below for the same reason.
+//
+// That rule assumes nothing reachable from the browser bundle has a genuine
+// need for `.adlj` at runtime. Once a `.adlj`-sourced reference app exists
+// (`src/reference/jointly-app.ts`, converted from Giggle Band's `.adl`
+// precedent), that assumption breaks: its demo fixture is reachable from
+// `main.ts` and genuinely needs `compileAdlProjectV2`. There the fix is not
+// "don't import it" but "import it only behind a dynamic `import()`, called
+// lazily inside the function that needs it, never at module scope" — see
+// `jointly-app.ts`'s `compileJointlyReference()` and
+// `learnings/implementation/adlj-json-authoring-surface.md`'s "Reopened a
+// third time" section.
 export * from "./compiler/resolve-model.js";
 export * from "./compiler/validate-model.js";
 export * from "./conformance/runner.js";

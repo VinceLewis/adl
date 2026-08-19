@@ -45,7 +45,7 @@ async function mountReferenceDemo(
   demo: ReferenceDemoDefinition,
   authority: BrowserAuthorityConfiguration | null,
 ): Promise<void> {
-  const model = demo.createModel();
+  const model = await demo.createModel();
   const runtime = createDemoRuntime(model, demo.databaseName, authority, () =>
     demo.createPersistentRuntime(model),
   );

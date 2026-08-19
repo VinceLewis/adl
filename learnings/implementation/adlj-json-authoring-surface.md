@@ -296,6 +296,45 @@ integration time rather than after. Before adding or re-exporting anything
 `src/ui/main.ts`'s actual reachable set and run `npm run build` to check —
 don't infer bundle membership from the barrel file alone.
 
+### Reopened a third time — this time by a demo that genuinely needs it
+
+Every fix above assumed the browser bundle never has a *real* reason to reach
+`.adlj` tooling — every prior reachability was accidental (a barrel
+re-export, a same-file import nobody's code path used). That assumption
+broke once the Jointly Care reference app was converted from `.adl` text to
+`.adlj` (see [reference-app-models](reference-app-models.md)): its browser
+demo fixture (`src/reference/jointly-app.ts`) now has a genuine, load-bearing
+need to call `compileAdlProjectV2` at runtime, and it is reachable from
+`src/ui/main.ts` via the reference-demo registry (`reference-demos.ts`)
+unconditionally, on every page load, regardless of which `?demo=` is
+selected. A static import — the exact shape every earlier fix in this
+section was written to catch and forbid — reopened the hole for real:
+719 KB / 167 KB gzip -> 938 KB / 213 KB gzip.
+
+The earlier fixes don't generalize to this case because "don't let anything
+reachable import it" stops being an option once something reachable
+legitimately needs it. The fix here is different in kind, not degree: defer
+*when* the cost is paid, not avoid paying it. `compileJointlyReference()` in
+`jointly-app.ts` wraps a dynamic `import("../compiler/compile-adl-project-v2.js")`
+inside a memoized async function, called only from `createJointlyReferenceModel()`
+— never at module top level. Rollup code-splits the dynamic import target
+into its own chunk (`compile-adl-project-v2-*.js`, ~173 KB / 47 KB gzip)
+that is only fetched when Jointly Care's demo is actually mounted; the main
+entry chunk returned to ~766 KB / 167 KB gzip. This also forced
+`ReferenceDemoDefinition.createModel` (`reference-demo.ts`) to become
+`() => Promise<ResolvedApplicationModel>` — every `.adl`-sourced demo's
+`createModel` still resolves synchronously underneath, just wrapped in
+`async () => ...` to satisfy the shared signature, since there is no dynamic
+import to await for them.
+
+**The rule this adds, alongside "trace the static import graph":** when a
+`.adlj`-sourced reference app's browser fixture needs `compileAdlProjectV2`/
+`compileAdlj` for real, it must reach it only through a dynamic `import()`
+called lazily (inside the function that needs it, never at module scope),
+never a static import — and `npm run build` must be re-checked (main chunk
+size, not just "it compiles") every time, the same as for the earlier three
+fixes.
+
 ## Phase 77: the importer reuses the printer's expression printers, not a second implementation
 
 `partialApplicationModelToAdljSource` (`src/compiler/adl-to-adlj.ts`) is the

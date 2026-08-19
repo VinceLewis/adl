@@ -13,13 +13,13 @@ import {
 } from "../src/reference/jointly-app.js";
 
 async function createSeededJointlyReferenceRuntime() {
-  const runtime = createJointlyReferenceRuntime();
+  const runtime = await createJointlyReferenceRuntime();
   return seedJointlyReferenceRuntime(runtime);
 }
 
 describe("jointly care reference app model", () => {
-  it("validates the full care-coordination reference model", () => {
-    const model = createJointlyReferenceModel();
+  it("validates the full care-coordination reference model", async () => {
+    const model = await createJointlyReferenceModel();
 
     expect(validateApplicationModel(model)).toEqual([]);
     expect(model.app.startView).toBe("HomeDashboard");
@@ -259,7 +259,7 @@ describe("jointly care reference app model", () => {
   });
 
   it("creates a circle and its founder membership through CreateCircle", async () => {
-    const runtime = createJointlyReferenceRuntime();
+    const runtime = await createJointlyReferenceRuntime();
     const seeded = await seedJointlyReferenceRuntime(runtime);
 
     const result = await runtime.executeCommand(

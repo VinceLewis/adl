@@ -1,4 +1,3 @@
-import { compileAdlProjectV2 } from "../compiler/compile-adl-project-v2.js";
 import { resolveApplicationModel } from "../compiler/resolve-model.js";
 import { ApplicationRuntime } from "../runtime/application-runtime.js";
 import { IndexedDbObjectStorageBackend } from "../runtime/indexeddb-object-storage.js";
@@ -8,11 +7,8 @@ import jointlyCareManifestSource from "./jointly-care/app.yaml?raw";
 import jointlyCareDomainSource from "./jointly-care/domain.adlj?raw";
 import jointlyCareUiSource from "./jointly-care/ui.adlj?raw";
 import type { ReferenceDemoDefinition, ReferenceDemoSeedOutcome } from "./reference-demo.js";
-import type {
-  PartialApplicationModel,
-  ResolvedApplicationModel,
-  StoredObjectRecord,
-} from "../model/resolved-model.js";
+import type { CompileAdlProjectV2Result } from "../compiler/compile-adl-project-v2.js";
+import type { ResolvedApplicationModel, StoredObjectRecord } from "../model/resolved-model.js";
 
 export const jointlyReferenceSystemContext: RuntimeContext = {
   userId: "jointly-reference-system",
@@ -21,25 +17,48 @@ export const jointlyReferenceSystemContext: RuntimeContext = {
   now: new Date("2026-08-15T09:00:00.000Z"),
 };
 
-const jointlyReferenceCompileResult = compileAdlProjectV2({
-  manifestSource: jointlyCareManifestSource,
-  sources: {
-    "domain.adlj": jointlyCareDomainSource,
-    "ui.adlj": jointlyCareUiSource,
-  },
-});
+let jointlyReferenceCompileResultPromise: Promise<CompileAdlProjectV2Result> | undefined;
 
-if (
-  jointlyReferenceCompileResult.diagnostics.some((diagnostic) => diagnostic.severity === "error")
-) {
-  throw new Error(
-    `Jointly Care ADL source is invalid: ${JSON.stringify(jointlyReferenceCompileResult.diagnostics)}`,
-  );
+/**
+ * Lazily compiles `.adlj` behind a dynamic `import()`, not a static one, and
+ * memoizes the result. `compile-adl-project-v2.js` (needed for `.adlj`
+ * sources) pulls in `ajv` and the generated `adlj-schema.json` (~3600 lines);
+ * a *static* import here would put both back in the real browser bundle on
+ * every page load, regardless of which `?demo=` is selected, since this
+ * module is unconditionally imported by `reference-demos.js` -> `main.ts`.
+ * That is exactly the regression this function exists to avoid — see
+ * `src/index.ts`'s barrel comment and
+ * `learnings/implementation/adlj-json-authoring-surface.md` for the fuller
+ * history of this bundle-size trap. Unlike those earlier cases, this one is
+ * not a dead code path being accidentally reached: Jointly Care's demo
+ * genuinely needs `.adlj` compilation, so the fix is deferring *when* the
+ * cost is paid (lazily, only for this demo), not avoiding the import
+ * entirely.
+ */
+async function compileJointlyReference(): Promise<CompileAdlProjectV2Result> {
+  if (jointlyReferenceCompileResultPromise === undefined) {
+    jointlyReferenceCompileResultPromise = (async () => {
+      const { compileAdlProjectV2 } = await import("../compiler/compile-adl-project-v2.js");
+      const result = compileAdlProjectV2({
+        manifestSource: jointlyCareManifestSource,
+        sources: {
+          "domain.adlj": jointlyCareDomainSource,
+          "ui.adlj": jointlyCareUiSource,
+        },
+      });
+
+      if (result.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+        throw new Error(
+          `Jointly Care ADL source is invalid: ${JSON.stringify(result.diagnostics)}`,
+        );
+      }
+
+      return result;
+    })();
+  }
+
+  return jointlyReferenceCompileResultPromise;
 }
-
-export const jointlyReferenceAppManifest = jointlyReferenceCompileResult.manifest;
-export const jointlyReferencePartialModel: PartialApplicationModel =
-  jointlyReferenceCompileResult.partialModel;
 
 export interface JointlyReferenceSeed {
   model: ResolvedApplicationModel;
@@ -64,12 +83,16 @@ export interface JointlyReferenceSeed {
   pendingInvite: StoredObjectRecord;
 }
 
-export function createJointlyReferenceModel(): ResolvedApplicationModel {
-  return resolveApplicationModel(jointlyReferencePartialModel);
+export async function createJointlyReferenceModel(): Promise<ResolvedApplicationModel> {
+  const { partialModel } = await compileJointlyReference();
+  return resolveApplicationModel(partialModel);
 }
 
-export function createJointlyReferenceRuntime(storage?: ObjectStorageBackend): ApplicationRuntime {
-  return new ApplicationRuntime(createJointlyReferenceModel(), {
+export async function createJointlyReferenceRuntime(
+  storage?: ObjectStorageBackend,
+): Promise<ApplicationRuntime> {
+  const model = await createJointlyReferenceModel();
+  return new ApplicationRuntime(model, {
     ...(storage === undefined ? {} : { storage }),
   });
 }
@@ -354,8 +377,18 @@ function getSeedNow(context: RuntimeContext): Date {
 
 export const JOINTLY_CARE_EXAMPLE_DATABASE_NAME = "adl-jointly-care-example";
 
+/**
+ * No default parameter, unlike `band-app.ts`'s equivalents: their default
+ * (`= createXModel()`) can be synchronous because plain `.adl` text has
+ * nothing to dynamically import. `createJointlyReferenceModel()` is async, so
+ * it cannot live in a default-parameter position — callers who want that
+ * convenience call `await createJointlyReferenceModel()` explicitly. The
+ * demo-mount path (`src/ui/main.ts`) already always supplies `model`
+ * explicitly, matching `ReferenceDemoDefinition.createPersistentRuntime`'s
+ * contract.
+ */
 export function createPersistentJointlyReferenceRuntime(
-  model: ResolvedApplicationModel = createJointlyReferenceModel(),
+  model: ResolvedApplicationModel,
 ): ApplicationRuntime {
   return new ApplicationRuntime(model, {
     storage: new IndexedDbObjectStorageBackend({

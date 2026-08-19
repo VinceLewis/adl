@@ -23,9 +23,22 @@ export interface ReferenceDemoSeedOutcome {
 export interface ReferenceDemoDefinition {
   /** Matches the `?demo=` query value that selects this app. */
   id: string;
-  createModel: () => ResolvedApplicationModel;
+  /**
+   * Async so a demo whose source is `.adlj` can compile it behind a dynamic
+   * `import()` — `.adlj` compilation pulls in `ajv` and the generated JSON
+   * Schema, dead weight for every demo that doesn't need it, so nothing
+   * `.adlj`-adjacent may be reachable through a *static* import from this
+   * module or anything it imports. A demo whose source is plain `.adl` text
+   * has no such cost and can simply resolve immediately.
+   */
+  createModel: () => Promise<ResolvedApplicationModel>;
   /** Database name for this demo's IndexedDB-backed persistent runtime. */
   databaseName: string;
-  createPersistentRuntime: (model?: ResolvedApplicationModel) => ApplicationRuntime;
+  /**
+   * Always called with the model `createModel()` already produced — never
+   * relied on to resolve one itself, which is what lets it stay synchronous
+   * even for a `.adlj`-sourced demo.
+   */
+  createPersistentRuntime: (model: ResolvedApplicationModel) => ApplicationRuntime;
   seedIfEmpty: (runtime: ApplicationRuntime) => Promise<ReferenceDemoSeedOutcome>;
 }

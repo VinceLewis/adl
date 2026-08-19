@@ -540,7 +540,10 @@ async function seedBandReferenceDemo(
  */
 export const bandReferenceDemo: ReferenceDemoDefinition = {
   id: "band",
-  createModel: createBandReferenceModel,
+  // Plain `.adl` text, so there is no `ajv`/dynamic-import cost to defer —
+  // wrapped `async` only to satisfy `ReferenceDemoDefinition.createModel`'s
+  // shared signature (see its doc comment for why the signature is async).
+  createModel: async () => createBandReferenceModel(),
   databaseName: BAND_REFERENCE_DATABASE_NAME,
   createPersistentRuntime: createPersistentBandReferenceRuntime,
   seedIfEmpty: seedBandReferenceDemo,
@@ -548,7 +551,7 @@ export const bandReferenceDemo: ReferenceDemoDefinition = {
 
 export const giggleBandExampleDemo: ReferenceDemoDefinition = {
   id: "giggle-band",
-  createModel: createGiggleBandExampleModel,
+  createModel: async () => createGiggleBandExampleModel(),
   databaseName: GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
   createPersistentRuntime: createPersistentGiggleBandExampleRuntime,
   seedIfEmpty: seedBandReferenceDemo,
