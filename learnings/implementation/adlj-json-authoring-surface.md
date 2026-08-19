@@ -478,6 +478,33 @@ left on disk unwired from `app.yaml`, headed with a note that they were
 rationale-only reference and not reparsed — a workaround, not a fix, and one
 that would have had to repeat for every future `.adlj`-sourced app.
 
+**That workaround no longer exists.** Once this field landed, Jointly Care's
+`domain.adl`/`ui.adl` were reconverted to `.adlj` a second time via
+`importAdlAsAdlj`/`partialApplicationModelToAdljSource`, this time carrying
+every one of their 17 real leading comments through as `"comment"` keys, and
+the now-redundant `.adl` files were deleted outright —
+`src/reference/jointly-care/domain.adlj` and `.../ui.adlj` are the real,
+full, comment-carrying compiled source (see `app.yaml`'s `sources:`), not a
+comment-free stand-in with a separate rationale-only file kept on the side.
+`compileAdlProjectV2`'s own view-only-object merge (`isViewOnlyObject` in
+`merge-partial-model.ts`) surfaced one more real instance of the "AST always
+supplies `[]`, `resolveApplicationModel`/this merge check wants `undefined`"
+class of gap already documented above for `contexts`/`readModels`: `compile-
+adl.ts`'s `objectToPartial` always supplies `fields: []`, `computedFields:
+[]`, `validations: []`, `constraints: []`, `policies: []` even for an
+`OBJECT` block that declares none of them, so a `.adlj` document produced by
+converting `ui.adl` on its own (it declares three genuinely view-only
+`OBJECT` blocks — no fields, just extra `VIEW`s for objects `domain.adl`
+declares in full) fails `isViewOnlyObject`'s `=== undefined` check and is
+treated as a real, conflicting object declaration instead of merging. The
+fix applied when regenerating `ui.adlj` was to strip those artefactual empty
+arrays back to "not declared" for any object entry that has nothing else —
+removing an artifact of the AST-to-partial conversion, not real content,
+since `ui.adl` truly declares zero fields for those objects. Worth checking
+for again the next time a `.adl` pair that splits an object's fields from
+its views (`domain.adl` + `ui.adl`, the same shape Giggle Band uses) is
+reconverted to a two-file `.adlj` split via this importer.
+
 The fix adds one optional `comment?: string` field, sibling to a construct's
 other properties (`.adlj`'s `"comment"` key; `Partial*Model`'s `comment`
 field), to exactly the node shapes real usage needed. A multi-line comment is

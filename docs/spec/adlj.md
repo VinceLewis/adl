@@ -254,6 +254,25 @@ lifecycle, a decision table, and conditioned policy rules, read
 `.adlj` project splits into), read `examples/multi-source/tasks-views.adlj`
 and `examples/multi-source/tasks-policy.adlj`.
 
+For a full, real, comment-carrying application (not a small fixture), read
+`src/reference/jointly-care/domain.adlj` and
+`src/reference/jointly-care/ui.adlj` — the actual compiled source
+`app.yaml` lists for the Jointly Care reference app (a care-coordination
+app built from `OSV_PRD_Elixir_Canonical_Jointly.md`). `domain.adlj`
+declares `ROLE`s, two `CONTEXT`s with `MEMBERSHIP` and a `CONTEXT_GRANT`,
+eight objects with `SCOPE`, constraints, validations and `sync`, six
+`READ_MODEL`s (including a `JOIN`), three `COMMAND`s, and sixteen
+`POLICY` declarations; `ui.adlj` holds the `SHELL` and every composed-view
+`SECTION`/`STATUS`/`CALENDAR` presentation, split from `domain.adlj` the
+same view-only-object way `examples/multi-source/` demonstrates. Both
+files carry real leading `"comment"` rationale throughout — on fields, a
+context grant, read-model sources/fields, commands, and policy rules — the
+worked example of the "Comments" section above at full application scale,
+not a two-line fixture. Proven to compile cleanly via `compileAdlProjectV2`
+and resolve to the identical model `tests/jointly-reference-app.test.ts`
+and `tests/compile-adl.test.ts` already exercise; comment preservation is
+checked in `tests/adl-to-adlj.test.ts`.
+
 ### Checking a draft before presenting it
 
 Same rule as `.adl` text: run any drafted `.adlj` document through

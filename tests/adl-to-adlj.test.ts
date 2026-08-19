@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileAdl } from "../src/compiler/compile-adl.js";
 import { compileAdlj } from "../src/compiler/compile-adlj.js";
+import { compileAdlProjectV2 } from "../src/compiler/compile-adl-project-v2.js";
 import { printPartialApplicationModelAsAdl } from "../src/compiler/print-adl.js";
 import {
   importAdlAsAdlj,
@@ -176,36 +177,28 @@ END.OBJECT
 });
 
 describe("comment preservation through the full .adl -> .adlj -> .adl round trip", () => {
-  // Both fixtures are read-only real reference content (Jointly Care's
-  // `.adl` files are the kept, unwired, heavily-commented reference source;
-  // Giggle Band's `.adl` files are still its real compiled source) — neither
-  // is modified or reconverted here. `.adl` text with no `APP` block (every
-  // `ui.adl`) cannot be parsed alone (`parseAdl` requires `APP` first), so
-  // each pair is concatenated the same way `compileAdlProject` concatenates
-  // manifest sources before parsing.
-  it("preserves every real leading comment for Jointly Care's domain.adl + ui.adl", () => {
-    const combined = [
-      readReference("jointly-care/domain.adl"),
-      readReference("jointly-care/ui.adl"),
-    ].join("\n\n");
-
-    const original = compileAdl(combined);
+  // Jointly Care's `domain.adlj`/`ui.adlj` are themselves the real,
+  // comment-carrying compiled source now (see `app.yaml`'s `sources:` and
+  // `learnings/implementation/adlj-json-authoring-surface.md`) -- there is
+  // no separate `.adl` text fixture to round-trip through `importAdlAsAdlj`
+  // any more, so this proves comment preservation directly against the
+  // real compiled `.adlj` pair via `compileAdlProjectV2`, the same compiler
+  // `jointly-app.ts` uses.
+  it("preserves every real leading comment in Jointly Care's domain.adlj + ui.adlj", () => {
+    const original = compileAdlProjectV2({
+      manifestSource: readReference("jointly-care/app.yaml"),
+      sources: {
+        "domain.adlj": readReference("jointly-care/domain.adlj"),
+        "ui.adlj": readReference("jointly-care/ui.adlj"),
+      },
+    });
     expect(original.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
 
     const originalComments = collectComments(original.partialModel);
     // Sanity: this must be a real, non-vacuous proof against real content.
     expect(originalComments.length).toBeGreaterThanOrEqual(14);
 
-    const imported = importAdlAsAdlj(combined);
-    expect(imported.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
-    expect(imported.document).toBeDefined();
-
-    const adljResult = compileAdlj(JSON.stringify(imported.document));
-    expect(adljResult.diagnostics).toEqual([]);
-    expect(adljResult.model).toEqual(original.model);
-    expect(sortedComments(adljResult.partialModel)).toEqual(sortedComments(original.partialModel));
-
-    const printed = printPartialApplicationModelAsAdl(adljResult.partialModel);
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
     for (const comment of originalComments) {
       for (const line of comment.split("\n")) {
         expect(printed).toContain(line.length === 0 ? "#" : `# ${line}`);
@@ -219,6 +212,11 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
     expect(sortedComments(reprinted.partialModel)).toEqual(sortedComments(original.partialModel));
   });
 
+  // Giggle Band's `.adl` files are still its real compiled source, so this
+  // one still round-trips through `importAdlAsAdlj` from `.adl` text.
+  // `.adl` text with no `APP` block (`ui.adl`) cannot be parsed alone
+  // (`parseAdl` requires `APP` first), so the pair is concatenated the same
+  // way `compileAdlProject` concatenates manifest sources before parsing.
   it("preserves every real leading comment for Giggle Band's domain.adl + ui.adl", () => {
     // Giggle Band exercises comment shapes Jointly Care does not: a SECTION
     // comment (`DuplicateGig`), a row ACTION comment (`duplicateGig`), a

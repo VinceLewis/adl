@@ -161,8 +161,8 @@ branding fields — done as application-layer content, no platform change.
 
 ## Key decisions from the Jointly Care ADL conversion
 
-A second folder app, `src/reference/jointly-care/` (`app.yaml`, `domain.adl`,
-`ui.adl`, integration module `src/reference/jointly-app.ts`), converting the
+A second folder app, `src/reference/jointly-care/` (`app.yaml`, `domain.adlj`,
+`ui.adlj`, integration module `src/reference/jointly-app.ts`), converting the
 Phoenix/LiveView PRD at `OSV_PRD_Elixir_Canonical_Jointly.md` into an
 ADL-native equivalent: `Circle`/`CircleMember`/`CircleInvite` mirror
 `Band`/`BandMember`/`BandInvitation`'s shape closely enough to reuse most of
@@ -248,8 +248,11 @@ covered by its own Playwright visual spec
   `.adl` text is a generated, human-reviewable view produced from `.adlj` via
   `print-adl.ts` for review/diffing, not something to hand-author for a new
   app. Giggle Band (`src/reference/giggle-band/`) predates this direction and
-  is `.adl` text only; a `.adlj` conversion of Jointly Care
-  (`src/reference/jointly-care/`) was underway concurrently with this
-  guidance being written — check `src/reference/jointly-care/app.yaml` and
-  `git log` for whether it landed before treating it as the first real
-  `.adlj` reference-app precedent.
+  is `.adl` text only. Jointly Care (`src/reference/jointly-care/`) is the
+  first real `.adlj` reference-app precedent: `app.yaml` compiles
+  `domain.adlj`/`ui.adlj`, and both files carry every one of the app's
+  original design-rationale comments (17 total) as real `"comment"` keys —
+  there is no separate `.adl` file kept on disk for rationale any more, that
+  earlier gap having been closed by giving `.adlj` a first-class comment
+  field (see `implementation/adlj-json-authoring-surface.md`'s "Comments"
+  section).

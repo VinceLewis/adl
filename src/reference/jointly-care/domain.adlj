@@ -50,6 +50,7 @@
           "required": false,
           "readonly": false,
           "hidden": false,
+          "comment": "PRD 1.2: `display_name` defaults to `\"\"` and an empty one renders as the\nemail prefix in the UI. ADL's `DISPLAY` directive must name a stored\nfield (`ADL_OBJECT_DISPLAY_FIELD_UNKNOWN` rejects a `COMPUTED` one), so\nthis app displays `Email` directly rather than reproducing the\nempty-string fallback -- a simpler, always-populated label with the same\npractical effect. `DisplayName` is still a real field a person can set.",
           "validators": []
         },
         {
@@ -126,6 +127,7 @@
             "targetObject": "User",
             "displayField": "Email"
           },
+          "comment": "Optional, not `REQUIRED`: only `CreateCircle` ever writes it (`VALUE\nOwner RUNTIME userId`), matching Giggle Band's `Band.CreatedBy` -- a\ngeneric `ACTIONS create` view has no way to stamp the current user onto\na field (`RUNTIME.userId` is a command-step-only value source; see\n`CircleInvite.InvitedBy` below for the fuller version of this note), so\n`Circle` is never created through a plain create form, only through the\ncommand.",
           "validators": []
         }
       ],
@@ -329,6 +331,7 @@
             "targetObject": "User",
             "displayField": "Email"
           },
+          "comment": "Optional, like `Circle.Owner` above: `CircleInviteList`'s create form\n(`FIELDS InviteeEmail`) has no way to stamp the sending owner's id onto\nthe write, since only a `COMMAND` step's `VALUE ... RUNTIME userId` can\ndo that and a plain object `ACTIONS create` action is not a command.\nLeft unset when sent from the generic form; a future command could set\nit deliberately, the same way `AcceptCircleInvite` below sets `Invitee`.",
           "validators": []
         },
         {
@@ -341,6 +344,7 @@
             "targetObject": "User",
             "displayField": "Email"
           },
+          "comment": "Also optional: the owner sending the invite may not know whether the\ninvitee already has an account. `AcceptCircleInvite` fills this in from\n`RUNTIME.userId` when the invitation is accepted.",
           "validators": []
         },
         {
@@ -395,7 +399,8 @@
         {
           "name": "respondedAtRequiredAfterResponse",
           "expression": "(Status == 'pending') OR (RespondedAt != NULL)",
-          "message": "RespondedAt is required once an invite has been accepted or declined."
+          "message": "RespondedAt is required once an invite has been accepted or declined.",
+          "comment": "A still-`pending` invite has no response yet, so it is exempted the same\nway Giggle Band's `BandInvitation.respondedAtRequiredAfterResponse` is."
         }
       ],
       "views": [
@@ -461,6 +466,7 @@
             "targetObject": "User",
             "displayField": "Email"
           },
+          "comment": "Optional -- see `Circle.Owner` above for why a plain create form cannot\nstamp the current user onto this field. Populated by seed/test data, and\navailable for a future command to set deliberately.",
           "validators": []
         },
         {
@@ -912,6 +918,7 @@
           "object": "CircleInvite",
           "userField": "Invitee",
           "contextField": "Circle",
+          "comment": "Mirrors Giggle Band's `pendingBandInvitation` grant: without this, a circle\na user has been invited to but not yet joined is not one of their\n\"available contexts\", so `SCOPE allAvailableContexts` on `CircleInvite`\ncould never surface the invite to the person it is addressed to.",
           "condition": "Status == 'pending'"
         }
       ]
@@ -1031,6 +1038,7 @@
           "direction": "asc"
         }
       ],
+      "comment": "The home feed's counterpart for invites: every circle a caller has access\nto via `pendingCircleInvite` (declared above) is one they have been\ninvited to but not yet joined, so `SCOPE allAvailableContexts` here\nreaches exactly the invites addressed to them across every circle --\nwithout needing a circle already selected, unlike `CONTEXT REQUIRED`.\n\nThis deliberately does not join `Circle` to project a `CircleName`: a\n`CONTEXT_GRANT` only ever puts the *granted* object (`CircleInvite`) in\nreach of the object-scope gate for its target, never the context's own\nroot object (`Circle`). `CirclePolicy` has no rule that would let a\npending invitee read the `Circle` record itself -- `ROLE CircleMember`\ndoes not apply (they are not one yet) and no policy vocabulary here\nexpresses \"may read because a grant admits me to this context\" the way\n`CONTEXT_MEMBER` expresses relationship access on a different object's\nfield. Joining it anyway would silently drop every row for exactly the\ncaller this read model exists for, the same shape of finding as\n`learnings/implementation/reference-app-models.md`'s \"a cross-band\noverlay cannot name which band\".",
       "fields": [
         {
           "name": "InviteeEmail",
@@ -1050,7 +1058,8 @@
         {
           "name": "Invitee",
           "source": "invite",
-          "field": "Invitee"
+          "field": "Invitee",
+          "comment": "Not shown -- projected only so `MyPendingInvites` (`ui.adl`) can gate its\nAccept/Decline row actions to the row's actual invitee. `allowAuthenticated\nSearchInvites` (above) is unconditioned, and `allowCircleOwnerReadInvites`\nlegitimately lets an owner read every invite their own circle has sent --\nso this read model also surfaces a circle owner's own outgoing invites,\nnot only invites addressed to the caller. Both commands' own `REQUIRE\nInvitee == runtime.userId` step guard makes offering the buttons on\nsomeone else's invite safe either way, but showing a button that always\nfails for its own caller is still worth avoiding."
         }
       ]
     },
@@ -1302,6 +1311,7 @@
           "required": true
         }
       ],
+      "comment": "Symmetric with `AcceptCircleInvite` above: `REQUIRE Invitee ==\nruntime.userId` is what stops any authenticated caller from declining an\ninvite addressed to someone else. An invite an inviter sent to an email\nwith no matching account yet has no `Invitee` to match, so it cannot be\ndeclined through this command either -- only accepted or declined by the\nperson it already names.",
       "preconditions": [],
       "steps": [
         {
@@ -1510,6 +1520,7 @@
     {
       "name": "UserPolicy",
       "object": "User",
+      "comment": "`AUTHENTICATED`, not `ROLE CircleMember`: a context-scoped `ROLE` condition\nonly resolves against an object that is itself scoped to that context\n(`SCOPE Circle FIELD Circle`, as `Event`/`Note`/... declare) or is itself a\ncontext's own bound object (`Circle`, for `CONTEXT Circle OBJECT Circle`).\n`User` is neither, so `getPolicyRequestContextTargets` (`context-scope.ts`)\ncan only ever resolve targets against the `User` context (a caller's own\nidentity selection) for a `User`-object policy check -- a `Circle`-derived\nrole can never reach it, no matter which circle is selected. Any\nauthenticated caller may look up a collaborator's profile to invite or\nrecognise them; that does not depend on already sharing a circle.",
       "rules": [
         {
           "name": "allowAuthenticatedSearchUsers",
@@ -1805,7 +1816,8 @@
           },
           "action": "search",
           "state": [],
-          "fields": []
+          "fields": [],
+          "comment": "Deliberately unconditioned, matching `AvailabilityPolicy.\nallowAuthenticatedSearchAvailability` in Giggle Band: a `SEARCH` rule's\n`WHEN` is checked against `request.record`, which a coarse \"may this\nprincipal search this object at all\" gate never has -- `Invitee ==\nruntime.userId` would evaluate against no record and always fail, so a\nconditioned `ALLOW SEARCH ... WHEN` can never actually grant search.\n`MyPendingCircleInvites` (`ui.adl`'s `MyPendingInvites` view) is the one\ncross-circle read model this app has where the *invitee*, not a\n`CircleOwner`, is the caller; row-level shaping still narrows what comes\nback to just their own invite via `allowInviteeReadOwnInvite` above."
         },
         {
           "name": "allowCircleOwnerUpdateInvites",

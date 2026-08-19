@@ -339,6 +339,7 @@
             "read",
             "search"
           ],
+          "comment": "Post-MVP polish over the PRD's own v1 (deviation table, PRD 14: \"Month\ngrid calendar\" -> \"Date-sorted event list, generator gives a list; month\ngrid is post-MVP\"). ADL's runtime already has a general calendar\npresentation, so this is a small addition rather than the custom RRule\nmodule and month-grid component the PRD defers -- recurrence itself\nstays out of scope, matching PRD 14's \"Single events only\".",
           "presentation": {
             "layout": "stack",
             "density": "compact",
@@ -430,6 +431,7 @@
                         "create": {
                           "object": "Event"
                         },
+                        "comment": "Clicking an empty day drafts a new event starting at midnight UTC\non that date -- a starting point the carer adjusts in the form\nthat opens, the same shortcut Giggle Band's own `addEventOnDate`\ngives for a gig date.",
                         "input": {
                           "StartsAt": "StartsAt"
                         }
@@ -470,6 +472,7 @@
             "read",
             "search"
           ],
+          "comment": "Every circle a caller has been invited to but not yet joined, across all\ncircles, with one-click accept/decline -- the UI half of the\n`pendingCircleInvite` CONTEXT_GRANT and the `AcceptCircleInvite` /\n`DeclineCircleInvite` commands declared in `domain.adl`. Both actions\nneed only the row's own record id (`id`), the same single-input shape\nGiggle Band's `RevokeBandInvitation` row action already proves works.",
           "presentation": {
             "state": [],
             "iconMaps": [],
@@ -509,6 +512,7 @@
                         },
                         "placement": "row",
                         "command": "AcceptCircleInvite",
+                        "comment": "`WHEN Invitee == runtime.userId` keeps the buttons off a circle\nowner's own outgoing invites, which this list also shows (see\n`MyPendingCircleInvites` in `domain.adl`) but which the owner is\nnever the invitee of -- both commands would refuse the click\nanyway via their own `REQUIRE Invitee == runtime.userId` step\nguard, but offering a button that always fails is worse UX than\nnot offering it, the same reasoning Giggle Band's `revoke` row\naction already applies with its own `WHEN Status == 'Pending'`.",
                         "input": {
                           "Invite": "id"
                         },
@@ -580,6 +584,7 @@
             "read",
             "search"
           ],
+          "comment": "Post-MVP polish over the PRD's own v1 (deviation table, PRD 14: \"Dashboard\nwith cross-context data\" -> \"Plain generator show page, dashboard\nenrichment is post-MVP\"). PRD 15's post-MVP item 2 names exactly this:\nmember list, recent messages, upcoming events, recent notes.",
           "presentation": {
             "layout": "stack",
             "density": "compact",
