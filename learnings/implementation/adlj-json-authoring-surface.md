@@ -172,7 +172,30 @@ skips the AST layer does not get them for free:
    both keys will not `toEqual` an equivalent `.adl` model byte-for-byte.
    `examples/task-tracker.adlj` declares both explicitly for exact parity.
 
-Neither of these is a defect — both are pre-existing, correct behaviour of
+A later proactive sweep (grepping `compile-adl.ts` for every `??` whose
+right-hand side is not a bare `[]`/`""`/`false`/`true`/`undefined` — i.e.
+every place the AST-to-partial conversion infers a value rather than passing
+one through) found three more candidates structurally identical to
+`principal.match`: `validator.expression ?? {kind: "literal", value: true}`,
+`calendar.dateField ?? "Date"`, and `step.recordId ?? {kind: "literal", value: null}`
+on command `update`/`read` steps. Cross-checked against
+`src/model/adlj-schema.json`'s generated `required` lists, none of the three
+reproduces the trap: the `Partial*Model` type backing each one marks the
+field *required*, so the generated JSON Schema inherits that requirement and
+rejects a `.adlj` document that omits it (`ADLJ_SCHEMA_INVALID`) before
+`resolveApplicationModel` is ever reached. **The general rule this sweep
+established: the trap can only occur where the `Partial*Model` field is
+*optional* and `.adl`'s AST-to-partial conversion infers a non-trivial value
+for it — `principal.match` is the only field in the codebase meeting both
+conditions.** A required field can never produce this trap by construction.
+(`step.recordId` is worth a footnote even though it's not a gap: `.adl` text
+lets an `UPDATE`/`READ` step omit `RECORD_ID` entirely to mean "no specific
+record," while `.adlj`'s schema requires the key — an authoring-ergonomics
+rough edge, not a silent-default one, since a `.adlj` document that omits it
+is loudly rejected, not silently miscompiled.) Full writeup in
+`docs/spec/adlj.md`'s "Swept for more of these" section.
+
+Neither of the original two is a defect — both are pre-existing, correct behaviour of
 `resolveApplicationModel`, discovered only because this phase built a second
 front end that bypasses the layer that was quietly compensating for them.
 Worth remembering the general shape: **a shared "reused unchanged" pipeline
@@ -213,32 +236,65 @@ should default to a static import, not `readFileSync` + `import.meta.url`,
 unless it is known to run only in a pure-Node context** (the authority
 server entry point, a CLI, a Node-only test).
 
-## Browser bundle cost: addressed (Phase 79)
+## Browser bundle cost: addressed (Phase 79), regressed by integration, fixed again
 
 Reaching `compile-adlj.ts` through `src/index.ts`'s barrel export pulled
 `ajv` and the generated schema into the browser bundle unconditionally: gzip
 size grew from 158 KB to 203 KB at introduction (Phase 73). Phase 79 fixed
 this the simple way — no dynamic `import()` or Vite-level code-splitting was
 needed. A grep of `src/ui/**` confirmed nothing in the shipped browser app
-calls `compile-adlj.ts`/`compileAdlj` (it is authoring/build-time tooling,
-called today only by `tests/compile-adlj.test.ts`, which already imported it
-by direct module path rather than through the barrel). So the fix was to
-remove `compile-adlj.ts`, `print-adl.ts`, and `model/adlj-source.ts` from
+calls `compile-adlj.ts`/`compileAdlj` directly, so the fix was to remove
+`compile-adlj.ts`, `print-adl.ts`, and `model/adlj-source.ts` from
 `src/index.ts`'s `export *` list entirely, with a comment explaining why —
-the same pattern the barrel already applies to `simplewebauthn-adapter.ts`
-for the identical "browser bundle carries a dependency it doesn't need"
-reason. Anything needing these modules imports their module path directly
-(`./compiler/compile-adlj.js`, `./compiler/print-adl.js`,
-`./model/adlj-source.js`).
+the same pattern the barrel already applies to `simplewebauthn-adapter.ts`.
+Measured in isolation: gzip size returned to 158.18 KB (684.81 KB raw).
 
-Measured after the fix: `npm run build`'s gzip size returned to 158.18 KB
-(684.81 KB raw), down from 202.98 KB (852.37 KB raw) — matching the
-pre-Phase-73 baseline. `npm run test:visual` (all 36 Playwright checks) still
-passed, confirming the barrel change did not affect what the browser UI
-bundle actually renders. If a `.adlj` authoring surface is ever added inside
-`src/ui/**`, reach these modules with a dynamic `import()` there rather than
-re-adding the static barrel export — that would put the code-split point back
-at the one real caller instead of eagerly bundling it for everyone.
+**That fix silently regressed the moment Phases 74–79 were integrated onto
+`main`.** Each of the six phases ran in its own worktree, branched before the
+others existed, and each verified clean in isolation — but two of them
+independently reopened the same hole through two different paths, and
+neither could see the other:
+
+1. Phase 77 added `adl-to-adlj.ts` (a real, non-type-only import of
+   `print-adl.ts`, now much larger after Phase 78's presentation/edit-surface
+   coverage) to `src/index.ts`'s barrel, at the same time Phase 79 was
+   removing its siblings from that same barrel on a different branch.
+2. Phase 76 added `compileAdlProjectV2` **inside `compile-adl-project.ts`**,
+   importing `compile-adlj.ts` directly to support `.adlj` sources in a
+   multi-file project. `compile-adl-project.ts` is reachable from the real
+   browser bundle via `src/reference/band-app.ts` (the Giggle Band demo
+   fixture) — **without going through `src/index.ts`'s barrel at all.**
+   `compile-adlj.ts` has a top-level side effect (`new Ajv(...)`,
+   `ajv.compile(...)`), which Rollup cannot tree-shake away regardless of
+   whether the importing module's own exports (`compileAdlProjectV2`) are
+   ever used — importing the module is enough to keep its whole payload.
+
+`npm run build` after integration showed 852.94 kB / 203.12 KB gzip again —
+Phase 79's exact regression, reintroduced via a path Phase 79's own worktree
+never contained. The real fix (applied once, after all six phases were
+integrated, not per-phase): exclude `adl-to-adlj.ts` from the barrel
+alongside its siblings, **and** split `compileAdlProjectV2` out of
+`compile-adl-project.ts` into a new `compile-adl-project-v2.ts` so the file
+`band-app.ts` actually imports never carries a `.adlj` import in the first
+place. Both new exclusions are documented in `src/index.ts`'s barrel comment,
+which is now the authoritative, continuously-updated record of every module
+excluded and why. Measured after the fix: 685.38 KB / 158.34 KB gzip.
+`npm run test:visual` (all 36 checks) passed both before and after.
+
+**The lesson that matters beyond this specific bug**: barrel exclusion is
+*necessary but not sufficient* — anything reachable from `src/ui/main.ts`'s
+actual import graph carries its weight regardless of the barrel, and a
+module with an unguarded top-level side effect (no `sideEffects: false` in
+`package.json`, no `/*#__PURE__*/`) can't be tree-shaken even when its
+exports go unused. **Verifying a bundle-size fix in one isolated worktree is
+not sufficient proof it holds after integration** when other concurrent
+worktrees touch the same or adjacent files — this is a case where the
+Parallel Execution Plan's instruction to keep barrel-adjacent files in the
+serial spine (`src/index.ts` is explicitly named) would have caught this at
+integration time rather than after. Before adding or re-exporting anything
+`.adlj`-adjacent in future, trace its full static import chain against
+`src/ui/main.ts`'s actual reachable set and run `npm run build` to check —
+don't infer bundle membership from the barrel file alone.
 
 ## Phase 77: the importer reuses the printer's expression printers, not a second implementation
 

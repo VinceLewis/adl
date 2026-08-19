@@ -181,6 +181,53 @@ in `.adlj` policy principals.** This is not a defect in `resolveApplicationModel
 which is shared and correct; it is a convenience `.adl` text's own front end
 happens to add that `.adlj` does not inherit for free.
 
+### Swept for more of these; `principal.match` is the only one
+
+The general shape of this trap is: `compile-adl.ts`'s AST-to-partial
+conversion computes a field's value via `x ?? <something other than a plain
+passthrough>` — i.e. it infers a value from context rather than leaving the
+field genuinely absent — for a field the `Partial*Model` type marks
+*optional*. `.adlj` (`compile-adlj.ts`) never does this: `adljSourceToPartialApplicationModel`
+is a pure structural passthrough with no field-level inference anywhere in
+it. So a gap exists exactly where **(a)** `.adl`'s parser computes an
+inferred, non-obvious value for an omitted field, **and** **(b)** the JSON
+Schema generated from the same `Partial*Model` type doesn't require that
+field, letting a `.adlj` document past validation with the field genuinely
+missing.
+
+Grepping `compile-adl.ts` for every `??` whose right-hand side is not a bare
+`[]` / `""` / `false` / `true` / `undefined` found four candidates beyond
+`principal.match`, cross-checked against `src/model/adlj-schema.json`'s
+`required` lists for each one's `.adlj` shape:
+
+- `validator.expression ?? { kind: "literal", value: true }` (a predicate
+  field validator with no expression becomes always-true) — **no gap**:
+  `AdljPredicateValidatorModel` requires `expression`, so a `.adlj` document
+  omitting it fails `ADLJ_SCHEMA_INVALID` before ever reaching
+  `resolveApplicationModel`.
+- `calendar.dateField ?? "Date"` — **no gap**: `AdljPresentationCalendarModel`
+  requires `dateField`.
+- `step.recordId ?? { kind: "literal", value: null }` on command `update`/`read`
+  steps — **no silent gap, but a related rough edge**: `AdljCommandUpdateStepModel`
+  and `AdljCommandReadStepModel` both require `recordId`, so `.adlj` can't
+  silently default it either — but unlike the other two, this isn't purely
+  upside. `.adl` text lets an author write an `UPDATE`/`READ` step with no
+  `RECORD_ID` clause at all when they genuinely mean "operate on no specific
+  record" (`null`); a `.adlj` author has to know to spell that out as
+  `{"recordId": {"kind": "literal", "value": null}}` rather than omitting the
+  key, or the document is rejected. Loud, not silent — but worth documenting
+  as an authoring-ergonomics gap, not just a correctness one.
+
+`principal.match` is different from all three only because
+`PartialPrincipalSelectorModel.match` is the one field in this set the type
+leaves optional with nothing in the schema forcing it — the schema can only
+close a gap when the underlying type says the field is required, and here it
+doesn't. The general rule this sweep confirms: **a required field can never
+produce this trap, because the generated schema inherits the requirement
+automatically; only optional fields with parser-level inference can.** No
+further sweep is needed unless a future field is added to `compile-adl.ts`
+with the same `optional-field-with-inferred-??-default` shape.
+
 ## Schema validation
 
 The JSON Schema is generated from `AdljSourceDocument`'s TypeScript types via
@@ -335,7 +382,7 @@ same way) but a real difference in the resolved model's literal shape.
 explicitly for exact parity with what `.adl` text always produces; an author
 who does not care about that parity can simply omit both keys.
 
-## Browser bundle cost: addressed (Phase 79)
+## Browser bundle cost: addressed (Phase 79; regressed and re-fixed during Phase 74–79 integration)
 
 `compileAdlj`'s `ajv` dependency and the generated JSON Schema were reached
 through `src/index.ts`'s barrel export, which the browser UI bundle also
@@ -345,22 +392,53 @@ the production bundle grew from 684 KB to 852 KB gzipped (158 KB → 203 KB
 gzip).
 
 `.adlj` compilation is an authoring/build-time concern; nothing in the
-deployed browser runtime calls it (confirmed by grepping `src/ui/**` for any
-`compile-adlj`/`compileAdlj` import — there is none). Phase 79 removed
-`compile-adlj.ts`, `print-adl.ts`, and `model/adlj-source.ts` from
-`src/index.ts`'s barrel `export *` list, the same treatment the barrel
-already gives `simplewebauthn-adapter.ts` for the identical "browser bundle
-carries a dependency it doesn't need" reason. Callers that need these
-modules (currently only `tests/compile-adlj.test.ts`, which already imported
-them by direct module path rather than through the barrel) import
-`./compiler/compile-adlj.js`, `./compiler/print-adl.js`, or
-`./model/adlj-source.js` directly.
+deployed browser runtime calls it. Phase 79 removed `compile-adlj.ts`,
+`print-adl.ts`, and `model/adlj-source.ts` from `src/index.ts`'s barrel
+`export *` list, the same treatment the barrel already gives
+`simplewebauthn-adapter.ts` for the identical "browser bundle carries a
+dependency it doesn't need" reason, and measured the bundle back at its
+pre-Phase-73 baseline — in isolation, on a worktree branched before Phase 76
+or 77 existed.
 
-Measured after the fix: the production bundle returned to 684.81 KB gzipped
-158.18 KB (from 852.37 KB / 202.98 KB), matching the pre-Phase-73 baseline.
-No dynamic `import()` / Vite-level code-splitting was needed — removing the
-barrel re-export was sufficient, since nothing in `src/ui/**` reaches these
-modules at all.
+**That fix silently regressed when Phases 74–79 were integrated onto `main`.**
+Phase 77 added `adl-to-adlj.ts` (which imports `print-adl.ts` for real, not
+just for types) to the same barrel, on a separate worktree, at the same time.
+Phase 76 — on a third worktree — added `compileAdlProjectV2` directly inside
+`compile-adl-project.ts`, importing `compile-adlj.ts` to support `.adlj`
+sources in a multi-file project. Each phase was correct and fully verified in
+its own isolated worktree; none of the three could see what the others were
+doing. Once merged, `npm run build` showed 852.94 KB / 203.12 KB gzip again —
+the exact regression Phase 79 had fixed, reintroduced through two different
+import paths at once:
+
+1. `src/index.ts` still exported `adl-to-adlj.js`, which imports
+   `print-adl.js` (now much larger after Phase 78's presentation/edit-surface
+   printing coverage).
+2. `compile-adl-project.ts` — reachable from the real browser bundle via
+   `src/reference/band-app.ts` (the Giggle Band demo fixture), **without
+   going through `src/index.ts`'s barrel at all** — imported `compile-adlj.ts`
+   directly at module top level, and `compile-adlj.ts` has a top-level side
+   effect (`new Ajv(...)`, `ajv.compile(...)`) that Rollup cannot tree-shake
+   away regardless of whether the importing module's own exports are used.
+
+The fix (applied once, after all six phases were integrated): exclude
+`adl-to-adlj.ts` from the barrel alongside the other three modules, and split
+`compileAdlProjectV2` out of `compile-adl-project.ts` into a new
+`compile-adl-project-v2.ts` so the file `band-app.ts` actually imports never
+carries a `.adlj` import. Both are now excluded from `src/index.ts`'s barrel
+for the same reason. Measured after the fix: 685.38 KB / 158.34 KB gzip,
+matching the intended baseline.
+
+**The lesson, not just the fix**: barrel exclusion alone is not proof a
+module is out of the bundle — anything reachable from `src/ui/main.ts`'s
+actual import graph carries its weight regardless of what the barrel does or
+doesn't export, and a module with an unguarded top-level side effect (no
+`sideEffects: false` in `package.json`, no `/*#__PURE__*/` annotation) cannot
+be tree-shaken even when nothing uses its exports. Before adding or
+re-exporting anything `.adlj`-adjacent, run `npm run build` and check
+`dist/assets/index-*.js`'s actual size — don't infer it from the barrel file
+alone. See the comment at the top of `src/index.ts`'s excluded-modules block
+for the full list and reasoning, kept current as the authoritative record.
 
 ## Strategic direction: `.adlj` as the primary authoring surface
 
