@@ -1,15 +1,34 @@
-export * from "./compiler/adl-to-adlj.js";
 export * from "./compiler/compile-adl.js";
 export * from "./compiler/compile-adl-project.js";
-// `compile-adlj.ts`, `print-adl.ts` and `model/adlj-source.ts` are deliberately
-// NOT exported here: this barrel is imported by the browser bundle, and
-// `.adlj` compilation is an authoring/build-time concern — it pulls in `ajv`
-// and the generated `adlj-schema.json` (~3600 lines), which no browser UI
-// runtime needs to compile at runtime. Reaching them through this barrel grew
-// the production bundle from 684 KB to 852 KB gzipped (158 KB -> 203 KB gzip)
-// (Phase 73); excluding them (Phase 79) returns it to the pre-`.adlj`
-// baseline. Import directly from their own module paths
-// (`./compiler/compile-adlj.js`, `./compiler/print-adl.js`,
+// `compile-adlj.ts`, `print-adl.ts`, `adl-to-adlj.ts`, `compile-adl-project-v2.ts`,
+// and `model/adlj-source.ts` are deliberately NOT exported here: this barrel is
+// imported by the browser bundle, and `.adlj` compilation/printing/importing is
+// all authoring/build-time tooling no browser UI runtime needs. `compile-adlj.ts`
+// alone pulls in `ajv` and the generated `adlj-schema.json` (~3600 lines), and it
+// has a top-level side effect (`new Ajv(...)`, `ajv.compile(...)`) that Rollup
+// cannot tree-shake away even when nothing imports its exports — reaching it
+// through ANY static import chain that survives into the bundle keeps the whole
+// payload. Reaching it through this barrel grew the production bundle from
+// 684 KB to 852 KB gzipped (158 KB -> 203 KB gzip) (Phase 73).
+//
+// Excluding a module from this barrel is necessary but NOT sufficient: the
+// browser entry point (`src/ui/main.ts`) also reaches `compile-adl-project.ts`
+// directly (via `src/reference/band-app.ts`, for the Giggle Band demo fixture),
+// bypassing this barrel entirely. When Phase 76 added `compileAdlProjectV2` to
+// that same file — importing `compile-adlj.ts` to support `.adlj` sources in a
+// project — it silently pulled `ajv` back into the real bundle through that
+// second path, even after this barrel was fixed. `compileAdlProjectV2` was
+// split into its own file (`compile-adl-project-v2.ts`) for exactly this
+// reason: `compile-adl-project.ts` must stay reachable from `band-app.ts`
+// without ever importing `.adlj` tooling.
+//
+// **The rule going forward:** before adding or re-exporting anything
+// `.adlj`-adjacent, trace its full static import chain against
+// `src/ui/main.ts`'s actual reachable set (`npm run build` and inspect
+// `dist/assets/index-*.js` size — do not assume barrel exclusion alone is
+// proof), not just this barrel file. Import `.adlj` tooling directly from its
+// own module path (`./compiler/compile-adlj.js`, `./compiler/print-adl.js`,
+// `./compiler/adl-to-adlj.js`, `./compiler/compile-adl-project-v2.js`,
 // `./model/adlj-source.js`) instead — the same treatment already applied to
 // `simplewebauthn-adapter.ts` below for the same reason.
 export * from "./compiler/resolve-model.js";

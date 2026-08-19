@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileAdlProject } from "../src/compiler/compile-adl-project.js";
-import { compileAdlProjectV2 } from "../src/compiler/compile-adl-project.js";
+import { compileAdlProjectV2 } from "../src/compiler/compile-adl-project-v2.js";
 import { validateApplicationModel } from "../src/compiler/validate-model.js";
 
 function readMultiSourceExample(name: string): string {

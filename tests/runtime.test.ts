@@ -14,9 +14,9 @@ import {
   StorageError,
   SyncPolicyError,
   compileAdl,
-  compileAdlj,
   resolveApplicationModel,
 } from "../src/index.js";
+import { compileAdlj } from "../src/compiler/compile-adlj.js";
 import type {
   ObjectStorageBackend,
   ObjectStorageSearchRequest,

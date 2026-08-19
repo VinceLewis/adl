@@ -8,7 +8,7 @@
  *
  * `compileAdlProject` — string-concatenate-then-parse-once for an all-`.adl`
  * `sources` list — is unchanged and does not call this. See
- * `compileAdlProjectV2` in `compile-adl-project.ts` for the caller that does,
+ * `compileAdlProjectV2` in `compile-adl-project-v2.ts` for the caller that does,
  * and `docs/spec/adlj.md` for the user-facing contract these rules implement.
  */
 import type {
