@@ -13,6 +13,7 @@ import {
   resolveFieldPresentation,
 } from "../policy-presentation.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
+import { resolveLookupTargetRecord } from "./lookup-resolution.js";
 
 export class AdlListViewElement extends HTMLElement {
   private _runtime: ApplicationRuntime | undefined;
@@ -352,7 +353,7 @@ export class AdlListViewElement extends HTMLElement {
     }
 
     try {
-      const record = await this._runtime.read(field.lookup.targetObject, recordId, this._context);
+      const record = await resolveLookupTargetRecord(this._runtime, field, recordId, this._context);
       const label = record?.values[field.lookup.displayField];
       if (label !== undefined && label !== null) {
         this.lookupLabels.set(key, String(label));

@@ -87,6 +87,51 @@ Read this before changing read-model execution, read-model-backed dashboards, re
   phase's Non-goals — and they remain a known, undocumented-until-now gap for
   whoever declares `TARGET_FIELD` next.
 
+## Key decisions from Phase 75: `recordMatchesCurrentUser` now honours `TARGET_FIELD`
+
+- `ReadModelService.recordMatchesCurrentUser` (`src/runtime/read-model-service.ts`)
+  compared a `currentUser`-scoped source's lookup field directly against
+  `context.userId`. That is correct for an identity `LOOKUP` (the field's
+  stored value *is* the target user's id) but can never hold for a
+  `LOOKUP ... TARGET_FIELD` field, whose stored value is a natural key on the
+  target object instead — the exact gap Phase 68 found and Phase 72 could
+  only warn about (`ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`).
+- The fix: when the matching field declares `targetField`, read the
+  **current user's own record** by identity (`readLookupTargetById`, the same
+  helper every other identity lookup in this file already uses) and compare
+  the candidate record's stored value against *that record's* `targetField`
+  value, not against `context.userId`. The current user's record must itself
+  pass read policy (`canReadSourceRecord`) before its field value is trusted
+  for the comparison; if the record cannot be found, or the caller may not
+  read it, the match fails closed (`false`) rather than throwing or granting
+  an unproven match.
+- This made `sourceAllowsRecord`, `recordMatchesCurrentUser`, and the
+  `records.filter(...)` call in `searchAuthorisedSourceRecords` async (the
+  filter became a `Promise.all` map-then-filter, since a plain array
+  `.filter()` cannot await per-record). Every caller of `sourceAllowsRecord`
+  already awaited an ancestor call, so no other signature needed to change.
+- With the runtime path genuinely fixed, the Phase 72 warning
+  (`ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`) was removed from
+  `validate-model.ts` along with its `MODEL_VALIDATION_CODES` entry: it warned
+  about a defect that no longer exists, and a diagnostic that outlives the
+  behaviour it names is worse than no diagnostic.
+- **Out of scope, left as a known gap:** `OfflineDatasetService`'s own
+  `recordMatchesCurrentUser` (`src/runtime/offline-dataset-service.ts`,
+  covering `SYNC ... SCOPE currentUser` on an object's own sync declaration,
+  not a read-model source) has the identical identity-only defect and was
+  deliberately not touched — it was outside this phase's assigned scope.
+  Whoever picks it up next should mirror this fix's shape exactly, including
+  the fail-closed behaviour when the current user's own record cannot be read.
+- **Also out of scope:** `adl-field-renderer.ts`'s `<select>`-based lookup
+  editor (`loadLookupOptions`/`renderInput`) renders `<option value="{record
+  id}">` and matches the currently selected option by `option.meta.guid ===
+  storedValue`, which is the same identity assumption `adl-list-view.ts`/
+  `adl-form-view.ts` had for *display* — except this one is a *write* path:
+  choosing an option would still save the record's id into a `TARGET_FIELD`
+  field, not the target field's natural-key value. This is a materially
+  different (and more invasive) fix than the display-only one Phase 75 made
+  and was not attempted here.
+
 ## Key decisions from the Giggle Band cross-band availability overlay
 
 - **A source's `SCOPE allAvailableContexts` only reaches past the selected

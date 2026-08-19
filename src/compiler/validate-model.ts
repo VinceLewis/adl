@@ -220,8 +220,6 @@ export const MODEL_VALIDATION_CODES = {
   LIFECYCLE_STATE_FIELD_UNKNOWN: "ADL_LIFECYCLE_STATE_FIELD_UNKNOWN",
   LOOKUP_DISPLAY_FIELD_UNKNOWN: "ADL_LOOKUP_DISPLAY_FIELD_UNKNOWN",
   LOOKUP_TARGET_FIELD_UNKNOWN: "ADL_LOOKUP_TARGET_FIELD_UNKNOWN",
-  LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED:
-    "ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED",
   LOOKUP_TARGET_OBJECT_UNKNOWN: "ADL_LOOKUP_TARGET_OBJECT_UNKNOWN",
   OBJECT_BUSINESS_KEY_UNKNOWN: "ADL_OBJECT_BUSINESS_KEY_UNKNOWN",
   COMMAND_AUTHORITY_INVALID: "ADL_COMMAND_AUTHORITY_INVALID",
@@ -5930,17 +5928,6 @@ function validateReadModel(
     `Output field names must be unique within read model '${readModel.name}'.`,
   );
 
-  // Mirrors ReadModelService's own resolution of which object stands in for
-  // "current user": a context literally named "User", or whose object is
-  // "User", names that object; otherwise "User" itself is assumed.
-  let currentUserObjectName = "User";
-  for (const [contextName, contextRef] of indexes.contextsByName) {
-    if (contextName === "User" || contextRef.item.object === "User") {
-      currentUserObjectName = contextRef.item.object;
-      break;
-    }
-  }
-
   const earlierSourcesByName = new Map<string, ResolvedReadModelSource>();
   for (let sourceIndex = 0; sourceIndex < readModel.sources.length; sourceIndex += 1) {
     const source = readModel.sources[sourceIndex];
@@ -5967,30 +5954,6 @@ function validateReadModel(
           `${readModelPath}.sources[${sourceIndex}].object`,
         ),
       );
-    }
-
-    // A `currentUser` source scope matches a lookup field against
-    // `RUNTIME.userId` by identity (`recordMatchesCurrentUser`), which does
-    // not yet honour `LOOKUP ... TARGET_FIELD`: a lookup stored as a natural
-    // key never equals a user id, so the match silently never holds. Not
-    // fixed here (see learnings/implementation/read-model-runtime.md) but
-    // named at compile time rather than left as a spec caveat only.
-    if (source.scope === "currentUser" && sourceObject !== undefined) {
-      for (const field of sourceObject.fields) {
-        if (
-          field.lookup?.targetObject === currentUserObjectName &&
-          field.lookup.targetField !== undefined
-        ) {
-          diagnostics.push(
-            diagnostic(
-              MODEL_VALIDATION_CODES.LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED,
-              `Read model '${readModel.name}' source '${source.name}' has scope currentUser and object '${sourceObject.name}' matches the current user through lookup field '${field.name}', but that field declares TARGET_FIELD '${field.lookup.targetField}'. The currentUser match compares by identity and does not yet honour TARGET_FIELD, so it will not match here.`,
-              `${readModelPath}.sources[${sourceIndex}]`,
-              "warning",
-            ),
-          );
-        }
-      }
     }
 
     validateReadModelSourceJoin(

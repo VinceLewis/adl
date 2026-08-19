@@ -640,6 +640,110 @@ describe("ApplicationRuntime", () => {
     });
   });
 
+  /**
+   * `recordMatchesCurrentUser` used to compare a lookup field's stored value
+   * directly against `context.userId`, which only ever matches an identity
+   * `LOOKUP`. A `TARGET_FIELD` lookup stores a natural key instead (here, the
+   * owning user's `Email`), so that comparison always missed. Phase 75 fixed
+   * the match to compare against the *signed-in user's own record's*
+   * `TARGET_FIELD` value instead. See [[read-model-runtime]].
+   */
+  it("matches a currentUser read-model source through a TARGET_FIELD lookup", async () => {
+    const runtime = new ApplicationRuntime(
+      resolveApplicationModel({
+        ...runtimePartialModel,
+        objects: [
+          ...runtimePartialModel.objects,
+          {
+            name: "Assignment",
+            businessKey: "Title",
+            displayField: "Title",
+            fields: [
+              { name: "Title", type: "text", required: true },
+              {
+                name: "Owner",
+                type: "text",
+                lookup: { targetObject: "User", targetField: "Email", displayField: "Name" },
+              },
+            ],
+          },
+        ],
+        policies: [
+          ...runtimePartialModel.policies,
+          {
+            name: "AssignmentPolicy",
+            object: "Assignment",
+            rules: [
+              {
+                name: "allowAdminAllAssignmentOps",
+                effect: "allow",
+                principal: { match: "specific", roles: ["Admin"] },
+                action: "*",
+              },
+              {
+                name: "allowViewerReadAssignments",
+                effect: "allow",
+                principal: { match: "specific", roles: ["Viewer"] },
+                action: "read",
+              },
+              {
+                name: "allowViewerSearchAssignments",
+                effect: "allow",
+                principal: { match: "specific", roles: ["Viewer"] },
+                action: "search",
+              },
+            ],
+          },
+        ],
+        readModels: [
+          {
+            name: "MyAssignments",
+            sources: [{ name: "assignment", object: "Assignment", scope: "currentUser" }],
+            fields: [{ name: "Title", source: "assignment", field: "Title" }],
+          },
+        ],
+      }),
+    );
+
+    const ada = await runtime.create(
+      "User",
+      { Name: "Ada Lovelace", Email: "ada@example.com" },
+      adminContext,
+    );
+    const grace = await runtime.create(
+      "User",
+      { Name: "Grace Hopper", Email: "grace@example.com" },
+      adminContext,
+    );
+    await runtime.create(
+      "Assignment",
+      { Title: "Write specs", Owner: "ada@example.com" },
+      adminContext,
+    );
+    await runtime.create(
+      "Assignment",
+      { Title: "Review budget", Owner: "grace@example.com" },
+      adminContext,
+    );
+
+    const resultForGrace = await runtime.executeReadModel("MyAssignments", {
+      ...viewerContext,
+      userId: grace.meta.guid,
+    });
+    const resultForAda = await runtime.executeReadModel("MyAssignments", {
+      ...viewerContext,
+      userId: ada.meta.guid,
+    });
+    const resultForStranger = await runtime.executeReadModel("MyAssignments", {
+      ...viewerContext,
+      userId: "stranger-1",
+    });
+
+    expect(resultForGrace.rows.map((row) => row.values)).toEqual([{ Title: "Review budget" }]);
+    expect(resultForAda.rows.map((row) => row.values)).toEqual([{ Title: "Write specs" }]);
+    expect(resultForStranger.rows).toEqual([]);
+  });
+
   it("limits local dataset reads to current-context records", async () => {
     const seeded = await createSeededBandRuntime(
       createBandDatasetPartialModel({

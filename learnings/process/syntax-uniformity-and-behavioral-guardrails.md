@@ -99,30 +99,41 @@ None of the four got the same fix shape — read `docs/phases/phase-72-*.md`'s
    [[offline-dataset-runtime]] for what a window means; this only adds
    provenance to one that already existed.
 4. **`LOOKUP TARGET_FIELD` unhonoured by a `currentUser` read-model source** —
-   warned, not fixed. `ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`
-   names the one shape known to hit the gap (`recordMatchesCurrentUser`
-   matches by identity against `RUNTIME.userId`, which a `TARGET_FIELD`
+   warned, not fixed, by this phase.
+   `ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`
+   named the one shape known to hit the gap (`recordMatchesCurrentUser`
+   matched by identity against `RUNTIME.userId`, which a `TARGET_FIELD`
    lookup's stored natural-key value will never equal). The browser UI's
-   lookup-label display has the identical defect and no equivalent check —
-   deliberately out of scope, named as a candidate below. See
-   [[read-model-runtime]].
+   lookup-label display had the identical defect and no equivalent check —
+   deliberately out of scope, named as a candidate below. **Phase 75 fixed
+   both paths for real** (`recordMatchesCurrentUser` now compares against the
+   current user's own record's target-field value; the browser lookup-label
+   display now does an exact-match search when a lookup declares
+   `TARGET_FIELD`) and removed this diagnostic, since the defect it warned
+   about no longer exists. See [[read-model-runtime]].
 
-## Two real capability gaps this phase makes visible but does not close
+## Two real capability gaps this phase made visible but did not close — both since closed
 
 At the time this phase shipped, both remained exactly as true after it as
-before it — the guardrails named them, they did not fix them. `AUTO_ID`
-runtime minting no longer belongs on this list; see the update below.
+before it — the guardrails named them, they did not fix them.
 
 - ~~**`AUTO_ID` runtime minting.**~~ Closed by Phase 74 — see
   [[auto-id-minting]]. `ObjectStore.planCreateForTransaction` now mints a
   value for every `AUTO_ID` field with no caller-supplied value, and
   `ADL_AUTO_ID_NO_DEFAULT` was removed because it would now refuse a
   perfectly legal, functional declaration.
-- **The two `LOOKUP TARGET_FIELD`-unhonoured paths.** The `currentUser`
-  read-model source match now warns. The browser UI's lookup-label display
-  still silently falls back to the raw stored value, with no diagnostic at
-  all — fixing either path is real `read-model-runtime`/`context-runtime`
-  implementation work, not a consistency or guardrail fix.
+- ~~**The two `LOOKUP TARGET_FIELD`-unhonoured paths.**~~ Both fixed in Phase
+  75 — see the note above and
+  [[read-model-runtime]]/[[browser-ui-runtime]]. `recordMatchesCurrentUser`
+  now compares against the current user's own record's target-field value
+  instead of matching by identity, and the browser lookup-label display now
+  does an exact-match search when a lookup declares `TARGET_FIELD`. Two
+  smaller, related gaps were found and deliberately left open during that
+  fix — `OfflineDatasetService`'s own `recordMatchesCurrentUser` (for `SYNC
+  ... SCOPE currentUser`, not a read-model source) has the identical
+  identity-only defect, and `adl-field-renderer.ts`'s `<select>`-based
+  lookup editor has the same assumption on a **write** path — see
+  [[offline-dataset-runtime]] and [[browser-ui-runtime]].
 
 ## Practical guidance
 

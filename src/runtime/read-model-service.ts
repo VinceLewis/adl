@@ -307,11 +307,16 @@ export class ReadModelService {
       fields: object.fields.map((field) => field.name),
     });
 
-    return records.filter(
-      (record) =>
-        this.sourceAllowsRecord(readModel, source, object, record, context) &&
-        this.canReadSourceRecord(object, record, context),
+    const evaluated = await Promise.all(
+      records.map(async (record) => ({
+        record,
+        allowed:
+          (await this.sourceAllowsRecord(readModel, source, object, record, context)) &&
+          this.canReadSourceRecord(object, record, context),
+      })),
     );
+
+    return evaluated.filter((entry) => entry.allowed).map((entry) => entry.record);
   }
 
   private sourceCanSearchScopedObject(
@@ -366,7 +371,7 @@ export class ReadModelService {
       return undefined;
     }
 
-    if (!this.sourceAllowsRecord(readModel, source, object, record, context)) {
+    if (!(await this.sourceAllowsRecord(readModel, source, object, record, context))) {
       return undefined;
     }
 
@@ -459,14 +464,17 @@ export class ReadModelService {
     return undefined;
   }
 
-  private sourceAllowsRecord(
+  private async sourceAllowsRecord(
     readModel: ResolvedReadModel,
     source: ResolvedReadModelSource,
     object: ResolvedObject,
     record: StoredObjectRecord,
     context: RuntimeContext,
-  ): boolean {
-    if (source.scope === "currentUser" && !this.recordMatchesCurrentUser(object, record, context)) {
+  ): Promise<boolean> {
+    if (
+      source.scope === "currentUser" &&
+      !(await this.recordMatchesCurrentUser(object, record, context))
+    ) {
       return false;
     }
 
@@ -477,11 +485,29 @@ export class ReadModelService {
     return recordMatchesObjectScope(this.index, object.name, record, context);
   }
 
-  private recordMatchesCurrentUser(
+  /**
+   * A `currentUser` scope's `LOOKUP` field is normally an identity match:
+   * the field's stored value is the target user record's own id, compared
+   * directly against `context.userId`. A `TARGET_FIELD` lookup stores a
+   * natural key instead, so the same identity comparison always misses —
+   * the field never holds `context.userId` itself. Matching it correctly
+   * means reading the *current user's own record* and comparing this
+   * record's stored value against that record's `targetField` value, not
+   * against `context.userId` directly.
+   *
+   * The current user's record is read by identity
+   * (`readLookupTargetById`, the same helper every other identity lookup in
+   * this file uses) and must itself pass read policy
+   * (`canReadSourceRecord`) before its field value may be used for the
+   * comparison; if the record cannot be found or the caller may not read
+   * it, the match fails closed rather than throwing or granting a match
+   * nobody proved.
+   */
+  private async recordMatchesCurrentUser(
     object: ResolvedObject,
     record: StoredObjectRecord,
     context: RuntimeContext,
-  ): boolean {
+  ): Promise<boolean> {
     if (context.userId.length === 0) {
       return false;
     }
@@ -495,11 +521,54 @@ export class ReadModelService {
     );
     const userObjectName = userContext?.object ?? "User";
 
-    return object.fields.some(
-      (field) =>
-        field.lookup?.targetObject === userObjectName &&
-        record.values[field.name] === context.userId,
-    );
+    for (const field of object.fields) {
+      if (field.lookup?.targetObject !== userObjectName) {
+        continue;
+      }
+
+      const value = record.values[field.name];
+      if (typeof value !== "string" || value.length === 0) {
+        continue;
+      }
+
+      if (field.lookup.targetField === undefined) {
+        if (value === context.userId) {
+          return true;
+        }
+        continue;
+      }
+
+      if (
+        await this.recordValueMatchesCurrentUserField(
+          userObjectName,
+          field.lookup.targetField,
+          value,
+          context,
+        )
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private async recordValueMatchesCurrentUserField(
+    userObjectName: string,
+    targetField: string,
+    value: string,
+    context: RuntimeContext,
+  ): Promise<boolean> {
+    const userObject = this.index.getObject(userObjectName);
+    const currentUserRecord = await this.readLookupTargetById(userObject, context.userId);
+    if (
+      currentUserRecord === undefined ||
+      !this.canReadSourceRecord(userObject, currentUserRecord, context)
+    ) {
+      return false;
+    }
+
+    return currentUserRecord.values[targetField] === value;
   }
 
   private recordMatchesContextScope(

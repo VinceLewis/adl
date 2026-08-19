@@ -69,6 +69,41 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   model-driven from view action metadata and gated by the shared policy/sync
   presentation helpers.
 
+## Key decisions from Phase 75: lookup-label display now honours `TARGET_FIELD`
+
+- `adl-list-view.ts`'s `loadLookupLabel` and `adl-form-view.ts`'s
+  `loadChildLookupLabel` both resolved a `LOOKUP` field's stored value by
+  identity read (`runtime.read(field.lookup.targetObject, storedValue,
+  ...)`), which is only correct when the field has no `TARGET_FIELD` — an
+  identity `LOOKUP`'s stored value *is* the target record's id. A
+  `TARGET_FIELD` lookup stores a natural key instead, so the identity read
+  always came back `null` and the label silently fell back to showing the
+  raw stored value (Phase 68's "Two identity-only `LOOKUP` consumers" note in
+  [[read-model-runtime]]).
+- The fix is a new shared helper, `resolveLookupTargetRecord` in
+  `src/ui/components/lookup-resolution.ts`, called from both components in
+  place of the direct `runtime.read(...)` call: when the field has no
+  `targetField`, it does the identical identity read; when it does, it calls
+  `runtime.search(targetObject, { text: storedValue, fields: [targetField]
+  }, context)` and filters the results for a candidate whose
+  `values[targetField] === storedValue` exactly, since `search` is
+  fuzzy/substring and its results are not trusted as already-exact. The
+  "record not found" fallback (raw stored value, from the existing
+  catch/fallback logic in each component) is unchanged for the no-match case.
+- A small shared helper was worth extracting here (unlike leaving each
+  component's version alone) because the two call sites needed the *exact*
+  same non-trivial logic — identity-vs-search branching plus a client-side
+  exact-match filter — not just similar shapes. `lookup-resolution.ts` was
+  added as a new small file rather than folding into `html.ts`, because
+  `html.ts` is pure string formatting with no runtime dependency and this
+  helper needs `ApplicationRuntime`/`RuntimeContext`.
+- **Not fixed by this phase:** `adl-field-renderer.ts`'s `<select>` lookup
+  editor has the identical identity assumption for populating and matching
+  the selected `<option>`, but that is a *write* path (choosing an option
+  would still save an id into a `TARGET_FIELD` field), a materially larger
+  fix than the two display-only reads this phase closed. See
+  [[read-model-runtime]] for the same note.
+
 ## Practical guidance
 
 - Keep UI behavior generic over `ResolvedObject` and `ResolvedView`; do not add per-object component forks.

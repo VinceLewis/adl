@@ -31,6 +31,7 @@ import type {
 import { AdlActionBarElement } from "./adl-action-bar.js";
 import { AdlFieldRendererElement } from "./adl-field-renderer.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
+import { resolveLookupTargetRecord } from "./lookup-resolution.js";
 
 interface ActionEventDetail {
   name: string;
@@ -763,7 +764,7 @@ export class AdlFormViewElement extends HTMLElement {
     }
 
     try {
-      const record = await this._runtime.read(field.lookup.targetObject, recordId, this._context);
+      const record = await resolveLookupTargetRecord(this._runtime, field, recordId, this._context);
       const label = record?.values[field.lookup.displayField];
       if (label !== undefined && label !== null) {
         this.lookupLabels.set(key, String(label));

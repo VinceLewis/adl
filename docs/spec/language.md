@@ -1022,19 +1022,21 @@ applies. Matching by field value is a search however it is spelled, so it is
 refused for a caller who may not `search` the target object, exactly like a
 declared join's candidate set.
 
-A caveat: a `LOOKUP` field's value is also read by identity in two other
-places that predate `TARGET_FIELD` and do not yet honour it — a "current
-user" read-model source scope matching a lookup field against
-`RUNTIME.userId`, and the browser UI's lookup-label display. Both degrade
-gracefully (a "current user" match that should hold does not, and a lookup
-label falls back to the raw stored value) rather than returning wrong data,
-but neither resolves a `TARGET_FIELD` lookup correctly yet. The first of the
-two is now named at compile time: a read model source with `SCOPE currentUser`
-whose object matches the current user through a `TARGET_FIELD` lookup gets a
-warning (`ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`, Phase 72).
-The browser UI's label display has no equivalent compile-time check yet, and
-neither path's underlying behaviour is fixed by that warning — see
-`learnings/implementation/read-model-runtime.md` for the tracked gap.
+A `LOOKUP` field's value is also read by two other runtime paths that predate
+`TARGET_FIELD`: a "current user" read-model source scope matching a lookup
+field against the signed-in user, and the browser UI's lookup-label display.
+Both now honour `TARGET_FIELD` (Phase 75). The "current user" match compares
+the stored value against the *signed-in user's own record's* `TARGET_FIELD`
+value rather than against the user's id directly, reading that record by
+identity and requiring it to pass read policy — if the record cannot be
+found or read, the match fails closed rather than throwing. The browser UI's
+lookup-label display does an exact-match search on the declared
+`TARGET_FIELD` when one is declared, filtering the (possibly fuzzy) search
+results for an exact match before using one, and otherwise keeps its
+original identity-read behaviour. See
+`learnings/implementation/read-model-runtime.md` and
+`learnings/implementation/browser-ui-runtime.md` for the implementation
+details.
 
 `EDIT_SECTION` is spelled differently from the composed-presentation `SECTION`
 because a view may declare both, and two different things cannot share one

@@ -676,14 +676,17 @@ END.OBJECT
   });
 
   /**
-   * `getCurrentUserSourceRecordId`/`recordMatchesCurrentUser` in
-   * `read-model-service.ts` match a `currentUser` source scope's lookup field
-   * against `RUNTIME.userId` by identity. A `TARGET_FIELD` lookup stores a
-   * natural-key value there instead of the target's own id, so the match can
-   * never hold — a real gap this warning names rather than silently leaves as
-   * a spec caveat. See [[read-model-runtime]].
+   * A `currentUser` read-model source whose object matches the current user
+   * through a `TARGET_FIELD` lookup used to get a compile-time warning
+   * (`ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`, Phase 72)
+   * because `recordMatchesCurrentUser` matched by identity and could never
+   * honour `TARGET_FIELD`. Phase 75 fixed that runtime match for real (see
+   * `tests/runtime.test.ts`, "matches a currentUser read-model source
+   * through a TARGET_FIELD lookup") and removed the diagnostic along with
+   * it, since the defect it warned about no longer exists. This test proves
+   * the shape that used to warn now compiles clean.
    */
-  it("warns when a currentUser read-model source's lookup field declares TARGET_FIELD", () => {
+  it("does not warn when a currentUser read-model source's lookup field declares TARGET_FIELD", () => {
     const partialModel = {
       app: { name: "CurrentUserTargetField" },
       objects: [
@@ -717,19 +720,7 @@ END.OBJECT
 
     const resolved = resolveApplicationModel(partialModel);
 
-    expect(
-      validateApplicationModel(resolved).map((diagnostic) => [
-        diagnostic.code,
-        diagnostic.severity,
-        diagnostic.path,
-      ]),
-    ).toEqual([
-      [
-        MODEL_VALIDATION_CODES.LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED,
-        "warning",
-        "readModels[0].sources[0]",
-      ],
-    ]);
+    expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
   it("does not warn when a currentUser read-model source's lookup field matches by id", () => {
@@ -763,13 +754,7 @@ END.OBJECT
 
     const resolved = resolveApplicationModel(partialModel);
 
-    expect(
-      validateApplicationModel(resolved).filter(
-        (diagnostic) =>
-          diagnostic.code ===
-          MODEL_VALIDATION_CODES.LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED,
-      ),
-    ).toEqual([]);
+    expect(validateApplicationModel(resolved)).toEqual([]);
   });
 
   it("treats metadata fields as invalid for ordinary author-facing field references", () => {
