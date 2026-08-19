@@ -181,17 +181,22 @@ covered by its own Playwright visual spec
   Email` computed fallback for the PRD's "an empty display_name renders as the
   email prefix" behaviour; had to fall back to `DISPLAY Email` directly
   instead. A stored field is the only thing `DISPLAY` (or `KEY`) can ever
-  name.
+  name. Now documented in
+  [docs/spec/language.md#objects-and-fields](../../docs/spec/language.md#objects-and-fields).
 - **A `ROLE` condition on `User` can never match a role earned through a
   different context**, and **a `WHEN`-conditioned `SEARCH` rule can never
   match at all** -- both are policy-engine mechanics, not modelling choices;
   see [policy-engine#key-decisions-from-the-jointly-care-reference-app](policy-engine.md)
-  for the full mechanism. Practical fallout here: `UserPolicy` moved from
-  `ROLE CircleMember` (copied from Giggle Band's own `UserPolicy`, which has
-  the identical, apparently never-exercised gap) to `AUTHENTICATED`, and
-  `CircleInvitePolicy`'s invitee-facing `SEARCH` rule had to drop its `WHEN
-  Invitee == runtime.userId` and become unconditioned, leaning on the paired
-  `READ` rule for row shaping.
+  for the full mechanism and
+  [docs/spec/language.md#policies](../../docs/spec/language.md#policies) for
+  the user-facing writeup (the `SEARCH`+`WHEN` case is now a compile error,
+  `ADL_POLICY_SEARCH_CONDITION_UNREACHABLE`, not just a documented footgun).
+  Practical fallout here: `UserPolicy` moved from `ROLE CircleMember` (copied
+  from Giggle Band's own `UserPolicy`, which has the identical, apparently
+  never-exercised gap) to `AUTHENTICATED`, and `CircleInvitePolicy`'s
+  invitee-facing `SEARCH` rule had to drop its `WHEN Invitee ==
+  runtime.userId` and become unconditioned, leaning on the paired `READ` rule
+  for row shaping.
 - **A `CONTEXT_GRANT` does not extend to the context's own root object.**
   `MyPendingCircleInvites` (the cross-circle "invites addressed to me" read
   model `PendingInvitations`-style views need, which Giggle Band never built
@@ -202,7 +207,8 @@ covered by its own Playwright visual spec
   so the join silently dropped every row for exactly the caller the view
   exists for. Removed the join; the view shows invitee/status/date without
   naming the circle, documented in place the same way the cross-band "cannot
-  name which band" gig-overlay finding is.
+  name which band" gig-overlay finding is. Now documented in
+  [docs/spec/language.md#context-grants](../../docs/spec/language.md#context-grants).
 - **A visible row action that would always fail for its own caller is worth
   gating even when the command's own guard already refuses it safely.**
   `MyPendingCircleInvites`' primary source has to stay a broad

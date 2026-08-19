@@ -145,6 +145,25 @@ datetime, time, boolean, and attachment types. A field may be `REQUIRED`, have a
 literal `DEFAULT`, validators, lookup metadata, and author-facing display or key
 roles through the resolved model.
 
+An object-level `KEY <field>` and `DISPLAY <field>` name that object's business
+key and display field respectively:
+
+```adl
+OBJECT SetList
+  DISPLAY Name
+  FIELD Name TEXT REQUIRED
+  ...
+END.OBJECT
+```
+
+**Both must name a stored `FIELD`, never a `COMPUTED FIELD`.** Model validation
+resolves `KEY` and `DISPLAY` against the object's own `fields` list only, not
+its `computedFields` (`ADL_OBJECT_DISPLAY_FIELD_UNKNOWN` for `DISPLAY`, the
+equivalent check for `KEY`), so naming a computed field is refused at compile
+time the same way naming a field that does not exist at all is. A `DISPLAY
+Email ?? Name`-shaped fallback has to be modelled as a plain stored field —
+`DISPLAY` cannot point at a `COMPUTED FIELD` (see below) that derives one.
+
 ### Field Validators
 
 A field may declare one or more validators after its type and `REQUIRED`/
@@ -432,11 +451,29 @@ the context instance (bare `CONTEXT` is the deprecated spelling — see
 "Deprecated spellings" below). The optional `WHEN` clause is an expression
 over the grant record and consumes the rest of the line.
 
-A grant **confers no roles**. It only makes records of that context instance
-eligible for a policy decision; the object's own policy still decides. Without
-it, an invitation scoped to the very context it invites somebody into is refused
-upstream of policy entirely, so a rule granting an invitee access to their own
-invitation can be written and can never fire.
+A grant **confers no roles**. It only makes records of the granted `OBJECT` —
+`BandInvitation` above, never `Band` itself — eligible for a policy decision;
+the object's own policy still decides. Without it, an invitation scoped to
+the very context it invites somebody into is refused upstream of policy
+entirely, so a rule granting an invitee access to their own invitation can be
+written and can never fire.
+
+**The reach stops at the granted object; it never extends to the context's
+own root/bound object.** `pendingBandInvitation` above puts `BandInvitation`
+records in reach of a pending invitee's search/read checks; it confers
+nothing that would let the same caller read the `Band` record the invitation
+points at, because a grant is not a policy principal for "this context" the
+way `CONTEXT_MEMBER` is a principal for "this object, via a context roster".
+This matters most for a read model: a join from the granted object toward the
+context's own object, evaluated for a grant-only caller, does not error — it
+silently drops the row. `applyLookupJoinedSource`
+(`src/runtime/read-model-service.ts`) reads the joined record through the
+same policy path an unrelated `READ` would use, and a caller who may not read
+it simply loses that row from the result, the same way a `READ`-denied lookup
+target always has. A view built for exactly the grant-only caller (an
+"invites addressed to me" list, for example) can lose every row this way with
+no diagnostic anywhere — worth an explicit grant-only test case rather than
+trusting the join to fail loudly if it is wrong.
 
 Because a grant is not membership, a grant-holder is not a co-member of anyone —
 they do not match the `CONTEXT_MEMBER` principal below and do not appear in
@@ -449,7 +486,9 @@ COMPUTED FIELD Gross NUMBER = UnitPrice * Quantity
 ```
 
 Computed fields are runtime read-time fields. They are not persisted business
-fields and are not writable.
+fields and are not writable. A `KEY` or `DISPLAY` declaration (see "Objects
+And Fields" above) can never name one — both resolve only against an object's
+stored `FIELD`s.
 
 ## Expressions
 
@@ -494,6 +533,63 @@ Two properties are part of the contract:
   never match would otherwise look like a working grant. Grant `SEARCH` to a
   wider principal and let the per-record read filter do the work; that is where
   the roster is consulted.
+
+That `CONTEXT_MEMBER`+`SEARCH` refusal is one instance of a broader rule: **a
+`WHEN` condition cannot gate any action whose policy check has no candidate
+record to evaluate it against.** A condition evaluates against the target
+record's field values overlaid with any patch; when a request carries neither
+(no record because none has been selected yet, no patch because nothing is
+being written), every field reference the condition names resolves to
+nothing, so the condition can never be true and the rule can never match — a
+principal that would otherwise be perfectly reachable is silently starved by
+its own `WHEN` clause. `SEARCH` is the confirmed case: the object-level "may
+this principal search this object at all" gate runs before any row is
+fetched, so it never carries a record or a patch, for any principal — and a
+`WHEN` clause on a `SEARCH` rule is refused at compile time regardless of
+principal (`ADL_POLICY_SEARCH_CONDITION_UNREACHABLE`), not only when the
+principal is `CONTEXT_MEMBER`. Grant `SEARCH` unconditionally to the wider
+principal that should be able to search at all, and pair it with a
+conditioned `READ` rule that does the actual per-row shaping — see
+`AvailabilityPolicy.allowAuthenticatedSearchAvailability` in
+`src/reference/giggle-band/domain.adl` for the pattern.
+
+`EXPORT` does not share this defect, and carries no equivalent compile-time
+check. Its one runtime call site
+(`AuthorityReportingService.requireExportAllowed` in
+`src/server/authoritative-reporting.ts`) re-checks policy once per exported
+row, against the actual stored record, after the read model has already run —
+so a `WHEN` condition on an `EXPORT` rule is reachable and does real per-row
+work. `AvailabilityPolicy.allowAvailabilityOwnerExport` in the same reference
+app (`ALLOW EXPORT AUTHENTICATED WHEN User == runtime.userId`) relies on
+exactly this.
+
+### Role reach
+
+`ROLE <name>` matches a role earned through a business context, but a `ROLE`
+check only ever looks at a fixed, narrow set of contexts for the object being
+checked — never any context that merely relates to it. Concretely, a `ROLE`
+check is evaluated against either the contexts the target object's own
+`SCOPE` names, or — when the object declares no `SCOPE` at all — the one
+business context (if any) that names this object as its own bound `OBJECT`
+(a caller's own identity selection context, for example). A role earned
+through a *different* context is never among those targets, no matter which
+instance of that other context the caller has selected.
+
+For example, a `CircleMember` role earned through `CONTEXT Circle MEMBERSHIP
+CircleMember ...` can gate a `ROLE CircleMember` check on `Circle` itself
+(the context's own bound object) or on any object `SCOPE`d to `Circle`, but
+it can never satisfy a `ROLE CircleMember` check on `User` — `User` is
+neither `SCOPE`d to `Circle` nor `Circle`'s own bound object, so nothing
+about the caller's `Circle` membership is ever consulted for that check,
+however many circles they belong to. This is a structural property of what a
+`ROLE` check can see, not a bug to route around with a differently-shaped
+condition.
+
+When a `ROLE` condition cannot apply for this reason — typically an object
+like `User` that legitimately needs to be reached by callers who share no
+context or scope with the record at all — reach for `AUTHENTICATED`,
+`OWNER`, or a structured field condition (`WHEN <field> == runtime.userId`)
+instead of a `ROLE` condition that can never fire.
 
 Lifecycle transition policy can name an action and state. Field rules restrict
 specific fields. Conditions compile to resolved expressions.

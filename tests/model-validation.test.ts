@@ -675,6 +675,82 @@ END.OBJECT
     );
   });
 
+  it("refuses a WHEN condition on the object-level SEARCH action for any principal", () => {
+    // Generalizes the CONTEXT_MEMBER case above: `ALLOW SEARCH AUTHENTICATED
+    // WHEN User == runtime.userId` looks like a working per-caller grant but
+    // can never match, because the coarse search gate has no record or patch
+    // for the condition to read `User` from. This is the exact shape that
+    // compiled clean and was silently dead at runtime in the Jointly Care
+    // reference app (`learnings/implementation/policy-engine.md`).
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "BandMemberAuthenticatedSearchPolicy",
+          object: "BandMember",
+          rules: [
+            {
+              name: "unreachableConditionedSearch",
+              effect: "allow",
+              principal: { match: "authenticated" },
+              action: "search",
+              condition: {
+                kind: "binary",
+                operator: "==",
+                left: { kind: "field", field: "User" },
+                right: { kind: "runtime", property: "userId" },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const rulePath = `policies[${resolved.policies.length - 1}].rules[0].condition`;
+    expect(
+      validateApplicationModel(resolved).map((diagnostic) => [diagnostic.code, diagnostic.path]),
+    ).toEqual(
+      expect.arrayContaining([
+        [MODEL_VALIDATION_CODES.POLICY_SEARCH_CONDITION_UNREACHABLE, rulePath],
+      ]),
+    );
+  });
+
+  it("does not refuse a WHEN condition on the object-level EXPORT action", () => {
+    // EXPORT does not share SEARCH's defect: its one call site
+    // (`AuthorityReportingService.requireExportAllowed`) always supplies a
+    // `record`, one per exported row, so a condition like this one is
+    // reachable and genuinely restricts export to the record's own owner --
+    // matching Giggle Band's `AvailabilityPolicy.allowAvailabilityOwnerExport`.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "BandMemberAuthenticatedExportPolicy",
+          object: "BandMember",
+          rules: [
+            {
+              name: "conditionedExport",
+              effect: "allow",
+              principal: { match: "authenticated" },
+              action: "export",
+              condition: {
+                kind: "binary",
+                operator: "==",
+                left: { kind: "field", field: "User" },
+                right: { kind: "runtime", property: "userId" },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      validateApplicationModel(resolved).map((diagnostic) => diagnostic.code),
+    ).not.toContain(MODEL_VALIDATION_CODES.POLICY_SEARCH_CONDITION_UNREACHABLE);
+  });
+
   /**
    * A `currentUser` read-model source whose object matches the current user
    * through a `TARGET_FIELD` lookup used to get a compile-time warning

@@ -321,6 +321,7 @@ export const MODEL_VALIDATION_CODES = {
   POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING: "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_MISSING",
   POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED: "ADL_POLICY_PRINCIPAL_CONTEXT_MEMBER_UNEXPECTED",
   POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE: "ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE",
+  POLICY_SEARCH_CONDITION_UNREACHABLE: "ADL_POLICY_SEARCH_CONDITION_UNREACHABLE",
   POLICY_PRINCIPAL_CONTEXT_UNKNOWN: "ADL_POLICY_PRINCIPAL_CONTEXT_UNKNOWN",
   POLICY_STATE_UNKNOWN: "ADL_POLICY_STATE_UNKNOWN",
   POLICY_CHANNEL_INVALID: "ADL_POLICY_CHANNEL_INVALID",
@@ -2851,6 +2852,28 @@ function validatePolicyRule(
         MODEL_VALIDATION_CODES.POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE,
         `Policy rule '${rule.name}' grants SEARCH to a CONTEXT_MEMBER principal, which can never match: the object-level search check has no record for the principal to read a context roster from. Grant SEARCH to a wider principal and let per-record read policy restrict rows instead.`,
         `${rulePath}.principal`,
+      ),
+    );
+  }
+
+  // Generalizes the CONTEXT_MEMBER case above to any principal: a `WHEN`
+  // condition evaluates against `getCandidateValues(request)` (the record's
+  // values overlaid with any patch), and the coarse "may this principal
+  // search this object at all" gate that runs before any row is fetched
+  // supplies neither -- every field reference resolves to `null`, so the
+  // condition can never be true and the rule can never match, no matter which
+  // principal it names. This is what let `ALLOW SEARCH AUTHENTICATED WHEN
+  // Invitee == runtime.userId` compile clean and be silently dead at runtime
+  // in the Jointly Care reference app. See
+  // learnings/implementation/policy-engine.md. `EXPORT` does not share this
+  // defect: its one call site (`AuthorityReportingService.requireExportAllowed`)
+  // always supplies a `record`, one per exported row.
+  if (rule.action === "search" && rule.condition !== undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_SEARCH_CONDITION_UNREACHABLE,
+        `Policy rule '${rule.name}' has a WHEN condition on SEARCH, which can never match: the object-level search check has no record or patch for the condition to evaluate against. Grant SEARCH unconditionally to this principal and let a paired READ rule's WHEN do the per-row shaping instead.`,
+        `${rulePath}.condition`,
       ),
     );
   }

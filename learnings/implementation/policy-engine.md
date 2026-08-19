@@ -37,6 +37,25 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   rule's `WHEN` do the actual per-row shaping -- the pattern Giggle Band's own
   `AvailabilityPolicy.allowAuthenticatedSearchAvailability` already uses. See
   [reference-app-models](reference-app-models.md) for how this surfaced.
+  **Follow-up (this session): now a compile error, not just a footgun.**
+  `ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE` already refused this for the
+  `CONTEXT_MEMBER` principal specifically (Phase 72); generalized to a sibling
+  check, `ADL_POLICY_SEARCH_CONDITION_UNREACHABLE`
+  (`validatePolicyRule`, `src/compiler/validate-model.ts`), that refuses *any*
+  `WHEN` condition on a `SEARCH` rule regardless of principal -- the exact
+  shape (`ALLOW SEARCH AUTHENTICATED WHEN Invitee == runtime.userId`) that
+  compiled clean and was silently dead at runtime here. Checked whether
+  `EXPORT` shares the defect before generalizing to it too: it does not --
+  `AuthorityReportingService.requireExportAllowed`
+  (`src/server/authoritative-reporting.ts`) is the only call site that
+  constructs an `export` `PolicyRequest`, and it always supplies a `record`
+  (one per exported row, after the read model has already run), so a `WHEN`
+  condition on `EXPORT` is reachable and does real per-row work, confirmed by
+  `AvailabilityPolicy.allowAvailabilityOwnerExport` in Giggle Band, which
+  already relies on it. See
+  [docs/spec/language.md](../../docs/spec/language.md#policies) for the
+  user-facing writeup and `tests/model-validation.test.ts` for compile-check
+  coverage of both the refusal and the EXPORT non-refusal.
 - **A context-scoped `ROLE` condition can only ever match an object that is
   itself scoped to that context, or that is the context's own bound object.**
   `getPolicyRequestContextTargets` (`context-scope.ts`) derives the contexts a
@@ -71,9 +90,13 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
 - Add policy enforcement tests against direct runtime calls, not only UI rendering.
 - When adding new public runtime operations that return records, shape the returned record with `applyReadPolicy(...)` after internal persistence/audit work is complete.
 - UI components should keep deriving visibility, masking, readonly, and action availability from the shared `PolicyEngine`; masked or readonly field renderers should not submit values back in save patches.
-- A `SEARCH` or `EXPORT` policy rule should never carry a `WHEN` condition by
-  itself -- it cannot match. Pair an unconditioned `SEARCH`/`EXPORT` grant with
-  a conditioned `READ` rule for the same principal.
+- A `SEARCH` policy rule should never carry a `WHEN` condition -- it cannot
+  match, and the compiler now refuses it
+  (`ADL_POLICY_SEARCH_CONDITION_UNREACHABLE`). Pair an unconditioned `SEARCH`
+  grant with a conditioned `READ` rule for the same principal. `EXPORT` is
+  different: its policy check always carries the actual record (see the
+  follow-up note above), so a `WHEN` condition on `EXPORT` is reachable and
+  legitimate -- do not carry the `SEARCH` rule-of-thumb over to it.
 - A `ROLE` condition on an object with no `SCOPE` only works when that object
   is itself a context's own bound object (e.g. `Band`/`Circle`). For anything
   else unscoped (e.g. `User`), reach for `AUTHENTICATED`, `OWNER`, or a
