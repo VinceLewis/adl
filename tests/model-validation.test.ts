@@ -746,9 +746,9 @@ END.OBJECT
       ],
     });
 
-    expect(
-      validateApplicationModel(resolved).map((diagnostic) => diagnostic.code),
-    ).not.toContain(MODEL_VALIDATION_CODES.POLICY_SEARCH_CONDITION_UNREACHABLE);
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_SEARCH_CONDITION_UNREACHABLE,
+    );
   });
 
   /**
