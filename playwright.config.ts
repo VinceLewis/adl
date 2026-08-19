@@ -3,10 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * Two servers run for this suite.
  *
- * - The Vite dev server on 5173 hosts the `desktop`/`mobile` Giggle visual
- *   smoke projects. Service worker registration is production-gated, so the
- *   offline shell is deliberately absent there and those projects are unchanged
- *   by its existence.
+ * - The Vite dev server on 5173 hosts the `desktop`/`mobile` visual smoke
+ *   projects for both reference apps (Giggle Band and Jointly Care). Service
+ *   worker registration is production-gated, so the offline shell is
+ *   deliberately absent there and those projects are unchanged by its
+ *   existence.
  * - A production build served by `vite preview` on 4173 hosts the
  *   `offline-shell` project. The worker only registers in a built app, so the
  *   offline reload proof cannot be run against the dev server.
@@ -22,6 +23,7 @@ import { defineConfig, devices } from "@playwright/test";
  * never be picked up by a project pointed at another.
  */
 const GIGGLE_VISUAL_SPEC = /giggle-band\.visual\.spec\.ts$/;
+const JOINTLY_CARE_VISUAL_SPEC = /jointly-care\.visual\.spec\.ts$/;
 const OFFLINE_SHELL_SPEC = /offline-shell\.spec\.ts$/;
 const PASSKEY_SPEC = /passkey-sign-in\.spec\.ts$/;
 const ADMINISTRATION_SPEC = /administration\.spec\.ts$/;
@@ -42,7 +44,7 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
-      testMatch: GIGGLE_VISUAL_SPEC,
+      testMatch: [GIGGLE_VISUAL_SPEC, JOINTLY_CARE_VISUAL_SPEC],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 1000 },
@@ -50,7 +52,7 @@ export default defineConfig({
     },
     {
       name: "mobile",
-      testMatch: GIGGLE_VISUAL_SPEC,
+      testMatch: [GIGGLE_VISUAL_SPEC, JOINTLY_CARE_VISUAL_SPEC],
       use: {
         ...devices["Pixel 5"],
         viewport: { width: 393, height: 852 },

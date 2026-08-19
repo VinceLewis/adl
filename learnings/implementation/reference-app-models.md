@@ -159,6 +159,76 @@ branding fields — done as application-layer content, no platform change.
   `ui.adl` rather than silently omitted, so a future reader does not mistake
   it for an oversight.
 
+## Key decisions from the Jointly Care ADL conversion
+
+A second folder app, `src/reference/jointly-care/` (`app.yaml`, `domain.adl`,
+`ui.adl`, integration module `src/reference/jointly-app.ts`), converting the
+Phoenix/LiveView PRD at `OSV_PRD_Elixir_Canonical_Jointly.md` into an
+ADL-native equivalent: `Circle`/`CircleMember`/`CircleInvite` mirror
+`Band`/`BandMember`/`BandInvitation`'s shape closely enough to reuse most of
+Giggle Band's proven patterns (`CONTEXT ... MEMBERSHIP`, a
+`CONTEXT_GRANT` for a pending invite, `AcceptCircleInvite`/`CreateCircle`
+commands, a `PROTECTED_ROLE` last-owner-standing constraint), plus
+`Event`/`Note`/`Message`/`Reminder` for the calendar/notes/messaging domain
+the PRD adds. Wired into the browser demo picker (`?demo=jointly-care`) and
+covered by its own Playwright visual spec
+(`tests/visual/jointly-care.visual.spec.ts`), alongside Giggle Band's.
+
+- **`DISPLAY` cannot name a `COMPUTED` field.** `OBJECT_DISPLAY_FIELD_UNKNOWN`
+  validation resolves `displayField` against `object.fields` only, not
+  `object.computedFields` (`validate-model.ts`'s `fieldsByName` for that check
+  is `indexByName(object.fields)`). Tried to give `User` a `DisplayName ??
+  Email` computed fallback for the PRD's "an empty display_name renders as the
+  email prefix" behaviour; had to fall back to `DISPLAY Email` directly
+  instead. A stored field is the only thing `DISPLAY` (or `KEY`) can ever
+  name.
+- **A `ROLE` condition on `User` can never match a role earned through a
+  different context**, and **a `WHEN`-conditioned `SEARCH` rule can never
+  match at all** -- both are policy-engine mechanics, not modelling choices;
+  see [policy-engine#key-decisions-from-the-jointly-care-reference-app](policy-engine.md)
+  for the full mechanism. Practical fallout here: `UserPolicy` moved from
+  `ROLE CircleMember` (copied from Giggle Band's own `UserPolicy`, which has
+  the identical, apparently never-exercised gap) to `AUTHENTICATED`, and
+  `CircleInvitePolicy`'s invitee-facing `SEARCH` rule had to drop its `WHEN
+  Invitee == runtime.userId` and become unconditioned, leaning on the paired
+  `READ` rule for row shaping.
+- **A `CONTEXT_GRANT` does not extend to the context's own root object.**
+  `MyPendingCircleInvites` (the cross-circle "invites addressed to me" read
+  model `PendingInvitations`-style views need, which Giggle Band never built
+  and so never hit this) originally joined from `CircleInvite` to `Circle` to
+  show which circle each invite belonged to. A pending invitee has no
+  `CirclePolicy` rule granting them `READ` on a `Circle` they have not joined
+  -- `pendingCircleInvite`'s grant only ever reaches `CircleInvite` records --
+  so the join silently dropped every row for exactly the caller the view
+  exists for. Removed the join; the view shows invitee/status/date without
+  naming the circle, documented in place the same way the cross-band "cannot
+  name which band" gig-overlay finding is.
+- **A visible row action that would always fail for its own caller is worth
+  gating even when the command's own guard already refuses it safely.**
+  `MyPendingCircleInvites`' primary source has to stay a broad
+  `AUTHENTICATED` search (the point above), which means the read model also
+  surfaces a `CircleOwner`'s own *outgoing* invites via their unconditioned
+  `allowCircleOwnerReadInvites` rule, not only invites addressed to the
+  caller. `AcceptCircleInvite`/`DeclineCircleInvite` would both correctly
+  refuse a click from the owner (`REQUIRE Invitee == runtime.userId`), but the
+  buttons still rendered on every row regardless of who it was addressed to
+  until `Invitee` was added to the read model's projection purely so the row
+  `ACTION`s could gate on `WHEN Invitee == runtime.userId` -- the same
+  "don't offer a button that always fails" reasoning as Giggle Band's
+  `revoke` action's `WHEN Status == 'Pending'`.
+- **`AUTHORITY command` steps operate ahead of the caller's own
+  `RuntimeContext`, so a caller-held context object can go stale mid-test (and
+  mid-session) the moment a command creates the membership that would update
+  it.** `withSelectedContext` resolves `contextRoles`/`contextGrants` once, at
+  call time; `AcceptCircleInvite`'s `createMembership` step writes a new
+  `CircleMember` through `AUTHORITY command` (bypassing the acting caller's
+  own policy entirely, same as Giggle Band's `AcceptBandInvitation`), but the
+  `RuntimeContext` object the caller already holds does not retroactively
+  learn about it. A caller who needs to search/read using their *new* role
+  immediately afterward has to call `withSelectedContext` again (or a test can
+  reach for a system/admin context to verify write outcomes, which is what
+  `jointly-reference-app.test.ts` does).
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.

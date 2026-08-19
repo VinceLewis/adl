@@ -3,11 +3,15 @@ import type { AdlAppElement } from "./components/adl-app.js";
 import {
   BAND_REFERENCE_DATABASE_NAME,
   GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
+  JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
   createBandReferenceModel,
   createGiggleBandExampleModel,
+  createJointlyReferenceModel,
   createPersistentBandReferenceRuntime,
   createPersistentGiggleBandExampleRuntime,
+  createPersistentJointlyReferenceRuntime,
   seedBandReferenceRuntimeIfEmpty,
+  seedJointlyReferenceRuntimeIfEmpty,
 } from "./demo-fixture.js";
 import { readBrowserAuthorityConfiguration } from "./authority-sync.js";
 import { IndexedDbSessionIdentityStorage, SIGNED_OUT_IDENTITY } from "./offline-session.js";
@@ -41,7 +45,10 @@ async function mountDemo(): Promise<void> {
     document.title = model.app.name;
     app.model = model;
     app.runtime = runtime;
-    app.context = await startingContext(runtime, authority);
+    app.context = await startingContext(runtime, authority, async (r) => {
+      const seeded = await seedBandReferenceRuntimeIfEmpty(r);
+      return { context: seeded.musicianContext };
+    });
     await connectAuthority(
       app,
       runtime,
@@ -57,11 +64,33 @@ async function mountDemo(): Promise<void> {
     document.title = model.app.name;
     app.model = model;
     app.runtime = runtime;
-    app.context = await startingContext(runtime, authority);
+    app.context = await startingContext(runtime, authority, async (r) => {
+      const seeded = await seedBandReferenceRuntimeIfEmpty(r);
+      return { context: seeded.musicianContext };
+    });
     await connectAuthority(
       app,
       runtime,
       withIdentityStorage(authority, BAND_REFERENCE_DATABASE_NAME),
+    );
+    void registerAdlServiceWorker(model.modelVersion);
+  } else if (demo === "jointly-care") {
+    const model = createJointlyReferenceModel();
+    const runtime = createDemoRuntime(model, JOINTLY_CARE_EXAMPLE_DATABASE_NAME, authority, () =>
+      createPersistentJointlyReferenceRuntime(model),
+    );
+
+    document.title = model.app.name;
+    app.model = model;
+    app.runtime = runtime;
+    app.context = await startingContext(runtime, authority, async (r) => {
+      const seeded = await seedJointlyReferenceRuntimeIfEmpty(r);
+      return { context: seeded.carerContext };
+    });
+    await connectAuthority(
+      app,
+      runtime,
+      withIdentityStorage(authority, JOINTLY_CARE_EXAMPLE_DATABASE_NAME),
     );
     void registerAdlServiceWorker(model.modelVersion);
   }
@@ -89,13 +118,14 @@ async function mountDemo(): Promise<void> {
 async function startingContext(
   runtime: ApplicationRuntime,
   authority: BrowserAuthorityConfiguration | null,
+  seedIfEmpty: (runtime: ApplicationRuntime) => Promise<{ context: RuntimeContext }>,
 ): Promise<RuntimeContext> {
   if (authority !== null) {
     return { userId: SIGNED_OUT_IDENTITY, roles: [], channel: "ui" };
   }
 
-  const seeded = await seedBandReferenceRuntimeIfEmpty(runtime);
-  return seeded.musicianContext;
+  const seeded = await seedIfEmpty(runtime);
+  return seeded.context;
 }
 
 /**

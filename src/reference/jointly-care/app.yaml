@@ -1,0 +1,11 @@
+name: Jointly Care ADL Example
+id: jointly-care
+version: 0.1.0
+startView: HomeDashboard
+
+sources:
+  - domain.adl
+  - ui.adl
+
+demo:
+  route: jointly-care

@@ -1364,6 +1364,137 @@ END.POLICY
 
     expect(item.values.Position).toBe(1);
   });
+
+  it("compiles the Jointly Care ADL reference app from app.yaml into the runtime model", async () => {
+    const result = compileAdlProject({
+      manifestSource: readReference("jointly-care/app.yaml"),
+      sources: {
+        "domain.adl": readReference("jointly-care/domain.adl"),
+        "ui.adl": readReference("jointly-care/ui.adl"),
+      },
+    });
+
+    expect(result.manifest).toMatchObject({
+      name: "Jointly Care ADL Example",
+      id: "jointly-care",
+      sources: ["domain.adl", "ui.adl"],
+    });
+    expect(result.diagnostics).toEqual([]);
+    expect(validateApplicationModel(result.model)).toEqual([]);
+    expect(result.model.app).toEqual({
+      name: "Jointly Care ADL Example",
+      theme: "MinimalLight",
+      startView: "HomeDashboard",
+      offlineGraceDays: 30,
+    });
+    expect(result.model.contexts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "Circle",
+          object: "Circle",
+          membership: expect.objectContaining({
+            object: "CircleMember",
+            userField: "User",
+            contextField: "Circle",
+            roleField: "Role",
+            roles: ["CircleOwner", "CircleMember"],
+          }),
+        }),
+      ]),
+    );
+    expect(result.model.contexts?.find((context) => context.name === "Circle")?.grants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "pendingCircleInvite",
+          object: "CircleInvite",
+          userField: "Invitee",
+          contextField: "Circle",
+        }),
+      ]),
+    );
+    expect(result.model.objects.find((object) => object.name === "CircleMember")).toMatchObject({
+      scope: { context: "Circle", field: "Circle" },
+      constraints: expect.arrayContaining([
+        expect.objectContaining({
+          name: "lastCircleOwnerStanding",
+          kind: "protectedRole",
+          scopeFields: ["Circle"],
+          roleField: "Role",
+          roleValues: ["CircleOwner"],
+          minCount: 1,
+        }),
+      ]),
+    });
+    expect(result.model.readModels?.map((readModel) => readModel.name)).toEqual(
+      expect.arrayContaining([
+        "HomeUpcomingEvents",
+        "CircleCalendarItems",
+        "MyPendingCircleInvites",
+        "CircleMemberRoster",
+        "CircleRecentNotes",
+        "CircleRecentMessages",
+      ]),
+    );
+    expect(result.model.commands?.map((command) => command.name)).toEqual(
+      expect.arrayContaining(["CreateCircle", "AcceptCircleInvite", "DeclineCircleInvite"]),
+    );
+    expect(
+      result.model.objects
+        .find((object) => object.name === "Event")
+        ?.views.find((view) => view.name === "HomeDashboard")?.presentation,
+    ).toMatchObject({
+      density: "compact",
+      statuses: expect.arrayContaining([
+        expect.objectContaining({ name: "event", label: "Event" }),
+      ]),
+      sections: expect.arrayContaining([
+        expect.objectContaining({ name: "Welcome" }),
+        expect.objectContaining({
+          name: "Schedule",
+          lists: [expect.objectContaining({ name: "UpcomingEvents", renderAs: "compactFeed" })],
+        }),
+      ]),
+    });
+
+    const runtime = new ApplicationRuntime(result.model);
+    const systemContext: RuntimeContext = {
+      userId: "jointly-reference-system",
+      roles: ["SystemAdmin"],
+      channel: "api",
+      now: new Date("2026-08-15T09:00:00.000Z"),
+    };
+    const carer = await runtime.create(
+      "User",
+      { Email: "jordan@example.com", DisplayName: "Jordan Casey" },
+      systemContext,
+    );
+    const circle = await runtime.create(
+      "Circle",
+      { Name: "Mum's Care Circle", Owner: carer.meta.guid },
+      systemContext,
+    );
+    const circleContext: RuntimeContext = {
+      ...systemContext,
+      selectedContexts: { Circle: circle.meta.guid },
+    };
+
+    await runtime.create(
+      "CircleMember",
+      { Circle: circle.meta.guid, User: carer.meta.guid, Role: "CircleOwner" },
+      circleContext,
+    );
+    const event = await runtime.create(
+      "Event",
+      {
+        Circle: circle.meta.guid,
+        Title: "GP appointment",
+        StartsAt: "2026-08-20T09:30:00.000Z",
+      },
+      circleContext,
+    );
+
+    expect(event.values.Title).toBe("GP appointment");
+  });
 });
 
 describe("Phase 72 syntax uniformity", () => {

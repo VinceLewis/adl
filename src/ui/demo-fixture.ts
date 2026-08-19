@@ -9,6 +9,11 @@ import {
   seedBandReferenceRuntime,
   seedBandReferenceRuntimeIfEmpty,
 } from "../reference/band-app.js";
+import {
+  createJointlyReferenceModel,
+  seedJointlyReferenceRuntime,
+  seedJointlyReferenceRuntimeIfEmpty,
+} from "../reference/jointly-app.js";
 import type {
   ObjectStorageBackend,
   PartialApplicationModel,
@@ -19,6 +24,7 @@ import type {
 export const BROWSER_DEMO_DATABASE_NAME = "adl-browser-runtime-demo";
 export const BAND_REFERENCE_DATABASE_NAME = "adl-band-reference-demo";
 export const GIGGLE_BAND_EXAMPLE_DATABASE_NAME = "adl-giggle-band-example";
+export const JOINTLY_CARE_EXAMPLE_DATABASE_NAME = "adl-jointly-care-example";
 
 /**
  * The identity a purely local demo runs as. It is not a user account and never
@@ -496,11 +502,24 @@ export function createPersistentGiggleBandExampleRuntime(
   });
 }
 
+export function createPersistentJointlyReferenceRuntime(
+  model: ResolvedApplicationModel = createJointlyReferenceModel(),
+): ApplicationRuntime {
+  return new ApplicationRuntime(model, {
+    storage: new IndexedDbObjectStorageBackend({
+      databaseName: JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
+    }),
+  });
+}
+
 export {
   createBandReferenceModel,
   createGiggleBandExampleModel,
   seedBandReferenceRuntime,
   seedBandReferenceRuntimeIfEmpty,
+  createJointlyReferenceModel,
+  seedJointlyReferenceRuntime,
+  seedJointlyReferenceRuntimeIfEmpty,
 };
 
 export async function seedBrowserDemoRuntime(

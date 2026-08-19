@@ -1,0 +1,249 @@
+# Composed presentation for the Jointly Care ADL example. Mirrors Giggle
+# Band's `ui.adl`: `domain.adl` holds the plain object/read-model/policy
+# source, this file holds every view with composed SECTION/STATUS/CALENDAR
+# presentation (`mergeViewOnlyObjectDeclarations` folds a second `OBJECT`
+# block's views into the one already declared in `domain.adl`, so long as
+# this block adds no fields, scope or constraints of its own).
+
+SHELL
+  NAV HomeDashboard LABEL 'Home' ICON home GROUP Main ORDER 10
+  NAV MyPendingInvites LABEL 'My Invites' ICON list GROUP Main ORDER 15
+  NAV CircleDirectory LABEL 'Circles' ICON users GROUP Main ORDER 20
+  NAV CircleOverview LABEL 'Circle' ICON list GROUP Main ORDER 25 VISIBLE WHEN CONTEXT Circle SELECTED
+  NAV CircleEventList LABEL 'Events' ICON calendar GROUP Main ORDER 30 VISIBLE WHEN CONTEXT Circle SELECTED
+  NAV CircleEventCalendar LABEL 'Calendar' ICON calendar GROUP Main ORDER 35 VISIBLE WHEN CONTEXT Circle SELECTED
+  NAV CircleNoteList LABEL 'Notes' ICON list GROUP Main ORDER 40 VISIBLE WHEN CONTEXT Circle SELECTED
+  NAV CircleMessageList LABEL 'Messages' ICON list GROUP Main ORDER 50 VISIBLE WHEN CONTEXT Circle SELECTED
+  NAV ReminderList LABEL 'Reminders' ICON calendar GROUP Main ORDER 60 VISIBLE WHEN CONTEXT Circle SELECTED
+  NAV CircleMemberList LABEL 'Members' ICON users GROUP Admin ORDER 70 VISIBLE WHEN CONTEXT Circle SELECTED
+  NAV CircleInviteList LABEL 'Invites' ICON list GROUP Admin ORDER 80 VISIBLE WHEN CONTEXT Circle SELECTED
+  CONTROL contextSelector KIND contextSelector PLACEMENT topBar
+  CONTROL connection KIND connectivity PLACEMENT topBar
+  CONTROL syncStatus KIND syncStatus PLACEMENT topBar
+  CONTROL themeSwitch KIND themeSwitch LABEL 'Theme' PLACEMENT topBar
+  CONTROL installApp KIND pwaInstall LABEL 'Install' PLACEMENT topBar
+  CONTROL signOut KIND logout LABEL 'Sign out' ICON x PLACEMENT navDrawer
+  TOP_BAR CONTEXT_SELECTOR topBar MOBILE_CONTEXT_SELECTOR sheet CONTROLS contextSelector connection syncStatus themeSwitch installApp
+  NAV_DRAWER TITLE 'Jointly Care' CONTROLS signOut
+END.SHELL
+
+OBJECT Event
+  VIEW HomeDashboard DASHBOARD
+    CONTEXT ALL Circle
+    READ_MODEL HomeUpcomingEvents
+    FIELDS StartsAt Title Location CircleName
+    SORT StartsAt ASC
+    ACTIONS read search
+    LAYOUT stack
+    DENSITY compact
+
+    STATUS event LABEL 'Event' ARIA_LABEL 'Circle event' ICON calendar THEME colorStatusEvent PRECEDENCE 10
+
+    LEGEND ScheduleStatus TITLE 'Schedule status' STATUSES event
+
+    SECTION Welcome
+      HEADING 'Welcome back'
+    END.SECTION
+
+    SECTION Schedule
+      HEADING 'Upcoming across your circles'
+
+      LIST UpcomingEvents FROM HomeUpcomingEvents
+        ORDER BY StartsAt ASC
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'Nothing scheduled yet'
+        STATUS event
+
+        ROW
+          ICON calendar
+          TEXT StartsAt FORMAT datetime 'EEE d MMM h:mma'
+          TEXT ' - '
+          TEXT Title STYLE bold
+          TEXT ' - '
+          TEXT Location
+          TEXT ' ('
+          TEXT CircleName
+          TEXT ')'
+        END.ROW
+      END.LIST
+    END.SECTION
+  END.VIEW
+
+  # Post-MVP polish over the PRD's own v1 (deviation table, PRD 14: "Month
+  # grid calendar" -> "Date-sorted event list, generator gives a list; month
+  # grid is post-MVP"). ADL's runtime already has a general calendar
+  # presentation, so this is a small addition rather than the custom RRule
+  # module and month-grid component the PRD defers -- recurrence itself
+  # stays out of scope, matching PRD 14's "Single events only".
+  VIEW CircleEventCalendar DASHBOARD
+    CONTEXT REQUIRED Circle
+    FIELDS StartsAt Title Location AllDay
+    ACTIONS read search
+    LAYOUT stack
+    DENSITY compact
+
+    STATE visibleMonth DATE DEFAULT('2026-08-01')
+
+    STATUS event LABEL 'Event' ARIA_LABEL 'Circle event' ICON calendar THEME colorStatusEvent PRECEDENCE 10
+
+    LEGEND CircleCalendarStatus TITLE 'Calendar status' STATUSES event
+
+    SECTION PlanningCalendar
+      HEADING 'Calendar'
+
+      CALENDAR MonthPlanner FROM READ_MODEL CircleCalendarItems
+        MONTH_STATE visibleMonth
+        WEEK_START monday
+        DATE_FIELD StartsAt
+        TITLE_FIELD Title
+        SUMMARY_FIELDS Location
+        FIELDS StartsAt Title Location AllDay
+        ORDER BY StartsAt ASC
+        DENSITY compact
+        STATUS event
+        EMPTY_TEXT 'No events in this month'
+
+        # Clicking an empty day drafts a new event starting at midnight UTC
+        # on that date -- a starting point the carer adjusts in the form
+        # that opens, the same shortcut Giggle Band's own `addEventOnDate`
+        # gives for a gig date.
+        ACTION addEventOnDate CREATE Event LABEL 'Add Event' ICON calendar PLACEMENT primary
+          INPUT StartsAt FROM StartsAt
+        END.ACTION
+      END.CALENDAR
+    END.SECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT CircleInvite
+  # Every circle a caller has been invited to but not yet joined, across all
+  # circles, with one-click accept/decline -- the UI half of the
+  # `pendingCircleInvite` CONTEXT_GRANT and the `AcceptCircleInvite` /
+  # `DeclineCircleInvite` commands declared in `domain.adl`. Both actions
+  # need only the row's own record id (`id`), the same single-input shape
+  # Giggle Band's `RevokeBandInvitation` row action already proves works.
+  VIEW MyPendingInvites DASHBOARD
+    CONTEXT ALL Circle
+    READ_MODEL MyPendingCircleInvites
+    FIELDS InviteeEmail Status SentAt
+    SORT SentAt ASC
+    ACTIONS read search
+
+    SECTION Invites
+      HEADING 'Your pending invites'
+
+      LIST PendingInvitesList FROM READ_MODEL MyPendingCircleInvites
+        ORDER BY SentAt ASC
+        WHERE Status == 'pending'
+        RENDER_AS table
+        DENSITY compact
+        EMPTY_TEXT 'No pending invites'
+
+        ROW
+          TEXT InviteeEmail STYLE bold
+          TEXT ' - invited '
+          TEXT SentAt FORMAT date 'EEE d MMM'
+        END.ROW
+
+        # `WHEN Invitee == runtime.userId` keeps the buttons off a circle
+        # owner's own outgoing invites, which this list also shows (see
+        # `MyPendingCircleInvites` in `domain.adl`) but which the owner is
+        # never the invitee of -- both commands would refuse the click
+        # anyway via their own `REQUIRE Invitee == runtime.userId` step
+        # guard, but offering a button that always fails is worse UX than
+        # not offering it, the same reasoning Giggle Band's `revoke` row
+        # action already applies with its own `WHEN Status == 'Pending'`.
+        ACTION accept COMMAND AcceptCircleInvite LABEL 'Accept' ICON calendar PLACEMENT row
+          WHEN Invitee == runtime.userId
+          INPUT Invite FROM id
+        END.ACTION
+
+        ACTION decline COMMAND DeclineCircleInvite LABEL 'Decline' ICON x PLACEMENT row
+          WHEN Invitee == runtime.userId
+          INPUT Invite FROM id
+        END.ACTION
+      END.LIST
+    END.SECTION
+  END.VIEW
+END.OBJECT
+
+OBJECT Circle
+  # Post-MVP polish over the PRD's own v1 (deviation table, PRD 14: "Dashboard
+  # with cross-context data" -> "Plain generator show page, dashboard
+  # enrichment is post-MVP"). PRD 15's post-MVP item 2 names exactly this:
+  # member list, recent messages, upcoming events, recent notes.
+  VIEW CircleOverview DASHBOARD
+    CONTEXT REQUIRED Circle
+    FIELDS Name Description
+    ACTIONS read search
+    LAYOUT stack
+    DENSITY compact
+
+    SECTION Members
+      HEADING 'Who is here'
+
+      LIST MembersList FROM READ_MODEL CircleMemberRoster
+        ORDER BY Role ASC
+        RENDER_AS table
+        DENSITY compact
+        EMPTY_TEXT 'No members yet'
+
+        ROW
+          TEXT MemberEmail STYLE bold
+          TEXT ' - '
+          TEXT Role
+        END.ROW
+      END.LIST
+    END.SECTION
+
+    SECTION UpcomingEvents
+      HEADING 'Upcoming'
+
+      LIST UpcomingEventsList FROM READ_MODEL CircleCalendarItems
+        ORDER BY StartsAt ASC
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'Nothing scheduled'
+
+        ROW
+          TEXT StartsAt FORMAT datetime 'EEE d MMM h:mma'
+          TEXT ' - '
+          TEXT Title STYLE bold
+          TEXT ' - '
+          TEXT Location
+        END.ROW
+      END.LIST
+    END.SECTION
+
+    SECTION RecentNotes
+      HEADING 'Recent notes'
+
+      LIST RecentNotesList FROM READ_MODEL CircleRecentNotes
+        ORDER BY Title ASC
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'No notes yet'
+
+        ROW
+          TEXT Title STYLE bold
+        END.ROW
+      END.LIST
+    END.SECTION
+
+    SECTION RecentMessages
+      HEADING 'Recent messages'
+
+      LIST RecentMessagesList FROM READ_MODEL CircleRecentMessages
+        ORDER BY Body ASC
+        RENDER_AS compactFeed
+        DENSITY compact
+        EMPTY_TEXT 'No messages yet'
+
+        ROW
+          TEXT Body
+        END.ROW
+      END.LIST
+    END.SECTION
+  END.VIEW
+END.OBJECT

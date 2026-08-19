@@ -18,8 +18,63 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
 - Field operands evaluate against candidate values: the existing record values overlaid with the requested patch. This lets create/update policies express invariants such as `Availability.User == runtime.userId` and prevents changing the ownership field away from the caller during an update.
 - Opaque policy condition strings are not the runtime contract. Fixtures should use structured condition objects so validation and runtime evaluation stay model-first.
 
+## Key decisions from the Jointly Care reference app
+
+- **A `WHEN`-conditioned `SEARCH` rule can never actually grant search.**
+  `ruleMatches` evaluates a rule's `condition` against `getCandidateValues(request)`
+  regardless of action, but a `search` request carries no `record` and no
+  `patch` -- there is no specific row yet, only the coarse "may this
+  principal search this object type at all" gate `searchAuthorisedSourceRecords`
+  / `ObjectStore.search` check before any row is fetched. A field reference in
+  the condition resolves to `null`, so `Invitee == runtime.userId`-shaped
+  conditions are always false and the rule never matches, denying search
+  outright. `CREATE`/`UPDATE` conditions work as intended because those
+  requests do carry candidate values (the patch, optionally overlaid on the
+  existing record); `READ`/`UPDATE`/`DELETE` on a specific record work because
+  `request.record` is present. The fix is modelling, not a platform change:
+  give `SEARCH` (and by the same reasoning `EXPORT`) an unconditioned
+  `ALLOW SEARCH AUTHENTICATED` (or `ROLE ...`) rule and let a paired `READ`
+  rule's `WHEN` do the actual per-row shaping -- the pattern Giggle Band's own
+  `AvailabilityPolicy.allowAuthenticatedSearchAvailability` already uses. See
+  [reference-app-models](reference-app-models.md) for how this surfaced.
+- **A context-scoped `ROLE` condition can only ever match an object that is
+  itself scoped to that context, or that is the context's own bound object.**
+  `getPolicyRequestContextTargets` (`context-scope.ts`) derives the contexts a
+  `ROLE` check is evaluated against from either the target object's own
+  `SCOPE` field, or -- when the object has no scope -- from
+  `getBusinessContextsForObject(object.name)`, which only ever returns a
+  context whose `OBJECT` declaration names that object (a caller's own
+  identity selection, for `User`). A context-derived role earned through a
+  *different* context (e.g. `CircleMember`, earned via `CONTEXT Circle
+  MEMBERSHIP CircleMember ...`) can never satisfy a `ROLE CircleMember`
+  condition on `User`, no matter which circle is selected: nothing in
+  `getPolicyRequestContextTargets` ever looks at a business context that
+  merely *relates* to the target object. Use `AUTHENTICATED` for a policy on
+  an object outside the caller's own context/scope chain that legitimately
+  needs any signed-in caller to reach it (see [reference-app-models](reference-app-models.md)'s
+  `UserPolicy` note) rather than a `ROLE` condition that can never fire.
+- **`CONTEXT_GRANT` puts only the *granted* object in reach of the object-scope
+  gate, never the context's own root object.** A grant on `ON Circle OBJECT
+  CircleInvite` lets a pending invitee's `CircleInvite` records clear
+  `requireObjectScopeForRecord`/`requireObjectScopeForSearch`; it confers
+  nothing that would let the same caller read the `Circle` record the invite
+  points at, because there is no policy principal for "a grant admits me to
+  this context" the way `CONTEXT_MEMBER` expresses relationship access on a
+  different object's field. A read model that joins from the granted object to
+  the context's own object for a grant-holder will silently drop every row
+  (see `applyLookupJoinedSource`'s doc comment: a caller who may not read the
+  joined record just loses the row, it does not throw) rather than error --
+  easy to miss without a grant-only test case exercising exactly that caller.
+
 ## Practical guidance
 
 - Add policy enforcement tests against direct runtime calls, not only UI rendering.
 - When adding new public runtime operations that return records, shape the returned record with `applyReadPolicy(...)` after internal persistence/audit work is complete.
 - UI components should keep deriving visibility, masking, readonly, and action availability from the shared `PolicyEngine`; masked or readonly field renderers should not submit values back in save patches.
+- A `SEARCH` or `EXPORT` policy rule should never carry a `WHEN` condition by
+  itself -- it cannot match. Pair an unconditioned `SEARCH`/`EXPORT` grant with
+  a conditioned `READ` rule for the same principal.
+- A `ROLE` condition on an object with no `SCOPE` only works when that object
+  is itself a context's own bound object (e.g. `Band`/`Circle`). For anything
+  else unscoped (e.g. `User`), reach for `AUTHENTICATED`, `OWNER`, or a
+  structured field condition instead.
