@@ -53,6 +53,38 @@ Before pushing any change that affects browser UI rendering, shell chrome, refer
 
 For documentation-only phases, no automated tests are expected, but verify the requested files exist and that instructions do not contradict the repository boundary.
 
+### Compile-check ADL source before presenting it
+
+Any `.adl` source drafted or edited by an agent — reference app source, spec
+examples, conformance fixtures, anything — must be run through `compileAdl`
+and its `diagnostics` inspected before the source is presented, committed, or
+relied on, the same way a TypeScript change is never considered done before
+`tsc` is clean. Do not treat a syntactically-plausible draft as correct on the
+strength of having read the spec; ADL has no pretrained prior behind it the
+way Go or TypeScript do, so a spec-plausible draft is a guess until the actual
+compiler has run over it. A diagnostic is ground truth over any assumption
+about what the grammar should accept — fix the source, not the check.
+
+Until a dedicated CLI exists for this (see `docs/phases/phase-72-*.md` for a
+candidate), check with a throwaway vitest file rather than assuming an
+unlisted tool (`tsx`, `ts-node`) is installed, since only `vitest` is a
+project dependency today:
+
+```ts
+// tests/scratch-compile-check.test.ts (delete after use — never commit it)
+import { describe, it, expect } from "vitest";
+import { compileAdl } from "../src/compiler/compile-adl.js";
+
+it("compiles cleanly", () => {
+  const { diagnostics } = compileAdl(`...draft ADL source...`);
+  expect(diagnostics).toEqual([]);
+});
+```
+
+```bash
+npx vitest run tests/scratch-compile-check.test.ts
+```
+
 ## Implementation Boundaries
 
 - The runtime consumes the resolved model, not parser AST nodes.

@@ -57,6 +57,11 @@ work unless asked.
 - Never weaken a constraint, loosen a test, or adjust a conformance case to match
   current behaviour in order to make verification pass. If a case reveals a real
   defect, fix the defect and record it.
+- Any `.adl` source drafted or edited must be run through `compileAdl` and its
+  `diagnostics` checked before it is presented, committed, or relied on. Unlike
+  Go or TypeScript, ADL has no pretrained prior behind it, so a spec-plausible
+  draft is a guess until the compiler has actually run over it. See
+  `AGENTS.md`'s Testing section for the check pattern.
 
 ## Parallel Execution
 
