@@ -209,10 +209,13 @@ input that never got that far.
 fully resolved model, whose filled-in defaults would print noisy text
 restating values the author never wrote.
 
-**Generation is one-directional.** There is no `.adl` → `.adlj` importer and
-no bidirectional sync tool for a generated `.adl` file edited afterward. A
+**The printer itself is one-directional**: it only ever renders `.adl` text
+from a `PartialApplicationModel`, never the reverse, and there is still no
+bidirectional sync tool for a generated `.adl` file edited afterward — a
 `.adl` file generated this way is not meant to be hand-edited once its
-`.adlj` source exists.
+`.adlj` source exists. A separate importer (below) goes the other direction,
+from `.adl` text to `.adlj` JSON, but it does not go through the printer at
+all — it converts the shared `PartialApplicationModel` stage directly.
 
 **Coverage**: the full declarative skeleton — `APP`, `ROLE`, `CONTEXT`,
 `CONTEXT_GRANT`, `OBJECT` (fields, computed fields, validations, lifecycle,
@@ -233,6 +236,45 @@ parser: `.adl` text → `parseAdl` → `PartialApplicationModel` → print →
 fixture app (`tests/compile-adlj.test.ts`). It is not required to preserve
 whitespace or comments — only to resolve to an identical
 `ResolvedApplicationModel` after reparsing.
+
+## The importer: `.adl` text into `.adlj` JSON
+
+`partialApplicationModelToAdljSource(model: PartialApplicationModel):
+AdljSourceDocument` (`src/compiler/adl-to-adlj.ts`) is the structural mirror
+of `adljSourceToPartialApplicationModel` (`src/compiler/compile-adlj.ts`):
+the same walk over every object/field/validator/lifecycle/policy/decision-table/
+command/context/readModel/sync structure, but inverted — everywhere the JSON
+front-end calls `parseExpressionSource(someString)` to go string → tree, the
+importer calls `printExpression`/`printCondition` (exported from
+`print-adl.ts`, reused rather than reimplemented) to go tree → string. Every
+other field passes straight through unchanged. `COMMAND STEP`
+`values`/`patch`/`recordId` (`ResolvedCommandValueExpression`) stay JSON
+as-is, unchanged, for the same reason `adljSourceToPartialApplicationModel`
+leaves them alone: that vocabulary was never infix text to begin with.
+
+A `PartialPolicyConditionModel`-typed field that actually holds the legacy
+pre-Phase-20 `ResolvedPolicyCondition` shape (`equals`/`all`/`any`/`not`)
+is refused with a clear error naming the field, exactly like `printCondition`
+already refuses it for the `.adl` printer — nothing in this codebase authors
+that shape any more, so translating it silently would launder stale content
+rather than surface it.
+
+`importAdlAsAdlj(adlSource: string): { document?: AdljSourceDocument;
+diagnostics: Diagnostic[] }` is the convenience entry point: it runs
+`compileAdl` and, only when the result carries no *error* diagnostics
+(warnings pass through), converts `partialModel` with
+`partialApplicationModelToAdljSource`. When there is a blocking error,
+`document` is left `undefined` and no conversion is attempted, mirroring the
+"compile-check before presenting it" rule the rest of this codebase already
+follows for `.adl` source.
+
+**Correctness contract**: matching the printer's own contract ("reparses to
+the identical tree," not "produces identical text"), the importer's contract
+is not byte-identical JSON against a hand-written `.adlj` file — field
+ordering and whitespace may differ — but that compiling the *imported*
+document with `compileAdlj` resolves to a `ResolvedApplicationModel`
+deep-equal to compiling the original `.adl` text with `compileAdl`. Proven
+for the fixture app in `tests/adl-to-adlj.test.ts`.
 
 ## A cosmetic model-shape difference, not a behavioural one
 
@@ -314,7 +356,6 @@ direction makes unnecessary.
 
 ## Non-goals (see Planning Handoff in `docs/phases/phase-73-*.md` and `phase-76-*.md`)
 
-- An `.adl` → `.adlj` importer.
 - A bidirectional sync/merge tool between a generated `.adl` file and a
   hand-edit made to it afterward.
 - Composed view presentation / edit-surface printing.

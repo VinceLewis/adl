@@ -140,7 +140,7 @@ const BINARY_OPERATOR_TEXT: Record<string, string> = {
  * readability but guarantees the printed text reparses to the identical
  * tree, which is the printer's actual contract.
  */
-function printExpression(expression: ResolvedExpression, topLevel = false): string {
+export function printExpression(expression: ResolvedExpression, topLevel = false): string {
   switch (expression.kind) {
     case "literal":
       return printLiteralValue(expression.value);
@@ -172,7 +172,7 @@ function printExpression(expression: ResolvedExpression, topLevel = false): stri
  * either hand-built test input or already-stale content, not something a
  * printed `.adl` file should silently launder into the modern form.
  */
-function printCondition(condition: PartialPolicyConditionModel, topLevel = false): string {
+export function printCondition(condition: PartialPolicyConditionModel, topLevel = false): string {
   if (isResolvedExpression(condition)) {
     return printExpression(condition, topLevel);
   }

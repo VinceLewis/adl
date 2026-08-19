@@ -1,3 +1,4 @@
+export * from "./compiler/adl-to-adlj.js";
 export * from "./compiler/compile-adl.js";
 export * from "./compiler/compile-adl-project.js";
 export * from "./compiler/compile-adlj.js";

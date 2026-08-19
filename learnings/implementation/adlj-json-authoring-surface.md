@@ -1,10 +1,10 @@
-# `.adlj` JSON Authoring Surface (Phase 73)
+# `.adlj` JSON Authoring Surface (Phase 73, Phase 77)
 
 Read this before changing `.adlj` (`src/model/adlj-source.ts`,
 `src/compiler/compile-adlj.ts`, `src/compiler/print-adl.ts`,
-`parseExpressionSource`), before adding a new `Partial*Model` field to the
-`.adl` pipeline, or before designing `PartialApplicationModel`-level source
-merging.
+`src/compiler/adl-to-adlj.ts`, `parseExpressionSource`), before adding a new
+`Partial*Model` field to the `.adl` pipeline, or before designing
+`PartialApplicationModel`-level source merging.
 
 ## Full detail lives in `docs/spec/adlj.md`
 
@@ -224,6 +224,45 @@ comment in `src/index.ts`), so this was accepted rather than solved. Code-splitt
 `compile-adlj.ts`/`print-adl.ts` behind a dynamic `import()` — used only where
 a `.adlj` authoring surface is actually reachable in the UI — is the natural
 fix if this compounds with future additions. Not attempted here.
+
+## Phase 77: the importer reuses the printer's expression printers, not a second implementation
+
+`partialApplicationModelToAdljSource` (`src/compiler/adl-to-adlj.ts`) is the
+`PartialApplicationModel -> AdljSourceDocument` direction — the mirror image
+of `adljSourceToPartialApplicationModel` (`compile-adlj.ts`). The key design
+decision was **not writing a second expression-to-string printer**:
+`print-adl.ts` already had `printExpression`/`printCondition`, both
+previously module-private. This phase's entire change to `print-adl.ts` is
+adding the `export` keyword to those two function declarations — no logic
+touched, so it cannot conflict with a concurrent agent extending that file's
+presentation coverage. Every other `.adl`/`.adlj`-adjacent file in this
+codebase follows the same "reuse the existing tested implementation" rule;
+this was a straightforward application of it, not a new pattern.
+
+Structurally, `adl-to-adlj.ts` is a field-for-field walk mirroring
+`compile-adlj.ts`'s mapper functions one-to-one (`objectToAdlj` next to
+`objectToPartial`, `commandStepToAdlj` next to `commandStepToPartial`, and so
+on) with the conversion direction reversed and `parseExpressionSource(...)`
+replaced by `printExpression(..., true)`/`printCondition(..., true)`. Keeping
+that pairing exact (same function names with `ToAdlj`/`ToPartial` suffixes,
+same destructure-before-spread order) is what makes the two files easy to
+audit against each other when a new expression-bearing field appears in
+`resolved-model.ts` in the future — add it to both mapper functions in
+lockstep the same way `AdljXModel`/`Partial*Model` are already kept in sync.
+
+The legacy `ResolvedPolicyCondition` shape (`equals`/`all`/`any`/`not`) gets
+the same refusal `printCondition` already gives the `.adl` printer: a clear
+thrown error rather than a silent, wrong translation. No new decision here —
+just inheriting the printer's existing one for free by calling into it.
+
+**Correctness contract, not byte-identical JSON.** Round-tripping
+`examples/task-tracker.adl` through `importAdlAsAdlj` does not need to
+produce `examples/task-tracker.adlj` byte-for-byte (field order and
+formatting can differ) — the test in `tests/adl-to-adlj.test.ts` instead
+checks that `compileAdlj` on the *imported* document resolves to a
+`ResolvedApplicationModel` that `toEqual`s `compileAdl(task-tracker.adl).model`.
+This is the same "reparses to the identical tree" standard the printer's own
+round-trip test already uses, applied one stage further down the pipeline.
 
 ## Practical guidance
 
