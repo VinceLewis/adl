@@ -25,6 +25,15 @@ Before implementation work, read:
 3. `learnings/index.md`
 4. Any learning documents that `learnings/index.md` says are relevant to the task
 
+Before authoring any new `.adl` or `.adlj` application content — a reference
+app, an example fixture, a spec example, a conformance case, anything being
+generated rather than hand-edited — also read `docs/spec/adlj.md`. `.adlj`,
+not `.adl` text, is the primary authoring surface: `.adl` text is a
+generated, human-reviewable view produced from `.adlj` via
+`src/compiler/print-adl.ts`, not a source to hand-author for new work. See
+also `docs/spec/language.md` for grammar/semantics (still authoritative for
+what a construct means; `.adlj` resolves to the same semantics, JSON-shaped).
+
 ## Phase Discipline
 
 Execute one phase at a time. Do not start later phases unless needed to complete the active phase safely.
@@ -55,8 +64,8 @@ For documentation-only phases, no automated tests are expected, but verify the r
 
 ### Compile-check ADL source before presenting it
 
-Any `.adl` source drafted or edited by an agent — reference app source, spec
-examples, conformance fixtures, anything — must be run through `compileAdl`
+Any ADL source drafted or edited by an agent — reference app source, spec
+examples, conformance fixtures, anything — must be run through the compiler
 and its `diagnostics` inspected before the source is presented, committed, or
 relied on, the same way a TypeScript change is never considered done before
 `tsc` is clean. Do not treat a syntactically-plausible draft as correct on the
@@ -68,11 +77,28 @@ about what the grammar should accept — fix the source, not the check.
 Until a dedicated CLI exists for this (see `docs/phases/phase-72-*.md` for a
 candidate), check with a throwaway vitest file rather than assuming an
 unlisted tool (`tsx`, `ts-node`) is installed, since only `vitest` is a
-project dependency today:
+project dependency today.
+
+New ADL content should be authored as `.adlj` (see `docs/spec/adlj.md`) and
+checked with `compileAdlj` — this is the primary pattern:
 
 ```ts
 // tests/scratch-compile-check.test.ts (delete after use — never commit it)
 import { describe, it, expect } from "vitest";
+import { compileAdlj } from "../src/compiler/compile-adlj.js";
+
+it("compiles cleanly", () => {
+  const doc = { app: { name: "..." }, objects: [ /* ...draft .adlj content... */ ] };
+  const { diagnostics } = compileAdlj(JSON.stringify(doc));
+  expect(diagnostics).toEqual([]);
+});
+```
+
+When hand-authoring or reviewing `.adl` text directly — editing an existing
+`.adl` file, or reviewing text that `print-adl.ts` printed from a `.adlj`
+source — use `compileAdl` on the text the same way:
+
+```ts
 import { compileAdl } from "../src/compiler/compile-adl.js";
 
 it("compiles cleanly", () => {

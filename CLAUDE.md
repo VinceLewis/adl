@@ -18,6 +18,15 @@ session loads the right context automatically; it does not replace `AGENTS.md`.
 `learnings/index.md` maps task types to the learning documents that must be read
 first. Follow it rather than guessing which ones matter.
 
+Before authoring any new `.adl` or `.adlj` application content — a reference
+app, an example fixture, a spec example, a conformance case, anything being
+generated rather than hand-edited — also read `docs/spec/adlj.md`. `.adlj`,
+not `.adl` text, is the primary authoring surface: `.adl` text is a
+generated, human-reviewable view produced from `.adlj` via
+`src/compiler/print-adl.ts`, not a source to hand-author for new work. See
+also `docs/spec/language.md` for grammar/semantics (still authoritative for
+what a construct means; `.adlj` resolves to the same semantics, JSON-shaped).
+
 ## Phase Discipline
 
 Work is organised as one executable document per phase in `docs/phases/`. Execute
@@ -57,11 +66,13 @@ work unless asked.
 - Never weaken a constraint, loosen a test, or adjust a conformance case to match
   current behaviour in order to make verification pass. If a case reveals a real
   defect, fix the defect and record it.
-- Any `.adl` source drafted or edited must be run through `compileAdl` and its
+- Any ADL source drafted or edited must be run through the compiler and its
   `diagnostics` checked before it is presented, committed, or relied on. Unlike
   Go or TypeScript, ADL has no pretrained prior behind it, so a spec-plausible
-  draft is a guess until the compiler has actually run over it. See
-  `AGENTS.md`'s Testing section for the check pattern.
+  draft is a guess until the compiler has actually run over it. New content
+  should be authored as `.adlj` (`docs/spec/adlj.md`) and checked with
+  `compileAdlj`; `compileAdl` remains the check for hand-authored or reviewed
+  `.adl` text. See `AGENTS.md`'s Testing section for both patterns.
 
 ## Parallel Execution
 

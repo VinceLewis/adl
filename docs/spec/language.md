@@ -9,6 +9,31 @@ This document covers `.adl` text. A JSON-encoded alternative,
 `.adlj`, shares the same resolve/validate pipeline and is documented
 separately in [adlj.md](adlj.md).
 
+## `.adlj` Is the Primary Authoring Surface
+
+**New ADL application content — a reference app, an example fixture, a spec
+example, anything generated rather than hand-typed by a person sitting at a
+keyboard — should be authored as `.adlj`, not as `.adl` text.** The author is
+overwhelmingly an LLM writing to a JSON Schema; `.adlj`'s JSON Schema
+(`src/model/adlj-schema.json`) validates structure before the ADL compiler
+ever runs, the way this grammar's keyword syntax cannot. `.adl` text's role
+is the *derived*, human-reviewable, diffable read surface — rendered from an
+authored `.adlj` document by `printPartialApplicationModelAsAdl`
+(`src/compiler/print-adl.ts`) — not a source of truth to hand-write for new
+work. The two are not equally-weighted alternatives: an `.adl` file with no
+`.adlj` behind it is fine for something a human is genuinely hand-editing
+(this specification's own inline examples, a narrow fixture where JSON would
+be pure overhead), but new application content defaults to `.adlj` unless
+there is a specific reason not to.
+
+This document (the grammar/semantics reference) still describes what every
+construct *means* — an `.adlj` document resolves to exactly the same grammar
+and runtime semantics this file documents, just JSON-shaped instead of
+keyword-shaped. For the JSON format itself — the top-level document shape,
+how each construct below maps into JSON, how expressions are represented, and
+a worked example — see [adlj.md](adlj.md), specifically its "Authoring a
+`.adlj` document from scratch" section.
+
 ## Syntax Shape
 
 The current parser is line-oriented and block-based. Top-level declarations use
@@ -1356,7 +1381,7 @@ MIGRATION FROM '1.0.0' TO '1.1.0'
   OBJECT Gig
     SCHEMA_VERSION 2
     RENAME FIELD Venue TO VenueName
-    ADD FIELD PayoutCents DEFAULT 0
+    ADD FIELD PayoutCents DEFAULT(0)
     DROP FIELD LegacyNote
   END.OBJECT
 END.MIGRATION

@@ -241,3 +241,15 @@ covered by its own Playwright visual spec
 - Prefer union read models when a reference surface must present records from
   distinct domain objects without pretending one object is another.
 - When modeling user-owned records, prefer structured policy conditions over owner-convention checks when the business owner is a field such as `User`.
+- **New reference apps should be authored as `.adlj`, not `.adl` text, going
+  forward.** See `docs/spec/adlj.md` (its "Authoring a `.adlj` document from
+  scratch" section is the concrete how-to) and
+  `implementation/adlj-json-authoring-surface.md` for the format itself.
+  `.adl` text is a generated, human-reviewable view produced from `.adlj` via
+  `print-adl.ts` for review/diffing, not something to hand-author for a new
+  app. Giggle Band (`src/reference/giggle-band/`) predates this direction and
+  is `.adl` text only; a `.adlj` conversion of Jointly Care
+  (`src/reference/jointly-care/`) was underway concurrently with this
+  guidance being written — check `src/reference/jointly-care/app.yaml` and
+  `git log` for whether it landed before treating it as the first real
+  `.adlj` reference-app precedent.
