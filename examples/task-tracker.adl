@@ -1,0 +1,37 @@
+APP TaskTracker
+END.APP
+
+ROLE Admin
+
+OBJECT Task
+  KEY Title
+  DISPLAY Title
+
+  FIELD Title TEXT REQUIRED
+  FIELD Priority NUMBER REQUIRED
+  FIELD Status TEXT REQUIRED DEFAULT('Open')
+  COMPUTED FIELD IsHighPriority BOOLEAN = Priority >= 8
+  VALIDATE priorityInRange Priority >= 1 AND Priority <= 10 MESSAGE 'Priority must be between 1 and 10.'
+
+  LIFECYCLE TaskLifecycle FIELD Status INITIAL Open
+    STATE Open
+    STATE Closed TERMINAL
+
+    ACTION close FROM (Open) TO Closed WHEN Priority > 0
+    END.ACTION
+  END.LIFECYCLE
+
+  SYNC LOCAL_FIRST SCOPE all
+END.OBJECT
+
+DECISION_TABLE TaskUrgency ON Task MATCH FIRST
+  INPUT priority = Priority
+  ROW critical WHEN priority >= 8 OUTPUT label 'Critical'
+  DEFAULT OUTPUT label 'Normal'
+END.DECISION_TABLE
+
+POLICY TaskPolicy ON Task
+  ALLOW ALL ROLE Admin
+  ALLOW READ EVERYONE WHEN Status == 'Open'
+  ALLOW TRANSITION ROLE Admin ACTION close STATE Open
+END.POLICY

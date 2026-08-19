@@ -147,6 +147,14 @@ export const MODEL_VALIDATION_CODES = {
    * Phase 72 and `learnings/implementation/adl-parser.md`.
    */
   STYLE_DEPRECATED_SPELLING: "ADL_STYLE_DEPRECATED_SPELLING",
+  /**
+   * Emitted by `compile-adlj.ts`'s `parseAdljDocument`, not by
+   * `validateApplicationModel` — a `.adlj` document is JSON text with no
+   * resolved-model representation of its own until it parses. Listed here
+   * anyway alongside every other diagnostic code. See Phase 73.
+   */
+  ADLJ_JSON_INVALID: "ADL_ADLJ_JSON_INVALID",
+  ADLJ_SCHEMA_INVALID: "ADL_ADLJ_SCHEMA_INVALID",
   APP_OFFLINE_GRACE_INVALID: "ADL_APP_OFFLINE_GRACE_INVALID",
   MODEL_VERSION_INVALID: "ADL_MODEL_VERSION_INVALID",
   MIGRATION_DUPLICATE: "ADL_MIGRATION_DUPLICATE",

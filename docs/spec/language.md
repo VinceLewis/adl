@@ -5,6 +5,10 @@ model. Runtime services do not consume this syntax directly; `compileAdl`
 parses source, resolves defaults, validates the resolved model, and returns the
 same resolved-model contract that JSON fixtures use.
 
+This document covers `.adl` text. A JSON-encoded alternative,
+`.adlj`, shares the same resolve/validate pipeline and is documented
+separately in [adlj.md](adlj.md).
+
 ## Syntax Shape
 
 The current parser is line-oriented and block-based. Top-level declarations use

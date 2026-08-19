@@ -162,6 +162,12 @@ Before tasks that change a parser keyword alias, modifier-value parenthesization
 - `implementation/offline-dataset-runtime.md`
 - `implementation/read-model-runtime.md`
 
+Before tasks that change `.adlj` (`src/model/adlj-source.ts`, `src/compiler/compile-adlj.ts`, `src/compiler/print-adl.ts`, `parseExpressionSource`), that add a new expression-bearing field to `PartialApplicationModel`, or that design `PartialApplicationModel`-level source merging, also read:
+
+- `implementation/adlj-json-authoring-surface.md`
+- `implementation/adl-parser.md`
+- `implementation/model-validator.md`
+
 Before tasks that change an object's declared sync scope, the `SYNC ... WINDOW`
 or `SYNC ... WHERE` clauses, what a declared window, limit or predicate selects,
 how a bound composes with a scope, or anything that would let a model declare an
@@ -326,3 +332,4 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/edit-surface-language.md`: read before changing ADL edit-surface syntax, the edit-surface runtime, how a staged batch of child changes commits or queues, the `batch` local-operation kind, or anything that adds another ad-hoc multi-record write.
 - `implementation/protected-role-constraint.md`: read before changing object constraints, `ObjectStore.requireConstraintsForWrites`, or any future guard that must count sibling records rather than validate one record in isolation — it carries the Phase 65 "last admin standing" design: the check fires on the transition, not the state, and is deliberately not retroactive.
 - `process/syntax-uniformity-and-behavioral-guardrails.md`: read before changing a parser keyword alias, modifier-value parenthesization, `AUTO_ID`, `CONTEXT_MEMBER` policy principals, sync scope windows, or `LOOKUP TARGET_FIELD` — it carries the Phase 72 catalogue of canonical vs. deprecated spellings, the hard-parse-error-vs-warning distinction between parenthesization and keyword aliases, and the four Class B behavioural-trap decisions (`AUTO_ID` no-default refusal, `CONTEXT_MEMBER`+`SEARCH` refusal, sync window `windowSource` provenance, and the `LOOKUP TARGET_FIELD` current-user-source warning).
+- `implementation/adlj-json-authoring-surface.md`: read before changing `.adlj` (`src/model/adlj-source.ts`, `src/compiler/compile-adlj.ts`, `src/compiler/print-adl.ts`, `parseExpressionSource`), before adding a new expression-bearing field to `PartialApplicationModel`, or before designing `PartialApplicationModel`-level source merging — it carries the Phase 73 exhaustive expression-field enumeration (18 sites, not the 4 originally named), the `Omit`-then-spread `exactOptionalPropertyTypes` trap, the two `resolveApplicationModel` default-inference gaps a JSON front-end does not inherit for free (`principal.match`, `contexts`/`readModels`), and why the schema is loaded via a static JSON import rather than `readFileSync`.

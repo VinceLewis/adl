@@ -1,0 +1,90 @@
+{
+  "app": { "name": "TaskTracker" },
+  "roles": [{ "name": "Admin" }],
+  "contexts": [],
+  "readModels": [],
+  "objects": [
+    {
+      "name": "Task",
+      "businessKey": "Title",
+      "displayField": "Title",
+      "fields": [
+        { "name": "Title", "type": "text", "required": true },
+        { "name": "Priority", "type": "number", "required": true },
+        { "name": "Status", "type": "text", "required": true, "defaultValue": "Open" }
+      ],
+      "computedFields": [
+        { "name": "IsHighPriority", "type": "boolean", "expression": "Priority >= 8" }
+      ],
+      "validations": [
+        {
+          "name": "priorityInRange",
+          "expression": "Priority >= 1 AND Priority <= 10",
+          "message": "Priority must be between 1 and 10."
+        }
+      ],
+      "lifecycle": {
+        "name": "TaskLifecycle",
+        "stateField": "Status",
+        "initialState": "Open",
+        "states": [{ "name": "Open" }, { "name": "Closed", "terminal": true }],
+        "actions": [
+          {
+            "name": "close",
+            "from": "Open",
+            "to": "Closed",
+            "guards": [
+              {
+                "name": "closeGuard1",
+                "expression": "Priority > 0",
+                "message": "Lifecycle guard 'closeGuard1' failed."
+              }
+            ]
+          }
+        ]
+      },
+      "sync": { "mode": "localFirst", "scope": "all", "conflict": "manual" }
+    }
+  ],
+  "decisionTables": [
+    {
+      "name": "TaskUrgency",
+      "object": "Task",
+      "match": "first",
+      "inputs": [{ "name": "priority", "expression": "Priority" }],
+      "rows": [
+        { "name": "critical", "condition": "priority >= 8", "outputs": { "label": "Critical" } }
+      ],
+      "defaultOutputs": { "label": "Normal" }
+    }
+  ],
+  "policies": [
+    {
+      "name": "TaskPolicy",
+      "object": "Task",
+      "rules": [
+        {
+          "name": "allowAll1",
+          "effect": "allow",
+          "principal": { "match": "specific", "roles": ["Admin"] },
+          "action": "*"
+        },
+        {
+          "name": "allowRead2",
+          "effect": "allow",
+          "principal": { "match": "everyone" },
+          "action": "read",
+          "condition": "Status == 'Open'"
+        },
+        {
+          "name": "allowTransition3",
+          "effect": "allow",
+          "principal": { "match": "specific", "roles": ["Admin"] },
+          "action": "transition",
+          "lifecycleAction": "close",
+          "state": "Open"
+        }
+      ]
+    }
+  ]
+}

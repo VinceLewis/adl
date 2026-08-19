@@ -16,6 +16,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:visual": "playwright test",
     "typecheck": "tsc --noEmit",
+    "generate:adlj-schema": "ts-json-schema-generator -p src/model/adlj-source.ts -t AdljSourceDocument -o src/model/adlj-schema.json --tsconfig tsconfig.json",
     "verify:push": "npm run typecheck && npm run format:check && npm test && npm run build && npm run test:visual",
     "format": "prettier --write \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"playwright.config.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\"",
     "format:check": "prettier --check \"index.html\" \"src/**/*.css\" \"src/**/*.ts\" \"tests/**/*.ts\" \"playwright.config.ts\" \"vite.config.ts\" \"vitest.config.ts\" \"package.json\" \"tsconfig.json\" \".prettierrc\""
@@ -28,9 +29,11 @@
     "@playwright/test": "^1.61.1",
     "@types/node": "20.17.6",
     "@types/pg": "^8.20.0",
+    "ajv": "^8.20.0",
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^20.10.6",
     "prettier": "3.3.3",
+    "ts-json-schema-generator": "^2.4.0",
     "typescript": "5.5.4",
     "vite": "^6.4.3",
     "vitest": "4.1.10"

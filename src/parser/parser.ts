@@ -160,6 +160,21 @@ export function parseAdl(source: string): AdlDocumentAst {
   return new AdlParser(lexAdl(source)).parseDocument();
 }
 
+/**
+ * Parses exactly one expression from `text`, using the identical infix
+ * expression grammar `.adl` text uses in a `VALIDATE`/`WHEN`/`WHERE`
+ * position (Phase 73's `.adlj` front-end reuses this to parse the fields it
+ * keeps as strings rather than JSON expression trees). Unlike the block
+ * parser, this is not "parse as much as the grammar allows and stop" —
+ * trailing content after a complete expression is a parse error
+ * (`ADL_PARSE_UNEXPECTED_TOKEN`), not a silently-ignored suffix, so a typo
+ * like `"EndDate >= StartDate extra"` fails loudly rather than parsing a
+ * prefix.
+ */
+export function parseExpressionSource(text: string): ResolvedExpression {
+  return new AdlParser(lexAdl(text)).parseStandaloneExpression();
+}
+
 const PROCEDURAL_KEYWORDS = new Set([
   "FETCH",
   "STORE",
@@ -4662,6 +4677,23 @@ class AdlParser {
           token,
         );
     }
+  }
+
+  /**
+   * Entry point for `parseExpressionSource`: parses one expression to end of
+   * input, over a token stream built from exactly that string (no
+   * surrounding block, no stop words). Leading/trailing newlines are
+   * harmless and skipped; anything else left over after the expression is a
+   * parse error, not a silently-truncated partial parse.
+   */
+  parseStandaloneExpression(): ResolvedExpression {
+    this.skipNewlines();
+    const expression = this.parseExpressionUntil(new Set());
+    this.skipNewlines();
+    if (!this.isAtEnd()) {
+      this.failUnexpected("end of expression");
+    }
+    return expression;
   }
 
   private parseExpressionUntil(stopWords: Set<string>): ResolvedExpression {

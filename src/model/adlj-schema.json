@@ -1,0 +1,3649 @@
+{
+  "$ref": "#/definitions/AdljSourceDocument",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "AdljBusinessContextModel": {
+      "additionalProperties": false,
+      "properties": {
+        "grants": {
+          "items": {
+            "$ref": "#/definitions/AdljContextGrantModel"
+          },
+          "type": "array"
+        },
+        "membership": {
+          "$ref": "#/definitions/PartialContextMembershipModel"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "selection": {
+          "$ref": "#/definitions/PartialContextSelectionPolicyModel"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljCommandCreateStepModel": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "create",
+          "type": "string"
+        },
+        "authority": {
+          "$ref": "#/definitions/CommandStepAuthority"
+        },
+        "establishesContext": {
+          "type": "string"
+        },
+        "forEach": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "values": {
+          "additionalProperties": {
+            "$ref": "#/definitions/ResolvedCommandValueExpression"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "object"
+      ],
+      "type": "object"
+    },
+    "AdljCommandModel": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "items": {
+            "$ref": "#/definitions/PartialCommandInputModel"
+          },
+          "type": "array"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/definitions/AdljCommandPreconditionModel"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/definitions/AdljCommandStepModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljCommandPreconditionModel": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expression",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljCommandReadStepModel": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "read",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "recordId": {
+          "$ref": "#/definitions/ResolvedCommandValueExpression"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "object",
+        "recordId"
+      ],
+      "type": "object"
+    },
+    "AdljCommandStepModel": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AdljCommandCreateStepModel"
+        },
+        {
+          "$ref": "#/definitions/AdljCommandUpdateStepModel"
+        },
+        {
+          "$ref": "#/definitions/AdljCommandReadStepModel"
+        }
+      ]
+    },
+    "AdljCommandUpdateStepModel": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "update",
+          "type": "string"
+        },
+        "authority": {
+          "$ref": "#/definitions/CommandStepAuthority"
+        },
+        "forEach": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "patch": {
+          "additionalProperties": {
+            "$ref": "#/definitions/ResolvedCommandValueExpression"
+          },
+          "type": "object"
+        },
+        "preconditions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "recordId": {
+          "$ref": "#/definitions/ResolvedCommandValueExpression"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "object",
+        "recordId"
+      ],
+      "type": "object"
+    },
+    "AdljComputedFieldModel": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "storageName": {
+          "type": "string"
+        },
+        "strategy": {
+          "$ref": "#/definitions/ComputedFieldStrategy"
+        },
+        "type": {
+          "$ref": "#/definitions/FieldType"
+        }
+      },
+      "required": [
+        "expression",
+        "name",
+        "type"
+      ],
+      "type": "object"
+    },
+    "AdljContextGrantModel": {
+      "additionalProperties": false,
+      "properties": {
+        "condition": {
+          "type": "string"
+        },
+        "contextField": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "userField": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contextField",
+        "name",
+        "object",
+        "userField"
+      ],
+      "type": "object"
+    },
+    "AdljDecisionTableInputModel": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expression",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljDecisionTableModel": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultOutputs": {
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          },
+          "type": "object"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/definitions/AdljDecisionTableInputModel"
+          },
+          "type": "array"
+        },
+        "match": {
+          "$ref": "#/definitions/DecisionTableMatchPolicy"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/definitions/AdljDecisionTableRowModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "object"
+      ],
+      "type": "object"
+    },
+    "AdljDecisionTableRowModel": {
+      "additionalProperties": false,
+      "properties": {
+        "condition": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "condition",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljFieldModel": {
+      "additionalProperties": false,
+      "properties": {
+        "autoId": {
+          "$ref": "#/definitions/PartialAutoIdModel"
+        },
+        "defaultValue": {
+          "$ref": "#/definitions/JsonValue"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "lookup": {
+          "$ref": "#/definitions/PartialLookupModel"
+        },
+        "name": {
+          "type": "string"
+        },
+        "readonly": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "storageName": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/FieldType"
+        },
+        "validators": {
+          "items": {
+            "$ref": "#/definitions/AdljValidatorModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljLifecycleActionModel": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "guards": {
+          "items": {
+            "$ref": "#/definitions/AdljLifecycleGuardModel"
+          },
+          "type": "array"
+        },
+        "hooks": {
+          "$ref": "#/definitions/PartialHookRefsModel"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "policyRefs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "name",
+        "to"
+      ],
+      "type": "object"
+    },
+    "AdljLifecycleGuardModel": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expression",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljLifecycleModel": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/definitions/AdljLifecycleActionModel"
+          },
+          "type": "array"
+        },
+        "initialState": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "stateField": {
+          "type": "string"
+        },
+        "states": {
+          "items": {
+            "$ref": "#/definitions/PartialStateModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "states"
+      ],
+      "type": "object"
+    },
+    "AdljObjectModel": {
+      "additionalProperties": false,
+      "properties": {
+        "audit": {
+          "$ref": "#/definitions/PartialObjectAuditPolicyModel"
+        },
+        "businessKey": {
+          "type": "string"
+        },
+        "computedFields": {
+          "items": {
+            "$ref": "#/definitions/AdljComputedFieldModel"
+          },
+          "type": "array"
+        },
+        "constraints": {
+          "items": {
+            "$ref": "#/definitions/PartialObjectConstraintModel"
+          },
+          "type": "array"
+        },
+        "displayField": {
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/definitions/AdljFieldModel"
+          },
+          "type": "array"
+        },
+        "lifecycle": {
+          "$ref": "#/definitions/AdljLifecycleModel"
+        },
+        "name": {
+          "type": "string"
+        },
+        "policies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "schemaVersion": {
+          "type": "number"
+        },
+        "scope": {
+          "$ref": "#/definitions/PartialObjectScopeModel"
+        },
+        "sync": {
+          "$ref": "#/definitions/AdljObjectSyncPolicyModel"
+        },
+        "systemIdField": {
+          "type": "string"
+        },
+        "tableName": {
+          "type": "string"
+        },
+        "validations": {
+          "items": {
+            "$ref": "#/definitions/AdljObjectValidationModel"
+          },
+          "type": "array"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/definitions/AdljViewModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljObjectSyncPolicyModel": {
+      "additionalProperties": false,
+      "properties": {
+        "conflict": {
+          "$ref": "#/definitions/ConflictStrategy"
+        },
+        "mode": {
+          "$ref": "#/definitions/SyncMode"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/definitions/SyncScope"
+        },
+        "window": {
+          "$ref": "#/definitions/PartialSyncWindowModel"
+        }
+      },
+      "type": "object"
+    },
+    "AdljObjectValidationModel": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expression",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljPolicyModel": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultEffect": {
+          "const": "deny",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/definitions/AdljPolicyRuleModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "object"
+      ],
+      "type": "object"
+    },
+    "AdljPolicyRuleModel": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/PolicyAction"
+        },
+        "channels": {
+          "items": {
+            "$ref": "#/definitions/RuntimeChannel"
+          },
+          "type": "array"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/definitions/PolicyEffect"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lifecycleAction": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/definitions/PartialPrincipalSelectorModel"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "effect",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljPredicateValidatorModel": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "predicate",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expression",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "AdljPresentationActionControlModel": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "create": {
+          "$ref": "#/definitions/PartialPresentationCreateTargetModel"
+        },
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "input": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "kind": {
+          "const": "action",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "placement": {
+          "$ref": "#/definitions/PresentationActionPlacement"
+        },
+        "view": {
+          "type": "string"
+        },
+        "visibleWhen": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljPresentationCalendarModel": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationActionControlModel"
+          },
+          "type": "array"
+        },
+        "dateField": {
+          "type": "string"
+        },
+        "density": {
+          "$ref": "#/definitions/PresentationDensity"
+        },
+        "emptyState": {
+          "$ref": "#/definitions/PartialPresentationEmptyStateModel"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "month": {
+          "$ref": "#/definitions/PartialPresentationCalendarMonthModel"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sort": {
+          "items": {
+            "$ref": "#/definitions/ResolvedSort"
+          },
+          "type": "array"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "$ref": "#/definitions/PresentationCalendarSourceKind"
+        },
+        "status": {
+          "$ref": "#/definitions/PartialPresentationStatusBindingModel"
+        },
+        "summaryFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "titleField": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dateField",
+        "name",
+        "source"
+      ],
+      "type": "object"
+    },
+    "AdljPresentationConditionalFragmentModel": {
+      "additionalProperties": false,
+      "properties": {
+        "fragments": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationRowFragmentModel"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "const": "conditional",
+          "type": "string"
+        },
+        "when": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "when"
+      ],
+      "type": "object"
+    },
+    "AdljPresentationControlModel": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PartialPresentationToggleControlModel"
+        },
+        {
+          "$ref": "#/definitions/PartialPresentationSelectControlModel"
+        },
+        {
+          "$ref": "#/definitions/PartialPresentationContextSelectorControlModel"
+        },
+        {
+          "$ref": "#/definitions/AdljPresentationActionControlModel"
+        }
+      ]
+    },
+    "AdljPresentationListModel": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationActionControlModel"
+          },
+          "type": "array"
+        },
+        "density": {
+          "$ref": "#/definitions/PresentationDensity"
+        },
+        "emptyState": {
+          "$ref": "#/definitions/PartialPresentationEmptyStateModel"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "renderAs": {
+          "$ref": "#/definitions/PresentationListRenderStyle"
+        },
+        "row": {
+          "$ref": "#/definitions/AdljPresentationRowTemplateModel"
+        },
+        "sort": {
+          "items": {
+            "$ref": "#/definitions/ResolvedSort"
+          },
+          "type": "array"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "$ref": "#/definitions/PresentationListSourceKind"
+        },
+        "status": {
+          "$ref": "#/definitions/PartialPresentationStatusBindingModel"
+        }
+      },
+      "required": [
+        "name",
+        "source"
+      ],
+      "type": "object"
+    },
+    "AdljPresentationRowFragmentModel": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PartialPresentationLiteralTextFragmentModel"
+        },
+        {
+          "$ref": "#/definitions/PartialPresentationFieldTextFragmentModel"
+        },
+        {
+          "$ref": "#/definitions/PartialPresentationIconFragmentModel"
+        },
+        {
+          "$ref": "#/definitions/AdljPresentationConditionalFragmentModel"
+        }
+      ]
+    },
+    "AdljPresentationRowTemplateModel": {
+      "additionalProperties": false,
+      "properties": {
+        "density": {
+          "$ref": "#/definitions/PresentationDensity"
+        },
+        "fragments": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationRowFragmentModel"
+          },
+          "type": "array"
+        },
+        "layout": {
+          "$ref": "#/definitions/PresentationRowLayout"
+        }
+      },
+      "type": "object"
+    },
+    "AdljPresentationSectionModel": {
+      "additionalProperties": false,
+      "properties": {
+        "calendars": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationCalendarModel"
+          },
+          "type": "array"
+        },
+        "controls": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationControlModel"
+          },
+          "type": "array"
+        },
+        "density": {
+          "$ref": "#/definitions/PresentationDensity"
+        },
+        "heading": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/definitions/PresentationLayout"
+        },
+        "lists": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationListModel"
+          },
+          "type": "array"
+        },
+        "matrices": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationMatrixModel"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljReadModelFieldModel": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/FieldType"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljReadModelModel": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "$ref": "#/definitions/PartialViewContextModel"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/definitions/AdljReadModelFieldModel"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sort": {
+          "items": {
+            "$ref": "#/definitions/ResolvedSort"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/definitions/PartialReadModelSourceModel"
+          },
+          "type": "array"
+        },
+        "strategy": {
+          "$ref": "#/definitions/ReadModelStrategy"
+        }
+      },
+      "required": [
+        "fields",
+        "name",
+        "sources"
+      ],
+      "type": "object"
+    },
+    "AdljSourceDocument": {
+      "additionalProperties": false,
+      "description": "The `.adlj` document root. `app`, `shell`, `roles`, `themes`, and `migrations` carry no expression-bearing content, so they reuse their `Partial*Model` counterparts unchanged.",
+      "properties": {
+        "app": {
+          "$ref": "#/definitions/PartialAppModel"
+        },
+        "commands": {
+          "items": {
+            "$ref": "#/definitions/AdljCommandModel"
+          },
+          "type": "array"
+        },
+        "contexts": {
+          "items": {
+            "$ref": "#/definitions/AdljBusinessContextModel"
+          },
+          "type": "array"
+        },
+        "decisionTables": {
+          "items": {
+            "$ref": "#/definitions/AdljDecisionTableModel"
+          },
+          "type": "array"
+        },
+        "migrations": {
+          "items": {
+            "$ref": "#/definitions/PartialModelMigrationModel"
+          },
+          "type": "array"
+        },
+        "modelVersion": {
+          "type": "string"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/definitions/AdljObjectModel"
+          },
+          "type": "array"
+        },
+        "policies": {
+          "items": {
+            "$ref": "#/definitions/AdljPolicyModel"
+          },
+          "type": "array"
+        },
+        "readModels": {
+          "items": {
+            "$ref": "#/definitions/AdljReadModelModel"
+          },
+          "type": "array"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/definitions/PartialRoleModel"
+          },
+          "type": "array"
+        },
+        "shell": {
+          "$ref": "#/definitions/PartialShellModel"
+        },
+        "sync": {
+          "items": {
+            "$ref": "#/definitions/AdljSyncPolicyModel"
+          },
+          "type": "array"
+        },
+        "themes": {
+          "items": {
+            "$ref": "#/definitions/PartialThemeModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "app",
+        "objects"
+      ],
+      "type": "object"
+    },
+    "AdljSyncPolicyModel": {
+      "additionalProperties": false,
+      "properties": {
+        "conflict": {
+          "$ref": "#/definitions/ConflictStrategy"
+        },
+        "mode": {
+          "$ref": "#/definitions/SyncMode"
+        },
+        "object": {
+          "type": "string"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/definitions/SyncScope"
+        },
+        "window": {
+          "$ref": "#/definitions/PartialSyncWindowModel"
+        }
+      },
+      "required": [
+        "object"
+      ],
+      "type": "object"
+    },
+    "AdljValidatorModel": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PartialNamedValidatorModel"
+        },
+        {
+          "$ref": "#/definitions/AdljPredicateValidatorModel"
+        }
+      ]
+    },
+    "AdljViewModel": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "context": {
+          "$ref": "#/definitions/PartialViewContextModel"
+        },
+        "editContainer": {
+          "$ref": "#/definitions/EditContainerMode"
+        },
+        "editSections": {
+          "items": {
+            "$ref": "#/definitions/PartialEditSectionModel"
+          },
+          "type": "array"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/definitions/ViewKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "presentation": {
+          "$ref": "#/definitions/AdljViewPresentationModel"
+        },
+        "readModel": {
+          "type": "string"
+        },
+        "searchFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sort": {
+          "items": {
+            "$ref": "#/definitions/ResolvedSort"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AdljViewPresentationModel": {
+      "additionalProperties": false,
+      "properties": {
+        "density": {
+          "$ref": "#/definitions/PresentationDensity"
+        },
+        "iconMaps": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationIconMapModel"
+          },
+          "type": "array"
+        },
+        "layout": {
+          "$ref": "#/definitions/PresentationLayout"
+        },
+        "legends": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationLegendModel"
+          },
+          "type": "array"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/definitions/AdljPresentationSectionModel"
+          },
+          "type": "array"
+        },
+        "shell": {
+          "$ref": "#/definitions/PartialPresentationShellModel"
+        },
+        "state": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationStateModel"
+          },
+          "type": "array"
+        },
+        "statusMaps": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationStatusMapModel"
+          },
+          "type": "array"
+        },
+        "statuses": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationStatusModel"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "AuditOperation": {
+      "anyOf": [
+        {
+          "description": "`command` is the whole of a model-declared command, not one of its writes. A command's steps commit in one transaction, and replaying them as separate per-record operations destroys that transaction across the sync boundary: a step writing into a context an earlier step established has no context to write into, and a batch lands partially. The command kind is what lets the queue carry the transaction rather than its pieces.\n\n`batch` is the same idea for a transaction no command declares: an edit surface's staged child changes, which the user made as one act of editing and which must therefore land as one. It differs from `command` in what crosses the wire. A command is re-executed from its input, because a command exists in the model and the authority can run it again. A batch has no such declaration, so it crosses as the writes themselves — each one still checked server-side by the same policy, validation, scope and constraint path an individual intent takes, but all of them inside one transaction.",
+          "enum": [
+            "create",
+            "update",
+            "delete",
+            "transition"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "read",
+          "type": "string"
+        },
+        {
+          "const": "search",
+          "type": "string"
+        }
+      ],
+      "description": "Audit stays per record: a command is audited as the writes it made, step by step, and so is a batch. Only the queue needs the transaction as one thing."
+    },
+    "CommandRuntimeProperty": {
+      "enum": [
+        "userId",
+        "nowIso",
+        "today"
+      ],
+      "type": "string"
+    },
+    "CommandStepAuthority": {
+      "enum": [
+        "caller",
+        "command"
+      ],
+      "type": "string"
+    },
+    "CommandStepMetaProperty": {
+      "enum": [
+        "guid",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "string"
+    },
+    "ComputedFieldStrategy": {
+      "const": "readTime",
+      "type": "string"
+    },
+    "ConflictStrategy": {
+      "enum": [
+        "serverWins",
+        "clientWins",
+        "stateTransitionWins",
+        "manual"
+      ],
+      "type": "string"
+    },
+    "ContextSelectionMode": {
+      "enum": [
+        "required",
+        "optional"
+      ],
+      "type": "string"
+    },
+    "ContextSelectionPersistence": {
+      "enum": [
+        "none",
+        "session",
+        "local"
+      ],
+      "type": "string"
+    },
+    "ContextSelectionSource": {
+      "enum": [
+        "runtime",
+        "route"
+      ],
+      "type": "string"
+    },
+    "DecisionTableMatchPolicy": {
+      "enum": [
+        "first",
+        "single"
+      ],
+      "type": "string"
+    },
+    "EditChildOperationKind": {
+      "enum": [
+        "createChild",
+        "linkExisting",
+        "updateChild",
+        "unlink",
+        "remove",
+        "reorder"
+      ],
+      "type": "string"
+    },
+    "EditContainerMode": {
+      "enum": [
+        "modal",
+        "drawer",
+        "page",
+        "splitPane"
+      ],
+      "type": "string"
+    },
+    "FieldType": {
+      "enum": [
+        "text",
+        "number",
+        "date",
+        "datetime",
+        "time",
+        "boolean",
+        "attachment"
+      ],
+      "type": "string"
+    },
+    "JsonPrimitive": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/JsonPrimitive"
+        },
+        {
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "OrderedCollectionCompaction": {
+      "enum": [
+        "none",
+        "onDelete"
+      ],
+      "type": "string"
+    },
+    "OrderedCollectionReorder": {
+      "enum": [
+        "strict",
+        "shift"
+      ],
+      "type": "string"
+    },
+    "PartialAppModel": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "offlineGraceDays": {
+          "type": "number"
+        },
+        "startView": {
+          "type": "string"
+        },
+        "theme": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialAutoIdModel": {
+      "additionalProperties": false,
+      "properties": {
+        "pad": {
+          "type": "number"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "scopeField": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PartialCommandInputItemFieldModel": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/definitions/FieldType"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialCommandInputModel": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultValue": {
+          "$ref": "#/definitions/JsonValue"
+        },
+        "itemFields": {
+          "items": {
+            "$ref": "#/definitions/PartialCommandInputItemFieldModel"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "repeated": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/definitions/FieldType"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialContextMembershipModel": {
+      "additionalProperties": false,
+      "properties": {
+        "contextField": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "roleField": {
+          "type": "string"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "userField": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "object",
+        "userField",
+        "contextField",
+        "roleField"
+      ],
+      "type": "object"
+    },
+    "PartialContextSelectionPolicyModel": {
+      "additionalProperties": false,
+      "properties": {
+        "autoSelect": {
+          "type": "boolean"
+        },
+        "mode": {
+          "$ref": "#/definitions/ContextSelectionMode"
+        },
+        "persistence": {
+          "$ref": "#/definitions/ContextSelectionPersistence"
+        },
+        "routeParam": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/ContextSelectionSource"
+        }
+      },
+      "type": "object"
+    },
+    "PartialEditChildCollectionEmptyStateModel": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PartialEditChildCollectionSectionModel": {
+      "additionalProperties": false,
+      "properties": {
+        "childObject": {
+          "type": "string"
+        },
+        "childView": {
+          "type": "string"
+        },
+        "emptyState": {
+          "$ref": "#/definitions/PartialEditChildCollectionEmptyStateModel"
+        },
+        "heading": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "childCollection",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/definitions/EditChildOperationKind"
+          },
+          "type": "array"
+        },
+        "orderField": {
+          "type": "string"
+        },
+        "parentField": {
+          "type": "string"
+        },
+        "picker": {
+          "$ref": "#/definitions/PartialRelationshipPickerModel"
+        },
+        "staged": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "childObject",
+        "kind",
+        "name",
+        "parentField"
+      ],
+      "type": "object"
+    },
+    "PartialEditFieldsSectionModel": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "heading": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "fields",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialEditSectionModel": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PartialEditFieldsSectionModel"
+        },
+        {
+          "$ref": "#/definitions/PartialEditChildCollectionSectionModel"
+        }
+      ]
+    },
+    "PartialHookRefsModel": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "before": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "onError": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PartialLookupModel": {
+      "additionalProperties": false,
+      "properties": {
+        "displayField": {
+          "type": "string"
+        },
+        "targetField": {
+          "type": "string"
+        },
+        "targetObject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "targetObject",
+        "displayField"
+      ],
+      "type": "object"
+    },
+    "PartialModelMigrationModel": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/definitions/PartialModelMigrationObjectModel"
+          },
+          "type": "array"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "PartialModelMigrationObjectModel": {
+      "additionalProperties": false,
+      "properties": {
+        "object": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "number"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/definitions/ResolvedModelMigrationStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "object"
+      ],
+      "type": "object"
+    },
+    "PartialNamedValidatorModel": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/ResolvedNamedValidatorKind"
+        },
+        "value": {
+          "$ref": "#/definitions/JsonValue"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "PartialObjectAuditPolicyModel": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/definitions/AuditOperation"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PartialObjectConstraintModel": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PartialUniqueObjectConstraintModel"
+        },
+        {
+          "$ref": "#/definitions/PartialOrderedObjectConstraintModel"
+        },
+        {
+          "$ref": "#/definitions/PartialProtectedRoleObjectConstraintModel"
+        }
+      ]
+    },
+    "PartialObjectScopeModel": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "context",
+        "field"
+      ],
+      "type": "object"
+    },
+    "PartialOrderedObjectConstraintModel": {
+      "additionalProperties": false,
+      "properties": {
+        "compaction": {
+          "$ref": "#/definitions/OrderedCollectionCompaction"
+        },
+        "kind": {
+          "const": "ordered",
+          "type": "string"
+        },
+        "minPosition": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parentField": {
+          "type": "string"
+        },
+        "positionField": {
+          "type": "string"
+        },
+        "reorder": {
+          "$ref": "#/definitions/OrderedCollectionReorder"
+        },
+        "scopeFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "parentField",
+        "positionField"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationCalendarMonthModel": {
+      "additionalProperties": false,
+      "properties": {
+        "labelFormat": {
+          "$ref": "#/definitions/PartialPresentationFormatModel"
+        },
+        "maxDate": {
+          "type": "string"
+        },
+        "minDate": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "weekStart": {
+          "$ref": "#/definitions/PresentationCalendarWeekStart"
+        }
+      },
+      "type": "object"
+    },
+    "PartialPresentationContextSelectorControlModel": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "kind": {
+          "const": "contextSelector",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationCreateTargetModel": {
+      "additionalProperties": false,
+      "properties": {
+        "object": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PartialPresentationEmptyStateModel": {
+      "additionalProperties": false,
+      "properties": {
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PartialPresentationFieldTextFragmentModel": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "format": {
+          "$ref": "#/definitions/PartialPresentationFormatModel"
+        },
+        "kind": {
+          "const": "field",
+          "type": "string"
+        },
+        "style": {
+          "$ref": "#/definitions/PresentationFragmentStyle"
+        }
+      },
+      "required": [
+        "kind",
+        "field"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationFormatModel": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/PresentationFormatKind"
+        },
+        "pattern": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationIconFragmentModel": {
+      "additionalProperties": false,
+      "properties": {
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "kind": {
+          "const": "icon",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "icon"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationIconMapModel": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultIcon": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationIconMapValueModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "field"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationIconMapValueModel": {
+      "additionalProperties": false,
+      "properties": {
+        "icon": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/JsonPrimitive"
+        }
+      },
+      "required": [
+        "value",
+        "icon"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationIconRefModel": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "named",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "map",
+              "type": "string"
+            },
+            "map": {
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/definitions/JsonPrimitive"
+            }
+          },
+          "required": [
+            "kind",
+            "map"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PartialPresentationLegendModel": {
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "$ref": "#/definitions/PresentationLegendInclude"
+        },
+        "name": {
+          "type": "string"
+        },
+        "statuses": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationLiteralTextFragmentModel": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "type": "string"
+        },
+        "style": {
+          "$ref": "#/definitions/PresentationFragmentStyle"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationMatrixAxisSourceModel": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "keyField": {
+          "type": "string"
+        },
+        "labelField": {
+          "type": "string"
+        },
+        "sort": {
+          "items": {
+            "$ref": "#/definitions/ResolvedSort"
+          },
+          "type": "array"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "$ref": "#/definitions/PresentationMatrixSourceKind"
+        }
+      },
+      "required": [
+        "source",
+        "labelField"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationMatrixCellModel": {
+      "additionalProperties": false,
+      "properties": {
+        "accessibleLabel": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/PartialPresentationStatusBindingModel"
+        },
+        "unsetStatus": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PartialPresentationMatrixCellSourceModel": {
+      "additionalProperties": false,
+      "properties": {
+        "columnField": {
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "recordSource": {
+          "type": "string"
+        },
+        "rowField": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "$ref": "#/definitions/PresentationMatrixSourceKind"
+        },
+        "status": {
+          "$ref": "#/definitions/PartialPresentationStatusBindingModel"
+        }
+      },
+      "required": [
+        "source",
+        "rowField",
+        "columnField"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationMatrixDateColumnAxisModel": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/PresentationMatrixColumnKind"
+        },
+        "labelFormat": {
+          "$ref": "#/definitions/PartialPresentationFormatModel"
+        },
+        "start": {
+          "type": "string"
+        },
+        "stepDays": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationMatrixEditModel": {
+      "additionalProperties": false,
+      "properties": {
+        "bulkBehavior": {
+          "$ref": "#/definitions/PresentationMatrixBulkBehavior"
+        },
+        "columnField": {
+          "type": "string"
+        },
+        "cycle": {
+          "items": {
+            "$ref": "#/definitions/JsonPrimitive"
+          },
+          "type": "array"
+        },
+        "object": {
+          "type": "string"
+        },
+        "rowField": {
+          "type": "string"
+        },
+        "unsetAsAbsence": {
+          "type": "boolean"
+        },
+        "unsetValue": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/JsonPrimitive"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valueField": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "object",
+        "rowField",
+        "columnField",
+        "valueField"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationMatrixModel": {
+      "additionalProperties": false,
+      "properties": {
+        "cell": {
+          "$ref": "#/definitions/PartialPresentationMatrixCellModel"
+        },
+        "cellSource": {
+          "$ref": "#/definitions/PartialPresentationMatrixCellSourceModel"
+        },
+        "columnAxis": {
+          "$ref": "#/definitions/PartialPresentationMatrixDateColumnAxisModel"
+        },
+        "density": {
+          "$ref": "#/definitions/PresentationDensity"
+        },
+        "edit": {
+          "$ref": "#/definitions/PartialPresentationMatrixEditModel"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rowSource": {
+          "$ref": "#/definitions/PartialPresentationMatrixAxisSourceModel"
+        }
+      },
+      "required": [
+        "name",
+        "rowSource",
+        "columnAxis",
+        "cellSource"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationSelectControlModel": {
+      "additionalProperties": false,
+      "properties": {
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "kind": {
+          "const": "select",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationSelectOptionModel"
+          },
+          "type": "array"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "state"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationSelectOptionModel": {
+      "additionalProperties": false,
+      "properties": {
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/JsonPrimitive"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationShellModel": {
+      "additionalProperties": false,
+      "properties": {
+        "regions": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationShellRegionModel"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PartialPresentationShellRegionModel": {
+      "additionalProperties": false,
+      "properties": {
+        "controls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region": {
+          "$ref": "#/definitions/PresentationShellRegion"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "region"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationStateModel": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultValue": {
+          "$ref": "#/definitions/JsonValue"
+        },
+        "name": {
+          "type": "string"
+        },
+        "persistence": {
+          "$ref": "#/definitions/PresentationStatePersistence"
+        },
+        "type": {
+          "$ref": "#/definitions/PresentationStateType"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationStatusBindingModel": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationStatusCandidateModel"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PartialPresentationStatusCandidateModel": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "status",
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "status"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "map",
+              "type": "string"
+            },
+            "map": {
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/definitions/JsonPrimitive"
+            }
+          },
+          "required": [
+            "kind",
+            "map"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PartialPresentationStatusMapModel": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultStatus": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/definitions/PartialPresentationStatusMapValueModel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "field"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationStatusMapValueModel": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/JsonPrimitive"
+        }
+      },
+      "required": [
+        "value",
+        "status"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationStatusModel": {
+      "additionalProperties": false,
+      "properties": {
+        "accessibleLabel": {
+          "type": "string"
+        },
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "precedence": {
+          "type": "number"
+        },
+        "themeToken": {
+          "$ref": "#/definitions/PresentationStatusThemeToken"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialPresentationToggleControlModel": {
+      "additionalProperties": false,
+      "properties": {
+        "icon": {
+          "$ref": "#/definitions/PartialPresentationIconRefModel"
+        },
+        "kind": {
+          "const": "toggle",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "state"
+      ],
+      "type": "object"
+    },
+    "PartialPrincipalSelectorModel": {
+      "additionalProperties": false,
+      "properties": {
+        "contextMember": {
+          "$ref": "#/definitions/ResolvedContextMemberPrincipal"
+        },
+        "groupRoles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "match": {
+          "$ref": "#/definitions/PrincipalMatch"
+        },
+        "owner": {
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "users": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PartialProtectedRoleObjectConstraintModel": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "protectedRole",
+          "type": "string"
+        },
+        "minCount": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "roleField": {
+          "type": "string"
+        },
+        "roleValues": {
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          },
+          "type": "array"
+        },
+        "scopeFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "roleField",
+        "roleValues"
+      ],
+      "type": "object"
+    },
+    "PartialReadModelSourceJoinModel": {
+      "additionalProperties": false,
+      "properties": {
+        "cardinality": {
+          "$ref": "#/definitions/ReadModelJoinCardinality"
+        },
+        "localField": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceField": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "localField",
+        "sourceField"
+      ],
+      "type": "object"
+    },
+    "PartialReadModelSourceModel": {
+      "additionalProperties": false,
+      "properties": {
+        "join": {
+          "$ref": "#/definitions/PartialReadModelSourceJoinModel"
+        },
+        "name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/definitions/ReadModelSourceScope"
+        }
+      },
+      "required": [
+        "object"
+      ],
+      "type": "object"
+    },
+    "PartialRelationshipPickerEmptyStateModel": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PartialRelationshipPickerModel": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateField": {
+          "type": "string"
+        },
+        "displayFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "emptyState": {
+          "$ref": "#/definitions/PartialRelationshipPickerEmptyStateModel"
+        },
+        "excludeAlreadyLinked": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "searchFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "selection": {
+          "$ref": "#/definitions/RelationshipPickerSelectionMode"
+        },
+        "sort": {
+          "items": {
+            "$ref": "#/definitions/ResolvedSort"
+          },
+          "type": "array"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "$ref": "#/definitions/RelationshipPickerSourceKind"
+        }
+      },
+      "type": "object"
+    },
+    "PartialRoleModel": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "inherits": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialShellControlModel": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/ShellControlKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "placement": {
+          "$ref": "#/definitions/ShellControlPlacement"
+        },
+        "visibility": {
+          "$ref": "#/definitions/PartialShellVisibilityModel"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "PartialShellModel": {
+      "additionalProperties": false,
+      "properties": {
+        "controls": {
+          "items": {
+            "$ref": "#/definitions/PartialShellControlModel"
+          },
+          "type": "array"
+        },
+        "nav": {
+          "$ref": "#/definitions/PartialShellNavigationModel"
+        },
+        "navDrawer": {
+          "$ref": "#/definitions/PartialShellNavDrawerModel"
+        },
+        "topBar": {
+          "$ref": "#/definitions/PartialShellTopBarModel"
+        }
+      },
+      "type": "object"
+    },
+    "PartialShellNavDrawerModel": {
+      "additionalProperties": false,
+      "properties": {
+        "controls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PartialShellNavItemModel": {
+      "additionalProperties": false,
+      "properties": {
+        "activeWhen": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "group": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number"
+        },
+        "view": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/definitions/PartialShellVisibilityModel"
+        }
+      },
+      "required": [
+        "view"
+      ],
+      "type": "object"
+    },
+    "PartialShellNavigationModel": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/PartialShellNavItemModel"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PartialShellTopBarModel": {
+      "additionalProperties": false,
+      "properties": {
+        "contextSelector": {
+          "$ref": "#/definitions/ShellContextSelectorPlacement"
+        },
+        "controls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mobileContextSelector": {
+          "$ref": "#/definitions/ShellMobileContextSelectorMode"
+        }
+      },
+      "type": "object"
+    },
+    "PartialShellVisibilityModel": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/ShellVisibilityKind"
+        }
+      },
+      "type": "object"
+    },
+    "PartialStateModel": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "terminal": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialSyncWindowModel": {
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "type": "number"
+        },
+        "field": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "PartialThemeModel": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tokens": {
+          "additionalProperties": false,
+          "properties": {
+            "colorAccent": {
+              "type": "string"
+            },
+            "colorBackground": {
+              "type": "string"
+            },
+            "colorBorder": {
+              "type": "string"
+            },
+            "colorDanger": {
+              "type": "string"
+            },
+            "colorInfo": {
+              "type": "string"
+            },
+            "colorPrimary": {
+              "type": "string"
+            },
+            "colorStatusAlternate": {
+              "type": "string"
+            },
+            "colorStatusAvailable": {
+              "type": "string"
+            },
+            "colorStatusBusyElsewhere": {
+              "type": "string"
+            },
+            "colorStatusConflict": {
+              "type": "string"
+            },
+            "colorStatusEvent": {
+              "type": "string"
+            },
+            "colorStatusUnavailable": {
+              "type": "string"
+            },
+            "colorStatusUnset": {
+              "type": "string"
+            },
+            "colorSuccess": {
+              "type": "string"
+            },
+            "colorSurface": {
+              "type": "string"
+            },
+            "colorSurfaceAlt": {
+              "type": "string"
+            },
+            "colorText": {
+              "type": "string"
+            },
+            "colorTextInverted": {
+              "type": "string"
+            },
+            "colorTextMuted": {
+              "type": "string"
+            },
+            "density": {
+              "$ref": "#/definitions/ThemeDensity"
+            },
+            "fontFamily": {
+              "type": "string"
+            },
+            "logoUrl": {
+              "type": "string"
+            },
+            "nav": {
+              "$ref": "#/definitions/ThemeNav"
+            },
+            "radius": {
+              "$ref": "#/definitions/ThemeRadius"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PartialUniqueObjectConstraintModel": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "const": "unique",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scopeFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "PartialViewContextModel": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/definitions/ViewContextMode"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "type": "object"
+    },
+    "PolicyAction": {
+      "enum": [
+        "*",
+        "create",
+        "read",
+        "update",
+        "delete",
+        "search",
+        "transition",
+        "export",
+        "import"
+      ],
+      "type": "string"
+    },
+    "PolicyEffect": {
+      "enum": [
+        "allow",
+        "deny",
+        "readonly",
+        "mask",
+        "hidden"
+      ],
+      "type": "string"
+    },
+    "PresentationActionPlacement": {
+      "enum": [
+        "primary",
+        "secondary",
+        "row"
+      ],
+      "type": "string"
+    },
+    "PresentationCalendarSourceKind": {
+      "enum": [
+        "readModel",
+        "object"
+      ],
+      "type": "string"
+    },
+    "PresentationCalendarWeekStart": {
+      "enum": [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday"
+      ],
+      "type": "string"
+    },
+    "PresentationDensity": {
+      "enum": [
+        "compact",
+        "comfortable",
+        "spacious"
+      ],
+      "type": "string"
+    },
+    "PresentationFormatKind": {
+      "enum": [
+        "text",
+        "number",
+        "date",
+        "datetime",
+        "time"
+      ],
+      "type": "string"
+    },
+    "PresentationFragmentStyle": {
+      "enum": [
+        "plain",
+        "bold",
+        "muted",
+        "caption"
+      ],
+      "type": "string"
+    },
+    "PresentationLayout": {
+      "enum": [
+        "stack",
+        "grid",
+        "split",
+        "sidebar"
+      ],
+      "type": "string"
+    },
+    "PresentationLegendInclude": {
+      "enum": [
+        "present",
+        "all"
+      ],
+      "type": "string"
+    },
+    "PresentationListRenderStyle": {
+      "enum": [
+        "table",
+        "feed",
+        "compactFeed",
+        "cards"
+      ],
+      "type": "string"
+    },
+    "PresentationListSourceKind": {
+      "enum": [
+        "readModel",
+        "object"
+      ],
+      "type": "string"
+    },
+    "PresentationMatrixBulkBehavior": {
+      "const": "sequentialValidatedWrites",
+      "type": "string"
+    },
+    "PresentationMatrixColumnKind": {
+      "const": "dateRange",
+      "type": "string"
+    },
+    "PresentationMatrixSourceKind": {
+      "enum": [
+        "readModel",
+        "object"
+      ],
+      "type": "string"
+    },
+    "PresentationRowLayout": {
+      "enum": [
+        "inline",
+        "stack"
+      ],
+      "type": "string"
+    },
+    "PresentationShellRegion": {
+      "enum": [
+        "topBar",
+        "bottomBar",
+        "sidebar"
+      ],
+      "type": "string"
+    },
+    "PresentationStatePersistence": {
+      "enum": [
+        "memory",
+        "session",
+        "local"
+      ],
+      "type": "string"
+    },
+    "PresentationStateType": {
+      "enum": [
+        "text",
+        "number",
+        "date",
+        "datetime",
+        "time",
+        "boolean"
+      ],
+      "type": "string"
+    },
+    "PresentationStatusThemeToken": {
+      "enum": [
+        "colorStatusEvent",
+        "colorStatusAlternate",
+        "colorStatusAvailable",
+        "colorStatusUnavailable",
+        "colorStatusBusyElsewhere",
+        "colorStatusConflict",
+        "colorStatusUnset",
+        "colorInfo"
+      ],
+      "type": "string"
+    },
+    "PrincipalMatch": {
+      "enum": [
+        "everyone",
+        "authenticated",
+        "anonymous",
+        "owner",
+        "specific",
+        "contextMember"
+      ],
+      "type": "string"
+    },
+    "ReadModelJoinCardinality": {
+      "enum": [
+        "one",
+        "many"
+      ],
+      "type": "string"
+    },
+    "ReadModelSourceScope": {
+      "enum": [
+        "all",
+        "currentContext",
+        "allAvailableContexts",
+        "currentUser"
+      ],
+      "type": "string"
+    },
+    "ReadModelStrategy": {
+      "enum": [
+        "join",
+        "union"
+      ],
+      "type": "string"
+    },
+    "RelationshipPickerSelectionMode": {
+      "enum": [
+        "single",
+        "multiple"
+      ],
+      "type": "string"
+    },
+    "RelationshipPickerSourceKind": {
+      "enum": [
+        "object",
+        "readModel"
+      ],
+      "type": "string"
+    },
+    "ResolvedCommandValueExpression": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/definitions/JsonValue"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "input",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "runtime",
+              "type": "string"
+            },
+            "property": {
+              "$ref": "#/definitions/CommandRuntimeProperty"
+            }
+          },
+          "required": [
+            "kind",
+            "property"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "stepField",
+              "type": "string"
+            },
+            "step": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "step",
+            "field"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "stepMeta",
+              "type": "string"
+            },
+            "property": {
+              "$ref": "#/definitions/CommandStepMetaProperty"
+            },
+            "step": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "step",
+            "property"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "item",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "itemIndex",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ResolvedContextMemberPrincipal": {
+      "additionalProperties": false,
+      "description": "\"Whoever this record belongs to is in a context with me.\"\n\n`owner` says a record is the caller's own and roles say what a caller may do inside a context. Neither says the thing a shared roster needs: that a record belonging to *somebody else* is visible because the two of them are in the same context instance. Expressing that with a role instead would grant it over every record of the object, including those of people the caller shares nothing with.\n\nIt is evaluated against  {@link  RuntimeContext.contextMembers  } , which the runtime resolves from the same accepted membership records `listAvailableContexts` reads. Absent membership data never matches, so the principal fails closed.",
+      "properties": {
+        "context": {
+          "description": "The business context whose members match.",
+          "type": "string"
+        },
+        "field": {
+          "description": "The field on the target record naming the user who must be a co-member.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "context",
+        "field"
+      ],
+      "type": "object"
+    },
+    "ResolvedModelMigrationAddFieldStep": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultValue": {
+          "$ref": "#/definitions/JsonValue",
+          "description": "Written to every record that does not already carry the field."
+        },
+        "field": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "addField",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "field",
+        "defaultValue"
+      ],
+      "type": "object"
+    },
+    "ResolvedModelMigrationDropFieldStep": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "dropField",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "field"
+      ],
+      "type": "object"
+    },
+    "ResolvedModelMigrationRenameFieldStep": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "renameField",
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "ResolvedModelMigrationStep": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ResolvedModelMigrationRenameFieldStep"
+        },
+        {
+          "$ref": "#/definitions/ResolvedModelMigrationAddFieldStep"
+        },
+        {
+          "$ref": "#/definitions/ResolvedModelMigrationDropFieldStep"
+        }
+      ],
+      "description": "The whole step vocabulary. It is deliberately small: every step is total (it cannot fail on a well-formed record), reversible to inspect, and expressible against any conforming runtime. Anything an author cannot say with these is a model change that needs a different shape, not a bigger vocabulary."
+    },
+    "ResolvedNamedValidatorKind": {
+      "enum": [
+        "email",
+        "min",
+        "max",
+        "minLength",
+        "maxLength",
+        "in",
+        "regexp",
+        "currencyCode",
+        "maxSize",
+        "mimeType"
+      ],
+      "type": "string"
+    },
+    "ResolvedSort": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "direction"
+      ],
+      "type": "object"
+    },
+    "RuntimeChannel": {
+      "enum": [
+        "ui",
+        "api",
+        "sync",
+        "import",
+        "test"
+      ],
+      "type": "string"
+    },
+    "ShellContextSelectorPlacement": {
+      "enum": [
+        "topBar",
+        "navDrawer",
+        "hidden"
+      ],
+      "type": "string"
+    },
+    "ShellControlKind": {
+      "description": "`syncStatus` reports the sync state of the device's *records*; `connectivity` reports whether the device can reach the authority. They were one control until Phase 58, which is why a control named for record state rendered \"Online\"/\"Offline\" and no surface answered the question it was named after.",
+      "enum": [
+        "contextSelector",
+        "themeSwitch",
+        "logout",
+        "pwaInstall",
+        "syncStatus",
+        "connectivity"
+      ],
+      "type": "string"
+    },
+    "ShellControlPlacement": {
+      "enum": [
+        "topBar",
+        "navDrawer"
+      ],
+      "type": "string"
+    },
+    "ShellMobileContextSelectorMode": {
+      "enum": [
+        "dropdown",
+        "sheet"
+      ],
+      "type": "string"
+    },
+    "ShellVisibilityKind": {
+      "enum": [
+        "always",
+        "contextAvailable",
+        "contextSelected",
+        "online",
+        "offline"
+      ],
+      "type": "string"
+    },
+    "SyncMode": {
+      "enum": [
+        "localFirst",
+        "cacheReadonly",
+        "onlineRequired",
+        "localPrivate"
+      ],
+      "type": "string"
+    },
+    "SyncScope": {
+      "enum": [
+        "all",
+        "currentUser",
+        "assignedToUser",
+        "ownedByUser",
+        "currentContext",
+        "allAvailableContexts",
+        "recent",
+        "custom"
+      ],
+      "type": "string"
+    },
+    "ThemeDensity": {
+      "enum": [
+        "compact",
+        "comfortable",
+        "spacious"
+      ],
+      "type": "string"
+    },
+    "ThemeNav": {
+      "enum": [
+        "top",
+        "side",
+        "bottom"
+      ],
+      "type": "string"
+    },
+    "ThemeRadius": {
+      "enum": [
+        "none",
+        "small",
+        "medium",
+        "large"
+      ],
+      "type": "string"
+    },
+    "ViewContextMode": {
+      "enum": [
+        "none",
+        "required",
+        "optional",
+        "all"
+      ],
+      "type": "string"
+    },
+    "ViewKind": {
+      "enum": [
+        "list",
+        "detail",
+        "form",
+        "dashboard",
+        "masterDetail",
+        "grid",
+        "composite"
+      ],
+      "type": "string"
+    }
+  }
+}
