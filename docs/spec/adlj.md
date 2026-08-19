@@ -273,6 +273,27 @@ and resolve to the identical model `tests/jointly-reference-app.test.ts`
 and `tests/compile-adl.test.ts` already exercise; comment preservation is
 checked in `tests/adl-to-adlj.test.ts`.
 
+For the constructs Jointly Care doesn't exercise, read
+`src/reference/giggle-band/domain.adlj` and
+`src/reference/giggle-band/ui.adlj` — the second real, comment-carrying
+`.adlj` reference app, and the actual compiled source for both the "band"
+and "giggle-band" demos. Between them these two apps now cover every
+construct in the mapping table above; Giggle Band specifically adds
+`UNION` read models, `ORDERED` constraints, `CHILD_COLLECTION`/`PICKER`
+edit sections, `ICON_MAP`/`STATUS_MAP` presentation, a multi-hop
+`READ_MODEL SOURCE ... JOIN`, and `EDIT_SECTION`s beyond a plain form. Its
+`ui.adlj` was produced the same view-only-object split way as Jointly
+Care's, but by calling `adlAstToPartialApplicationModel` directly on a
+synthetic-placeholder-`APP`-prefixed fragment rather than through
+`importAdlAsAdlj`'s single-document entry point — `importAdlAsAdlj` only
+covers converting one whole `.adl` document at a time, not splitting a
+multi-file project's `APP`-less fragments, so a multi-file `.adlj`
+conversion needs this same workaround until that entry point grows
+native support for it. The original `domain.adl`/`ui.adl` are kept on
+disk, byte-for-byte unmodified and no longer compiled, because
+`docs/spec/language.md` and several `docs/phases/*.md` documents cite
+exact line numbers into them.
+
 ### Checking a draft before presenting it
 
 Same rule as `.adl` text: run any drafted `.adlj` document through
