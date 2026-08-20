@@ -90,11 +90,27 @@ the mobile agenda fallback needed touching. `adl-composed-view.ts`'s
 non-interactive `<div>` rather than a clickable record button — that
 fallback already existed and needed no change either.
 
-`conflictOverlay` is `.adlj`/JSON-only, the same treatment as `MATRIX`: no
-`.adl` text grammar for it, `print-adl.ts`'s `printPresentationCalendar`
-throws the same named "no ADL text syntax" error a `.adl`-printing caller
-already has to handle for those other constructs. See
-`docs/spec/adlj.md`'s "no ADL text syntax at all" list.
+`conflictOverlay` was `.adlj`/JSON-only when Phase 86 added it, the same
+treatment as `MATRIX`. **Phase 100 gave it text syntax**, because `.adl` text
+is the printed view of `.adlj` and an unprintable construct made the flagship
+reference application unprintable in full:
+
+```adl
+CONFLICT_OVERLAY FROM READ_MODEL EventAvailabilityConflicts
+  DATE_FIELD Date
+  FLAG_FIELD IsConflict
+  STATUS conflict
+END.CONFLICT_OVERLAY
+```
+
+Block form with a `FROM READ_MODEL` header, inside `CALENDAR ... END.CALENDAR`.
+All four parts are required, because
+`ResolvedPresentationCalendarConflictOverlay` declares none of them optional —
+an incomplete block is a parse failure rather than a partial model no resolver
+can complete. `FROM READ_MODEL` is spelled out even though a read model is the
+only thing an overlay can bind to: the whole point of the construct is that it
+is a *second* read model, distinct from the calendar's own `source` on the line
+above. See `docs/spec/language.md`'s Calendars section.
 
 ## Practical Guidance
 

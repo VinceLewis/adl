@@ -8,7 +8,10 @@ import type {
   PresentationStateType,
 } from "../../model/resolved-model.js";
 import type {
+  PresentationContextSelectorControlDeclarationAst,
   PresentationControlDeclarationAst,
+  PresentationSelectControlDeclarationAst,
+  PresentationSelectOptionDeclarationAst,
   PresentationIconMapDeclarationAst,
   PresentationIconMapValueDeclarationAst,
   PresentationIconRefDeclarationAst,
@@ -317,6 +320,10 @@ export class PresentationCoreParser extends PresentationSourceParser {
         this.consumeLineEnd("SECTION DENSITY directive");
       } else if (this.checkWord("TOGGLE")) {
         controls.push(this.parsePresentationToggle());
+      } else if (this.checkWord("SELECT")) {
+        controls.push(this.parsePresentationSelect());
+      } else if (this.checkWord("CONTEXT_SELECTOR")) {
+        controls.push(this.parsePresentationContextSelector());
       } else if (this.checkWord("ACTION")) {
         controls.push(this.parsePresentationAction());
       } else if (this.checkWord("LIST")) {
@@ -325,7 +332,181 @@ export class PresentationCoreParser extends PresentationSourceParser {
         calendars.push(this.parsePresentationCalendar());
       } else {
         this.failUnexpected(
-          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, ACTION, LIST, CALENDAR, or END.SECTION",
+          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, SELECT, CONTEXT_SELECTOR, ACTION, LIST, CALENDAR, or END.SECTION",
+        );
+      }
+    }
+  }
+
+  /**
+   * ```adl
+   * SELECT eventType STATE eventTypeFilter LABEL 'Event type' ICON calendar
+   *   OPTION 'Gig' LABEL 'Gigs' ICON music
+   *   OPTION 'Rehearsal' LABEL 'Rehearsals'
+   * END.SELECT
+   * ```
+   *
+   * Deliberately shaped as `TOGGLE`'s sibling — same header options, same
+   * `STATE`-defaults-to-the-control-name rule — because the two are the same
+   * kind of thing (a control bound to one piece of view-local state) and
+   * differ only in that a select offers a closed list of values rather than
+   * two. Phase 100.
+   */
+  private parsePresentationSelect(): PresentationSelectControlDeclarationAst {
+    const startToken = this.expectWord("SELECT", "SELECT declaration");
+    const name = this.consumeName("select name");
+    let state = name;
+    let label: string | undefined;
+    let icon: PresentationIconRefDeclarationAst | undefined;
+    const options: PresentationSelectOptionDeclarationAst[] = [];
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("STATE")) {
+        state = this.consumeName("select state name");
+      } else if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("select label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+      } else {
+        this.failUnexpected("SELECT header option STATE, LABEL, ICON, or end of line");
+      }
+    }
+    this.consumeLineEnd("SELECT declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.SELECT", this.current());
+      }
+
+      if (this.checkEnd("SELECT")) {
+        const end = this.parseEnd("SELECT");
+        return {
+          kind: "PresentationSelectControlDeclaration",
+          name,
+          state,
+          ...(label === undefined ? {} : { label }),
+          ...(icon === undefined ? {} : { icon }),
+          options,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("STATE")) {
+        state = this.consumeName("select state name");
+        this.consumeLineEnd("SELECT STATE directive");
+      } else if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("select label"));
+        this.consumeLineEnd("SELECT LABEL directive");
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+        this.consumeLineEnd("SELECT ICON directive");
+      } else if (this.checkWord("OPTION")) {
+        options.push(this.parsePresentationSelectOption());
+      } else {
+        this.failUnexpected("SELECT directive STATE, LABEL, ICON, OPTION, or END.SELECT");
+      }
+    }
+  }
+
+  private parsePresentationSelectOption(): PresentationSelectOptionDeclarationAst {
+    const startToken = this.expectWord("OPTION", "SELECT OPTION directive");
+    const value = this.consumePrimitiveLiteral("select option value");
+    let label: string | undefined;
+    let icon: PresentationIconRefDeclarationAst | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("select option label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+      } else {
+        this.failUnexpected("SELECT OPTION option LABEL, ICON, or end of line");
+      }
+    }
+    this.consumeLineEnd("SELECT OPTION directive");
+
+    // `ResolvedPresentationSelectOption.label` is required, and an option with
+    // no label is a control rendering a blank row, so it is refused rather
+    // than defaulted to the value's own text.
+    if (label === undefined) {
+      this.failExpected("SELECT OPTION LABEL", startToken);
+    }
+
+    return {
+      kind: "PresentationSelectOptionDeclaration",
+      value,
+      label,
+      ...(icon === undefined ? {} : { icon }),
+      range: this.rangeFrom(startToken),
+    };
+  }
+
+  /**
+   * ```adl
+   * CONTEXT_SELECTOR bandPicker LABEL 'Band' ICON users CONTEXT Band
+   * END.CONTEXT_SELECTOR
+   * ```
+   *
+   * A view-local context selector, distinct from the global
+   * `SHELL CONTROL ... KIND contextSelector`: this one is placed by the
+   * composed section that declares it. `CONTEXT` is optional — omitted, the
+   * control offers whatever context the view is bound to.
+   */
+  private parsePresentationContextSelector(): PresentationContextSelectorControlDeclarationAst {
+    const startToken = this.expectWord("CONTEXT_SELECTOR", "CONTEXT_SELECTOR declaration");
+    const name = this.consumeName("context selector name");
+    let label: string | undefined;
+    let icon: PresentationIconRefDeclarationAst | undefined;
+    let context: string | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("context selector label"));
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+      } else if (this.matchWord("CONTEXT")) {
+        context = this.consumeName("context selector context name");
+      } else {
+        this.failUnexpected("CONTEXT_SELECTOR header option LABEL, ICON, CONTEXT, or end of line");
+      }
+    }
+    this.consumeLineEnd("CONTEXT_SELECTOR declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.CONTEXT_SELECTOR", this.current());
+      }
+
+      if (this.checkEnd("CONTEXT_SELECTOR")) {
+        const end = this.parseEnd("CONTEXT_SELECTOR");
+        return {
+          kind: "PresentationContextSelectorControlDeclaration",
+          name,
+          ...(label === undefined ? {} : { label }),
+          ...(icon === undefined ? {} : { icon }),
+          ...(context === undefined ? {} : { context }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("context selector label"));
+        this.consumeLineEnd("CONTEXT_SELECTOR LABEL directive");
+      } else if (this.matchWord("ICON")) {
+        icon = this.parsePresentationIconRef("value");
+        this.consumeLineEnd("CONTEXT_SELECTOR ICON directive");
+      } else if (this.matchWord("CONTEXT")) {
+        context = this.consumeName("context selector context name");
+        this.consumeLineEnd("CONTEXT_SELECTOR CONTEXT directive");
+      } else {
+        this.failUnexpected(
+          "CONTEXT_SELECTOR directive LABEL, ICON, CONTEXT, or END.CONTEXT_SELECTOR",
         );
       }
     }

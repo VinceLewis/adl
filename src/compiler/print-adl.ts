@@ -48,7 +48,12 @@ import type {
   PartialPolicyModel,
   PartialPolicyRuleModel,
   PartialPresentationActionControlModel,
+  PartialEditChildCollectionSummaryModel,
   PartialPresentationCalendarModel,
+  PartialPresentationContextSelectorControlModel,
+  PartialPresentationSelectControlModel,
+  PartialPresentationFormatModel,
+  ResolvedPresentationCalendarConflictOverlay,
   PartialPresentationControlModel,
   PartialPresentationIconMapModel,
   PartialPresentationIconRefModel,
@@ -886,7 +891,7 @@ function printPresentationSection(section: PartialPresentationSectionModel): str
     lines.push(`  DENSITY ${camelToUpperSnake(section.density)}`);
   }
   for (const control of section.controls ?? []) {
-    lines.push(indentBlock(printPresentationControl(section.name, control), "  "));
+    lines.push(indentBlock(printPresentationControl(control), "  "));
   }
   for (const list of section.lists ?? []) {
     lines.push(indentBlock(printPresentationList(list), "  "));
@@ -908,25 +913,56 @@ function printPresentationSection(section: PartialPresentationSectionModel): str
   return printLeadingComment(section.comment) + lines.join("\n");
 }
 
-function printPresentationControl(
-  sectionName: string,
-  control: PartialPresentationControlModel,
-): string {
+function printPresentationControl(control: PartialPresentationControlModel): string {
   if (control.kind === "toggle") {
     return printPresentationToggle(control);
   }
-  if (control.kind === "action") {
-    return printPresentationAction(control);
+  if (control.kind === "select") {
+    return printPresentationSelect(control);
   }
-  // NO TEXT SYNTAX: `select` and `contextSelector` controls have a resolved
-  // model shape but no ADL directive produces them —
-  // `docs/spec/ui-language-addendum.md` ("The resolved model also has
-  // generic `select` and `contextSelector` control shapes for
-  // JSON/TypeScript partial models, but ADL source syntax for those
-  // controls is not implemented yet").
-  throw new Error(
-    `printPartialApplicationModelAsAdl: section '${sectionName}' declares a '${control.kind}' control, which has no ADL text syntax yet (only 'toggle' and 'action' controls can be authored). See docs/spec/adlj.md.`,
-  );
+  if (control.kind === "contextSelector") {
+    return printPresentationContextSelector(control);
+  }
+  return printPresentationAction(control);
+}
+
+function printPresentationSelect(select: PartialPresentationSelectControlModel): string {
+  const lines = [`SELECT ${select.name}`];
+  if (select.state !== select.name) {
+    lines.push(`  STATE ${select.state}`);
+  }
+  if (select.label !== undefined) {
+    lines.push(`  LABEL ${printStringLiteral(select.label)}`);
+  }
+  if (select.icon !== undefined) {
+    lines.push(`  ICON ${printPresentationIconRef(select.icon)}`);
+  }
+  for (const option of select.options ?? []) {
+    let line = `  OPTION ${printLiteralValue(option.value)} LABEL ${printStringLiteral(option.label)}`;
+    if (option.icon !== undefined) {
+      line += ` ICON ${printPresentationIconRef(option.icon)}`;
+    }
+    lines.push(line);
+  }
+  lines.push("END.SELECT");
+  return lines.join("\n");
+}
+
+function printPresentationContextSelector(
+  selector: PartialPresentationContextSelectorControlModel,
+): string {
+  const lines = [`CONTEXT_SELECTOR ${selector.name}`];
+  if (selector.label !== undefined) {
+    lines.push(`  LABEL ${printStringLiteral(selector.label)}`);
+  }
+  if (selector.icon !== undefined) {
+    lines.push(`  ICON ${printPresentationIconRef(selector.icon)}`);
+  }
+  if (selector.context !== undefined) {
+    lines.push(`  CONTEXT ${selector.context}`);
+  }
+  lines.push("END.CONTEXT_SELECTOR");
+  return lines.join("\n");
 }
 
 function printPresentationToggle(toggle: PartialPresentationToggleControlModel): string {
@@ -986,17 +1022,12 @@ function printPresentationSourceRef(
 }
 
 function printPresentationList(list: PartialPresentationListModel): string {
-  // NO TEXT SYNTAX: the parser's `LIST ... END.LIST` body has no `FIELDS`
-  // directive (only `ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`,
-  // `EMPTY_TEXT`, `STATUS`, `ACTION`, `ROW`).
-  if (list.fields !== undefined && list.fields.length > 0) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: list '${list.name}' declares 'fields', which has no ADL LIST directive. See docs/spec/adlj.md.`,
-    );
-  }
   const lines = [
     `LIST ${list.name} FROM ${printPresentationSourceRef(list.sourceKind, list.source)}`,
   ];
+  if (list.fields !== undefined && list.fields.length > 0) {
+    lines.push(`  FIELDS ${list.fields.join(" ")}`);
+  }
   if (list.sort !== undefined && list.sort.length > 0) {
     lines.push(`  ORDER BY ${printSortList(list.sort)}`);
   }
@@ -1012,12 +1043,8 @@ function printPresentationList(list: PartialPresentationListModel): string {
   if (list.emptyState?.text !== undefined) {
     lines.push(`  EMPTY_TEXT ${printStringLiteral(list.emptyState.text)}`);
   }
-  // NO TEXT SYNTAX: `EMPTY_TEXT` only ever takes a literal string; there is
-  // no directive for an empty-state icon.
   if (list.emptyState?.icon !== undefined) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: list '${list.name}' declares an empty-state icon, which has no ADL EMPTY_TEXT directive. See docs/spec/adlj.md.`,
-    );
+    lines.push(`  EMPTY_ICON ${printPresentationIconRef(list.emptyState.icon)}`);
   }
   for (const candidate of list.status?.candidates ?? []) {
     lines.push(`  ${printPresentationStatusCandidate(candidate)}`);
@@ -1033,24 +1060,6 @@ function printPresentationList(list: PartialPresentationListModel): string {
 }
 
 function printPresentationCalendar(calendar: PartialPresentationCalendarModel): string {
-  // NO TEXT SYNTAX: `calendar.month.labelFormat` has no `CALENDAR` directive
-  // (the parser's `MONTH`/`MONTH_STATE`/`WEEK_START`/`RANGE` directives never
-  // set it; `compile-adl.ts`'s calendar-to-partial mapping never populates it
-  // either).
-  if (calendar.month?.labelFormat !== undefined) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares month.labelFormat, which has no ADL CALENDAR directive. See docs/spec/adlj.md.`,
-    );
-  }
-  // NO TEXT SYNTAX: `calendar.conflictOverlay` has a full resolved-model/JSON
-  // shape (`ResolvedPresentationCalendarConflictOverlay`) but the parser has
-  // no `CONFLICT_OVERLAY`/equivalent `CALENDAR` directive -- same treatment
-  // as `MATRIX` above.
-  if (calendar.conflictOverlay !== undefined) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares a conflictOverlay, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
-    );
-  }
   const lines = [
     `CALENDAR ${calendar.name} FROM ${printPresentationSourceRef(calendar.sourceKind, calendar.source)}`,
   ];
@@ -1079,6 +1088,9 @@ function printPresentationCalendar(calendar: PartialPresentationCalendarModel): 
   if (calendar.month?.weekStart !== undefined) {
     lines.push(`  WEEK_START ${camelToUpperSnake(calendar.month.weekStart)}`);
   }
+  if (calendar.month?.labelFormat !== undefined) {
+    lines.push(`  MONTH_LABEL_FORMAT ${printPresentationFormat(calendar.month.labelFormat)}`);
+  }
   if (calendar.month?.minDate !== undefined || calendar.month?.maxDate !== undefined) {
     if (calendar.month?.minDate === undefined || calendar.month?.maxDate === undefined) {
       throw new Error(
@@ -1093,18 +1105,39 @@ function printPresentationCalendar(calendar: PartialPresentationCalendarModel): 
     lines.push(`  EMPTY_TEXT ${printStringLiteral(calendar.emptyState.text)}`);
   }
   if (calendar.emptyState?.icon !== undefined) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares an empty-state icon, which has no ADL EMPTY_TEXT directive. See docs/spec/adlj.md.`,
-    );
+    lines.push(`  EMPTY_ICON ${printPresentationIconRef(calendar.emptyState.icon)}`);
   }
   for (const candidate of calendar.status?.candidates ?? []) {
     lines.push(`  ${printPresentationStatusCandidate(candidate)}`);
+  }
+  if (calendar.conflictOverlay !== undefined) {
+    lines.push(
+      indentBlock(printPresentationCalendarConflictOverlay(calendar.conflictOverlay), "  "),
+    );
   }
   for (const action of calendar.actions ?? []) {
     lines.push(indentBlock(printPresentationAction(action), "  "));
   }
   lines.push("END.CALENDAR");
   return lines.join("\n");
+}
+
+function printPresentationCalendarConflictOverlay(
+  overlay: ResolvedPresentationCalendarConflictOverlay,
+): string {
+  return [
+    `CONFLICT_OVERLAY FROM READ_MODEL ${overlay.readModel}`,
+    `  DATE_FIELD ${overlay.dateField}`,
+    `  FLAG_FIELD ${overlay.flagField}`,
+    `  STATUS ${overlay.status}`,
+    "END.CONFLICT_OVERLAY",
+  ].join("\n");
+}
+
+/** `DURATION 'm:ss'`, or a bare `DURATION` when the format declares no pattern. */
+function printPresentationFormat(format: PartialPresentationFormatModel): string {
+  const kind = camelToUpperSnake(format.kind);
+  return format.pattern === undefined ? kind : `${kind} ${printStringLiteral(format.pattern)}`;
 }
 
 function printPresentationStatusCandidate(
@@ -1149,19 +1182,12 @@ function printPresentationRowFragment(fragment: PartialPresentationRowFragmentMo
     return text;
   }
   if (fragment.kind === "field") {
-    // NO TEXT SYNTAX: `fallback` has no `TEXT` directive (only `FORMAT` and
-    // `STYLE` are parsed for a field text fragment).
-    if (fragment.fallback !== undefined) {
-      throw new Error(
-        `printPartialApplicationModelAsAdl: field text fragment '${fragment.field}' declares 'fallback', which has no ADL TEXT directive. See docs/spec/adlj.md.`,
-      );
-    }
     let text = `TEXT ${fragment.field}`;
     if (fragment.format !== undefined) {
-      text += ` FORMAT ${camelToUpperSnake(fragment.format.kind)}`;
-      if (fragment.format.pattern !== undefined) {
-        text += ` ${printStringLiteral(fragment.format.pattern)}`;
-      }
+      text += ` FORMAT ${printPresentationFormat(fragment.format)}`;
+    }
+    if (fragment.fallback !== undefined) {
+      text += ` FALLBACK ${printStringLiteral(fragment.fallback)}`;
     }
     if (fragment.style !== undefined) {
       text += ` STYLE ${camelToUpperSnake(fragment.style)}`;
@@ -1207,21 +1233,6 @@ function printEditFieldsSection(section: PartialEditFieldsSectionModel): string 
 }
 
 function printEditChildCollection(section: PartialEditChildCollectionSectionModel): string {
-  // NO TEXT SYNTAX: `projectedFields` and `summary` have a full
-  // resolved-model/JSON shape (`ResolvedProjectedField`,
-  // `ResolvedEditChildCollectionSummary`) but the parser has no
-  // `PROJECTED_FIELD`/`SUMMARY`-equivalent `CHILD_COLLECTION` directive --
-  // same treatment as `MATRIX` and `conflictOverlay` above. See Phase 87.
-  if (section.projectedFields !== undefined && section.projectedFields.length > 0) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: child collection '${section.name}' declares projectedFields, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
-    );
-  }
-  if (section.summary !== undefined) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: child collection '${section.name}' declares a summary, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
-    );
-  }
   let header = `CHILD_COLLECTION ${section.name}`;
   if (section.heading !== undefined) {
     header += ` HEADING ${printStringLiteral(section.heading)}`;
@@ -1243,10 +1254,40 @@ function printEditChildCollection(section: PartialEditChildCollectionSectionMode
   if (section.emptyState?.text !== undefined) {
     lines.push(`  EMPTY_TEXT ${printStringLiteral(section.emptyState.text)}`);
   }
+  for (const projected of section.projectedFields ?? []) {
+    lines.push(
+      `  PROJECTED_FIELD ${projected.name} THROUGH ${projected.through} FIELD ${projected.field}`,
+    );
+  }
+  if (section.summary !== undefined) {
+    lines.push(indentBlock(printEditChildCollectionSummary(section.summary), "  "));
+  }
   if (section.picker !== undefined) {
     lines.push(indentBlock(printRelationshipPicker(section.picker), "  "));
   }
   lines.push("END.CHILD_COLLECTION");
+  return lines.join("\n");
+}
+
+function printEditChildCollectionSummary(summary: PartialEditChildCollectionSummaryModel): string {
+  // The field goes on the header line rather than into a `FIELD` directive so
+  // the printed form reads the way an aggregate reads: `SUMMARY SUM Duration`.
+  // Both spellings parse.
+  let header = `SUMMARY ${camelToUpperSnake(summary.aggregate)}`;
+  if (summary.field !== undefined) {
+    header += ` ${summary.field}`;
+  }
+  const lines = [header];
+  if (summary.label !== undefined) {
+    lines.push(`  LABEL ${printStringLiteral(summary.label)}`);
+  }
+  if (summary.format !== undefined) {
+    lines.push(`  FORMAT ${printPresentationFormat(summary.format)}`);
+  }
+  if (summary.placement !== undefined) {
+    lines.push(`  PLACEMENT ${camelToUpperSnake(summary.placement)}`);
+  }
+  lines.push("END.SUMMARY");
   return lines.join("\n");
 }
 

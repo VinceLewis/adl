@@ -71,17 +71,26 @@ export class PresentationRowFormatParser extends PresentationScalarParser {
       : this.consumeName("TEXT field or literal");
     let style: PresentationFragmentStyle | undefined;
     let format: { kind: PresentationFormatKind; pattern?: string } | undefined;
+    let fallback: string | undefined;
 
     while (!this.isLineEnd()) {
       if (this.matchWord("STYLE")) {
         style = this.parsePresentationFragmentStyle();
       } else if (this.matchWord("FORMAT")) {
         format = this.parsePresentationFormat();
+      } else if (this.matchWord("FALLBACK")) {
+        fallback = String(this.consumeLiteral("TEXT FALLBACK value"));
       } else {
-        this.failUnexpected("TEXT option FORMAT, STYLE, or end of line");
+        this.failUnexpected("TEXT option FORMAT, FALLBACK, STYLE, or end of line");
       }
     }
     this.consumeLineEnd("TEXT row fragment");
+
+    // `FALLBACK` says what to render when a *field* is null, so it is
+    // meaningless on a literal fragment and refused rather than dropped.
+    if (isLiteral && fallback !== undefined) {
+      this.failExpected("TEXT field fragment for FALLBACK", startToken);
+    }
 
     if (isLiteral) {
       return {
@@ -97,6 +106,7 @@ export class PresentationRowFormatParser extends PresentationScalarParser {
       field: value,
       ...(style === undefined ? {} : { style }),
       ...(format === undefined ? {} : { format }),
+      ...(fallback === undefined ? {} : { fallback }),
       range: this.rangeFrom(startToken),
     };
   }

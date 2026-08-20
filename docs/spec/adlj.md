@@ -615,70 +615,77 @@ the contract is
 written"). **Composed view presentation (`PartialViewModel.presentation`) and
 edit surfaces (`editContainer`/`editSections`) are printed too (Phase 78)** —
 `LAYOUT`, `DENSITY`, local `STATE`, `ICON_MAP`, `STATUS`/`STATUS_MAP`,
-`LEGEND`, `SECTION` (toggles, actions, `LIST`, `CALENDAR`, `ROW` templates,
-status candidates), `EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION`, and
-`PICKER` all round-trip.
+`LEGEND`, `SECTION` (toggles, selects, context selectors, actions, `LIST`,
+`CALENDAR` including `CONFLICT_OVERLAY`, `ROW` templates, status candidates),
+`EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION` (including
+`PROJECTED_FIELD` and `SUMMARY`), and `PICKER` all round-trip.
 
 The round-trip proof runs against real application sources, not hand-built
-fixtures: Jointly Care's whole compiled `partialModel`, plus the
-`examples/` corpus (`tests/compile-adlj.test.ts`). Until Phase 98 it ran
-against a `.adl` text snapshot of Giggle Band frozen at model version 1.0.0;
-the printer has refused Giggle Band's *real* source since Phase 87 gave it a
-`conflictOverlay`, a `projectedFields` and a `summary`, and that refusal is
-now itself a test. This is the sharp edge of `.adl`-as-printed-view, and it
-cuts both ways: `MIGRATION` printing was missing entirely until Phase 98 —
-silently, unlike a refused construct — and no round-trip caught it, because
-neither fixture in place at the time declared a single migration.
+fixtures: **both** reference applications' whole compiled `partialModel` —
+Giggle Band and Jointly Care — plus the `examples/` corpus
+(`tests/compile-adlj.test.ts`). Until Phase 98 the rich half ran against a
+`.adl` text snapshot of Giggle Band frozen at model version 1.0.0; from
+Phase 87 to Phase 100 the printer refused Giggle Band's *real* source
+outright, and only Jointly Care stood in. This is the sharp edge of
+`.adl`-as-printed-view, and it cuts both ways: `MIGRATION` printing was
+missing entirely until Phase 98 — silently, unlike a refused construct — and
+no round-trip caught it, because neither fixture in place at the time declared
+a single migration. Phase 100 also added a `.adlj` fixture inside that same
+test reaching the constructs no shipped application declares, so nothing it
+gave syntax to depends on an application happening to use it.
 
-A small, named set of constructs has a resolved-model/JSON shape but **no
-ADL text syntax at all** — the parser has no grammar that ever produces
-them, so the printer throws a clear, named error naming the construct rather
-than guessing at invented syntax or silently dropping content:
+Three constructs still have a resolved-model/JSON shape but **no ADL text
+syntax at all** — the parser has no grammar that ever produces them, so the
+printer throws a clear, named error naming the construct rather than guessing
+at invented syntax or silently dropping content:
 
-- `MATRIX` (`PartialPresentationSectionModel.matrices`) — the parser has no
-  `MATRIX` construct; `docs/spec/ui-language-addendum.md` documents it as
-  "intended language direction... parser support remains future work."
-- `select` and `contextSelector` presentation controls — only `toggle` and
-  `action` controls have ADL source syntax.
+- `MATRIX` (`PartialPresentationSectionModel.matrices`) — a whole construct
+  with six nested sub-structures (row source, date column axis, cell source,
+  cell status binding, edit behaviour) and its own resolved-model file.
+  `docs/spec/ui-language-addendum.md` already sketches an intended syntax for
+  it and records that "parser support remains future work"; implementing that
+  sketch is its own phase, not a clause on an existing block.
 - Conditional row fragments (`PartialPresentationRowFragmentModel` of kind
   `"conditional"`) — `ROW` only ever produces `TEXT`/`ICON` fragments.
-- A field text fragment's `fallback`.
-- A list's `fields` (`PartialPresentationListModel.fields`) — `LIST` has no
-  `FIELDS` directive.
-- An empty state's `icon` (list or calendar) — `EMPTY_TEXT` only ever takes a
-  literal string.
-- A calendar's `month.labelFormat`.
-- A calendar's `conflictOverlay`
-  (`ResolvedPresentationCalendarConflictOverlay`) — a second, independently
-  executed read model that layers a correlated status onto specific dates of
-  the calendar's own `source` rows, added because a `UNION` read model may
-  never declare a `JOIN` and a `JOIN`-strategy read model's inner-join
-  semantics would drop every non-matching row of whichever source is not
-  primary — see `src/reference/giggle-band/domain.adlj`'s
-  `EventAvailabilityConflicts` (feeding `BandEventCalendar`'s `MonthPlanner`
-  calendar in `ui.adlj`) for the real, compiling worked example, and
-  `learnings/implementation/calendar-presentation-runtime.md` for the full
-  design rationale.
-- Per-view `presentation.shell.regions` — only the global `SHELL` block (now
-  printed too) has ADL source syntax; per-view shell regions are
-  JSON/TypeScript-only per `docs/spec/ui-language-addendum.md`.
-- A `CHILD_COLLECTION` edit section's `projectedFields`
-  (`ResolvedProjectedField[]`) — a row field sourced from a related object
-  reached through one of the child object's own lookup fields (e.g.
-  `SetListItem.Song` → `Song.DurationSeconds`), not just the child object's
-  own stored fields.
-- A `CHILD_COLLECTION` edit section's `summary`
-  (`ResolvedEditChildCollectionSummary`) — a single aggregated value
-  (`sum`/`avg`/`min`/`max`/`count`) over the collection's current rows
-  (persisted and staged together), shown at `header` or `footer`. Both added
-  Phase 87, for the same reason as `conflictOverlay`: real, concrete need
-  (a set list's total duration on `SetListForm`'s `Songs` collection, the
-  screen where songs are actually added/removed/reordered) with no existing
-  parser grammar to reach for — see `src/reference/giggle-band/ui.adlj`'s
-  `SetListForm` `Songs` section for the real, compiling worked example, and
-  `learnings/implementation/edit-surface-language.md` for the full design
-  rationale, including the two alternatives it rejected (async computed
-  fields; a generic presentation-`LIST`-level `SUMMARY`).
+  Deferred deliberately: "how much conditional logic should be allowed in row
+  templates before it becomes a computed/read-model concern?" is an **open
+  language question** in `ui-language-addendum.md`, and inventing a `WHEN`
+  block would settle it by fiat rather than by decision.
+- Per-view `presentation.shell.regions` — only the global `SHELL` block has
+  ADL source syntax. Deferred for the same reason: "should view-scoped shell
+  regions get source syntax, or should shell stay global with view-local
+  controls referenced through presentation?" is the other open question that
+  document lists.
+
+Everything else that used to be on this list is gone. **Phase 100** gave text
+syntax to the nine constructs that had none and could be settled without
+answering an open language question:
+
+| Construct | ADL text syntax |
+|---|---|
+| A calendar's `conflictOverlay` | `CONFLICT_OVERLAY FROM READ_MODEL <name> ... END.CONFLICT_OVERLAY` |
+| A child collection's `projectedFields` | `PROJECTED_FIELD <name> THROUGH <lookup> FIELD <target>` |
+| A child collection's `summary` | `SUMMARY <aggregate> [<field>] ... END.SUMMARY` |
+| A calendar's `month.labelFormat` | `MONTH_LABEL_FORMAT <kind> ['pattern']` |
+| A list's `fields` | `FIELDS <names>` |
+| An empty state's `icon` (list and calendar) | `EMPTY_ICON <iconRef>` |
+| A field text fragment's `fallback` | `TEXT <field> FALLBACK 'text'` |
+| A `select` presentation control | `SELECT <name> ... OPTION <value> LABEL 'text' ... END.SELECT` |
+| A `contextSelector` presentation control | `CONTEXT_SELECTOR <name> ... END.CONTEXT_SELECTOR` |
+
+All nine are specified in [language.md](language.md) as first-class parts of
+the language, not as printer conveniences: each has grammar, an AST node, an
+AST-to-partial-model conversion and a printer branch, and each was proven to
+fail on the pre-Phase-100 grammar before it worked. The first three are the
+ones that had blocked Giggle Band since Phase 87 — a calendar `conflictOverlay`
+(see `src/reference/giggle-band/domain.adlj`'s `EventAvailabilityConflicts`
+feeding `BandEventCalendar`'s `MonthPlanner` calendar in `ui.adlj`, and
+`learnings/implementation/calendar-presentation-runtime.md` for the design
+rationale), and `SetListForm`'s `Songs` collection carrying both
+`projectedFields` and a `summary` (see
+`learnings/implementation/edit-surface-language.md`, including the two
+alternatives Phase 87 rejected: async computed fields, and a generic
+presentation-`LIST`-level `SUMMARY`).
 
 Getting the Giggle Band round-trip to actually pass also surfaced and fixed
 several **pre-existing** printer defects outside composed presentation/edit
@@ -856,8 +863,9 @@ Expression-bearing fields in `.adlj` stay strings in infix syntax,
 deliberately (see above) — the JSON Schema can validate that such a field
 *is a string*, it cannot validate that the string is a *syntactically valid
 ADL expression*. That check still runs through `parseExpressionSource`,
-backed by the same hand-written expression grammar inside `src/parser/parser.ts`
-that `.adl` text has always used. So it is not quite accurate to say the
+backed by the same hand-written expression grammar that `.adl` text has always
+used — `src/parser/grammar/expression.ts` since Phase 88 split the parser into
+grammar-area files behind the `src/parser/parser.ts` barrel. So it is not quite accurate to say the
 formal-grammar idea is now "just a JSON Schema checker" — more precisely:
 the declarative-skeleton grammar is now just a JSON Schema checker, and the
 *expression* sub-grammar remains a real, load-bearing, hand-written text
@@ -873,9 +881,13 @@ direction makes unnecessary.
 
 - A bidirectional sync/merge tool between a generated `.adl` file and a
   hand-edit made to it afterward.
-- Printing the small, named set of presentation/edit-surface constructs that
-  have no ADL text syntax at all (see above) — they would need new parser
-  grammar first, not a printer change.
+- ~~Printing the small, named set of presentation/edit-surface constructs that
+  have no ADL text syntax at all — they would need new parser grammar first,
+  not a printer change.~~ **Discharged by Phase 100**, which did that grammar
+  work rather than defer it again: nine of the twelve constructs on that list
+  now have text syntax and both reference applications round-trip. The three
+  that remain are named above, each with a reason that is not "it was easier
+  to leave it".
 - Editor/LSP tooling for `.adlj` (the generated JSON Schema is a
   prerequisite for that, not the tooling itself).
 

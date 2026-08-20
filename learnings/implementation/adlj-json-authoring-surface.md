@@ -528,17 +528,56 @@ against Giggle Band's actual compiled `partialModel` — not a hand-built
 fixture — via `printPartialApplicationModelAsAdl` → `compileAdl` →
 `toEqual(original.model)` (`tests/compile-adlj.test.ts`).
 
-**A small, named set of constructs has no ADL text syntax at all** and the
-printer throws a clear, named error for each rather than guessing at
-invented syntax: `MATRIX`, `select`/`contextSelector` presentation controls,
-conditional row fragments, a field text fragment's `fallback`, a `LIST`'s
-`fields`, an empty state's `icon`, a calendar's `month.labelFormat`, and
-per-view `presentation.shell.regions` (only the global `SHELL` block has
-source syntax). See `docs/spec/adlj.md`'s printer section for the full list
-and the reasoning for each — every one was confirmed against the parser
-grammar (`src/parser/parser.ts`), not the spec prose, per this repository's
-standing rule that a diagnostic (or, here, an absent grammar branch) is
-ground truth over any assumption about what should parse.
+**A small, named set of constructs had no ADL text syntax at all** and the
+printer threw a clear, named error for each rather than guessing at invented
+syntax. **Phase 100 closed nine of the twelve**: a calendar's
+`conflictOverlay` and `month.labelFormat`, a child collection's
+`projectedFields` and `summary`, a `LIST`'s `fields`, an empty state's
+`icon`, a field text fragment's `fallback`, and the `select` and
+`contextSelector` presentation controls. Three remain, each deferred for a
+stated reason rather than by omission: `MATRIX` (a whole construct with six
+nested sub-structures, whose intended syntax `ui-language-addendum.md`
+already sketches), conditional row fragments, and per-view
+`presentation.shell.regions` — the last two because
+`ui-language-addendum.md` lists both as *open language questions*, and
+inventing syntax would answer them by fiat. See `docs/spec/adlj.md`'s printer
+section for the table and `docs/spec/language.md` for the syntax. Every claim
+about what does and does not parse was confirmed against the actual grammar
+(`src/parser/grammar/`, behind the `src/parser/parser.ts` barrel since
+Phase 88), not the spec prose, per this repository's standing rule that a
+diagnostic — or, here, an absent grammar branch — is ground truth over any
+assumption about what should parse.
+
+**Scope a completeness phase by measurement, not by the list.** Phase 100's
+list had twelve entries; a walk over both reference applications' compiled
+`partialModel` looking for each key found exactly three in use, all in Giggle
+Band (`conflictOverlay`, `projectedFields`, `summary`) — and the
+`contextSelector` the grep also hit was the *shell* control, which already
+printed, not the presentation control that did not. That measurement is what
+turned an open-ended list into a three-item blocker set plus a deliberate
+decision about the other nine, and it took one throwaway walk to get. Do it
+before designing anything.
+
+**A construct the printer refuses is not the dangerous kind of gap.** The
+expensive defects Phase 98 found were the *silent* ones — `MIGRATION` never
+printed at all, and a policy clause list swallowing a following `FIELDS`. A
+named refusal is loud, and it stays correct while it stands. That is why
+leaving three constructs refused is a defensible end state for a phase
+titled "completeness" and leaving one silently dropped never is.
+
+**Adding text syntax for an existing resolved-model shape is a five-part
+change, and `tsc` will walk you through four of them.** Grammar
+(`src/parser/grammar/<area>.ts`), AST node (`src/parser/ast.ts`, plus
+`BlockName` for anything with an `END.X`), AST→partial conversion
+(`src/compiler/compile-adl.ts`), printer branch
+(`src/compiler/print-adl.ts`) — and the one the compiler cannot tell you
+about, the specification. The resolver, validator and runtime need nothing:
+they already consume the shape, which is the whole point of a
+runtime-model-first language. `src/compiler/adl-to-adlj.ts` also needs
+nothing, because it passes unrecognised keys through with `...rest` spreads
+— but that is exactly why it deserves an explicit round-trip test rather
+than an assumption (Phase 100 added `.adlj` → print → `importAdlAsAdlj` →
+`.adlj` → identical model over Giggle Band).
 
 **Getting a real reference app to round-trip finds real printer defects a
 narrow fixture never would — this is the actual value of the Giggle Band

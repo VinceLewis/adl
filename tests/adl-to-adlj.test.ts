@@ -67,34 +67,6 @@ function sortedComments(value: unknown): string[] {
   return collectComments(value).slice().sort();
 }
 
-/**
- * Deep-clones a `PartialApplicationModel` with every key from the small,
- * named set of constructs that have no ADL text syntax at all removed --
- * a calendar's own `conflictOverlay`
- * (`ResolvedPresentationCalendarConflictOverlay`), and a `CHILD_COLLECTION`
- * section's own `projectedFields`/`summary` (`ResolvedProjectedField[]` /
- * `ResolvedEditChildCollectionSummary`, Phase 87) -- see `docs/spec/adlj.md`'s
- * "The printer". Each name is specific enough to its one construct that
- * removing it wherever it appears, rather than walking the typed structure to
- * its exact path, is safe.
- */
-function withoutUnprintableJsonOnlyConstructs<T>(value: T): T {
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => withoutUnprintableJsonOnlyConstructs(item)) as unknown as T;
-  }
-  const result: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-    if (key === "conflictOverlay" || key === "projectedFields" || key === "summary") {
-      continue;
-    }
-    result[key] = withoutUnprintableJsonOnlyConstructs(val);
-  }
-  return result as T;
-}
-
 describe("partialApplicationModelToAdljSource", () => {
   it("converts a hand-built PartialApplicationModel's computed field, object validation, and policy condition to infix strings", () => {
     const model: PartialApplicationModel = {
@@ -189,6 +161,31 @@ END.OBJECT
     expect(result.document).toBeUndefined();
   });
 
+  it("carries Giggle Band all the way round: .adlj -> print -> import -> .adlj -> identical model", () => {
+    // The importer shares `PartialApplicationModel` with the printer and passes
+    // most structures through untouched, so a construct the printer newly
+    // learned to emit reaches the importer with no code of its own. That is
+    // the cheap case to get wrong silently, and Giggle Band is the only source
+    // exercising `conflictOverlay`, `projectedFields` and `summary` at all —
+    // so the full circle is what proves the importer carries them. Phase 100.
+    const original = compileAdlProjectV2({
+      manifestSource: readReference("giggle-band/app.yaml"),
+      sources: {
+        "domain.adlj": readReference("giggle-band/domain.adlj"),
+        "ui.adlj": readReference("giggle-band/ui.adlj"),
+      },
+    });
+    expect(original.diagnostics).toEqual([]);
+
+    const imported = importAdlAsAdlj(printPartialApplicationModelAsAdl(original.partialModel));
+    expect(imported.diagnostics).toEqual([]);
+    expect(imported.document).toBeDefined();
+
+    const recompiled = compileAdlj(JSON.stringify(imported.document));
+    expect(recompiled.diagnostics).toEqual([]);
+    expect(recompiled.model).toEqual(original.model);
+  });
+
   it("round-trips task-tracker.adl through .adlj to an identical resolved model", () => {
     const adlResult = compileAdl(readExample("task-tracker.adl"));
     expect(adlResult.diagnostics).toEqual([]);
@@ -255,9 +252,11 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
     // comment (`DuplicateGig`), a row ACTION comment (`duplicateGig`), a
     // PICKER comment (`SongPicker`), and READ_MODEL/FIELD comments on
     // `SentBandInvitations`/`MyAvailabilityWithGigs`. It also exercises a
-    // second unprintable construct beyond `conflictOverlay`: `SetListForm`'s
-    // `Songs` child collection declares `projectedFields`/`summary`
-    // (Phase 87), also `.adlj`-only.
+    // second construct that used to be unprintable beyond `conflictOverlay`:
+    // `SetListForm`'s `Songs` child collection declares
+    // `projectedFields`/`summary` (Phase 87). Both gained text syntax in
+    // Phase 100, so this now prints the real model rather than a stripped
+    // clone of it.
     const original = compileAdlProjectV2({
       manifestSource: readReference("giggle-band/app.yaml"),
       sources: {
@@ -271,21 +270,7 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
     // Sanity: this must be a real, non-vacuous proof against real content.
     expect(originalComments.length).toBeGreaterThanOrEqual(10);
 
-    // `BandEventCalendar`'s `MonthPlanner` calendar declares a
-    // `conflictOverlay` (see `ResolvedPresentationCalendarConflictOverlay`),
-    // and `SetListForm`'s `Songs` section declares `projectedFields`/
-    // `summary` (Phase 87) -- all in the small, named set of constructs with
-    // no ADL text syntax at all -- same treatment as `MATRIX`, a `select`
-    // control, or a conditional row fragment (see `docs/spec/adlj.md`'s "The
-    // printer" section). The printer correctly refuses to print any of them;
-    // this test's own job is comment preservation across the rest of the
-    // model, so these fields are stripped from a clone before printing,
-    // exactly the way a real caller of `printPartialApplicationModelAsAdl`
-    // has to route around any unprintable construct today. None of them
-    // carries a `comment` of its own, so this does not remove anything
-    // `originalComments` above already counted.
-    const printableModel = withoutUnprintableJsonOnlyConstructs(original.partialModel);
-    const printed = printPartialApplicationModelAsAdl(printableModel);
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
     for (const comment of originalComments) {
       for (const line of comment.split("\n")) {
         expect(printed).toContain(line.length === 0 ? "#" : `# ${line}`);

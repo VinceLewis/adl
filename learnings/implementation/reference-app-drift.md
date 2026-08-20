@@ -55,15 +55,19 @@ drift that has no second artifact cannot recur, and needs no test to say so.
 
 ## It could not be regenerated, and that decided most of the design space
 
-`printPartialApplicationModelAsAdl` **refuses** the real Giggle Band source.
-Iteratively stripping each refusal enumerates exactly three blockers, all in
-`docs/spec/adlj.md`'s named list of constructs with no ADL text syntax at all:
+`printPartialApplicationModelAsAdl` **refused** the real Giggle Band source
+at the time of Phase 94. Iteratively stripping each refusal enumerated exactly
+three blockers, all on `docs/spec/adlj.md`'s named list of constructs with no
+ADL text syntax at all:
 
 - a calendar's `conflictOverlay` (Phase 86)
 - a child collection's `projectedFields` (Phase 87)
 - a child collection's `summary` (Phase 87)
 
-So there is no `.adl` text that says what the `.adlj` says. Before proposing
+So at that point there was no `.adl` text that said what the `.adlj` said.
+**Phase 100 gave all three text syntax and Giggle Band round-trips again** —
+which does not retire the lesson below, it confirms the *diagnosis*: the fix
+was to close the grammar gap, not to regenerate around it. Before proposing
 "just regenerate the `.adl` from the `.adlj`" for any reference app, print it
 and see: as the `.adlj` surface keeps growing constructs ahead of the text
 grammar, the printable subset shrinks, and a regeneration that "succeeds" by

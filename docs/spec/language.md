@@ -896,10 +896,15 @@ THEME colorStatusEvent PRECEDENCE 10`
 - `LEGEND Name TITLE 'Title' STATUSES statusName ...`
 - `SECTION Name ... END.SECTION`
 
-Sections may declare `HEADING`, local layout/density hints, `TOGGLE` controls,
-and `LIST` blocks. Lists bind to an object or read model and support `ORDER BY`,
-`WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, repeatable `STATUS` candidates,
-and a `ROW` template.
+Sections may declare `HEADING`, local layout/density hints, controls
+(`TOGGLE`, `SELECT`, `CONTEXT_SELECTOR`, `ACTION`), `LIST` blocks and
+`CALENDAR` blocks. Lists bind to an object or read model and support `FIELDS`,
+`ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, `EMPTY_ICON`,
+repeatable `STATUS` candidates, and a `ROW` template.
+
+A `ROW`'s `TEXT <field>` fragment accepts `FORMAT`, `FALLBACK 'text'` — what to
+render when the field is null — and `STYLE`. `FALLBACK` is refused on a literal
+`TEXT 'text'` fragment, which has no field that could be null.
 
 ```adl
 VIEW HomeDashboard DASHBOARD
@@ -1002,6 +1007,80 @@ from. It resolves only inside a row `ACTION`'s own `INPUT`/`WHEN`
 expressions; `LIST WHERE` and `ROW` fragments still see only the list's
 projected field values and cannot reference it.
 
+### Controls beyond `TOGGLE`
+
+`TOGGLE Name ... END.TOGGLE` binds a control to one Boolean piece of local
+`STATE`; `STATE` defaults to the control's own name. Two siblings share its
+shape:
+
+- `SELECT Name ... END.SELECT` offers a closed list of values for one piece of
+  local state instead of two. It takes the same `STATE`, `LABEL` and `ICON`
+  clauses, plus repeatable `OPTION <value> LABEL 'text' [ICON iconRef]`. An
+  option must carry a `LABEL`: an option with none renders a blank row, so it
+  is refused rather than defaulted to the value's own text.
+- `CONTEXT_SELECTOR Name ... END.CONTEXT_SELECTOR` places a context picker
+  inside a composed section, taking `LABEL`, `ICON` and an optional
+  `CONTEXT <context>`. Omitting `CONTEXT` offers whatever context the view is
+  bound to. This is the *view-local* selector; the application-wide one is
+  `SHELL`'s `CONTROL ... KIND contextSelector` (see
+  [shell-navigation](#shell-navigation)).
+
+```adl
+SELECT eventType STATE eventTypeFilter LABEL 'Event type' ICON calendar
+  OPTION 'Gig' LABEL 'Gigs' ICON music
+  OPTION 'Rehearsal' LABEL 'Rehearsals'
+END.SELECT
+```
+
+### Calendars
+
+`CALENDAR Name FROM OBJECT <object>|READ_MODEL <read model> ... END.CALENDAR`
+binds a month calendar. Its directives are `DATE_FIELD`, `TITLE_FIELD`,
+`SUMMARY_FIELDS`, `FIELDS`, `ORDER BY`, `DENSITY`, `MONTH 'yyyy-MM'`,
+`MONTH_STATE <state>`, `WEEK_START`, `MONTH_LABEL_FORMAT`, `RANGE 'from' TO
+'to'`, `EMPTY_TEXT`, `EMPTY_ICON`, repeatable `STATUS` candidates, cell
+`ACTION`s, and `CONFLICT_OVERLAY`.
+
+`MONTH_LABEL_FORMAT date 'MMMM yyyy'` takes the same format kind and pattern a
+row fragment's `FORMAT` does, and governs how the month heading is rendered.
+
+`CONFLICT_OVERLAY FROM READ_MODEL <read model> ... END.CONFLICT_OVERLAY` layers
+a correlated status onto specific dates of the calendar's own rows, without
+altering what those rows already show:
+
+```adl
+CALENDAR MonthPlanner FROM READ_MODEL BandMonthEvents
+  DATE_FIELD Date
+  TITLE_FIELD Title
+  MONTH_STATE visibleMonth
+  WEEK_START monday
+  EMPTY_TEXT 'No events in this month'
+  STATUS CalendarEventTypeStatus(CalendarStatus)
+
+  CONFLICT_OVERLAY FROM READ_MODEL EventAvailabilityConflicts
+    DATE_FIELD Date
+    FLAG_FIELD IsConflict
+    STATUS conflict
+  END.CONFLICT_OVERLAY
+END.CALENDAR
+```
+
+All four parts are required. `FROM READ_MODEL` names a **second**,
+independently executed read model — never the calendar's own `source`.
+`DATE_FIELD` and `FLAG_FIELD` are that read model's own output fields: a row
+marks its date only when `FLAG_FIELD` is `true`, so a read model that also
+projects correlated but non-conflicting rows does not falsely flag them.
+`STATUS` names a status already declared on the consuming view.
+
+The overlay exists because neither read-model strategy can express this alone:
+a `UNION` read model may not declare a `JOIN`
+(`ADL_READ_MODEL_JOIN_STRATEGY_INVALID`), and a `JOIN`-strategy read model's
+inner-join semantics would drop every non-matching row of whichever source is
+not primary — which is exactly the ordinary, non-conflicting rows the calendar
+still has to show. The block above is Giggle Band's own `MonthPlanner`,
+trimmed of its `DENSITY` and its cell `ACTION`; the full calendar is the
+`BandEventCalendar` view in `src/reference/giggle-band/ui.adlj`.
+
 Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
 framework component names, procedural render loops, or host functions.
 
@@ -1057,7 +1136,42 @@ records edited inside the parent's form:
   surfaces rather than offered as an input; see
   [ui-language-addendum#implementation-notes](ui-language-addendum.md).
 - `EMPTY_TEXT 'text'` — what to show when the collection is empty.
+- `PROJECTED_FIELD <name> THROUGH <lookup field> FIELD <target field>` —
+  repeatable. Adds a row field sourced from a *related* object reached through
+  one of the child object's own lookup fields, rather than from the child's own
+  stored fields. `THROUGH` must name a field on the child object carrying a
+  `LOOKUP`; `FIELD` must exist on that lookup's target object and not be
+  hidden; `<name>` must not collide with any field name, own or projected,
+  already on the section. It reaches exactly one hop — the two clauses are
+  separate rather than a dotted `Song.DurationSeconds` path precisely because a
+  dotted path would read as though it could reach further.
+- `SUMMARY ... END.SUMMARY` — see below.
 - `PICKER ... END.PICKER` — see below.
+
+`SUMMARY <aggregate> [<field>] ... END.SUMMARY` declares a single aggregated
+value over the collection's current rows — persisted and staged together, so it
+updates live as a person edits — shown once above or below the rows:
+
+```adl
+SUMMARY SUM DurationSeconds
+  LABEL 'Total'
+  FORMAT duration 'm:ss'
+  PLACEMENT footer
+END.SUMMARY
+```
+
+- The aggregate is one of `sum`, `avg`, `min`, `max`, `count`. The vocabulary is
+  deliberately closed rather than an open expression grammar: every declarative
+  totals feature checked while designing this converges on the same five.
+- The field goes on the header line, the way an aggregate reads everywhere
+  else. It may name a field on the child object or one of the section's own
+  `PROJECTED_FIELD` names, and must be numeric for every aggregate except
+  `count`. It is optional only for `count`: `SUMMARY COUNT` counts every row,
+  while `SUMMARY COUNT Something` counts rows with a non-null value for that
+  field.
+- `LABEL 'text'`, `FORMAT <kind> ['pattern']` and `PLACEMENT header|footer` may
+  each appear on the header line or as their own directive. `PLACEMENT`
+  defaults to `footer` and `FORMAT` to `number`.
 
 `PICKER Name ... END.PICKER` declares how a caller chooses what to add to the
 collection. It has two modes, and `CANDIDATE_FIELD` is what chooses between them:
@@ -1185,9 +1299,17 @@ here for exposition and are not in the source. The surrounding `SetList` and
 business-context `SCOPE`, `UNIQUE`/`ORDERED` constraints, `SYNC`, and several
 more fields. The full `SetListForm` view is in
 `src/reference/giggle-band/ui.adlj` and the full `SetList`/`SetListItem`
-objects are in `domain.adlj`. Note that the real `Songs` child collection also
-declares `projectedFields` and a `summary`, which have no ADL text syntax and
-therefore cannot appear in an example here at all.
+objects are in `domain.adlj`. The real `Songs` collection also declares a
+projected field and a summary, which print as:
+
+```adl
+PROJECTED_FIELD DurationSeconds THROUGH Song FIELD DurationSeconds
+SUMMARY SUM DurationSeconds
+  LABEL 'Total'
+  FORMAT duration 'm:ss'
+  PLACEMENT footer
+END.SUMMARY
+```
 
 Choosing three songs there stages three `createChild` operations, each carrying
 the chosen song's id in `Song`, each appended to the end of the set list. Songs

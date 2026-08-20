@@ -142,11 +142,12 @@ TOGGLE showGigs
 END.TOGGLE
 ```
 
-Implemented source syntax includes `TOGGLE` for Boolean local state and
-`ACTION` for command or navigation controls. The resolved model also has
-generic `select` and `contextSelector` control shapes for JSON/TypeScript
-partial models, but ADL source syntax for those controls is not implemented
-yet.
+Implemented source syntax includes `TOGGLE` for Boolean local state, `SELECT`
+for a closed list of values over one piece of local state, `CONTEXT_SELECTOR`
+for a view-local context picker, and `ACTION` for command or navigation
+controls. All four control kinds in the resolved model now have ADL source
+syntax; `SELECT` and `CONTEXT_SELECTOR` gained theirs in Phase 100 — see
+[language#controls-beyond-toggle](language.md).
 
 Action controls declare renderer-neutral intent, not host callbacks:
 
@@ -438,7 +439,9 @@ A model that declares no shell gets both by default, in the order
 
 Per-view `presentation.shell.regions` remains available in JSON/TypeScript
 partial models for view-local presentation-control placement, but source syntax
-for view-declared shell regions is not implemented.
+for view-declared shell regions is not implemented. Phase 100 left it that way
+on purpose rather than by omission: whether it should exist at all is still an
+open question below, and inventing syntax would answer it by fiat.
 
 ## Giggle Dashboard Example
 
@@ -605,7 +608,7 @@ The implemented presentation model resolves to structured data for:
 - semantic statuses, status maps, status precedence, and legends
 - format declarations
 - empty states
-- shell regions in JSON/TypeScript partial models only
+- per-view shell regions in JSON/TypeScript partial models only
 
 Runtime services should still consume the resolved model, not ADL syntax or raw
 parser AST nodes.
@@ -668,24 +671,32 @@ Parser/compiler support is implemented for the smallest useful subset:
 2. local `STATE`
 3. `TOGGLE`
 4. `LIST ... FROM ...`
-5. list `ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`, and `EMPTY_TEXT`
+5. list `FIELDS`, `ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`
+   and `EMPTY_ICON`
 6. `ROW`
-7. `TEXT` literals and fields with `FORMAT` and `STYLE bold`
+7. `TEXT` literals and fields with `FORMAT`, `FALLBACK` and `STYLE bold`
 8. `ICON`
 9. `ICON_MAP`
 10. `STATUS`, `STATUS_MAP`, `LEGEND`, and list/calendar `STATUS` candidates
 11. `CALENDAR ... FROM ...` with `DATE_FIELD`, `TITLE_FIELD`,
-    `SUMMARY_FIELDS`, `MONTH`, `MONTH_STATE`, `WEEK_START`, `RANGE`,
-    `EMPTY_TEXT`, and cell `ACTION`
+    `SUMMARY_FIELDS`, `FIELDS`, `MONTH`, `MONTH_STATE`, `WEEK_START`,
+    `MONTH_LABEL_FORMAT`, `RANGE`, `EMPTY_TEXT`, `EMPTY_ICON`, cell `ACTION`,
+    and `CONFLICT_OVERLAY`
 12. edit surfaces: `EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION` with
     `CHILD ... PARENT_FIELD`, `CHILD_VIEW`, `OPERATIONS`, `STAGED`,
-    `ORDER_FIELD` and `EMPTY_TEXT`, and a nested `PICKER` with `SOURCE`,
-    `CANDIDATE_FIELD`, `SELECTION`, `DISPLAY`, `SEARCH`, `SORT`,
-    `EXCLUDE_LINKED` and `EMPTY_TEXT`
+    `ORDER_FIELD`, `EMPTY_TEXT`, `PROJECTED_FIELD` and `SUMMARY`, and a nested
+    `PICKER` with `SOURCE`, `CANDIDATE_FIELD`, `SELECTION`, `DISPLAY`,
+    `SEARCH`, `SORT`, `EXCLUDE_LINKED` and `EMPTY_TEXT`
+13. `SELECT` and `CONTEXT_SELECTOR` controls (Phase 100)
 
-Unsupported source constructs include `SELECT`, `CONTEXT_SELECTOR`, arbitrary
-CSS, raw SVG, framework component names, host callbacks, procedural render
-loops, and DOM-specific declarations.
+Items 5, 7, 11, 12 and 13 reached their current extent in Phase 100, which
+closed the gap between what `.adlj` can declare and what `.adl` text can say;
+see [adlj#the-printer-one-direction-only](adlj.md) for the three constructs
+that remain `.adlj`-only and why.
+
+Unsupported source constructs include arbitrary CSS, raw SVG, framework
+component names, host callbacks, procedural render loops, and DOM-specific
+declarations.
 
 The first implementation target was the Giggle Band home dashboard, and it
 proved that non-CRUD presentation can be authored without app-specific UI
@@ -848,12 +859,14 @@ and fall back to raw values where possible.
 ## Open Questions
 
 - Should view-scoped shell regions get source syntax, or should shell stay
-  global with view-local controls referenced through presentation?
+  global with view-local controls referenced through presentation? (Still open;
+  Phase 100 deferred the printer's own gap here rather than pre-empt it.)
 - Should icon names be restricted to a standard set at compile time?
 - Should date/time format strings use a single ADL-supported pattern language
   across runtimes?
 - Should view-local state be persisted per device, per user, or only in memory?
 - How much conditional logic should be allowed in row templates before it
-  becomes a computed/read-model concern?
+  becomes a computed/read-model concern? (Still open, and the reason conditional
+  row fragments still have no `ROW` syntax.)
 - Should `RENDER_AS` values be standardized, or should they be theme/runtime
   extension points?

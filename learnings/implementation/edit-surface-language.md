@@ -376,11 +376,16 @@ related object reached through one of the child object's own lookup fields —
 stored fields) and `summary?: ResolvedEditChildCollectionSummary` (one
 aggregated value — `sum`/`avg`/`min`/`max`/`count` — over the collection's
 current rows, persisted and staged together, at `header` or `footer`).
-Neither has `.adl` text syntax — same treatment as `MATRIX` and a calendar's
-`conflictOverlay` (see `docs/spec/adlj.md`'s "no ADL text syntax" list) —
-because the concrete need was JSON-authorable already and inventing text
-grammar under time pressure for a construct not yet proven out is how a
-language accumulates syntax nobody asked for.
+Neither had `.adl` text syntax when Phase 87 added them — same treatment as
+`MATRIX` and a calendar's `conflictOverlay` — because the concrete need was
+JSON-authorable already and inventing text grammar under time pressure for a
+construct not yet proven out is how a language accumulates syntax nobody asked
+for. Phase 100 added it once both were proven out in a shipped application:
+`PROJECTED_FIELD <name> THROUGH <lookup> FIELD <target>` and
+`SUMMARY <aggregate> [<field>] ... END.SUMMARY` (see
+`docs/spec/language.md`'s Edit Surfaces section). The deferral was the right
+call in Phase 87 and closing it was the right call in Phase 100; what changed
+in between is that the constructs stopped being speculative.
 
 ### Two alternatives considered and rejected
 

@@ -8,7 +8,10 @@ import type {
 } from "../../model/resolved-model.js";
 import type {
   PresentationActionControlDeclarationAst,
+  PresentationCalendarConflictOverlayDeclarationAst,
   PresentationCalendarDeclarationAst,
+  PresentationFormatDeclarationAst,
+  PresentationIconRefDeclarationAst,
   PresentationListDeclarationAst,
   PresentationRowTemplateDeclarationAst,
   PresentationStatusCandidateDeclarationAst,
@@ -35,9 +38,11 @@ export class PresentationSourceParser extends PresentationActionParser {
     const source = this.consumeName("list source");
     let renderAs: PresentationListRenderStyle | undefined;
     let density: PresentationDensity | undefined;
+    const fields: string[] = [];
     const sort: SortDeclarationAst[] = [];
     let filter: ResolvedExpression | undefined;
     let emptyText: string | undefined;
+    let emptyIcon: PresentationIconRefDeclarationAst | undefined;
     const statusCandidates: PresentationStatusCandidateDeclarationAst[] = [];
     const actions: PresentationActionControlDeclarationAst[] = [];
     let row: PresentationRowTemplateDeclarationAst | undefined;
@@ -59,9 +64,11 @@ export class PresentationSourceParser extends PresentationActionParser {
           source,
           ...(renderAs === undefined ? {} : { renderAs }),
           ...(density === undefined ? {} : { density }),
+          fields,
           sort,
           ...(filter === undefined ? {} : { filter }),
           ...(emptyText === undefined ? {} : { emptyText }),
+          ...(emptyIcon === undefined ? {} : { emptyIcon }),
           statusCandidates,
           actions,
           ...(row === undefined ? {} : { row }),
@@ -70,7 +77,10 @@ export class PresentationSourceParser extends PresentationActionParser {
         };
       }
 
-      if (this.matchWord("ORDER")) {
+      if (this.matchWord("FIELDS")) {
+        fields.push(...this.consumeNameListUntilLine("list fields"));
+        this.consumeLineEnd("LIST FIELDS directive");
+      } else if (this.matchWord("ORDER")) {
         this.expectWord("BY", "LIST ORDER BY clause");
         sort.push(...this.parseSortList());
         this.consumeLineEnd("LIST ORDER BY directive");
@@ -86,6 +96,9 @@ export class PresentationSourceParser extends PresentationActionParser {
       } else if (this.matchWord("EMPTY_TEXT")) {
         emptyText = String(this.consumeLiteral("LIST EMPTY_TEXT value"));
         this.consumeLineEnd("LIST EMPTY_TEXT directive");
+      } else if (this.matchWord("EMPTY_ICON")) {
+        emptyIcon = this.parsePresentationIconRef("value");
+        this.consumeLineEnd("LIST EMPTY_ICON directive");
       } else if (this.checkWord("STATUS")) {
         statusCandidates.push(this.parsePresentationStatusCandidate());
       } else if (this.checkWord("ACTION")) {
@@ -96,7 +109,7 @@ export class PresentationSourceParser extends PresentationActionParser {
         this.failExpected("END.LIST", this.current());
       } else {
         this.failUnexpected(
-          "LIST directive ORDER BY, WHERE, RENDER_AS, DENSITY, EMPTY_TEXT, STATUS, ACTION, ROW, or END.LIST",
+          "LIST directive FIELDS, ORDER BY, WHERE, RENDER_AS, DENSITY, EMPTY_TEXT, EMPTY_ICON, STATUS, ACTION, ROW, or END.LIST",
         );
       }
     }
@@ -121,9 +134,12 @@ export class PresentationSourceParser extends PresentationActionParser {
     let monthValue: string | undefined;
     let monthState: string | undefined;
     let weekStart: PresentationCalendarWeekStart | undefined;
+    let monthLabelFormat: PresentationFormatDeclarationAst | undefined;
     let minDate: string | undefined;
     let maxDate: string | undefined;
     let emptyText: string | undefined;
+    let emptyIcon: PresentationIconRefDeclarationAst | undefined;
+    let conflictOverlay: PresentationCalendarConflictOverlayDeclarationAst | undefined;
     const summaryFields: string[] = [];
     const fields: string[] = [];
     const sort: SortDeclarationAst[] = [];
@@ -154,11 +170,14 @@ export class PresentationSourceParser extends PresentationActionParser {
           ...(monthValue === undefined ? {} : { monthValue }),
           ...(monthState === undefined ? {} : { monthState }),
           ...(weekStart === undefined ? {} : { weekStart }),
+          ...(monthLabelFormat === undefined ? {} : { monthLabelFormat }),
           ...(minDate === undefined ? {} : { minDate }),
           ...(maxDate === undefined ? {} : { maxDate }),
           statusCandidates,
           actions,
           ...(emptyText === undefined ? {} : { emptyText }),
+          ...(emptyIcon === undefined ? {} : { emptyIcon }),
+          ...(conflictOverlay === undefined ? {} : { conflictOverlay }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -205,6 +224,9 @@ export class PresentationSourceParser extends PresentationActionParser {
       ) {
         weekStart = this.parsePresentationCalendarWeekStart();
         this.consumeLineEnd("CALENDAR WEEK_START directive");
+      } else if (this.matchWord("MONTH_LABEL_FORMAT")) {
+        monthLabelFormat = this.parsePresentationFormat();
+        this.consumeLineEnd("CALENDAR MONTH_LABEL_FORMAT directive");
       } else if (this.matchWord("RANGE")) {
         minDate = String(this.consumeLiteral("CALENDAR RANGE start"));
         this.expectWord("TO", "CALENDAR RANGE TO clause");
@@ -213,6 +235,11 @@ export class PresentationSourceParser extends PresentationActionParser {
       } else if (this.matchWord("EMPTY_TEXT")) {
         emptyText = String(this.consumeLiteral("CALENDAR EMPTY_TEXT value"));
         this.consumeLineEnd("CALENDAR EMPTY_TEXT directive");
+      } else if (this.matchWord("EMPTY_ICON")) {
+        emptyIcon = this.parsePresentationIconRef("value");
+        this.consumeLineEnd("CALENDAR EMPTY_ICON directive");
+      } else if (this.checkWord("CONFLICT_OVERLAY")) {
+        conflictOverlay = this.parsePresentationCalendarConflictOverlay();
       } else if (this.checkWord("STATUS")) {
         statusCandidates.push(this.parsePresentationStatusCandidate());
       } else if (this.checkWord("ACTION")) {
@@ -221,7 +248,106 @@ export class PresentationSourceParser extends PresentationActionParser {
         this.failExpected("END.CALENDAR", this.current());
       } else {
         this.failUnexpected(
-          "CALENDAR directive DATE_FIELD, TITLE_FIELD, SUMMARY_FIELDS, FIELDS, ORDER BY, DENSITY, MONTH, MONTH_STATE, WEEK_START, RANGE, EMPTY_TEXT, STATUS, ACTION, or END.CALENDAR",
+          "CALENDAR directive DATE_FIELD, TITLE_FIELD, SUMMARY_FIELDS, FIELDS, ORDER BY, DENSITY, MONTH, MONTH_STATE, WEEK_START, MONTH_LABEL_FORMAT, RANGE, EMPTY_TEXT, EMPTY_ICON, CONFLICT_OVERLAY, STATUS, ACTION, or END.CALENDAR",
+        );
+      }
+    }
+  }
+
+  /**
+   * ```adl
+   * CONFLICT_OVERLAY FROM READ_MODEL EventAvailabilityConflicts
+   *   DATE_FIELD Date
+   *   FLAG_FIELD IsConflict
+   *   STATUS conflict
+   * END.CONFLICT_OVERLAY
+   * ```
+   *
+   * Block form rather than one long header line, because it carries four
+   * clauses and every other multi-clause presentation construct here (`LIST`,
+   * `CALENDAR`, `PICKER`, `TOGGLE`, `ACTION`) is a block. `FROM READ_MODEL`
+   * mirrors the calendar's own header even though a read model is the only
+   * thing an overlay can be bound to: the overlay exists precisely because it
+   * is a *second* read model, and spelling that out is what distinguishes it
+   * from the calendar's `source` directly above it.
+   */
+  private parsePresentationCalendarConflictOverlay(): PresentationCalendarConflictOverlayDeclarationAst {
+    const startToken = this.expectWord("CONFLICT_OVERLAY", "CONFLICT_OVERLAY declaration");
+    this.expectWord("FROM", "CONFLICT_OVERLAY FROM clause");
+    this.expectUnderscoreOrDottedWord(
+      "CONFLICT_OVERLAY FROM READ_MODEL",
+      "READ_MODEL",
+      "READ",
+      "MODEL",
+      "CONFLICT_OVERLAY FROM clause",
+    );
+    const readModel = this.consumeName("conflict overlay read model");
+    let dateField: string | undefined;
+    let flagField: string | undefined;
+    let status: string | undefined;
+    this.consumeLineEnd("CONFLICT_OVERLAY declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.CONFLICT_OVERLAY", this.current());
+      }
+
+      if (this.checkEnd("CONFLICT_OVERLAY")) {
+        const end = this.parseEnd("CONFLICT_OVERLAY");
+
+        // All three are required by `ResolvedPresentationCalendarConflictOverlay`,
+        // which declares none of them optional, so an incomplete block is
+        // refused here rather than producing a partial model no resolver can
+        // complete.
+        if (dateField === undefined) {
+          this.failExpected("CONFLICT_OVERLAY DATE_FIELD directive", this.previous());
+        }
+        if (flagField === undefined) {
+          this.failExpected("CONFLICT_OVERLAY FLAG_FIELD directive", this.previous());
+        }
+        if (status === undefined) {
+          this.failExpected("CONFLICT_OVERLAY STATUS directive", this.previous());
+        }
+
+        return {
+          kind: "PresentationCalendarConflictOverlayDeclaration",
+          readModel,
+          dateField,
+          flagField,
+          status,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (
+        this.matchUnderscoreOrDottedWord(
+          "CONFLICT_OVERLAY DATE_FIELD",
+          "DATE_FIELD",
+          "DATE",
+          "FIELD",
+        )
+      ) {
+        dateField = this.consumeName("CONFLICT_OVERLAY DATE_FIELD value");
+        this.consumeLineEnd("CONFLICT_OVERLAY DATE_FIELD directive");
+      } else if (
+        this.matchUnderscoreOrDottedWord(
+          "CONFLICT_OVERLAY FLAG_FIELD",
+          "FLAG_FIELD",
+          "FLAG",
+          "FIELD",
+        )
+      ) {
+        flagField = this.consumeName("CONFLICT_OVERLAY FLAG_FIELD value");
+        this.consumeLineEnd("CONFLICT_OVERLAY FLAG_FIELD directive");
+      } else if (this.matchWord("STATUS")) {
+        status = this.consumeName("CONFLICT_OVERLAY STATUS value");
+        this.consumeLineEnd("CONFLICT_OVERLAY STATUS directive");
+      } else {
+        this.failUnexpected(
+          "CONFLICT_OVERLAY directive DATE_FIELD, FLAG_FIELD, STATUS, or END.CONFLICT_OVERLAY",
         );
       }
     }

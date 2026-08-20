@@ -1,5 +1,7 @@
 import type {
   ConflictStrategy,
+  EditChildCollectionSummaryAggregate,
+  EditChildCollectionSummaryPlacement,
   EditChildOperationKind,
   EditContainerMode,
   FieldType,
@@ -77,8 +79,11 @@ export type BlockName =
   | "READ_MODEL"
   | "SECTION"
   | "TOGGLE"
+  | "SELECT"
+  | "CONTEXT_SELECTOR"
   | "LIST"
   | "CALENDAR"
+  | "CONFLICT_OVERLAY"
   | "ROW"
   | "ICON_MAP"
   | "STATUS_MAP"
@@ -86,6 +91,7 @@ export type BlockName =
   | "SHELL"
   | "EDIT_SECTION"
   | "CHILD_COLLECTION"
+  | "SUMMARY"
   | "PICKER";
 
 export interface EndMarkerNode {
@@ -540,6 +546,29 @@ export interface EditChildCollectionDeclarationAst {
   orderField?: string;
   emptyText?: string;
   picker?: RelationshipPickerDeclarationAst;
+  projectedFields: ProjectedFieldDeclarationAst[];
+  summary?: EditChildCollectionSummaryDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+/** `PROJECTED_FIELD <name> THROUGH <lookup field> FIELD <target field>`. */
+export interface ProjectedFieldDeclarationAst {
+  kind: "ProjectedFieldDeclaration";
+  name: string;
+  through: string;
+  field: string;
+  range: SourceRange;
+}
+
+/** `SUMMARY <aggregate> [<field>] ... END.SUMMARY`. */
+export interface EditChildCollectionSummaryDeclarationAst {
+  kind: "EditChildCollectionSummaryDeclaration";
+  aggregate: EditChildCollectionSummaryAggregate;
+  field?: string;
+  label?: string;
+  format?: PresentationFormatDeclarationAst;
+  placement?: EditChildCollectionSummaryPlacement;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -655,6 +684,8 @@ export interface PresentationSectionDeclarationAst {
 
 export type PresentationControlDeclarationAst =
   | PresentationToggleControlDeclarationAst
+  | PresentationSelectControlDeclarationAst
+  | PresentationContextSelectorControlDeclarationAst
   | PresentationActionControlDeclarationAst;
 
 export interface PresentationToggleControlDeclarationAst {
@@ -663,6 +694,35 @@ export interface PresentationToggleControlDeclarationAst {
   state: string;
   label?: string;
   icon?: PresentationIconRefDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationSelectControlDeclarationAst {
+  kind: "PresentationSelectControlDeclaration";
+  name: string;
+  state: string;
+  label?: string;
+  icon?: PresentationIconRefDeclarationAst;
+  options: PresentationSelectOptionDeclarationAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+export interface PresentationSelectOptionDeclarationAst {
+  kind: "PresentationSelectOptionDeclaration";
+  value: JsonPrimitive;
+  label: string;
+  icon?: PresentationIconRefDeclarationAst;
+  range: SourceRange;
+}
+
+export interface PresentationContextSelectorControlDeclarationAst {
+  kind: "PresentationContextSelectorControlDeclaration";
+  name: string;
+  label?: string;
+  icon?: PresentationIconRefDeclarationAst;
+  context?: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -699,9 +759,11 @@ export interface PresentationListDeclarationAst {
   source: string;
   renderAs?: PresentationListRenderStyle;
   density?: PresentationDensity;
+  fields: string[];
   sort: SortDeclarationAst[];
   filter?: ResolvedExpression;
   emptyText?: string;
+  emptyIcon?: PresentationIconRefDeclarationAst;
   statusCandidates: PresentationStatusCandidateDeclarationAst[];
   actions: PresentationActionControlDeclarationAst[];
   row?: PresentationRowTemplateDeclarationAst;
@@ -723,11 +785,30 @@ export interface PresentationCalendarDeclarationAst {
   monthValue?: string;
   monthState?: string;
   weekStart?: PresentationCalendarWeekStart;
+  monthLabelFormat?: PresentationFormatDeclarationAst;
   minDate?: string;
   maxDate?: string;
   statusCandidates: PresentationStatusCandidateDeclarationAst[];
   actions: PresentationActionControlDeclarationAst[];
   emptyText?: string;
+  emptyIcon?: PresentationIconRefDeclarationAst;
+  conflictOverlay?: PresentationCalendarConflictOverlayDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+/**
+ * `CONFLICT_OVERLAY FROM READ_MODEL <name> ... END.CONFLICT_OVERLAY`: a second,
+ * independently executed read model layering a correlated status onto the
+ * calendar's own rows. All four parts are required, matching
+ * `ResolvedPresentationCalendarConflictOverlay`, which declares none optional.
+ */
+export interface PresentationCalendarConflictOverlayDeclarationAst {
+  kind: "PresentationCalendarConflictOverlayDeclaration";
+  readModel: string;
+  dateField: string;
+  flagField: string;
+  status: string;
   end: EndMarkerNode;
   range: SourceRange;
 }
@@ -762,6 +843,7 @@ export interface PresentationFieldTextFragmentDeclarationAst {
   field: string;
   style?: PresentationFragmentStyle;
   format?: PresentationFormatDeclarationAst;
+  fallback?: string;
   range: SourceRange;
 }
 

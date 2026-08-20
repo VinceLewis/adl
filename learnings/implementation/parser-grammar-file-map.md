@@ -89,6 +89,17 @@ its callers and above its callees. If the new area is called by an existing
 one, it must sit *below* that caller — which usually means inserting it just
 above `literals.ts`/`expression.ts` rather than appending at the end.
 
+**A new block terminated by `END.X` needs `X` added to `BlockName` in
+`src/parser/ast.ts`.** `parseEnd`/`checkEnd` take a `BlockName`, not a string,
+so this is a `tsc` error rather than a silent gap — but it lives in a different
+file from the grammar and is easy to miss when planning the change. Phase 100
+added four (`SELECT`, `CONTEXT_SELECTOR`, `CONFLICT_OVERLAY`, `SUMMARY`), and
+that was the whole list of surprises the chain produced: adding directives to
+`presentation-source`, `presentation-core` and `view` needed no relocation at
+all, because everything they call — `parsePresentationFormat`,
+`parsePresentationIconRef`, `consumeNameListUntilLine` — already lives below
+them in the chain.
+
 ## Verifying a parser change
 
 `npm test` and `tests/parser.test.ts` prove a lot, but a parser defect is a

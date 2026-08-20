@@ -839,6 +839,52 @@
           ]
         }
       ]
+    },
+    "calendarConflictOverlayAdlSource": {
+      "adl": [
+        "APP 'Calendar Conflict Overlay'",
+        "  START_VIEW Planner",
+        "END.APP",
+        "",
+        "READ_MODEL EventConflicts",
+        "  SOURCE event OBJECT Event",
+        "  SOURCE block OBJECT Block JOIN event ON EventDate == event.EventDate",
+        "  FIELD Date FROM event.EventDate",
+        "  FIELD IsConflict FROM block.Blocking",
+        "END.READ_MODEL",
+        "",
+        "OBJECT Block",
+        "  DISPLAY EventDate",
+        "  FIELD EventDate DATE REQUIRED",
+        "  FIELD Blocking BOOLEAN REQUIRED",
+        "END.OBJECT",
+        "",
+        "OBJECT Event",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD EventDate DATE REQUIRED",
+        "",
+        "  VIEW Planner COMPOSITE",
+        "    FIELDS Title EventDate",
+        "    STATUS conflict LABEL 'Conflict' THEME colorStatusConflict PRECEDENCE 50",
+        "",
+        "    SECTION Month",
+        "      CALENDAR MonthPlanner FROM OBJECT Event",
+        "        DATE_FIELD EventDate",
+        "        TITLE_FIELD Title",
+        "        WEEK_START monday",
+        "        MONTH_LABEL_FORMAT date 'MMMM yyyy'",
+        "        EMPTY_TEXT 'No events this month'",
+        "        CONFLICT_OVERLAY FROM READ_MODEL EventConflicts",
+        "          DATE_FIELD Date",
+        "          FLAG_FIELD IsConflict",
+        "          STATUS conflict",
+        "        END.CONFLICT_OVERLAY",
+        "      END.CALENDAR",
+        "    END.SECTION",
+        "  END.VIEW",
+        "END.OBJECT"
+      ]
     }
   },
   "cases": [
@@ -3601,6 +3647,35 @@
             "path": "objects[0].views[0].presentation.sections[0].calendars[0].month.value"
           }
         ]
+      }
+    }
+,
+    {
+      "id": "presentation.calendar.conflict-overlay.001",
+      "title": "CALENDAR CONFLICT_OVERLAY and MONTH_LABEL_FORMAT in ADL source resolve onto the calendar",
+      "specRef": "language#composed-view-presentation",
+      "operation": "resolveModel",
+      "modelRef": "calendarConflictOverlayAdlSource",
+      "input": {
+        "select": [
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.readModel",
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.dateField",
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.flagField",
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.status",
+          "objects.1.views.0.presentation.sections.0.calendars.0.month.labelFormat.kind",
+          "objects.1.views.0.presentation.sections.0.calendars.0.month.labelFormat.pattern"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.readModel": "EventConflicts",
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.dateField": "Date",
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.flagField": "IsConflict",
+          "objects.1.views.0.presentation.sections.0.calendars.0.conflictOverlay.status": "conflict",
+          "objects.1.views.0.presentation.sections.0.calendars.0.month.labelFormat.kind": "date",
+          "objects.1.views.0.presentation.sections.0.calendars.0.month.labelFormat.pattern": "MMMM yyyy"
+        }
       }
     }
   ]

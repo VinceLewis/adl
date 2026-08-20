@@ -69,6 +69,7 @@ import type {
   PartialPolicyRuleModel,
   PartialPresentationControlModel,
   PartialPresentationCalendarModel,
+  PartialPresentationEmptyStateModel,
   PartialPresentationIconMapModel,
   PartialPresentationIconRefModel,
   PartialPresentationLegendModel,
@@ -766,6 +767,28 @@ function editSectionToPartial(section: EditSectionDeclarationAst): PartialEditSe
     ...(section.picker === undefined
       ? {}
       : { picker: relationshipPickerToPartial(section.picker) }),
+    ...(section.projectedFields.length === 0
+      ? {}
+      : {
+          projectedFields: section.projectedFields.map((projected) => ({
+            name: projected.name,
+            through: projected.through,
+            field: projected.field,
+          })),
+        }),
+    ...(section.summary === undefined
+      ? {}
+      : {
+          summary: {
+            aggregate: section.summary.aggregate,
+            ...(section.summary.field === undefined ? {} : { field: section.summary.field }),
+            ...(section.summary.label === undefined ? {} : { label: section.summary.label }),
+            ...(section.summary.format === undefined ? {} : { format: section.summary.format }),
+            ...(section.summary.placement === undefined
+              ? {}
+              : { placement: section.summary.placement }),
+          },
+        }),
   };
 }
 
@@ -872,6 +895,37 @@ function presentationControlToPartial(
     return presentationActionToPartial(control);
   }
 
+  if (control.kind === "PresentationSelectControlDeclaration") {
+    return {
+      name: control.name,
+      kind: "select",
+      state: control.state,
+      ...(control.label === undefined ? {} : { label: control.label }),
+      ...(control.icon === undefined ? {} : { icon: presentationIconRefToPartial(control.icon) }),
+      ...(control.options.length === 0
+        ? {}
+        : {
+            options: control.options.map((option) => ({
+              value: option.value,
+              label: option.label,
+              ...(option.icon === undefined
+                ? {}
+                : { icon: presentationIconRefToPartial(option.icon) }),
+            })),
+          }),
+    };
+  }
+
+  if (control.kind === "PresentationContextSelectorControlDeclaration") {
+    return {
+      name: control.name,
+      kind: "contextSelector",
+      ...(control.label === undefined ? {} : { label: control.label }),
+      ...(control.icon === undefined ? {} : { icon: presentationIconRefToPartial(control.icon) }),
+      ...(control.context === undefined ? {} : { context: control.context }),
+    };
+  }
+
   return {
     name: control.name,
     kind: "toggle",
@@ -910,21 +964,43 @@ function presentationActionToPartial(
   };
 }
 
+/**
+ * `EMPTY_TEXT` and `EMPTY_ICON` are independent directives but resolve onto one
+ * `emptyState` object, so the key is emitted when either is declared and
+ * omitted when neither is — an empty `{}` would assert an empty state the
+ * source never wrote.
+ */
+function presentationEmptyStateToPartial(
+  text: string | undefined,
+  icon: PresentationIconRefDeclarationAst | undefined,
+): PartialPresentationEmptyStateModel | undefined {
+  if (text === undefined && icon === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(text === undefined ? {} : { text }),
+    ...(icon === undefined ? {} : { icon: presentationIconRefToPartial(icon) }),
+  };
+}
+
 function presentationListToPartial(
   list: PresentationListDeclarationAst,
 ): PartialPresentationListModel {
+  const emptyState = presentationEmptyStateToPartial(list.emptyText, list.emptyIcon);
   return {
     name: list.name,
     ...(list.sourceKind === undefined ? {} : { sourceKind: list.sourceKind }),
     source: list.source,
     ...(list.renderAs === undefined ? {} : { renderAs: list.renderAs }),
     ...(list.density === undefined ? {} : { density: list.density }),
+    ...(list.fields.length === 0 ? {} : { fields: [...list.fields] }),
     sort: list.sort.map((sort) => ({
       field: sort.field,
       direction: sort.direction,
     })),
     ...(list.filter === undefined ? {} : { filter: list.filter }),
-    ...(list.emptyText === undefined ? {} : { emptyState: { text: list.emptyText } }),
+    ...(emptyState === undefined ? {} : { emptyState }),
     ...(list.statusCandidates.length === 0
       ? {}
       : {
@@ -940,6 +1016,7 @@ function presentationListToPartial(
 function presentationCalendarToPartial(
   calendar: PresentationCalendarDeclarationAst,
 ): PartialPresentationCalendarModel {
+  const emptyState = presentationEmptyStateToPartial(calendar.emptyText, calendar.emptyIcon);
   return {
     name: calendar.name,
     ...(calendar.sourceKind === undefined ? {} : { sourceKind: calendar.sourceKind }),
@@ -959,6 +1036,9 @@ function presentationCalendarToPartial(
       ...(calendar.weekStart === undefined ? {} : { weekStart: calendar.weekStart }),
       ...(calendar.minDate === undefined ? {} : { minDate: calendar.minDate }),
       ...(calendar.maxDate === undefined ? {} : { maxDate: calendar.maxDate }),
+      ...(calendar.monthLabelFormat === undefined
+        ? {}
+        : { labelFormat: calendar.monthLabelFormat }),
     },
     ...(calendar.statusCandidates.length === 0
       ? {}
@@ -970,7 +1050,17 @@ function presentationCalendarToPartial(
     ...(calendar.actions.length === 0
       ? {}
       : { actions: calendar.actions.map((action) => presentationActionToPartial(action)) }),
-    ...(calendar.emptyText === undefined ? {} : { emptyState: { text: calendar.emptyText } }),
+    ...(emptyState === undefined ? {} : { emptyState }),
+    ...(calendar.conflictOverlay === undefined
+      ? {}
+      : {
+          conflictOverlay: {
+            readModel: calendar.conflictOverlay.readModel,
+            dateField: calendar.conflictOverlay.dateField,
+            flagField: calendar.conflictOverlay.flagField,
+            status: calendar.conflictOverlay.status,
+          },
+        }),
   };
 }
 
@@ -1016,6 +1106,7 @@ function presentationRowFragmentToPartial(
       field: fragment.field,
       ...(fragment.style === undefined ? {} : { style: fragment.style }),
       ...(fragment.format === undefined ? {} : { format: fragment.format }),
+      ...(fragment.fallback === undefined ? {} : { fallback: fragment.fallback }),
     };
   }
 

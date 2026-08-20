@@ -1,4 +1,6 @@
 import type {
+  EditChildCollectionSummaryAggregate,
+  EditChildCollectionSummaryPlacement,
   PresentationDensity,
   PresentationFormatKind,
   PresentationFragmentStyle,
@@ -243,7 +245,14 @@ export class PresentationScalarParser extends LifecycleParser {
     const token = this.consumeWordToken("presentation format kind or pattern");
     const kind = this.normalisePresentationFormatKind(token);
 
-    if (this.isLineEnd()) {
+    // A pattern is always a quoted string (`ResolvedPresentationFormat.pattern`
+    // is `string`), so anything else on the line belongs to the enclosing
+    // directive. Reading it with `consumeLiteral` instead swallowed the next
+    // keyword, because `consumeLiteral` accepts a bare identifier: printed
+    // `TEXT Field FORMAT DATE STYLE BOLD` took `STYLE` as the pattern and then
+    // failed on `BOLD`, so a `.adlj` fragment with a pattern-less format and a
+    // style printed `.adl` text that could not be reparsed. Phase 100.
+    if (this.current().kind !== "string") {
       return { kind };
     }
 
@@ -251,6 +260,38 @@ export class PresentationScalarParser extends LifecycleParser {
       kind,
       pattern: String(this.consumeLiteral("presentation format pattern")),
     };
+  }
+
+  protected parseEditChildCollectionSummaryAggregate(): EditChildCollectionSummaryAggregate {
+    const token = this.consumeWordToken("child collection summary aggregate");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "sum":
+        return "sum";
+      case "avg":
+        return "avg";
+      case "min":
+        return "min";
+      case "max":
+        return "max";
+      case "count":
+        return "count";
+      default:
+        this.failExpected("child collection summary aggregate SUM, AVG, MIN, MAX, or COUNT", token);
+    }
+  }
+
+  protected parseEditChildCollectionSummaryPlacement(): EditChildCollectionSummaryPlacement {
+    const token = this.consumeWordToken("child collection summary placement");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "header":
+        return "header";
+      case "footer":
+        return "footer";
+      default:
+        this.failExpected("child collection summary placement HEADER or FOOTER", token);
+    }
   }
 
   private normalisePresentationFormatKind(token: Token): PresentationFormatKind {

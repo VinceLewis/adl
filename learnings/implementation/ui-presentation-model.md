@@ -261,9 +261,9 @@ text syntax, proven against Giggle Band's own compiled `partialModel`
 reparsing to a `toEqual`-identical resolved model
 (`tests/compile-adlj.test.ts`). See
 [[adlj-json-authoring-surface]]'s "Phase 78" section for the full account,
-including the small named set of constructs (`MATRIX`, `select`/
-`contextSelector` controls, conditional row fragments, a few other JSON-only
-fields) that have no ADL text syntax at all and so cannot be printed — and
+including the named set of constructs that had no ADL text syntax at all and
+so could not be printed — nine of which Phase 100 closed, leaving `MATRIX`,
+conditional row fragments and per-view `presentation.shell.regions` — and
 the six unrelated pre-existing printer defects the Giggle Band round-trip
 proof surfaced along the way (a policy field named `Role` colliding with the
 `ROLE` principal keyword being the one most likely to recur if this app

@@ -246,6 +246,113 @@ describe('comment threading: AdljSourceDocument "comment" -> PartialApplicationM
   });
 });
 
+/**
+ * A `.adlj` document reaching every construct Phase 100 gave text syntax that
+ * no shipped application declares. Kept next to the round-trip that consumes
+ * it rather than in `examples/`, because it exists to exercise the printer and
+ * the parser against each other, not to demonstrate an application.
+ */
+const PRINTER_COVERAGE_SOURCE = {
+  app: { name: "PrinterCoverage", startView: "SongBoard" },
+  modelVersion: "1.0.0",
+  contexts: [],
+  readModels: [],
+  objects: [
+    {
+      name: "Song",
+      businessKey: "Title",
+      displayField: "Title",
+      fields: [
+        { name: "Title", type: "text", required: true },
+        { name: "Composer", type: "text" },
+        { name: "Date", type: "date" },
+      ],
+      views: [
+        {
+          name: "SongBoard",
+          kind: "composite",
+          fields: ["Title", "Composer"],
+          presentation: {
+            state: [{ name: "visibleMonth", type: "text", defaultValue: "2026-01" }],
+            statuses: [
+              { name: "current", label: "Current", themeToken: "colorInfo", precedence: 10 },
+            ],
+            sections: [
+              {
+                name: "Board",
+                heading: "Board",
+                controls: [
+                  {
+                    name: "monthPick",
+                    kind: "select",
+                    state: "visibleMonth",
+                    label: "Month",
+                    icon: { kind: "named", name: "calendar" },
+                    options: [
+                      {
+                        value: "2026-01",
+                        label: "January",
+                        icon: { kind: "named", name: "calendar" },
+                      },
+                      { value: "2026-02", label: "February" },
+                    ],
+                  },
+                  {
+                    name: "bandPicker",
+                    kind: "contextSelector",
+                    label: "Band",
+                    icon: { kind: "named", name: "users" },
+                  },
+                ],
+                lists: [
+                  {
+                    name: "Songs",
+                    sourceKind: "object",
+                    source: "Song",
+                    fields: ["Title", "Composer"],
+                    renderAs: "table",
+                    emptyState: { text: "No songs", icon: { kind: "named", name: "music" } },
+                    row: {
+                      fragments: [
+                        { kind: "field", field: "Title", style: "bold" },
+                        { kind: "field", field: "Composer", fallback: "Unknown", style: "muted" },
+                        {
+                          kind: "field",
+                          field: "Date",
+                          format: { kind: "date" },
+                          style: "caption",
+                        },
+                      ],
+                    },
+                  },
+                ],
+                calendars: [
+                  {
+                    name: "Planner",
+                    sourceKind: "object",
+                    source: "Song",
+                    dateField: "Date",
+                    titleField: "Title",
+                    month: {
+                      state: "visibleMonth",
+                      weekStart: "monday",
+                      labelFormat: { kind: "date", pattern: "MMMM yyyy" },
+                    },
+                    emptyState: {
+                      text: "Nothing this month",
+                      icon: { kind: "named", name: "calendar" },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ],
+};
+
 describe("printPartialApplicationModelAsAdl", () => {
   // A permanent CI drift check (Phase 78): for every fixture below, printing
   // the compiled `partialModel` back to `.adl` text and reparsing it must
@@ -257,11 +364,13 @@ describe("printPartialApplicationModelAsAdl", () => {
   // rich half of this proof. The replacement subjects are real `.adlj` sources
   // and the `examples/` corpus, so nothing here depends on hand-authored `.adl`
   // text: `.adl` is the printed view of `.adlj`, and this describes what that
-  // view can and cannot say. Coverage after the replacement is stated in
-  // `docs/phases/phase-98-delete-kept-adl-snapshot.md`; the constructs no
-  // fixture reaches any more (`STATUS_MAP`, `ICON_MAP`, presentation
-  // `TOGGLE`, `UNION`, a qualified `READ_MODEL SOURCE JOIN`, `ATTACHMENT`)
-  // are named there rather than quietly dropped.
+  // view can say.
+  //
+  // Phase 100 restored the Giggle Band half by giving text syntax to the three
+  // constructs that had blocked it, so both reference apps round-trip again
+  // and the constructs Phase 98 recorded as losing coverage (`STATUS_MAP`,
+  // `ICON_MAP`, presentation `TOGGLE`, `UNION`, a qualified
+  // `READ_MODEL SOURCE JOIN`, `ATTACHMENT`) are all reached once more.
   it("round-trips the task-tracker fixture: print, reparse, resolve to the identical model", () => {
     const original = compileAdl(readExample("task-tracker.adl"));
     expect(original.diagnostics).toEqual([]);
@@ -274,15 +383,9 @@ describe("printPartialApplicationModelAsAdl", () => {
   });
 
   it("round-trips the Jointly Care reference app: compile its real `.adlj` source, print, reparse", () => {
-    // Jointly Care is the richest application source the printer can render at
-    // all: three `CONTEXT` declarations and three `CONTEXT_GRANT`s, twenty
-    // read models, a global `SHELL` with both a top bar and a nav drawer,
-    // calendars, legends, composed sections, commands, thirty-two policies,
-    // computed fields and four `MIGRATION` hops. Giggle Band cannot stand in
-    // for it: `print-adl.ts` refuses that source outright, because it declares
-    // three constructs with no ADL text syntax at all (a calendar
-    // `conflictOverlay`, and a child collection's `projectedFields` and
-    // `summary`) — see the last test in this block.
+    // Jointly Care contributes what Giggle Band does not: three `CONTEXT`
+    // declarations and three `CONTEXT_GRANT`s, twenty read models, thirty-two
+    // policies, and four `MIGRATION` hops.
     const original = compileAdlProjectV2({
       manifestSource: readReference("jointly-care/app.yaml"),
       sources: {
@@ -387,20 +490,172 @@ describe("printPartialApplicationModelAsAdl", () => {
     expect(reparsed.model).toEqual(original.model);
   });
 
-  it("refuses, by name, a source using a construct with no ADL text syntax", () => {
-    // The printer's contract: a construct it cannot render throws a clear,
-    // named error rather than silently dropping declared content. Giggle Band's
-    // real source is the standing proof — and the reason `.adl` text cannot be
-    // a complete view of `.adlj` today (`docs/spec/adlj.md`).
-    const real = compileAdlProjectV2({
+  it("round-trips the Giggle Band reference app, including the constructs Phase 100 gave text syntax", () => {
+    // The flagship application, and the one the printer refused outright from
+    // Phase 87 until Phase 100: its `MonthPlanner` calendar declares a
+    // `conflictOverlay` and its `SetListForm` `Songs` collection declares both
+    // `projectedFields` and a `summary`. It is also the only fixture reaching
+    // `STATUS_MAP`, `ICON_MAP`, presentation `TOGGLE`, a `UNION` read model, a
+    // qualified `READ_MODEL SOURCE ... JOIN`, and `ATTACHMENT`.
+    const original = compileAdlProjectV2({
       manifestSource: readReference("giggle-band/app.yaml"),
       sources: {
         "domain.adlj": readReference("giggle-band/domain.adlj"),
         "ui.adlj": readReference("giggle-band/ui.adlj"),
       },
     });
-    expect(real.diagnostics).toEqual([]);
+    expect(original.diagnostics).toEqual([]);
 
-    expect(() => printPartialApplicationModelAsAdl(real.partialModel)).toThrow(/conflictOverlay/);
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
+
+    // Pin the three constructs by their printed text as well as by the
+    // round-trip: a regression that dropped one silently would still resolve
+    // to an equal model if the resolver defaulted it back, and the whole point
+    // of this phase is that nothing declared may vanish on the way out.
+    expect(printed).toContain(
+      [
+        "        CONFLICT_OVERLAY FROM READ_MODEL EventAvailabilityConflicts",
+        "          DATE_FIELD Date",
+        "          FLAG_FIELD IsConflict",
+        "          STATUS conflict",
+        "        END.CONFLICT_OVERLAY",
+      ].join("\n"),
+    );
+    expect(printed).toContain(
+      [
+        "      PROJECTED_FIELD DurationSeconds THROUGH Song FIELD DurationSeconds",
+        "      SUMMARY SUM DurationSeconds",
+        "        LABEL 'Total'",
+        "        FORMAT DURATION 'm:ss'",
+        "        PLACEMENT FOOTER",
+        "      END.SUMMARY",
+      ].join("\n"),
+    );
+
+    const reparsed = compileAdl(printed);
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.model).toEqual(original.model);
+  });
+
+  it("round-trips the constructs neither reference app reaches", () => {
+    // `SELECT`/`CONTEXT_SELECTOR` controls, a `LIST FIELDS` projection, an
+    // empty-state `EMPTY_ICON` on both a list and a calendar, a field
+    // fragment's `FALLBACK`, and a calendar's `MONTH_LABEL_FORMAT` all gained
+    // text syntax in Phase 100 but appear in no shipped application, so this
+    // fixture is what keeps them proven. The `Date` fragment deliberately
+    // carries a pattern-less `FORMAT` *and* a `STYLE`: printing that pair used
+    // to emit text the parser could not read back, because the format's
+    // pattern reader swallowed the following `STYLE` keyword.
+    const original = compileAdlj(JSON.stringify(PRINTER_COVERAGE_SOURCE));
+    expect(original.diagnostics).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
+    expect(printed).toContain("        OPTION '2026-01' LABEL 'January' ICON calendar");
+    expect(printed).toContain("      CONTEXT_SELECTOR bandPicker");
+    expect(printed).toContain("        FIELDS Title Composer");
+    expect(printed).toContain("        EMPTY_ICON music");
+    expect(printed).toContain("          TEXT Composer FALLBACK 'Unknown' STYLE MUTED");
+    expect(printed).toContain("          TEXT Date FORMAT DATE STYLE CAPTION");
+    expect(printed).toContain("        MONTH_LABEL_FORMAT DATE 'MMMM yyyy'");
+    expect(printed).toContain("        EMPTY_ICON calendar");
+
+    const reparsed = compileAdl(printed);
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.model).toEqual(original.model);
+  });
+
+  describe("constructs that still have no ADL text syntax", () => {
+    // The printer's contract for what it cannot render is unchanged: throw a
+    // clear, named error rather than silently drop declared content. Phase 100
+    // deliberately left these three, for reasons recorded in
+    // `docs/phases/phase-100-printer-completeness.md` — two of them are open
+    // language questions in `docs/spec/ui-language-addendum.md`, and `MATRIX`
+    // is a whole construct whose intended syntax that document already sketches.
+    function refusalFor(
+      sectionExtras: Record<string, unknown>,
+      presentationExtras: Record<string, unknown> = {},
+    ): () => string {
+      const compiled = compileAdlj(
+        JSON.stringify({
+          app: { name: "StillRefused", startView: "SongBoard" },
+          modelVersion: "1.0.0",
+          contexts: [],
+          readModels: [],
+          objects: [
+            {
+              name: "Song",
+              businessKey: "Title",
+              displayField: "Title",
+              fields: [
+                { name: "Title", type: "text", required: true },
+                { name: "Date", type: "date" },
+              ],
+              views: [
+                {
+                  name: "SongBoard",
+                  kind: "composite",
+                  fields: ["Title"],
+                  presentation: {
+                    ...presentationExtras,
+                    sections: [{ name: "Board", heading: "Board", ...sectionExtras }],
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      expect(compiled.diagnostics).toEqual([]);
+      return () => printPartialApplicationModelAsAdl(compiled.partialModel);
+    }
+
+    it("refuses a MATRIX by name", () => {
+      expect(
+        refusalFor({
+          matrices: [
+            {
+              name: "Availability",
+              rowSource: { sourceKind: "object", source: "Song", labelField: "Title" },
+              columnAxis: { kind: "dateRange", start: "2026-01-01", end: "2026-01-14" },
+              cellSource: {
+                sourceKind: "object",
+                source: "Song",
+                rowField: "Title",
+                columnField: "Date",
+              },
+            },
+          ],
+        }),
+      ).toThrow(/MATRIX/);
+    });
+
+    it("refuses a conditional row fragment by name", () => {
+      expect(
+        refusalFor({
+          lists: [
+            {
+              name: "Songs",
+              sourceKind: "object",
+              source: "Song",
+              row: {
+                fragments: [
+                  {
+                    kind: "conditional",
+                    when: "Title != null",
+                    fragments: [{ kind: "field", field: "Title" }],
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ).toThrow(/conditional row fragment/);
+    });
+
+    it("refuses per-view shell regions by name", () => {
+      expect(refusalFor({}, { shell: { regions: [{ region: "topBar", controls: [] }] } })).toThrow(
+        /shell\.regions/,
+      );
+    });
   });
 });

@@ -939,12 +939,49 @@ END.OBJECT
       "Expected EDIT_SECTION directive HEADING, FIELDS, or END.EDIT_SECTION, but found 'CHILD'.",
     );
 
+    // Phase 100's `PROJECTED_FIELD`/`SUMMARY` refusals. `SUMMARY` is a block,
+    // so an unterminated one and an unknown aggregate fail differently.
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      PROJECTED_FIELD Length FROM Album
+    END.CHILD_COLLECTION`),
+      "Expected CHILD_COLLECTION PROJECTED_FIELD directive, but found 'FROM'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      SUMMARY TOTAL Length
+      END.SUMMARY
+    END.CHILD_COLLECTION`),
+      "Expected child collection summary aggregate SUM, AVG, MIN, MAX, or COUNT, but found 'TOTAL'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      SUMMARY SUM Length
+        PLACEMENT sidebar
+      END.SUMMARY
+    END.CHILD_COLLECTION`),
+      "Expected child collection summary placement HEADER or FOOTER, but found 'sidebar'.",
+    );
+
+    expectParseFailure(
+      wrap(`    CHILD_COLLECTION Lines
+      CHILD OrderLine PARENT_FIELD Order
+      SUMMARY SUM Length
+    END.CHILD_COLLECTION`),
+      "or END.SUMMARY",
+    );
+
     expectParseFailure(
       wrap(`    CHILD_COLLECTION Lines
       CHILD OrderLine PARENT_FIELD Order
       SELECTION single
     END.CHILD_COLLECTION`),
-      "Expected CHILD_COLLECTION directive HEADING, CHILD, CHILD_VIEW, OPERATIONS, STAGED, ORDER_FIELD, EMPTY_TEXT, PICKER, or END.CHILD_COLLECTION, but found 'SELECTION'.",
+      "Expected CHILD_COLLECTION directive HEADING, CHILD, CHILD_VIEW, OPERATIONS, STAGED, ORDER_FIELD, EMPTY_TEXT, PROJECTED_FIELD, SUMMARY, PICKER, or END.CHILD_COLLECTION, but found 'SELECTION'.",
     );
 
     expectParseFailure(
@@ -1260,6 +1297,87 @@ END.OBJECT
     }
 
     throw new Error("Expected missing END.LIST to throw.");
+  });
+
+  it("reports malformed Phase 100 presentation declarations with the options they accept", () => {
+    const wrap = (body: string): string => `APP Phase100
+END.APP
+
+OBJECT Event
+  FIELD Title TEXT
+  FIELD EventDate DATE
+
+  VIEW Board COMPOSITE
+    SECTION Month
+${body}
+    END.SECTION
+  END.VIEW
+END.OBJECT
+`;
+
+    // A CONFLICT_OVERLAY is only meaningful complete: the resolved shape
+    // declares none of its four parts optional.
+    expectParseFailure(
+      wrap(`      CALENDAR Planner FROM OBJECT Event
+        DATE_FIELD EventDate
+        CONFLICT_OVERLAY FROM READ_MODEL EventConflicts
+          DATE_FIELD Date
+        END.CONFLICT_OVERLAY
+      END.CALENDAR`),
+      "Expected CONFLICT_OVERLAY FLAG_FIELD directive",
+    );
+
+    expectParseFailure(
+      wrap(`      CALENDAR Planner FROM OBJECT Event
+        DATE_FIELD EventDate
+        CONFLICT_OVERLAY FROM OBJECT Event
+        END.CONFLICT_OVERLAY
+      END.CALENDAR`),
+      "Expected CONFLICT_OVERLAY FROM clause, but found 'OBJECT'.",
+    );
+
+    expectParseFailure(
+      wrap(`      CALENDAR Planner FROM OBJECT Event
+        DATE_FIELD EventDate
+        CONFLICT_OVERLAY FROM READ_MODEL EventConflicts
+          WHERE Date
+        END.CONFLICT_OVERLAY
+      END.CALENDAR`),
+      "Expected CONFLICT_OVERLAY directive DATE_FIELD, FLAG_FIELD, STATUS, or END.CONFLICT_OVERLAY, but found 'WHERE'.",
+    );
+
+    // A select option with no label renders a blank row, so it is refused
+    // rather than defaulted to the value's own text.
+    expectParseFailure(
+      wrap(`      SELECT kindFilter STATE kind
+        OPTION 'Gig'
+      END.SELECT`),
+      "Expected SELECT OPTION LABEL",
+    );
+
+    expectParseFailure(
+      wrap(`      SELECT kindFilter STATE kind
+        WHERE Title
+      END.SELECT`),
+      "Expected SELECT directive STATE, LABEL, ICON, OPTION, or END.SELECT, but found 'WHERE'.",
+    );
+
+    expectParseFailure(
+      wrap(`      CONTEXT_SELECTOR picker STATE kind
+      END.CONTEXT_SELECTOR`),
+      "Expected CONTEXT_SELECTOR header option LABEL, ICON, CONTEXT, or end of line, but found 'STATE'.",
+    );
+
+    // FALLBACK says what to render when a field is null, so it means nothing
+    // on a literal fragment.
+    expectParseFailure(
+      wrap(`      LIST Events FROM OBJECT Event
+        ROW
+          TEXT ' - ' FALLBACK 'x'
+        END.ROW
+      END.LIST`),
+      "Expected TEXT field fragment for FALLBACK",
+    );
   });
 
   it("rejects unsupported procedural keywords", () => {

@@ -631,6 +631,43 @@
           ]
         }
       ]
+    },
+    "projectedFieldsAndSummaryAdlSource": {
+      "adl": [
+        "APP 'Tracks Demo'",
+        "END.APP",
+        "",
+        "OBJECT Playlist",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "",
+        "  VIEW PlaylistForm FORM",
+        "    FIELDS Title",
+        "    CHILD_COLLECTION Tracks",
+        "      CHILD Track PARENT_FIELD Playlist",
+        "      OPERATIONS createChild remove",
+        "      PROJECTED_FIELD LengthSeconds THROUGH Album FIELD LengthSeconds",
+        "      SUMMARY SUM LengthSeconds",
+        "        LABEL 'Total length'",
+        "        FORMAT DURATION 'm:ss'",
+        "        PLACEMENT HEADER",
+        "      END.SUMMARY",
+        "    END.CHILD_COLLECTION",
+        "  END.VIEW",
+        "END.OBJECT",
+        "",
+        "OBJECT Track",
+        "  DISPLAY Album",
+        "  FIELD Playlist TEXT LOOKUP Playlist DISPLAY Title",
+        "  FIELD Album TEXT LOOKUP Album DISPLAY Title",
+        "END.OBJECT",
+        "",
+        "OBJECT Album",
+        "  DISPLAY Title",
+        "  FIELD Title TEXT REQUIRED",
+        "  FIELD LengthSeconds NUMBER",
+        "END.OBJECT"
+      ]
     }
   },
   "cases": [
@@ -1170,6 +1207,41 @@
             "path": "objects[0].views[0].editSections[0].summary.field"
           }
         ]
+      }
+    }
+,
+    {
+      "id": "edit-surface.language.projected-fields-and-summary.002",
+      "title": "PROJECTED_FIELD and SUMMARY in ADL source resolve to the same child-collection shape the JSON surface produces",
+      "specRef": "language#edit-surfaces",
+      "operation": "resolveModel",
+      "modelRef": "projectedFieldsAndSummaryAdlSource",
+      "input": {
+        "select": [
+          "objects.0.views.0.editSections.0.projectedFields.0.name",
+          "objects.0.views.0.editSections.0.projectedFields.0.through",
+          "objects.0.views.0.editSections.0.projectedFields.0.field",
+          "objects.0.views.0.editSections.0.summary.aggregate",
+          "objects.0.views.0.editSections.0.summary.field",
+          "objects.0.views.0.editSections.0.summary.label",
+          "objects.0.views.0.editSections.0.summary.format.kind",
+          "objects.0.views.0.editSections.0.summary.format.pattern",
+          "objects.0.views.0.editSections.0.summary.placement"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editSections.0.projectedFields.0.name": "LengthSeconds",
+          "objects.0.views.0.editSections.0.projectedFields.0.through": "Album",
+          "objects.0.views.0.editSections.0.projectedFields.0.field": "LengthSeconds",
+          "objects.0.views.0.editSections.0.summary.aggregate": "sum",
+          "objects.0.views.0.editSections.0.summary.field": "LengthSeconds",
+          "objects.0.views.0.editSections.0.summary.label": "Total length",
+          "objects.0.views.0.editSections.0.summary.format.kind": "duration",
+          "objects.0.views.0.editSections.0.summary.format.pattern": "m:ss",
+          "objects.0.views.0.editSections.0.summary.placement": "header"
+        }
       }
     }
   ]

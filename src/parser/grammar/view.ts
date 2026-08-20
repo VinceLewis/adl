@@ -1,4 +1,5 @@
 import type {
+  EditChildCollectionSummaryPlacement,
   EditChildOperationKind,
   EditContainerMode,
   PresentationDensity,
@@ -9,9 +10,12 @@ import type {
 } from "../../model/resolved-model.js";
 import type {
   EditChildCollectionDeclarationAst,
+  EditChildCollectionSummaryDeclarationAst,
   EditFieldsSectionDeclarationAst,
   EditSectionDeclarationAst,
+  ProjectedFieldDeclarationAst,
   RelationshipPickerDeclarationAst,
+  PresentationFormatDeclarationAst,
   PresentationIconMapDeclarationAst,
   PresentationLegendDeclarationAst,
   PresentationSectionDeclarationAst,
@@ -22,6 +26,7 @@ import type {
   ViewDeclarationAst,
   ViewContextDeclarationAst,
 } from "../ast.js";
+import type { Token } from "../lexer.js";
 import { normaliseKeyword } from "./text.js";
 import { PresentationCoreParser } from "./presentation-core.js";
 
@@ -228,6 +233,8 @@ export class ViewParser extends PresentationCoreParser {
     let orderField: string | undefined;
     let emptyText: string | undefined;
     let picker: RelationshipPickerDeclarationAst | undefined;
+    const projectedFields: ProjectedFieldDeclarationAst[] = [];
+    let summary: EditChildCollectionSummaryDeclarationAst | undefined;
 
     while (!this.isLineEnd()) {
       if (this.matchWord("HEADING")) {
@@ -262,6 +269,8 @@ export class ViewParser extends PresentationCoreParser {
           ...(orderField === undefined ? {} : { orderField }),
           ...(emptyText === undefined ? {} : { emptyText }),
           ...(picker === undefined ? {} : { picker }),
+          projectedFields,
+          ...(summary === undefined ? {} : { summary }),
           end,
           range: { start: startToken.range.start, end: end.range.end },
         };
@@ -290,12 +299,128 @@ export class ViewParser extends PresentationCoreParser {
       } else if (this.matchWord("EMPTY_TEXT")) {
         emptyText = String(this.consumeLiteral("child collection empty text"));
         this.consumeLineEnd("CHILD_COLLECTION EMPTY_TEXT directive");
+      } else if (this.matchWord("PROJECTED_FIELD")) {
+        projectedFields.push(this.parseProjectedField(startToken));
+      } else if (this.checkWord("SUMMARY")) {
+        summary = this.parseEditChildCollectionSummary();
       } else if (this.checkWord("PICKER")) {
         picker = this.parseRelationshipPicker();
       } else {
         this.failUnexpected(
-          "CHILD_COLLECTION directive HEADING, CHILD, CHILD_VIEW, OPERATIONS, STAGED, ORDER_FIELD, EMPTY_TEXT, PICKER, or END.CHILD_COLLECTION",
+          "CHILD_COLLECTION directive HEADING, CHILD, CHILD_VIEW, OPERATIONS, STAGED, ORDER_FIELD, EMPTY_TEXT, PROJECTED_FIELD, SUMMARY, PICKER, or END.CHILD_COLLECTION",
         );
+      }
+    }
+  }
+
+  /**
+   * `PROJECTED_FIELD DurationSeconds THROUGH Song FIELD DurationSeconds`.
+   *
+   * One physical line, like `CHILD <object> PARENT_FIELD <field>` above it: it
+   * carries three names and no sub-structure, so a block would be four lines
+   * of ceremony around three words. `THROUGH` names a lookup field on the
+   * *child* object and `FIELD` names a field on that lookup's target, which is
+   * why the two are separate clauses rather than one dotted path — the
+   * resolver reaches exactly one hop, and a dotted `Song.DurationSeconds`
+   * would read as though it could reach more.
+   */
+  private parseProjectedField(anchor: Token): ProjectedFieldDeclarationAst {
+    const name = this.consumeName("projected field name");
+    this.expectWord("THROUGH", "CHILD_COLLECTION PROJECTED_FIELD directive");
+    const through = this.consumeName("projected field lookup field name");
+    this.expectWord("FIELD", "CHILD_COLLECTION PROJECTED_FIELD directive");
+    const field = this.consumeName("projected field target field name");
+    this.consumeLineEnd("CHILD_COLLECTION PROJECTED_FIELD directive");
+
+    return {
+      kind: "ProjectedFieldDeclaration",
+      name,
+      through,
+      field,
+      range: this.rangeFrom(anchor),
+    };
+  }
+
+  /**
+   * ```adl
+   * SUMMARY SUM DurationSeconds
+   *   LABEL 'Total'
+   *   FORMAT duration 'm:ss'
+   *   PLACEMENT footer
+   * END.SUMMARY
+   * ```
+   *
+   * The aggregate and the field it aggregates go on the header line, the way
+   * an aggregate reads everywhere else (`SUM(x)`), and the presentation
+   * details follow as directives. The field is optional only because `count`
+   * may omit it; `SUMMARY COUNT` counts every row. Header options are also
+   * accepted inline, matching `TOGGLE`/`STATUS`.
+   */
+  private parseEditChildCollectionSummary(): EditChildCollectionSummaryDeclarationAst {
+    const startToken = this.expectWord("SUMMARY", "SUMMARY declaration");
+    const aggregate = this.parseEditChildCollectionSummaryAggregate();
+    let field: string | undefined;
+    let label: string | undefined;
+    let format: PresentationFormatDeclarationAst | undefined;
+    let placement: EditChildCollectionSummaryPlacement | undefined;
+
+    if (
+      !this.isLineEnd() &&
+      !this.checkWord("LABEL") &&
+      !this.checkWord("FORMAT") &&
+      !this.checkWord("PLACEMENT")
+    ) {
+      field = this.consumeName("child collection summary field name");
+    }
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("child collection summary label"));
+      } else if (this.matchWord("FORMAT")) {
+        format = this.parsePresentationFormat();
+      } else if (this.matchWord("PLACEMENT")) {
+        placement = this.parseEditChildCollectionSummaryPlacement();
+      } else {
+        this.failUnexpected("SUMMARY header option LABEL, FORMAT, PLACEMENT, or end of line");
+      }
+    }
+    this.consumeLineEnd("SUMMARY declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.SUMMARY", this.current());
+      }
+
+      if (this.checkEnd("SUMMARY")) {
+        const end = this.parseEnd("SUMMARY");
+        return {
+          kind: "EditChildCollectionSummaryDeclaration",
+          aggregate,
+          ...(field === undefined ? {} : { field }),
+          ...(label === undefined ? {} : { label }),
+          ...(format === undefined ? {} : { format }),
+          ...(placement === undefined ? {} : { placement }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("FIELD")) {
+        field = this.consumeName("child collection summary field name");
+        this.consumeLineEnd("SUMMARY FIELD directive");
+      } else if (this.matchWord("LABEL")) {
+        label = String(this.consumeLiteral("child collection summary label"));
+        this.consumeLineEnd("SUMMARY LABEL directive");
+      } else if (this.matchWord("FORMAT")) {
+        format = this.parsePresentationFormat();
+        this.consumeLineEnd("SUMMARY FORMAT directive");
+      } else if (this.matchWord("PLACEMENT")) {
+        placement = this.parseEditChildCollectionSummaryPlacement();
+        this.consumeLineEnd("SUMMARY PLACEMENT directive");
+      } else {
+        this.failUnexpected("SUMMARY directive FIELD, LABEL, FORMAT, PLACEMENT, or END.SUMMARY");
       }
     }
   }
