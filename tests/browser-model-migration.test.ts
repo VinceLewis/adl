@@ -161,10 +161,15 @@ describe("browser model migration over IndexedDB", () => {
       throw new Error("Giggle model is missing Band.");
     }
 
-    expect(model.modelVersion).toBe("1.1.0");
+    expect(model.modelVersion).toBe("1.2.0");
     expect(model.migrations).toContainEqual({
       from: "1.0.0",
       to: "1.1.0",
+      objects: [],
+    });
+    expect(model.migrations).toContainEqual({
+      from: "1.1.0",
+      to: "1.2.0",
       objects: [],
     });
 
@@ -188,12 +193,12 @@ describe("browser model migration over IndexedDB", () => {
       expect.objectContaining({
         code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MIGRATION_APPLIED,
         actual: "1.0.0",
-        expected: "1.1.0",
+        expected: "1.2.0",
       }),
     );
     expect(await storage.read("Band", persistedBand.meta.guid)).toEqual(persistedBand);
     expect(await storage.readApplicationMetadata()).toEqual({
-      modelVersion: "1.1.0",
+      modelVersion: "1.2.0",
       modelFingerprint: model.modelFingerprint,
     });
   });

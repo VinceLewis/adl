@@ -107,13 +107,13 @@
         "contextSelector",
         "connection",
         "syncStatus",
-        "themeSwitch",
         "installApp"
       ]
     },
     "navDrawer": {
       "title": "Giggle Band",
       "controls": [
+        "themeSwitch",
         "signOut"
       ]
     },
@@ -137,7 +137,7 @@
         "name": "themeSwitch",
         "kind": "themeSwitch",
         "label": "Theme",
-        "placement": "topBar"
+        "placement": "navDrawer"
       },
       {
         "name": "installApp",

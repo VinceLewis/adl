@@ -271,7 +271,8 @@ button:disabled {
   width: 100%;
 }
 
-.adl-nav-drawer-tools .adl-context-selector option {
+.adl-nav-drawer-tools .adl-context-selector option,
+.adl-nav-drawer-tools .adl-theme-switch option {
   color: var(--adl-color-text);
 }
 
@@ -577,7 +578,8 @@ button:disabled {
 }
 
 .adl-topbar-app .adl-view-switch option,
-.adl-topbar-app .adl-context-selector option {
+.adl-topbar-app .adl-context-selector option,
+.adl-topbar-app .adl-theme-switch option {
   color: var(--adl-color-text);
 }
 
