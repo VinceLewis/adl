@@ -10,6 +10,10 @@ Read this before changing `.adlj` (`src/model/adlj-source.ts`,
 
 This document records what was true only during implementation — decisions,
 the defects that surfaced, and what to check before extending this surface.
+It refers throughout to `src/reference/giggle-band/domain.adl` and `ui.adl`,
+the `.adl` text both `.adlj` files were converted *from*. Those two files were
+deleted in Phase 98 and are not a live path; every statement about them below
+is a record of the conversion, not a pointer to something on disk.
 The format's actual contract (scope boundary, expression-as-string rule, the
 `match` default-inference gap, schema validation, the printer's
 one-directional policy and its known gaps) is in `docs/spec/adlj.md`; read it
@@ -407,28 +411,26 @@ survived (matching commit `a76f7ab`'s own count for this corpus).
   rule) — but the strip preserves `comment` when present, so this is not a
   coincidence-dependent fix.
 - **Keeping `domain.adl`/`ui.adl` on disk needed a trailing note, not
-  Jointly Care's header note.** `docs/spec/language.md` and several
-  `docs/phases/*.md` documents cite ~19 *exact line numbers* into these two
-  files as illustrative examples (`giggle-band/domain.adl:471`,
-  `ui.adl:24`, etc.) — grep the repo for `giggle-band/domain\.adl:` /
-  `giggle-band/ui\.adl:` before ever touching a line in either file. A
-  prepended header comment, the way Jointly Care's kept `.adl` files carry
-  one, would silently invalidate every one of those citations by shifting
-  every later line number down. The files are instead left byte-for-byte
-  identical up to their last real content line, with the
-  "SUPERSEDED AS COMPILED SOURCE" note *appended* after it — same
-  information, placed where it cannot perturb an existing citation. Worth
-  checking for this before reflexively reusing the header-note pattern on
-  any future `.adl` file that has accumulated external line-number
-  references. **Phase 94 follow-up:** keeping the files was right, but the
-  note's wording was not -- "superseded as compiled source" read to every
+  Jointly Care's header note — and then it needed deleting.**
+  `docs/spec/language.md` cited ~19 *exact line numbers* into these two files
+  as illustrative examples, so a prepended header comment, the way Jointly
+  Care's kept `.adl` files carried one, would have silently invalidated every
+  one of those citations by shifting every later line number down. The files
+  were instead left byte-for-byte identical up to their last real content
+  line, with a "SUPERSEDED AS COMPILED SOURCE" note *appended* after it. That
+  much is still the right technique for any file with accumulated
+  line-number references.
+  **What it did not fix, and could not:** the note's wording read to every
   later reader as "same content, different encoding", and the two files had
-  in fact drifted through nine model versions. The note now says what the
-  files *are* (a frozen model-version-1.0.0 snapshot, unregenerable because
-  the real source uses three constructs with no ADL text syntax at all), the
-  frozen region is hashed by `tests/reference-adl-snapshot.test.ts` rather
-  than requested by comment, and the divergence itself is pinned there too.
-  See `implementation/reference-app-drift.md`.
+  in fact drifted through nine model versions. Phase 94 measured 32
+  divergences and rewrote the note to say what the files *were* (a frozen
+  model-version-1.0.0 snapshot, unregenerable because the real source uses
+  three constructs with no ADL text syntax at all). Phase 98 deleted them:
+  the citations became quoted, name-attributed examples, and a frozen copy of
+  a moving application turned out to have no reading under which it was worth
+  keeping. The general lesson is in
+  `implementation/reference-app-drift.md`; the shortest form of it is that a
+  trailing note buys time, not accuracy.
 - **A generic, non-browser consumer of `app.yaml`+sources also needed
   `.adlj` support for real, not just the browser bundle.**
   `src/server/authority-entrypoint.ts`'s `loadAuthorityModel` reads any

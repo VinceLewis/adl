@@ -100,8 +100,8 @@ export async function createJointlyReferenceRuntime(
 /**
  * Seeds two carers coordinating across two overlapping circles, plus a third
  * user who has been invited to the first circle but has not yet joined it --
- * the scenario `pendingCircleInvite` (`domain.adl`) and `MyPendingInvites`
- * (`ui.adl`) exist to prove. Mirrors `seedBandReferenceRuntime`'s shape:
+ * the scenario `pendingCircleInvite` (`domain.adlj`) and `MyPendingInvites`
+ * (`ui.adlj`) exist to prove. Mirrors `seedBandReferenceRuntime`'s shape:
  * one "founder" identity that belongs to both business contexts, so
  * cross-context reads (`HomeUpcomingEvents`, `MyPendingCircleInvites`) have
  * more than one row to tell apart.
@@ -293,7 +293,7 @@ export async function seedJointlyReferenceRuntime(
     contextForCircle(systemContext, firstCircle.meta.guid),
   );
   // Alex has an account but is not yet a member of either circle -- only
-  // `pendingCircleInvite` (`domain.adl`) gives them access to `firstCircle`
+  // `pendingCircleInvite` (`domain.adlj`) gives them access to `firstCircle`
   // at all, and only for as long as this invite stays `'pending'`.
   const pendingInvite = await runtime.create(
     "CircleInvite",

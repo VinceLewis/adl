@@ -32,10 +32,10 @@ chain-ordering rule you must respect when adding one.
   both as raw text, compiled them with `compileAdlProject`, and kept only
   executable runtime/seed helpers in TypeScript. **No longer current:**
   `app.yaml` lists `domain.adlj`/`ui.adlj`, and `band-app.ts` compiles them with
-  `compileAdlProjectV2` behind a lazy dynamic `import()`. `domain.adl`/`ui.adl`
-  remain on disk as a frozen model-version-1.0.0 snapshot and as this
-  repository's richest `.adl`-text parser corpus — see
-  `learnings/implementation/reference-app-drift.md`. The parser decisions
+  `compileAdlProjectV2` behind a lazy dynamic `import()`. The `.adl` text was
+  kept beside the `.adlj` for a while, drifted nine model versions behind it,
+  and was deleted in Phase 98 —
+  see `learnings/implementation/reference-app-drift.md`. The parser decisions
   recorded below are unaffected; only the file the manifest names has changed.
 - The parser now supports top-level `CONTEXT` declarations, object `SCOPE`,
   `CONSTRAINT UNIQUE`, `CONSTRAINT ORDERED`, view `CONTEXT`, view `READ_MODEL`,
@@ -62,8 +62,8 @@ chain-ordering rule you must respect when adding one.
   `FIELD` or `VALUE` inside the call when ambiguity matters.
 - `compileAdlProject` still concatenates manifest sources in order. The
   AST-to-partial conversion now folds later object declarations that contain
-  only `VIEW` blocks into the first object of the same name, allowing
-  `domain.adl` plus `ui.adl` without redefining domain fields.
+  only `VIEW` blocks into the first object of the same name, allowing a
+  domain source plus a UI source without redefining domain fields.
 
 ## Key decisions from Phase 59
 
@@ -180,8 +180,9 @@ lines until the first gap. No "already consumed" bookkeeping is needed: each
 call site queries a distinct line range by construction (the lines strictly
 above one specific declaration), so the same block can never double-attach.
 This is also what makes a comment separated by a blank line, or a comment
-with nothing following it at all (real example: Giggle Band's `domain.adl`
-has one immediately before `END.OBJECT` inside `Availability`), silently
+with nothing following it at all (real example, in the `.adl` text Giggle
+Band was converted from: one immediately before `END.OBJECT` inside
+`Availability`), silently
 have no attachment point — it is simply a line number nothing ever queries
 for, not a special-cased refusal.
 

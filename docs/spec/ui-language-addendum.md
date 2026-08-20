@@ -68,9 +68,9 @@ id: giggle-band
 startView: Home
 
 sources:
-  - domain.adl
-  - read-models.adl
-  - ui.adl
+  - domain.adlj
+  - read-models.adlj
+  - ui.adlj
 ```
 
 ## Relationship To Core Views
@@ -687,14 +687,13 @@ Unsupported source constructs include `SELECT`, `CONTEXT_SELECTOR`, arbitrary
 CSS, raw SVG, framework component names, host callbacks, procedural render
 loops, and DOM-specific declarations.
 
-The first implementation target is the Giggle Band home dashboard source in
-`src/reference/giggle-band/ui.adl`. It proves that non-CRUD presentation can be
-authored without app-specific UI components. That file is now a frozen
-model-version-1.0.0 snapshot rather than the app's compiled source — Giggle
-Band's `app.yaml` lists `domain.adlj`/`ui.adlj` — so read it as the original
-implementation target it was, not as the current dashboard. See
-`docs/spec/language.md`'s "Reference-app citations point at a frozen snapshot"
-and `docs/phases/phase-94-adl-adlj-divergence.md`.
+The first implementation target was the Giggle Band home dashboard, and it
+proved that non-CRUD presentation can be authored without app-specific UI
+components. It is now the `HomeDashboard` view on `Event` in
+`src/reference/giggle-band/ui.adlj`, the app's real compiled source. The
+`ui.adl` text this addendum originally named was a snapshot that froze at model
+version 1.0.0 while the application reached 1.9.0, and was deleted in
+`docs/phases/phase-98-delete-kept-adl-snapshot.md`.
 
 The compiler should accept presentation declarations from any source listed in
 `app.yaml`, so an app can keep domain and UI source separate:

@@ -87,6 +87,42 @@ END.POLICY
     });
   });
 
+  it("parses a policy rule's clauses in any order, FIELDS last included", () => {
+    // A rule's clauses are order-free, and every clause list stops at the
+    // keyword that begins another clause — except that `FIELDS` was missing
+    // from that stop-word set, so a `STATE` (or `ROLE`, or `CHANNELS`) list
+    // ran on and swallowed `FIELDS` and its field names as further states.
+    // Only the FIELDS-first spelling worked. `print-adl.ts` emits `FIELDS`
+    // last, which is how a printed rule failed to reparse (Phase 98).
+    const rule = (source: string) =>
+      parseAdl(`APP ClauseOrder
+END.APP
+
+ROLE Requester
+
+OBJECT PurchaseOrder
+  FIELD Status TEXT DEFAULT('Draft')
+  FIELD InternalNotes TEXT
+END.OBJECT
+
+POLICY PurchaseOrderPolicy ON PurchaseOrder
+  ${source}
+END.POLICY
+`).policies[0]?.rules[0];
+
+    const fieldsLast = rule("READONLY UPDATE ROLE Requester STATE Draft FIELDS InternalNotes");
+    expect(fieldsLast).toMatchObject({
+      effect: "readonly",
+      action: "update",
+      state: ["Draft"],
+      fields: ["InternalNotes"],
+      principal: { roles: ["Requester"] },
+    });
+    expect(fieldsLast).toEqual(
+      rule("READONLY UPDATE FIELDS InternalNotes ROLE Requester STATE Draft"),
+    );
+  });
+
   it("parses object validations, decision tables, lifecycle guards, and commands", () => {
     const ast = parseAdl(`APP Phase21
 END.APP
@@ -1460,7 +1496,7 @@ ROLE Admin
   });
 
   it("does not attach a trailing comment left with no declaration after it (e.g. one immediately before END.OBJECT)", () => {
-    // The real shape found in Giggle Band's domain.adl: a remark about the
+    // The real shape found in Giggle Band's domain source: a remark about the
     // object's own future presentation, placed just before END.OBJECT with
     // nothing else following it inside the block.
     const trailing = parseAdl(`APP Trailing

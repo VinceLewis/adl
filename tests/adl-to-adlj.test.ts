@@ -245,11 +245,11 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
   // and `learnings/implementation/adlj-json-authoring-surface.md`), so this
   // proves comment preservation directly against the real compiled `.adlj`
   // pair via `compileAdlProjectV2`, mirroring the Jointly Care case above.
-  // `domain.adl`/`ui.adl` are kept on disk (superseded-as-compiled-source
-  // note in each file) only because `docs/spec/language.md` and several
-  // `docs/phases/*.md` documents cite specific line numbers in them; they are
-  // the real `.adlj` files' own conversion input (`importAdlAsAdlj`, proven
-  // once at conversion time) but are not reparsed here.
+  // The `domain.adl`/`ui.adl` text these `.adlj` files were converted from
+  // (`importAdlAsAdlj`, proven once at conversion time) was deleted in
+  // Phase 98: it had frozen at model version 1.0.0 while the application
+  // reached 1.9.0, and `.adl` text is the printed view of `.adlj`, not a
+  // second source anyone maintains.
   it("preserves every real leading comment in Giggle Band's domain.adlj + ui.adlj", () => {
     // Giggle Band exercises comment shapes Jointly Care does not: a SECTION
     // comment (`DuplicateGig`), a row ACTION comment (`duplicateGig`), a

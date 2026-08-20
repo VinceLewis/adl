@@ -2281,7 +2281,7 @@
           "name": "InviteeEmail",
           "source": "invitation",
           "field": "InviteeEmail",
-          "comment": "`InviteeEmail` leads the field list on purpose: the generic dashboard\nrenderer used by a `READ_MODEL`-backed view with no composed presentation\n(see `MyInvitationList` in `ui.adl`, and `BandMemberAvailabilityBoard` /\n`SetListByPosition` for the same pattern elsewhere in this app) always\nshows every read-model field, using the first non-date field as each\nrow's bold title -- so `Inviter` (a lookup id, not something to read)\ncomes last, alongside the `IsSender` field it only exists to support."
+          "comment": "`InviteeEmail` leads the field list on purpose: the generic dashboard\nrenderer used by a `READ_MODEL`-backed view with no composed presentation\n(see `MyInvitationList` in `ui.adlj`, and `BandMemberAvailabilityBoard` /\n`SetListByPosition` for the same pattern elsewhere in this app) always\nshows every read-model field, using the first non-date field as each\nrow's bold title -- so `Inviter` (a lookup id, not something to read)\ncomes last, alongside the `IsSender` field it only exists to support."
         },
         {
           "name": "Role",

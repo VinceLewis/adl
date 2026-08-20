@@ -346,10 +346,12 @@ synthetic-placeholder-`APP`-prefixed fragment rather than through
 covers converting one whole `.adl` document at a time, not splitting a
 multi-file project's `APP`-less fragments, so a multi-file `.adlj`
 conversion needs this same workaround until that entry point grows
-native support for it. The original `domain.adl`/`ui.adl` are kept on
-disk, byte-for-byte unmodified and no longer compiled, because
-`docs/spec/language.md` and several `docs/phases/*.md` documents cite
-exact line numbers into them.
+native support for it. The original `domain.adl`/`ui.adl` were kept on
+disk for a time, byte-for-byte unmodified and no longer compiled, because
+`docs/spec/language.md` cited exact line numbers into them. They froze at
+model version 1.0.0 while the application reached 1.9.0 and were deleted in
+`docs/phases/phase-98-delete-kept-adl-snapshot.md`, which converted those
+citations to quoted, name-attributed examples.
 
 ### Checking a draft before presenting it
 
@@ -605,18 +607,28 @@ all — it converts the shared `PartialApplicationModel` stage directly.
 **Coverage**: the full declarative skeleton — `APP`, `SHELL`, `ROLE`,
 `CONTEXT`, `CONTEXT_GRANT`, `OBJECT` (fields, computed fields, validations,
 lifecycle, constraints, scope, sync), `READ_MODEL`, `DECISION_TABLE`,
-`COMMAND`, `POLICY`, `THEME`, top-level `SYNC` — and every expression-bearing
-field, printed back to infix syntax with every compound sub-expression
-unconditionally parenthesized (correctness over prettiness: the contract is
+`COMMAND`, `POLICY`, `THEME`, top-level `SYNC`, `MIGRATION` — and every
+expression-bearing field, printed back to infix syntax with every compound
+sub-expression unconditionally parenthesized (correctness over prettiness:
+the contract is
 "reparses to the identical tree," not "matches what a human would have
 written"). **Composed view presentation (`PartialViewModel.presentation`) and
 edit surfaces (`editContainer`/`editSections`) are printed too (Phase 78)** —
 `LAYOUT`, `DENSITY`, local `STATE`, `ICON_MAP`, `STATUS`/`STATUS_MAP`,
 `LEGEND`, `SECTION` (toggles, actions, `LIST`, `CALENDAR`, `ROW` templates,
 status candidates), `EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION`, and
-`PICKER` all round-trip, proven against the Giggle Band reference app's
-actual compiled `partialModel` (`tests/compile-adlj.test.ts`), not just a
-hand-built fixture.
+`PICKER` all round-trip.
+
+The round-trip proof runs against real application sources, not hand-built
+fixtures: Jointly Care's whole compiled `partialModel`, plus the
+`examples/` corpus (`tests/compile-adlj.test.ts`). Until Phase 98 it ran
+against a `.adl` text snapshot of Giggle Band frozen at model version 1.0.0;
+the printer has refused Giggle Band's *real* source since Phase 87 gave it a
+`conflictOverlay`, a `projectedFields` and a `summary`, and that refusal is
+now itself a test. This is the sharp edge of `.adl`-as-printed-view, and it
+cuts both ways: `MIGRATION` printing was missing entirely until Phase 98 —
+silently, unlike a refused construct — and no round-trip caught it, because
+neither fixture in place at the time declared a single migration.
 
 A small, named set of constructs has a resolved-model/JSON shape but **no
 ADL text syntax at all** — the parser has no grammar that ever produces
@@ -690,7 +702,8 @@ dropping every item field's shape.
 A useful side effect of sharing `PartialApplicationModel` with the text
 parser: `.adl` text → `parseAdl` → `PartialApplicationModel` → print →
 `parseAdl` again is a round-trip check available for free, proven for the
-fixture app and for Giggle Band (`tests/compile-adlj.test.ts`). It is not
+task-tracker and purchase-order fixtures and, from `.adlj`, for Jointly Care
+(`tests/compile-adlj.test.ts`). It is not
 required to preserve whitespace or comments — only to resolve to an
 identical `ResolvedApplicationModel` after reparsing.
 

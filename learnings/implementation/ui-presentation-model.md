@@ -48,8 +48,9 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   `integer`, `fixed:N`, and `0.00`-style number patterns. Unsupported formats
   produce structured runtime diagnostics and fall back to raw values where
   possible.
-- Phase 28 proved the Giggle home dashboard can remain authored through
-  `ui.adl`: local toggle state, event-type icon maps, read-model-backed compact
+- Phase 28 proved the Giggle home dashboard can remain authored through the
+  app's own UI source (`ui.adl` then, `src/reference/giggle-band/ui.adlj`
+  since): local toggle state, event-type icon maps, read-model-backed compact
   feed rows, formatted date/time fragments, bold titles, venue text, and empty
   states all flow through the generic evaluator and browser renderer.
 - The browser has a generic hamburger-drawer shell with top-bar business

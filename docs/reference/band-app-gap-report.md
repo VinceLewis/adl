@@ -1,8 +1,8 @@
 # Band Reference App Gap Report
 
 The Giggle Band reference app lives in `src/reference/giggle-band/`. `app.yaml`
-lists its ADL sources; `domain.adl` holds the domain, read models, commands and
-policies, and `ui.adl` holds the shell and the composed views.
+lists its ADL sources; `domain.adlj` holds the domain, read models, commands
+and policies, and `ui.adlj` holds the shell and the composed views.
 `src/reference/band-app.ts` is the browser/runtime integration module and seed
 fixture.
 
@@ -28,12 +28,12 @@ closed the second list.
 - `Event` models gigs, rehearsals, and unavailable rows with `EventType`.
 - The cross-band home dashboard uses `HomeUpcomingEvents`, an
   all-available-context union read model over `Event` and `Availability`.
-- The home dashboard presentation is authored in `ui.adl` and rendered through
+- The home dashboard presentation is authored in `ui.adlj` and rendered through
   the generic composed-view browser component: row template, event-type icon
   map, local toggles, date/time formatting, and the invitation empty state all
   come from the resolved presentation model.
 - The application shell — navigation items, groups, ordering, visibility
-  conditions, top bar and navigation drawer — is declared in `ui.adl`, not
+  conditions, top bar and navigation drawer — is declared in `ui.adlj`, not
   derived and not hardcoded.
 - Band-scoped objects are protected by runtime context scope and context-role
   policy checks, and `Availability` is user-owned data with a `currentUser`
@@ -59,7 +59,7 @@ until Phase 56, which triaged every one of them. Each is recorded below as
 | Band creation needs a command-created context grant or equivalent scoped-write model to create the context and its initial membership in one command. | **Implemented** | Genuine platform gap. The membership record is scoped to a context instance that did not exist when the transaction opened, so the scope gate refused it. Closed with `ESTABLISHES CONTEXT` on a create step, which puts the new instance in reach for the remainder of that transaction only. |
 | Ordered set-list behaviour needs generic reorder helpers and compaction after removal. | **Implemented** | Genuine platform gap. Closed as declared properties of the `ORDERED` constraint (`REORDER shift`, `COMPACT onDelete`) rather than as new runtime API, so a reorder stays ordinary `update` intents and a compacting delete stays a `delete` intent — replayable through authority intent replay with no protocol change. |
 | Batch commands are not modelled for mass song import, batch set-list item creation, or drag-reorder updates. | **Implemented** | Genuine platform gap. Closed with repeated command inputs (`INPUT ... LIST`) and iterating steps (`FOR EACH`), so a batch is one command transaction rather than N independent ones. |
-| ADL `SHELL`, `TOP_BAR` and `NAV_DRAWER` source syntax is still future work; the browser shell is generic but not model-declared. | **Closed as stale, then partly implemented** | `SHELL`, `NAV`, `CONTROL` and `TOP_BAR` were delivered by Phase 31 and have been used by `ui.adl` since; this entry was simply never updated. What was genuinely missing was `NAV_DRAWER`: `navDrawer` was already a legal control placement that parsed, resolved and validated, and then rendered nowhere. Implemented. |
+| ADL `SHELL`, `TOP_BAR` and `NAV_DRAWER` source syntax is still future work; the browser shell is generic but not model-declared. | **Closed as stale, then partly implemented** | `SHELL`, `NAV`, `CONTROL` and `TOP_BAR` were delivered by Phase 31 and have been used by the app's UI source since; this entry was simply never updated. What was genuinely missing was `NAV_DRAWER`: `navDrawer` was already a legal control placement that parsed, resolved and validated, and then rendered nowhere. Implemented. |
 | Remote sync remains backend-neutral; a future server must provide context-scoped datasets, conflict handling, email dispatch, and authoritative policy re-checks. | **Closed as delivered** | Phases 39-55 delivered all of it except email dispatch, which ADR 0008 replaced with invite-based recovery rather than deferring. Not a gap. |
 
 Phase 56 also added one capability this list never asked for, because closing the

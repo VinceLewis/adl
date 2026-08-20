@@ -8,7 +8,7 @@ The example app is available in the browser demo at:
 
 It uses the same model-driven runtime as the rest of ADL. The app definition
 lives in `src/reference/giggle-band/`: `app.yaml` is the app manifest and
-`domain.adl` and `ui.adl` are the current ADL sources listed by that manifest.
+`domain.adlj` and `ui.adlj` are the ADL sources listed by that manifest.
 `src/reference/band-app.ts` compiles the manifest-listed ADL sources and owns
 browser-demo seed data. The browser shell is generic Web Components under
 `src/ui/components/`.
@@ -24,7 +24,7 @@ browser-demo seed data. The browser shell is generic Web Components under
 - Band-scoped authorization and filtering enforced by runtime services, not only
   by UI hiding.
 - Cross-band home dashboard backed by the `HomeUpcomingEvents` read model.
-- Authored home dashboard presentation in `ui.adl`, including a blue generic
+- Authored home dashboard presentation in `ui.adlj`, including a blue generic
   app shell with hamburger drawer navigation, top-bar band context selection,
   compact `Welcome Back!` screen, Gigs, Rehearsals, and Unavailable toggles,
   semantic event icons, formatted date/time fragments, bold event titles, venue

@@ -15,7 +15,7 @@
  * Coverage: the full declarative skeleton (`APP`, `ROLE`, `CONTEXT`,
  * `CONTEXT_GRANT`, `OBJECT` — fields, computed fields, validations,
  * lifecycle, constraints, scope, sync — `READ_MODEL`, `DECISION_TABLE`,
- * `COMMAND`, `POLICY`, `THEME`, top-level `SYNC`, `SHELL`) and every
+ * `COMMAND`, `POLICY`, `THEME`, top-level `SYNC`, `SHELL`, `MIGRATION`) and every
  * expression-bearing field (`ResolvedExpression`/`PartialPolicyConditionModel`
  * printed back to infix syntax). Composed view presentation
  * (`PartialViewModel.presentation`) and edit surfaces
@@ -40,6 +40,8 @@ import type {
   PartialFieldModel,
   PartialLifecycleActionModel,
   PartialLifecycleModel,
+  PartialModelMigrationModel,
+  PartialModelMigrationObjectModel,
   PartialObjectConstraintModel,
   PartialObjectModel,
   PartialPolicyConditionModel,
@@ -76,6 +78,7 @@ import type {
   PartialViewPresentationModel,
   ResolvedCommandValueExpression,
   ResolvedExpression,
+  ResolvedModelMigrationStep,
   ResolvedPolicyCondition,
   ResolvedSort,
 } from "../model/resolved-model.js";
@@ -113,6 +116,9 @@ export function printPartialApplicationModelAsAdl(model: PartialApplicationModel
   }
   for (const sync of model.sync ?? []) {
     blocks.push(printTopLevelSync(sync));
+  }
+  for (const migration of model.migrations ?? []) {
+    blocks.push(printMigration(migration));
   }
 
   return blocks.join("\n\n") + "\n";
@@ -1325,6 +1331,60 @@ function printSyncClause(sync: {
 function printTopLevelSync(sync: PartialSyncPolicyModel): string {
   const { object, ...rest } = sync;
   return printSyncClause(rest).replace(/^SYNC /, `SYNC ${object} `);
+}
+
+// --- MIGRATION -------------------------------------------------------------
+
+/**
+ * `MIGRATION` had text grammar (`src/parser/grammar/app.ts`) from the start but
+ * was never printed, so every `MIGRATION` block in a source model vanished from
+ * the printed `.adl` — silently, against this printer's stated contract that a
+ * construct it cannot render throws a named error rather than dropping content.
+ * The omission stayed invisible because the only two round-trip fixtures at the
+ * time (`examples/task-tracker.adl` and Giggle Band's model-version-1.0.0 `.adl`
+ * snapshot) declared no migrations between them. Phase 98 found it by
+ * round-tripping Jointly Care's real `.adlj` source, whose four version hops
+ * came back as `migrations: []` and a different `modelFingerprint`.
+ *
+ * A hop with no `OBJECT` block is legal and meaningful — a version bump whose
+ * records need no reshaping — and prints as an empty `MIGRATION`/`END.MIGRATION`
+ * pair, which is exactly what the parser accepts.
+ */
+function printMigration(migration: PartialModelMigrationModel): string {
+  const lines = [
+    `MIGRATION FROM ${printStringLiteral(migration.from)} TO ${printStringLiteral(migration.to)}`,
+  ];
+  for (const object of migration.objects ?? []) {
+    lines.push(indentBlock(printMigrationObject(object), "  "));
+  }
+  lines.push("END.MIGRATION");
+  return lines.join("\n");
+}
+
+function printMigrationObject(object: PartialModelMigrationObjectModel): string {
+  const lines = [`OBJECT ${object.object}`];
+  if (object.schemaVersion !== undefined) {
+    lines.push(`  SCHEMA_VERSION ${object.schemaVersion}`);
+  }
+  for (const step of object.steps ?? []) {
+    lines.push(`  ${printMigrationStep(step)}`);
+  }
+  lines.push("END.OBJECT");
+  return lines.join("\n");
+}
+
+function printMigrationStep(step: ResolvedModelMigrationStep): string {
+  switch (step.kind) {
+    case "renameField":
+      return `RENAME FIELD ${step.from} TO ${step.to}`;
+    case "addField":
+      // `DEFAULT` is required by the grammar, not optional: a record that
+      // silently gained `null` where the model says the field is required
+      // would fail validation on its next write.
+      return `ADD FIELD ${step.field} DEFAULT(${printLiteralValue(step.defaultValue)})`;
+    case "dropField":
+      return `DROP FIELD ${step.field}`;
+  }
 }
 
 // --- READ_MODEL ----------------------------------------------------------

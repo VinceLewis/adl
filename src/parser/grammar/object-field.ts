@@ -456,8 +456,8 @@ export class ObjectFieldParser extends ViewParser {
     }
     const name = this.consumeName("object validation name");
     // Unlike DECISION_TABLE ROW's WHEN (required, Phase 72), this WHEN stays
-    // optional noise: real content (`domain.adl`'s
-    // respondedAtRequiredAfterResponse) omits it, so requiring it here would
+    // optional noise: real content (Giggle Band's
+    // `respondedAtRequiredAfterResponse`) omits it, so requiring it here would
     // break existing content rather than only teach one spelling.
     if (this.matchWord("WHEN")) {
       // WHEN is optional noise after the validation name.

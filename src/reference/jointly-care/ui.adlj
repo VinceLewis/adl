@@ -465,7 +465,7 @@
             "read",
             "search"
           ],
-          "comment": "Every circle a caller has been invited to but not yet joined, across all\ncircles, with one-click accept/decline -- the UI half of the\n`pendingCircleInvite` CONTEXT_GRANT and the `AcceptCircleInvite` /\n`DeclineCircleInvite` commands declared in `domain.adl`. Both actions\nneed only the row's own record id (`id`), the same single-input shape\nGiggle Band's `RevokeBandInvitation` row action already proves works.",
+          "comment": "Every circle a caller has been invited to but not yet joined, across all\ncircles, with one-click accept/decline -- the UI half of the\n`pendingCircleInvite` CONTEXT_GRANT and the `AcceptCircleInvite` /\n`DeclineCircleInvite` commands declared in `domain.adlj`. Both actions\nneed only the row's own record id (`id`), the same single-input shape\nGiggle Band's `RevokeBandInvitation` row action already proves works.",
           "presentation": {
             "state": [],
             "iconMaps": [],
@@ -505,7 +505,7 @@
                         },
                         "placement": "row",
                         "command": "AcceptCircleInvite",
-                        "comment": "`WHEN Invitee == runtime.userId` keeps the buttons off a circle\nowner's own outgoing invites, which this list also shows (see\n`MyPendingCircleInvites` in `domain.adl`) but which the owner is\nnever the invitee of -- both commands would refuse the click\nanyway via their own `REQUIRE Invitee == runtime.userId` step\nguard, but offering a button that always fails is worse UX than\nnot offering it, the same reasoning Giggle Band's `revoke` row\naction already applies with its own `WHEN Status == 'Pending'`.",
+                        "comment": "`WHEN Invitee == runtime.userId` keeps the buttons off a circle\nowner's own outgoing invites, which this list also shows (see\n`MyPendingCircleInvites` in `domain.adlj`) but which the owner is\nnever the invitee of -- both commands would refuse the click\nanyway via their own `REQUIRE Invitee == runtime.userId` step\nguard, but offering a button that always fails is worse UX than\nnot offering it, the same reasoning Giggle Band's `revoke` row\naction already applies with its own `WHEN Status == 'Pending'`.",
                         "input": {
                           "Invite": "id"
                         },

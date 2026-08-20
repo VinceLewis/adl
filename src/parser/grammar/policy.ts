@@ -15,7 +15,20 @@ import { SyncParser } from "./sync.js";
 /**
  * `POLICY` declarations, rules and principal selectors.
  */
+/**
+ * A policy rule's clauses may appear in any order, so every clause list stops
+ * at the keyword that begins another clause. `FIELDS`/`FIELD` belonged in this
+ * set from the start and was missing: a rule written or printed as `READONLY
+ * UPDATE ROLE Requester STATE Draft FIELDS InternalNotes` had its `STATE` list
+ * swallow `FIELDS` and `InternalNotes` as two further state names, and failed
+ * resolution with `ADL_POLICY_STATE_UNKNOWN` against states that were never
+ * written. Only the `FIELDS`-first spelling worked, which is why no hand-authored
+ * source ever hit it — `print-adl.ts` emits `FIELDS` last, so the defect was
+ * reachable only by round-tripping a rule that carries both clauses (Phase 98).
+ */
 const FIELD_LIST_STOP_WORDS = new Set([
+  "FIELDS",
+  "FIELD",
   "ROLE",
   "ROLES",
   "GROUP_ROLE",

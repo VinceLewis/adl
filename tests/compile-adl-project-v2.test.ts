@@ -75,44 +75,55 @@ describe("compileAdlProjectV2", () => {
     expect(result.model.policies.find((policy) => policy.name === "TaskPolicy")).toBeDefined();
   });
 
-  it("leaves compileAdlProject's existing behaviour on the Giggle Band reference app unchanged", () => {
-    // Giggle Band's own `app.yaml` now lists `domain.adlj`/`ui.adlj` (its real
-    // compiled source since the `.adlj` conversion), so this regression proof
-    // — that plain `.adl` text via `compileAdlProject` still works unaffected
-    // by `compileAdlProjectV2` existing in the same codebase — uses a literal
-    // manifest naming the retained, unmodified `domain.adl`/`ui.adl` files
-    // directly rather than reading the (now `.adlj`-listing) real manifest.
+  it("leaves compileAdlProject's existing behaviour on plain `.adl` text unchanged", () => {
+    // The regression proof that `compileAdlProject` — the original,
+    // `.adl`-only project compiler, kept as public API in `src/index.ts` and
+    // no longer called by any runtime path — still parses a manifest and
+    // compiles the `.adl` text it lists, unaffected by `compileAdlProjectV2`
+    // existing in the same codebase.
+    //
+    // Until Phase 98 this ran over Giggle Band's kept `domain.adl`/`ui.adl`,
+    // a two-source manifest. Those files are gone: they were a frozen
+    // model-version-1.0.0 snapshot of an application that had reached 1.9.0,
+    // and `.adl` text is the printed view of `.adlj`, not a surface anyone
+    // hand-maintains. The `examples/` corpus has no `.adl` fragment without
+    // its own `APP` block, so this is a one-source manifest and
+    // `compileAdlProject`'s multi-`.adl` concatenation is no longer covered
+    // anywhere. That reduction is recorded in
+    // `docs/phases/phase-98-delete-kept-adl-snapshot.md`; multi-source
+    // merging itself stays covered by the two `compileAdlProjectV2` cases
+    // above, one of which merges an `.adl` source with an `.adlj` one.
     const manifestSource = [
-      "name: Giggle Band ADL Example",
-      "id: giggle-band",
+      "name: Purchase Orders",
+      "id: purchase-orders",
       "version: 0.1.0",
-      "startView: HomeDashboard",
+      "startView: PurchaseOrderList",
       "",
       "sources:",
-      "  - domain.adl",
-      "  - ui.adl",
+      "  - purchase-order.adl",
       "",
     ].join("\n");
-    const domain = readFileSync(
-      new URL("../src/reference/giggle-band/domain.adl", import.meta.url),
-      "utf8",
-    );
-    const ui = readFileSync(
-      new URL("../src/reference/giggle-band/ui.adl", import.meta.url),
+    const purchaseOrder = readFileSync(
+      new URL("../examples/purchase-order.adl", import.meta.url),
       "utf8",
     );
 
     const result = compileAdlProject({
       manifestSource,
-      sources: { "domain.adl": domain, "ui.adl": ui },
+      sources: { "purchase-order.adl": purchaseOrder },
     });
 
+    expect(result.manifest).toMatchObject({
+      name: "Purchase Orders",
+      id: "purchase-orders",
+      sources: ["purchase-order.adl"],
+    });
     expect(result.diagnostics).toEqual([]);
     expect(validateApplicationModel(result.model)).toEqual([]);
     expect(result.model.app).toEqual({
-      name: "Giggle Band ADL Example",
-      theme: "CorporateLight",
-      startView: "HomeDashboard",
+      name: "PurchaseOrders",
+      theme: "ProcurementTheme",
+      startView: "PurchaseOrderList",
       offlineGraceDays: 30,
     });
   });

@@ -2,6 +2,15 @@
 
 Read this before adding or changing ADL reference applications, especially multi-context examples that exercise runtime policy, read models, offline datasets, or browser demo fixtures.
 
+**A note on file names in the dated sections below.** Both reference apps'
+real compiled source is `.adlj` — `src/reference/giggle-band/domain.adlj` and
+`ui.adlj`, `src/reference/jointly-care/domain.adlj` and `ui.adlj`, as each
+`app.yaml` lists. Sections written before that conversion name `domain.adl`
+and `ui.adl`; those text files were deleted in Phase 98 (see
+`implementation/reference-app-drift.md`). Read such a name as "the source
+that is now the matching `.adlj`", and never follow it as a live path — the
+decision each section records still holds, the file name does not.
+
 ## Key decisions from Phase 17
 
 - Reference apps should live in source-level fixtures, such as `src/reference/band-app.ts`, when browser code needs to import them. Test-only fixtures are still useful for narrow unit tests, but browser demos should not import from `tests/`.
@@ -24,7 +33,7 @@ Read this before adding or changing ADL reference applications, especially multi
 
 - The band reference app is now a folder app under
   `src/reference/giggle-band/`. `app.yaml` lists the ADL source files and
-  `domain.adl` currently holds the authored model. `src/reference/band-app.ts`
+  the domain source held the authored model. `src/reference/band-app.ts`
   remains the browser/runtime integration module and seed fixture, but the
   application definition is no longer a handwritten TypeScript partial model.
 - Parser/compiler coverage for contexts, object scopes, constraints,
@@ -387,10 +396,11 @@ covered by its own Playwright visual spec
   Giggle Band exercises that Jointly Care doesn't (`UNION`, `ORDERED`,
   `CHILD_COLLECTION`/`PICKER`, `ICON_MAP`/`STATUS_MAP`, a multi-hop
   `READ_MODEL SOURCE JOIN`, `EDIT_SECTION`) round-tripped with no converter
-  changes needed. `domain.adl`/`ui.adl` are kept on disk, unmodified, with a
-  trailing (not header) superseded-as-compiled-source note, because
-  `docs/spec/language.md` and several `docs/phases/*.md` documents cite
-  exact line numbers into them — see
+  changes needed. `domain.adl`/`ui.adl` were kept on disk for a while,
+  unmodified, with a trailing (not header) superseded-as-compiled-source
+  note, because `docs/spec/language.md` cited exact line numbers into them.
+  They drifted nine model versions behind the `.adlj` and were deleted in
+  Phase 98 — see
   `implementation/adlj-json-authoring-surface.md`'s "Giggle Band's `.adlj`
   conversion" section for the full account, including the generic
   `authority-entrypoint.ts` model loader and the pre-existing synchronous

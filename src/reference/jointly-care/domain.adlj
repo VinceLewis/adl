@@ -1080,7 +1080,7 @@
           "name": "Invitee",
           "source": "invite",
           "field": "Invitee",
-          "comment": "Not shown -- projected only so `MyPendingInvites` (`ui.adl`) can gate its\nAccept/Decline row actions to the row's actual invitee. `allowAuthenticated\nSearchInvites` (above) is unconditioned, and `allowCircleOwnerReadInvites`\nlegitimately lets an owner read every invite their own circle has sent --\nso this read model also surfaces a circle owner's own outgoing invites,\nnot only invites addressed to the caller. Both commands' own `REQUIRE\nInvitee == runtime.userId` step guard makes offering the buttons on\nsomeone else's invite safe either way, but showing a button that always\nfails for its own caller is still worth avoiding."
+          "comment": "Not shown -- projected only so `MyPendingInvites` (`ui.adlj`) can gate its\nAccept/Decline row actions to the row's actual invitee. `allowAuthenticated\nSearchInvites` (above) is unconditioned, and `allowCircleOwnerReadInvites`\nlegitimately lets an owner read every invite their own circle has sent --\nso this read model also surfaces a circle owner's own outgoing invites,\nnot only invites addressed to the caller. Both commands' own `REQUIRE\nInvitee == runtime.userId` step guard makes offering the buttons on\nsomeone else's invite safe either way, but showing a button that always\nfails for its own caller is still worth avoiding."
         }
       ]
     },
@@ -1838,7 +1838,7 @@
           "action": "search",
           "state": [],
           "fields": [],
-          "comment": "Deliberately unconditioned, matching `AvailabilityPolicy.\nallowAuthenticatedSearchAvailability` in Giggle Band: a `SEARCH` rule's\n`WHEN` is checked against `request.record`, which a coarse \"may this\nprincipal search this object at all\" gate never has -- `Invitee ==\nruntime.userId` would evaluate against no record and always fail, so a\nconditioned `ALLOW SEARCH ... WHEN` can never actually grant search.\n`MyPendingCircleInvites` (`ui.adl`'s `MyPendingInvites` view) is the one\ncross-circle read model this app has where the *invitee*, not a\n`CircleOwner`, is the caller; row-level shaping still narrows what comes\nback to just their own invite via `allowInviteeReadOwnInvite` above."
+          "comment": "Deliberately unconditioned, matching `AvailabilityPolicy.\nallowAuthenticatedSearchAvailability` in Giggle Band: a `SEARCH` rule's\n`WHEN` is checked against `request.record`, which a coarse \"may this\nprincipal search this object at all\" gate never has -- `Invitee ==\nruntime.userId` would evaluate against no record and always fail, so a\nconditioned `ALLOW SEARCH ... WHEN` can never actually grant search.\n`MyPendingCircleInvites` (`ui.adlj`'s `MyPendingInvites` view) is the one\ncross-circle read model this app has where the *invitee*, not a\n`CircleOwner`, is the caller; row-level shaping still narrows what comes\nback to just their own invite via `allowInviteeReadOwnInvite` above."
         },
         {
           "name": "allowCircleOwnerUpdateInvites",

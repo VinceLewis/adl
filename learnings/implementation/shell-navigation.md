@@ -212,6 +212,14 @@ or mobile business-context selection.
   the nav drawer and gives the top bar four controls, not five. The `.adl` files
   are superseded citation snapshots (their own trailing note says so), so cite
   them for line numbers but read the `.adlj` for what the app actually does.
+- **A stale second copy of the shell cost real investigation time.** Phase 92
+  read `ui.adl:13-19` as evidence that `themeSwitch` sat in the top bar; the
+  real compiled source, `src/reference/giggle-band/ui.adlj`, had already moved
+  it to the nav drawer. That `.adl` text was a snapshot frozen at model version
+  1.0.0 and was deleted in Phase 98. Read `ui.adlj` for what the shell declares
+  — it is the only place the shell is declared — and see
+  `implementation/reference-app-drift.md` before ever keeping a second copy of
+  a declaration on disk.
 
 ## Practical Guidance
 

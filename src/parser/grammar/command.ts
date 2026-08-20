@@ -219,8 +219,10 @@ export class CommandParser extends ReadModelParser {
 
   /**
    * `VALUE`/`SET`/`PATCH` is a three-way alias, not a pair: `VALUE` is
-   * canonical (23 real uses in `domain.adl` against zero for `SET` and one
-   * for `PATCH`, itself only in a test proving the alias still parses).
+   * canonical (23 real uses in Giggle Band's domain source against zero for
+   * `SET` and one for `PATCH`, itself only in a test proving the alias still
+   * parses; counted at Phase 72, against the `.adl` text that has since been
+   * superseded by `src/reference/giggle-band/domain.adlj`).
    */
   private matchCommandStepValueDirective(): boolean {
     const token = this.current();
@@ -258,7 +260,7 @@ export class CommandParser extends ReadModelParser {
         recordId = this.parseCommandValueExpression();
       } else if (action !== "read" && this.checkWord("FOR_EACH")) {
         // `FOR EACH` as two words is canonical (Phase 72; it is what
-        // `domain.adl` uses) — `FOR_EACH` spelled as one word, like
+        // Giggle Band's domain source uses) — `FOR_EACH` spelled as one word, like
         // ACTIVE_WHEN and TOP_BAR elsewhere, still parses but is deprecated.
         const token = this.current();
         this.matchWord("FOR_EACH");

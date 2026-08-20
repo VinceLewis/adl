@@ -158,8 +158,9 @@ before it — the guardrails named them, they did not fix them.
 ## Practical guidance
 
 - A new keyword alias needs the same treatment as every other: pick canonical
-  by real corpus usage (`domain.adl`, `ui.adl`, `examples/*.adl`,
-  `conformance/**/*.json`) when it exists, not by guessing, and wire it
+  by real corpus usage (`src/reference/*/{domain,ui}.adlj`, `examples/*.adl`,
+  `examples/multi-source/*`, `conformance/**/*.json`) when it exists, not by
+  guessing, and wire it
   through `matchCanonicalOrDeprecatedWord`/`matchUnderscoreOrDottedWord`
   rather than a bare `matchWord(X) || matchWord(Y)` — the latter is exactly
   the pattern this phase spent its effort undoing.

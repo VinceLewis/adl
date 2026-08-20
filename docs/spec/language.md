@@ -34,29 +34,32 @@ how each construct below maps into JSON, how expressions are represented, and
 a worked example — see [adlj.md](adlj.md), specifically its "Authoring a
 `.adlj` document from scratch" section.
 
-### Reference-app citations point at a frozen snapshot
+### Reference-app examples are quoted, not cited by line
 
-This document cites `src/reference/giggle-band/domain.adl` and
-`src/reference/giggle-band/ui.adl` by exact line number throughout, and quotes
-several blocks from them verbatim. **Those two files are a frozen snapshot of
-the Giggle Band application at model version 1.0.0, not its current compiled
-source.** `src/reference/giggle-band/app.yaml` compiles `domain.adlj` and
-`ui.adlj`, which are at model version 1.9.0 and have since diverged from the
-snapshot in thirty-two enumerated ways — a set list is now a many-to-many, the
-gig form grew a child collection, the shell moved its theme switch, and more.
-The divergence is pinned construct by construct in
-`tests/reference-adl-snapshot.test.ts`, and reasoned through in
-`docs/phases/phase-94-adl-adlj-divergence.md`.
+Where this document illustrates a construct with real content, the example is
+quoted here in full and attributed by **construct name** to the file that
+declares it — `src/reference/giggle-band/domain.adlj` or `ui.adlj`, the
+application's real compiled source (`app.yaml` lists exactly those two). No
+example cites a line number.
 
-Citing the snapshot is deliberate, not an oversight. Line numbers stay valid
-only because the file is frozen, and the snapshot cannot be regenerated from
-the `.adlj` source in any case: the real application now declares three
-constructs with no ADL text syntax at all (a calendar `conflictOverlay`, and a
-child collection's `projectedFields` and `summary`), so `print-adl.ts` refuses
-to render it. Read every reference-app example below as valid ADL *text*
-illustrating the construct under discussion — which is what this document is
-for — and never as evidence about what the running Giggle Band application
-declares today. For that, read the `.adlj`.
+That is a deliberate change, made in Phase 98. Until then these examples cited
+exact lines in `src/reference/giggle-band/domain.adl` and `ui.adl`, a text
+snapshot of the same application kept beside the `.adlj` source. Every one of
+those line numbers resolved, and the citations were still wrong: the snapshot
+had frozen at model version 1.0.0 while the application reached 1.9.0, so the
+prose around each citation described a release nobody was running. A line
+number is only ever a citation into a file's *current* bytes, and no checker
+can tell you that the bytes it lands on stopped being true. The snapshot was
+deleted; the examples stayed, quoted where you can read them.
+
+Two limits on reading any example here as the whole truth about the app.
+`.adl` text is the printed, human-readable view of `.adlj`, and that view is
+not yet complete: some constructs the reference app declares have no ADL text
+syntax at all — a calendar's `conflictOverlay`, and a child collection's
+`projectedFields` and `summary` — so `print-adl.ts` refuses to render Giggle
+Band, and no `.adl` text, here or anywhere, says everything its `.adlj` says
+(see [adlj.md](adlj.md)). And an example trimmed for focus says so where it is
+trimmed. For what the running application declares today, read the `.adlj`.
 
 ## Syntax Shape
 
@@ -91,7 +94,8 @@ storage-engine declarations.
 Apps may list multiple ordered source files in `app.yaml`. The compiler reads
 them in manifest order. Later object declarations that contain only `VIEW`
 blocks extend the earlier object declaration, which allows UI source such as
-`ui.adl` to live beside domain source without redefining fields or policies.
+Giggle Band's `ui.adlj` to live beside domain source without redefining fields
+or policies.
 
 ## Deprecated Spellings
 
@@ -231,10 +235,9 @@ FIELD EndDate DATE VALIDATE EndDate >= StartDate MESSAGE 'End date must be on or
 
 This block is illustrative, gathering every validator kind in one place. Giggle
 Band exercises several of them directly and unmixed with the others: `EMAIL` on
-`User.Email` and `BandInvitation.InviteeEmail`
-(`src/reference/giggle-band/domain.adl:21,82`), `MIN` on `Event.Amount`
-(`domain.adl:125`), `IN` on `Event.EventType` (`domain.adl:107`), and `REGEXP`
-on `Band.Facebook` (`domain.adl:38`). `MIN_LENGTH`, `MAX_LENGTH`,
+`User.Email` and `BandInvitation.InviteeEmail`, `MIN` on `Event.Amount`, `IN`
+on `Event.EventType`, and `REGEXP` on `Band.Facebook` — all in
+`src/reference/giggle-band/domain.adlj`. `MIN_LENGTH`, `MAX_LENGTH`,
 `CURRENCY_CODE`, `MAX_SIZE`, and the field-level `VALIDATE` form are not
 exercised anywhere in the reference app and are shown here only to document
 that the syntax exists.
@@ -407,11 +410,11 @@ SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open' AND Owner == RUNTIME.userId
 SYNC ONLINE_REQUIRED SCOPE currentContext CONFLICT serverWins
 ```
 
-The first line matches, verbatim, `Song`, `SetList`, `SetListItem`, and
-`StreamingLink`'s own `SYNC` declarations (for example
-`src/reference/giggle-band/domain.adl:179`). The fourth line's `SCOPE
-currentContext` portion matches `BandInvitation`'s (`domain.adl:93`), which
-does not itself declare `CONFLICT`. Giggle Band uses only `currentContext`,
+The first line matches, verbatim, the `SYNC` declaration on each of `Song`,
+`SetList`, `SetListItem`, and `StreamingLink` in
+`src/reference/giggle-band/domain.adlj`. The fourth line's `SCOPE
+currentContext` portion matches `BandInvitation`'s, which is
+`ONLINE_REQUIRED` and does not itself declare `CONFLICT`. Giggle Band uses only `currentContext`,
 `currentUser`, and `allAvailableContexts` for `SCOPE`, so `recent` and
 `custom` above are shown synthetically — they are legal syntax the reference
 app has no occasion to use.
@@ -437,8 +440,8 @@ SYNC LOCAL_FIRST SCOPE currentContext WHERE Status == 'open'
 SYNC LOCAL_FIRST SCOPE currentUser WINDOW SpentOn 30 DAYS WHERE Status == 'open'
 ```
 
-The first line is `Availability`'s own declaration verbatim
-(`src/reference/giggle-band/domain.adl:156`). The other two are illustrative:
+The first line is `Availability`'s own declaration verbatim, in
+`src/reference/giggle-band/domain.adlj`. The other two are illustrative:
 Giggle Band's `SYNC` declarations never combine `WINDOW` with `WHERE`, and
 none use `WHERE` at all, since the reference app has no `SCOPE custom`
 declarations either.
@@ -600,7 +603,7 @@ principal is `CONTEXT_MEMBER`. Grant `SEARCH` unconditionally to the wider
 principal that should be able to search at all, and pair it with a
 conditioned `READ` rule that does the actual per-row shaping — see
 `AvailabilityPolicy.allowAuthenticatedSearchAvailability` in
-`src/reference/giggle-band/domain.adl` for the pattern.
+`src/reference/giggle-band/domain.adlj` for the pattern.
 
 `EXPORT` does not share this defect, and carries no equivalent compile-time
 check. Its one runtime call site
@@ -750,11 +753,11 @@ READ_MODEL HomeUpcomingEvents
 END.READ_MODEL
 ```
 
-`BandEventList` above is Giggle Band's own view, verbatim
-(`src/reference/giggle-band/domain.adl:134`). The `READ_MODEL` fragment is
-trimmed to its `CONTEXT`/first-`SOURCE` lines for focus; Giggle Band's actual
-`HomeUpcomingEvents` is a two-source `UNION` with a full field list — see
-`domain.adl:273` for the complete, working declaration.
+`BandEventList` above is Giggle Band's own view, verbatim, from
+`src/reference/giggle-band/domain.adlj`. The `READ_MODEL` fragment is trimmed
+to its `CONTEXT`/first-`SOURCE` lines for focus; Giggle Band's actual
+`HomeUpcomingEvents`, in the same file, is a two-source `UNION` with a full
+field list.
 
 A source after the first may declare an explicit join:
 
@@ -937,7 +940,6 @@ VIEW HomeDashboard DASHBOARD
       STATUS EventTypeStatus(EventType)
 
       ROW
-        ICON EventTypeIcon(EventType)
         TEXT EventDate FORMAT date 'EEE d MMM'
         TEXT ' '
         TEXT StartTime FORMAT time 'h:mma'
@@ -952,9 +954,10 @@ END.VIEW
 ```
 
 This is Giggle Band's own `HomeDashboard`, verbatim, trimmed of its `CONTEXT`/
-`FIELDS`/`SORT`/`ACTIONS` lines and its `Welcome` and `Filters` sections — see
-`src/reference/giggle-band/ui.adl:24` for the complete view, including the
-toggle controls that drive `showGigs`/`showRehearsals`/`showUnavailable`.
+`FIELDS`/`SORT`/`ACTIONS` lines and its `Welcome` and `Filters` sections. The
+complete view — including the toggle controls that drive
+`showGigs`/`showRehearsals`/`showUnavailable` — is the `HomeDashboard` view on
+`Event` in `src/reference/giggle-band/ui.adlj`.
 
 A `LIST`'s row-scoped `ACTION` may reference the row's own record identity as
 `id` inside `INPUT ... FROM` and `WHEN`, targeting the exact record the row
@@ -984,10 +987,10 @@ LIST SentInvitationsList FROM READ_MODEL SentBandInvitations
 END.LIST
 ```
 
-This is Giggle Band's own `MyInvitationList` list, verbatim
-(`src/reference/giggle-band/ui.adl:252`) — a read-model-backed list, so `id`
-here resolves through `SentBandInvitations`' first declared source
-(`invitation`) rather than through an object binding.
+This is `SentInvitationsList`, verbatim: the list inside Giggle Band's
+`MyInvitationList` view (`src/reference/giggle-band/ui.adlj`). It is
+read-model-backed, so `id` here resolves through `SentBandInvitations`' first
+declared source (`invitation`) rather than through an object binding.
 
 `id` resolves to the row's real storage id (its primary source's record id —
 the object it is bound to for an object-backed list, or a read model's first
@@ -1180,9 +1183,11 @@ The `CHILD_COLLECTION`/`PICKER` block above is Giggle Band's own
 here for exposition and are not in the source. The surrounding `SetList` and
 `SetListItem` objects are simplified for this example: the real objects carry
 business-context `SCOPE`, `UNIQUE`/`ORDERED` constraints, `SYNC`, and several
-more fields. See `src/reference/giggle-band/ui.adl:363` for the full form
-view and `domain.adl:189` and `domain.adl:208` for the full object
-declarations.
+more fields. The full `SetListForm` view is in
+`src/reference/giggle-band/ui.adlj` and the full `SetList`/`SetListItem`
+objects are in `domain.adlj`. Note that the real `Songs` child collection also
+declares `projectedFields` and a `summary`, which have no ADL text syntax and
+therefore cannot appear in an example here at all.
 
 Choosing three songs there stages three `createChild` operations, each carrying
 the chosen song's id in `Song`, each appended to the end of the set list. Songs
@@ -1257,11 +1262,11 @@ SHELL
 END.SHELL
 ```
 
-This is a trimmed shape of Giggle Band's own `SHELL` (three of its eleven
-`NAV` entries and three of its six `CONTROL` entries), with a `VISIBLE
-ONLINE` clause added to `syncStatus` to document that condition, which the
-reference app's own `syncStatus` control does not declare. See
-`src/reference/giggle-band/ui.adl:1` for the complete, working block.
+This is a trimmed shape of Giggle Band's own `SHELL` (three of its ten `NAV`
+entries and three of its six `CONTROL` entries), with a `VISIBLE ONLINE`
+clause added to `syncStatus` to document that condition, which the reference
+app's own `syncStatus` control does not declare. The complete, working block
+is the `shell` declaration in `src/reference/giggle-band/ui.adlj`.
 
 `NAV` entries target resolved views. Supported nav metadata includes `LABEL`,
 semantic `ICON`, `GROUP`, numeric `ORDER`, optional `ACTIVE_WHEN` view names,
@@ -1353,8 +1358,8 @@ COMMAND ImportSongs LABEL 'Import songs'
 END.COMMAND
 ```
 
-This is Giggle Band's own `ImportSongs` command, verbatim
-(`src/reference/giggle-band/domain.adl:471`).
+This is Giggle Band's own `ImportSongs` command, verbatim, from
+`src/reference/giggle-band/domain.adlj`.
 
 `INPUT <name> LIST [<type>]` declares a list of scalars; adding `FIELD` lines and
 an `END.INPUT` terminator declares a list of records instead. Item `FIELD` lines
@@ -1396,8 +1401,8 @@ STEP createFounderMembership CREATE BandMember AUTHORITY command
 END.STEP
 ```
 
-This is Giggle Band's own `CreateBand` command's step pair, verbatim
-(`src/reference/giggle-band/domain.adl:454`).
+This is Giggle Band's own `CreateBand` command's step pair, verbatim, from
+`src/reference/giggle-band/domain.adlj`.
 
 For the rest of that transaction the new instance is in reach of the object-scope
 gate, so the membership step can write a record scoped to a context that did not

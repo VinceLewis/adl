@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileAdl } from "../src/compiler/compile-adl.js";
-import { compileAdlProject } from "../src/compiler/compile-adl-project.js";
+import { compileAdlProjectV2 } from "../src/compiler/compile-adl-project-v2.js";
 import {
   AdljParseError,
   compileAdlj,
@@ -247,14 +247,21 @@ describe('comment threading: AdljSourceDocument "comment" -> PartialApplicationM
 });
 
 describe("printPartialApplicationModelAsAdl", () => {
-  // A permanent CI drift check (Phase 78): for both fixtures below, printing
+  // A permanent CI drift check (Phase 78): for every fixture below, printing
   // the compiled `partialModel` back to `.adl` text and reparsing it must
-  // resolve to a model deep-equal to the original. If a future change to
-  // either fixture's source, the printer, or the resolver introduces a
-  // divergence the printer cannot round-trip, one of these two tests catches
-  // it — task-tracker for the plain declarative skeleton, Giggle Band for
-  // composed presentation and edit surfaces, the richest real content in
-  // this repository for both.
+  // resolve to a model deep-equal to the original. If a future change to a
+  // fixture's source, the printer, or the resolver introduces a divergence the
+  // printer cannot round-trip, one of these tests catches it.
+  //
+  // Phase 98 deleted Giggle Band's `.adl` snapshot, which used to supply the
+  // rich half of this proof. The replacement subjects are real `.adlj` sources
+  // and the `examples/` corpus, so nothing here depends on hand-authored `.adl`
+  // text: `.adl` is the printed view of `.adlj`, and this describes what that
+  // view can and cannot say. Coverage after the replacement is stated in
+  // `docs/phases/phase-98-delete-kept-adl-snapshot.md`; the constructs no
+  // fixture reaches any more (`STATUS_MAP`, `ICON_MAP`, presentation
+  // `TOGGLE`, `UNION`, a qualified `READ_MODEL SOURCE JOIN`, `ATTACHMENT`)
+  // are named there rather than quietly dropped.
   it("round-trips the task-tracker fixture: print, reparse, resolve to the identical model", () => {
     const original = compileAdl(readExample("task-tracker.adl"));
     expect(original.diagnostics).toEqual([]);
@@ -266,36 +273,21 @@ describe("printPartialApplicationModelAsAdl", () => {
     expect(reparsed.model).toEqual(original.model);
   });
 
-  it("round-trips the Giggle Band reference app: print, reparse, resolve to the identical model", () => {
-    // Giggle Band is the richest real presentation/edit-surface content in
-    // this repository — composed dashboards, icon/status maps, legends,
-    // toggles, row-scoped actions, calendars, CRUD edit sections, child
-    // collections, both relationship-picker modes, a global SHELL, `UNION`
-    // read models, a qualified `READ_MODEL SOURCE JOIN`, a policy `FIELDS`
-    // clause naming a field that collides with a principal-selector keyword
-    // (`Role`), and list-typed command inputs with structured item fields.
-    // This is the actual proof the printer's construct coverage is real,
-    // not just what a hand-built small fixture happens to exercise.
-    //
-    // Giggle Band's own `app.yaml` now lists `domain.adlj`/`ui.adlj` (its real
-    // compiled source since the `.adlj` conversion), so this proof of the
-    // `.adl` text printer uses a literal manifest naming the retained,
-    // unmodified `domain.adl`/`ui.adl` files directly.
-    const original = compileAdlProject({
-      manifestSource: [
-        "name: Giggle Band ADL Example",
-        "id: giggle-band",
-        "version: 0.1.0",
-        "startView: HomeDashboard",
-        "",
-        "sources:",
-        "  - domain.adl",
-        "  - ui.adl",
-        "",
-      ].join("\n"),
+  it("round-trips the Jointly Care reference app: compile its real `.adlj` source, print, reparse", () => {
+    // Jointly Care is the richest application source the printer can render at
+    // all: three `CONTEXT` declarations and three `CONTEXT_GRANT`s, twenty
+    // read models, a global `SHELL` with both a top bar and a nav drawer,
+    // calendars, legends, composed sections, commands, thirty-two policies,
+    // computed fields and four `MIGRATION` hops. Giggle Band cannot stand in
+    // for it: `print-adl.ts` refuses that source outright, because it declares
+    // three constructs with no ADL text syntax at all (a calendar
+    // `conflictOverlay`, and a child collection's `projectedFields` and
+    // `summary`) — see the last test in this block.
+    const original = compileAdlProjectV2({
+      manifestSource: readReference("jointly-care/app.yaml"),
       sources: {
-        "domain.adl": readReference("giggle-band/domain.adl"),
-        "ui.adl": readReference("giggle-band/ui.adl"),
+        "domain.adlj": readReference("jointly-care/domain.adlj"),
+        "ui.adlj": readReference("jointly-care/ui.adlj"),
       },
     });
     expect(original.diagnostics).toEqual([]);
@@ -305,5 +297,110 @@ describe("printPartialApplicationModelAsAdl", () => {
 
     expect(reparsed.diagnostics).toEqual([]);
     expect(reparsed.model).toEqual(original.model);
+  });
+
+  it("round-trips the purchase-order example: edit surfaces, pickers, child collections, lifecycle", () => {
+    // What Jointly Care does not exercise: `LIFECYCLE` with terminal states,
+    // `EDIT_SECTION`s, an `ORDERED` child collection, both relationship-picker
+    // modes, and a policy rule carrying `FIELDS` alongside `ROLE` and `STATE`
+    // — the combination that exposed the missing `FIELDS` stop word in
+    // `src/parser/grammar/policy.ts` (Phase 98).
+    const original = compileAdl(readExample("purchase-order.adl"));
+    expect(original.diagnostics).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
+    const reparsed = compileAdl(printed);
+
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.model).toEqual(original.model);
+  });
+
+  it("prints MIGRATION blocks, including a hop that reshapes no record", () => {
+    // `MIGRATION` had text grammar from the start and was never printed, so
+    // every hop vanished from the printed `.adl` — silently, unlike the
+    // constructs the printer refuses by name. Neither round-trip fixture that
+    // existed before Phase 98 declared a migration, so nothing caught it until
+    // Jointly Care's four hops came back as `migrations: []`.
+    const original = compileAdlj(
+      JSON.stringify({
+        app: { name: "MigrationPrinting", startView: "WidgetList" },
+        modelVersion: "1.2.0",
+        contexts: [],
+        readModels: [],
+        objects: [
+          {
+            name: "Widget",
+            schemaVersion: 2,
+            businessKey: "Code",
+            displayField: "Label",
+            fields: [
+              { name: "Code", type: "text", required: true },
+              { name: "Label", type: "text", required: true },
+              { name: "PayoutCents", type: "number" },
+            ],
+            views: [{ name: "WidgetList", kind: "list", fields: ["Code", "Label"] }],
+          },
+        ],
+        migrations: [
+          // A version bump whose records need no reshaping is legal and
+          // meaningful, and prints as an empty MIGRATION/END.MIGRATION pair.
+          { from: "1.0.0", to: "1.1.0" },
+          {
+            from: "1.1.0",
+            to: "1.2.0",
+            objects: [
+              {
+                object: "Widget",
+                schemaVersion: 2,
+                steps: [
+                  { kind: "renameField", from: "Name", to: "Label" },
+                  { kind: "addField", field: "PayoutCents", defaultValue: 0 },
+                  { kind: "dropField", field: "LegacyNote" },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(original.diagnostics).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
+    expect(printed).toContain(
+      [
+        "MIGRATION FROM '1.0.0' TO '1.1.0'",
+        "END.MIGRATION",
+        "",
+        "MIGRATION FROM '1.1.0' TO '1.2.0'",
+        "  OBJECT Widget",
+        "    SCHEMA_VERSION 2",
+        "    RENAME FIELD Name TO Label",
+        "    ADD FIELD PayoutCents DEFAULT(0)",
+        "    DROP FIELD LegacyNote",
+        "  END.OBJECT",
+        "END.MIGRATION",
+      ].join("\n"),
+    );
+
+    const reparsed = compileAdl(printed);
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.model).toEqual(original.model);
+  });
+
+  it("refuses, by name, a source using a construct with no ADL text syntax", () => {
+    // The printer's contract: a construct it cannot render throws a clear,
+    // named error rather than silently dropping declared content. Giggle Band's
+    // real source is the standing proof — and the reason `.adl` text cannot be
+    // a complete view of `.adlj` today (`docs/spec/adlj.md`).
+    const real = compileAdlProjectV2({
+      manifestSource: readReference("giggle-band/app.yaml"),
+      sources: {
+        "domain.adlj": readReference("giggle-band/domain.adlj"),
+        "ui.adlj": readReference("giggle-band/ui.adlj"),
+      },
+    });
+    expect(real.diagnostics).toEqual([]);
+
+    expect(() => printPartialApplicationModelAsAdl(real.partialModel)).toThrow(/conflictOverlay/);
   });
 });

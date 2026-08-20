@@ -173,7 +173,7 @@ describe("band reference app model", () => {
     );
     expect(syncByObject.get("User")).toMatchObject({ mode: "localFirst", scope: "currentUser" });
     // The event history grows without bound, so it declares how much of itself a
-    // device keeps. The window is authored in `domain.adl`, not defaulted —
+    // device keeps. The window is authored in `domain.adlj`, not defaulted —
     // before Phase 62 a `.adl` file could not say this at all, and `recent`
     // meant a hard-coded 30 days over `_updatedAt`.
     //
