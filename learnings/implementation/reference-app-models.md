@@ -226,6 +226,64 @@ collection of records:
   conformance coverage), not something a reference-app phase can add on its
   own. Left undone here; a candidate for a dedicated phase if pursued.
 
+## `Event` gained an explicit `CreatedBy`, and `BandEventCalendar`'s dead `conflict` status is now real
+
+Two independent fixes, found by direct investigation of Giggle Band's own
+content and presentation: `Event` was the only one of `Event`/`Band`/`SetList`
+without an explicit `CreatedBy` User lookup (it relied solely on the automatic
+`_createdBy` metadata field), and `BandEventCalendar`'s `conflict` status —
+declared with a `STATUS`, `STATUS_MAP` entry, `LEGEND` entry and
+`PRECEDENCE 100` — had no `STATUS_MAP` value that could ever resolve to it.
+Both fixed together in one `modelVersion` bump (`1.4.0` -> `1.5.0`, with a
+real `ADD FIELD CreatedBy DEFAULT(null)` migration step on `Event` — the only
+schema/migration content either fix needed).
+
+- **`Event.CreatedBy`** now matches `Band.CreatedBy`/`SetList.CreatedBy`
+  exactly (a `text` field, not required, lookup target `User`, display field
+  `Name`), populated directly in `band-app.ts`'s seed calls — the same route
+  `SetList.CreatedBy` already used, since `Event`, like `SetList`, has no
+  dedicated create command (`Band`'s `CreatedBy` is the one populated by a
+  command step, `CreateBand`'s own `VALUE CreatedBy RUNTIME userId`).
+
+- **`BandEventCalendar`'s `conflict` status** needed a fact its backing read
+  model, `CalendarPlanningItems`, could never produce: `CalendarPlanningItems`
+  is a `UNION` of an `event` source and an `availability` source, and a
+  `UNION` read model may not declare a `JOIN` on any source at all
+  (`ADL_READ_MODEL_JOIN_STRATEGY_INVALID`) — every row comes from exactly one
+  source, so no row can ever see whether the *other* source also has a
+  matching record for the same date. A genuine correlation ("a gig is booked
+  and someone separately marked themselves unavailable that same date") needs
+  a real `JOIN`, and combining a `UNION` and a `JOIN` in one read model, or
+  making a plain `JOIN` preserve every independent non-matching row from
+  either direction, both turned out to be structurally impossible — see
+  `learnings/implementation/calendar-presentation-runtime.md`'s "A calendar's
+  own `source` can show independent facts, never correlate them" for the full
+  reasoning (inner-join semantics, the two directions considered and
+  rejected, and why a second read model plus a small, generic, named platform
+  addition — `ResolvedPresentationCalendar.conflictOverlay` — was the actual
+  fix, not a workaround). The new read model, `EventAvailabilityConflicts`,
+  and the demo's own genuine conflict (a new seeded `Availability` record,
+  `conflictAvailability`, sharing `firstEvent`'s own date with `Status:
+  'Unavailable'`) are both real, compiling, screenshot-verified content —
+  `npm run test:visual`'s Giggle Band calendar capture shows the conflict day
+  with a distinct red-bordered cell, its own `Conflict` icon, and a third
+  agenda item on mobile, not merely an internally-resolved status.
+
+**Practical lesson**: before assuming a "wire up this dead status" task is a
+pure content fix, check whether the read-model grammar can actually express
+the correlation the status needs. `UNION` (no `JOIN` allowed, ever) and
+`JOIN` (inner-only, drops every non-matching row on whichever side is not
+primary, regardless of `CARDINALITY`) are not composable, and neither
+direction of a plain join can substitute for a `UNION`'s "show every
+independent fact." When a real correlation is genuinely needed alongside
+independent per-fact display, the working shape is two read models (one
+unchanged for content, one purpose-built and join-based for the correlated
+signal) plus, if nothing in the existing calendar/list/matrix presentation
+grammar can already combine two independently-executed sources on one grid,
+a small generic platform addition following this project's own "extend the
+resolved model and `PresentationRuntime` first" rule — not an app-specific
+runtime hook.
+
 ## Key decisions from the Jointly Care ADL conversion
 
 A second folder app, `src/reference/jointly-care/` (`app.yaml`, `domain.adlj`,

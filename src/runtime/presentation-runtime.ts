@@ -54,6 +54,7 @@ export interface RuntimePresentationDiagnostic {
     | "ADL_PRESENTATION_STATE_TYPE_MISMATCH"
     | "ADL_PRESENTATION_LIST_BINDING_FAILED"
     | "ADL_PRESENTATION_CALENDAR_BINDING_FAILED"
+    | "ADL_PRESENTATION_CALENDAR_CONFLICT_OVERLAY_BINDING_FAILED"
     | "ADL_PRESENTATION_CALENDAR_DATE_INVALID"
     | "ADL_PRESENTATION_MATRIX_BINDING_FAILED"
     | "ADL_PRESENTATION_MATRIX_COLUMN_INVALID"
@@ -763,6 +764,15 @@ export class PresentationRuntime {
     const month = resolveCalendarMonth(calendar, state, context, diagnostics, path, section);
     const cells = buildCalendarCells(calendar, month.value, context, diagnostics, path, section);
     const rowsByDate = groupCalendarRowsByDate(calendar, boundRows, diagnostics, path, section);
+    const conflictOverlay = await this.resolveConflictOverlay(
+      calendar,
+      view,
+      state,
+      context,
+      diagnostics,
+      path,
+      section,
+    );
 
     const evaluatedCells = cells.map((cell, index) =>
       this.evaluateCalendarCell(
@@ -777,6 +787,7 @@ export class PresentationRuntime {
           path: `${path}.cells[${index}]`,
           section,
         },
+        conflictOverlay,
       ),
     );
     const hasEvents = evaluatedCells.some((cell) => cell.eventCount > 0);
@@ -798,6 +809,75 @@ export class PresentationRuntime {
       cells: evaluatedCells,
       ...(emptyState === undefined ? {} : { emptyState }),
     };
+  }
+
+  /**
+   * Executes a calendar's declared `conflictOverlay` read model, independently
+   * of `calendar.source`, and reduces it to the set of dates whose overlay
+   * rows carry `flagField: true` plus the (already-resolved) status those
+   * dates should contribute. See
+   * `ResolvedPresentationCalendarConflictOverlay`'s own doc comment for why
+   * this has to be a second read model rather than a field on `source`'s own
+   * rows.
+   */
+  private async resolveConflictOverlay(
+    calendar: ResolvedPresentationCalendar,
+    view: ResolvedView,
+    state: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimePresentationDiagnostic[],
+    path: string,
+    section: string,
+  ): Promise<CalendarConflictOverlay | undefined> {
+    const overlay = calendar.conflictOverlay;
+    if (overlay === undefined) {
+      return undefined;
+    }
+
+    const overlayPath = `${path}.conflictOverlay`;
+    const status = this.resolveStatus(
+      overlay.status,
+      view,
+      state,
+      diagnostics,
+      {
+        path: overlayPath,
+        section,
+      },
+      { kind: "direct" },
+    );
+    if (status === undefined) {
+      return undefined;
+    }
+
+    try {
+      const result = await this.dataSource.executeReadModel(overlay.readModel, context);
+      const dates = new Set<string>();
+      for (const row of result.rows) {
+        if (row.values[overlay.flagField] !== true) {
+          continue;
+        }
+        const dateValue = row.values[overlay.dateField];
+        if (typeof dateValue === "string") {
+          dates.add(dateValue);
+        }
+      }
+      return { dates, status };
+    } catch (error) {
+      diagnostics.push({
+        severity: "error",
+        code: "ADL_PRESENTATION_CALENDAR_CONFLICT_OVERLAY_BINDING_FAILED",
+        message: `Calendar '${calendar.name}' could not bind conflict overlay read model '${overlay.readModel}'.`,
+        path: overlayPath,
+        section,
+      });
+      this.logger.debug("PresentationRuntime calendar conflict overlay binding failed", {
+        calendar: calendar.name,
+        readModel: overlay.readModel,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   private async bindCalendarRows(
@@ -846,6 +926,7 @@ export class PresentationRuntime {
     context: RuntimeContext,
     diagnostics: RuntimePresentationDiagnostic[],
     location: DiagnosticLocation,
+    conflictOverlay?: CalendarConflictOverlay,
   ): RuntimePresentationCalendarCell {
     const items = rows.map((row, index) =>
       this.evaluateCalendarItem(calendar, view, row, state, diagnostics, {
@@ -853,6 +934,22 @@ export class PresentationRuntime {
         path: `${location.path}.items[${index}]`,
       }),
     );
+    if (conflictOverlay !== undefined && conflictOverlay.dates.has(cell.date)) {
+      // A synthetic item, not backed by any one record: the overlay read
+      // model proves the correlated *fact* (a gig and a separate
+      // unavailability on this date), not a single row either source
+      // already produced. It participates in status/count aggregation
+      // exactly like a real item so the existing max-precedence cell logic
+      // (and `HasConflict`) need no special-casing.
+      items.push({
+        id: `${calendar.name}:conflict:${cell.date}`,
+        title: conflictOverlay.status.label,
+        summary: conflictOverlay.status.accessibleLabel,
+        values: { Date: cell.date },
+        sources: [],
+        status: conflictOverlay.status,
+      });
+    }
     const statusCounts = countCalendarStatuses(items);
     const hasConflict = items.some((item) => item.status?.name === "conflict");
     const cellStatus =
@@ -2221,6 +2318,12 @@ interface BoundPresentationRow {
   id: string;
   values: Record<string, JsonValue>;
   sources: RuntimePresentationRowSource[];
+}
+
+/** Resolved, ready-to-apply form of a calendar's `conflictOverlay`. */
+interface CalendarConflictOverlay {
+  dates: Set<string>;
+  status: RuntimePresentationStatus;
 }
 
 interface PlannedMatrixCellWrite {

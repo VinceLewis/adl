@@ -675,6 +675,12 @@
                         }
                       ]
                     },
+                    "conflictOverlay": {
+                      "readModel": "EventAvailabilityConflicts",
+                      "dateField": "Date",
+                      "flagField": "IsConflict",
+                      "status": "conflict"
+                    },
                     "emptyState": {
                       "text": "No events in this month"
                     },

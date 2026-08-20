@@ -636,6 +636,17 @@ than guessing at invented syntax or silently dropping content:
 - An empty state's `icon` (list or calendar) — `EMPTY_TEXT` only ever takes a
   literal string.
 - A calendar's `month.labelFormat`.
+- A calendar's `conflictOverlay`
+  (`ResolvedPresentationCalendarConflictOverlay`) — a second, independently
+  executed read model that layers a correlated status onto specific dates of
+  the calendar's own `source` rows, added because a `UNION` read model may
+  never declare a `JOIN` and a `JOIN`-strategy read model's inner-join
+  semantics would drop every non-matching row of whichever source is not
+  primary — see `src/reference/giggle-band/domain.adlj`'s
+  `EventAvailabilityConflicts` (feeding `BandEventCalendar`'s `MonthPlanner`
+  calendar in `ui.adlj`) for the real, compiling worked example, and
+  `learnings/implementation/calendar-presentation-runtime.md` for the full
+  design rationale.
 - Per-view `presentation.shell.regions` — only the global `SHELL` block (now
   printed too) has ADL source syntax; per-view shell regions are
   JSON/TypeScript-only per `docs/spec/ui-language-addendum.md`.

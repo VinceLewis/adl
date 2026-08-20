@@ -53,11 +53,18 @@ describe("presentation runtime", () => {
     ]);
     expect(schedule?.lists[0]?.rows.map((row) => row.values.Title)).toEqual([
       "Canal Street headline",
+      // Casey's own double-booking on the gig's own date: a separate row from
+      // a different source, same as the pre-existing cross-band-availability
+      // coincidence below. `EventAvailabilityConflicts` is what correlates
+      // this pair into `BandEventCalendar`'s `conflict` status; this dashboard
+      // still shows it as a plain `unavailable` row, unaffected.
+      "Forgot I already booked this date.",
       "New set rehearsal",
       "Unavailable - session prep",
     ]);
     expect(schedule?.lists[0]?.rows.map((row) => row.status?.name)).toEqual([
       "event",
+      "unavailable",
       "rehearsal",
       "unavailable",
     ]);
@@ -132,10 +139,12 @@ describe("presentation runtime", () => {
     });
     expect(schedule?.lists[0]?.rows.map((row) => row.values.Title)).toEqual([
       "Canal Street headline",
+      "Forgot I already booked this date.",
       "Unavailable - session prep",
     ]);
     expect(homeRows.rows.map((row) => row.values.Title)).toEqual([
       "Canal Street headline",
+      "Forgot I already booked this date.",
       "New set rehearsal",
       "Thought this evening was free.",
       "Unavailable - session prep",

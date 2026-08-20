@@ -1036,6 +1036,15 @@ function printPresentationCalendar(calendar: PartialPresentationCalendarModel): 
       `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares month.labelFormat, which has no ADL CALENDAR directive. See docs/spec/adlj.md.`,
     );
   }
+  // NO TEXT SYNTAX: `calendar.conflictOverlay` has a full resolved-model/JSON
+  // shape (`ResolvedPresentationCalendarConflictOverlay`) but the parser has
+  // no `CONFLICT_OVERLAY`/equivalent `CALENDAR` directive -- same treatment
+  // as `MATRIX` above.
+  if (calendar.conflictOverlay !== undefined) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: calendar '${calendar.name}' declares a conflictOverlay, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
+    );
+  }
   const lines = [
     `CALENDAR ${calendar.name} FROM ${printPresentationSourceRef(calendar.sourceKind, calendar.source)}`,
   ];

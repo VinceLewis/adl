@@ -9,7 +9,7 @@ import type {
 } from "../../model/resolved-model.js";
 import { MODEL_VALIDATION_CODES } from "./codes.js";
 import type { Diagnostic } from "./codes.js";
-import { diagnostic, reportDuplicateNames } from "./shared.js";
+import { diagnostic, indexReadModelExpressionFields, reportDuplicateNames } from "./shared.js";
 import type { ExpressionFieldReference, ModelIndexes, NamedReference } from "./shared.js";
 import {
   createCalendarActionFieldReferences,
@@ -124,6 +124,16 @@ export function validatePresentationCalendar(
     );
   }
 
+  if (calendar.conflictOverlay !== undefined) {
+    validatePresentationCalendarConflictOverlay(
+      calendar,
+      calendarPath,
+      statusByName,
+      indexes,
+      diagnostics,
+    );
+  }
+
   validatePresentationCalendarMonth(calendar, calendarPath, stateByName, diagnostics);
   validatePresentationIconRef(
     calendar.emptyState.icon,
@@ -161,6 +171,60 @@ export function validatePresentationCalendar(
       iconMapByName,
       fieldsByName,
       diagnostics,
+    );
+  }
+}
+function validatePresentationCalendarConflictOverlay(
+  calendar: ResolvedPresentationCalendar,
+  calendarPath: string,
+  statusByName: Map<string, NamedReference<ResolvedPresentationStatus>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  const overlay = calendar.conflictOverlay;
+  if (overlay === undefined) {
+    return;
+  }
+  const overlayPath = `${calendarPath}.conflictOverlay`;
+
+  const readModel = indexes.readModelsByName.get(overlay.readModel)?.item;
+  if (readModel === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_CONFLICT_OVERLAY_READ_MODEL_UNKNOWN,
+        `Presentation calendar '${calendar.name}' conflict overlay references unknown read model '${overlay.readModel}'.`,
+        `${overlayPath}.readModel`,
+      ),
+    );
+    return;
+  }
+
+  const overlayFieldsByName = indexReadModelExpressionFields(readModel);
+  if (!overlayFieldsByName.has(overlay.dateField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+        `Presentation calendar '${calendar.name}' conflict overlay references unknown date field '${overlay.dateField}' on read model '${overlay.readModel}'.`,
+        `${overlayPath}.dateField`,
+      ),
+    );
+  }
+  if (!overlayFieldsByName.has(overlay.flagField)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_FIELD_UNKNOWN,
+        `Presentation calendar '${calendar.name}' conflict overlay references unknown flag field '${overlay.flagField}' on read model '${overlay.readModel}'.`,
+        `${overlayPath}.flagField`,
+      ),
+    );
+  }
+  if (!statusByName.has(overlay.status)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.PRESENTATION_CALENDAR_STATUS_UNKNOWN,
+        `Presentation calendar '${calendar.name}' conflict overlay references unknown status '${overlay.status}'.`,
+        `${overlayPath}.status`,
+      ),
     );
   }
 }

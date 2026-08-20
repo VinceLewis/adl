@@ -37,6 +37,9 @@ export function resolvePresentationCalendar(
       resolvePresentationAction(action, action.placement ?? "secondary"),
     ),
     emptyState: resolvePresentationEmptyState(input.emptyState),
+    ...(input.conflictOverlay === undefined
+      ? {}
+      : { conflictOverlay: { ...input.conflictOverlay } }),
   };
 }
 function resolvePresentationCalendarMonth(

@@ -25,7 +25,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.4.0");
+    expect(model.modelVersion).toBe("1.5.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -42,6 +42,19 @@ describe("band reference app model", () => {
         },
       ],
     });
+    // Also not an empty-object hop: `1.4.0 -> 1.5.0` adds `Event.CreatedBy`
+    // (matching `Band.CreatedBy`/`SetList.CreatedBy`), so a persisted event
+    // needs the field backfilled with a default before the model will read it.
+    expect(model.migrations).toContainEqual({
+      from: "1.4.0",
+      to: "1.5.0",
+      objects: [
+        {
+          object: "Event",
+          steps: [{ kind: "addField", field: "CreatedBy", defaultValue: null }],
+        },
+      ],
+    });
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -54,7 +67,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-e4dafa5a9dc863a3e965c66f496b14688a34df6563dea7c6c513b5a9f046d2f4",
+      "sha256-50d483a4c31be8e36c7046127c6415b6f20c5d3efd1ff92c232d221960648569",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -111,6 +124,22 @@ describe("band reference app model", () => {
         scopeFields: ["Band"],
         fields: ["Title"],
       }),
+    );
+    // `Event` now carries an explicit `CreatedBy` lookup, matching
+    // `Band.CreatedBy` and `SetList.CreatedBy`'s exact shape, instead of
+    // relying solely on the automatic `_createdBy` metadata field.
+    expect(
+      model.objects
+        .find((object) => object.name === "Event")
+        ?.fields.find((field) => field.name === "CreatedBy"),
+    ).toMatchObject({
+      type: "text",
+      required: false,
+      readonly: false,
+      lookup: { targetObject: "User", displayField: "Name" },
+    });
+    expect(model.readModels?.map((readModel) => readModel.name)).toEqual(
+      expect.arrayContaining(["EventAvailabilityConflicts"]),
     );
     expect(syncByObject.get("User")).toMatchObject({ mode: "localFirst", scope: "currentUser" });
     // The event history grows without bound, so it declares how much of itself a
@@ -557,6 +586,17 @@ describe("band reference app runtime", () => {
         Title: "Canal Street headline",
         VenueName: "Alpha Hall",
       }),
+      // Casey's own "double-booked" availability entry on the same date as the
+      // gig above: a separate union row, not merged with it, because it comes
+      // from a different source. This is the genuine conflict
+      // `EventAvailabilityConflicts` (`domain.adlj`) correlates for
+      // `BandEventCalendar`'s `conflict` status; see
+      // `learnings/implementation/reference-app-models.md`.
+      expect.objectContaining({
+        EventDate: "2026-08-01",
+        EventType: "Unavailable",
+        Title: "Forgot I already booked this date.",
+      }),
       expect.objectContaining({
         EventDate: "2026-08-02",
         StartTime: "18:30",
@@ -580,7 +620,13 @@ describe("band reference app runtime", () => {
         Title: "Unavailable - session prep",
       }),
     ]);
-    expect(home.rows[3]?.sources).toEqual({
+    expect(home.rows[1]?.sources).toEqual({
+      availability: {
+        objectName: "Availability",
+        recordId: seeded.conflictAvailability.meta.guid,
+      },
+    });
+    expect(home.rows[4]?.sources).toEqual({
       availability: {
         objectName: "Availability",
         recordId: seeded.availability.meta.guid,
@@ -599,6 +645,13 @@ describe("band reference app runtime", () => {
         Title: "Canal Street headline",
         VenueName: "Alpha Hall",
       }),
+      // Casey's own genuine double-booking on the gig's own date -- see the
+      // `HomeUpcomingEvents` assertion above for the same fact.
+      expect.objectContaining({
+        Date: "2026-08-01",
+        CalendarStatus: "Unavailable",
+        Title: "Forgot I already booked this date.",
+      }),
       // `CalendarPlanningItems` sources `Event SCOPE currentContext`, so
       // `secondEvent` (the Betas rehearsal) never appears while the Alphas are
       // selected — only Casey's own availability entry on the same date does.
@@ -613,12 +666,36 @@ describe("band reference app runtime", () => {
         Title: "Unavailable - session prep",
       }),
     ]);
-    expect(calendar.rows[2]?.sources).toEqual({
+    expect(calendar.rows[1]?.sources).toEqual({
+      availability: {
+        objectName: "Availability",
+        recordId: seeded.conflictAvailability.meta.guid,
+      },
+    });
+    expect(calendar.rows[3]?.sources).toEqual({
       availability: {
         objectName: "Availability",
         recordId: seeded.availability.meta.guid,
       },
     });
+
+    // The genuine gig/unavailability correlation `BandEventCalendar`'s
+    // `conflict` status needs, and the reason a plain union of `Event` and
+    // `Availability` (as `CalendarPlanningItems` above stays) can never
+    // produce it on its own: see `EventAvailabilityConflicts`'s own comment
+    // in `domain.adlj`.
+    const conflicts = await seeded.runtime.executeReadModel(
+      "EventAvailabilityConflicts",
+      seeded.firstBandContext,
+    );
+    expect(conflicts.rows.map((row) => row.values)).toEqual([
+      {
+        Date: "2026-08-01",
+        EventType: "Gig",
+        AvailabilityStatus: "Unavailable",
+        IsConflict: true,
+      },
+    ]);
 
     const setList = await seeded.runtime.executeReadModel(
       "SetListItemsByPosition",
@@ -737,6 +814,7 @@ describe("band reference app runtime", () => {
     expect(availabilitySearch.map((record) => record.meta.guid)).toEqual([
       seeded.availability.meta.guid,
       seeded.crossBandAvailability.meta.guid,
+      seeded.conflictAvailability.meta.guid,
     ]);
   });
 
@@ -964,6 +1042,22 @@ describe("band reference app runtime", () => {
     ).rejects.toBeInstanceOf(RuntimeValidationError);
   });
 
+  /**
+   * The Fix 1 acceptance criterion: `Event` now populates `CreatedBy` at
+   * create time, matching `Band`/`SetList` exactly -- both seeded directly in
+   * `band-app.ts`, since none of the three has a dedicated create command
+   * (`CreateBand`'s command step is the one exception, but its own
+   * `createFounderMembership` step never touches `Band.CreatedBy` either).
+   */
+  it("populates Event.CreatedBy the same way Band.CreatedBy and SetList.CreatedBy already do", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    expect(seeded.firstEvent.values.CreatedBy).toBe(seeded.musician.meta.guid);
+    expect(seeded.secondEvent.values.CreatedBy).toBe(seeded.musician.meta.guid);
+    expect(seeded.firstBand.values.CreatedBy).toBeUndefined();
+    expect(seeded.firstSetList.values.CreatedBy).toBe(seeded.musician.meta.guid);
+  });
+
   it("names a repeat booking's earlier gig through the self-referencing PreviousGig lookup", async () => {
     const seeded = await createSeededBandReferenceRuntime();
     const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
@@ -1042,6 +1136,50 @@ describe("band reference app runtime", () => {
       Title: "Canal Street headline",
       VenueName: "Alpha Hall",
     });
+  });
+
+  /**
+   * The fix this proves: `BandEventCalendar`'s `conflict` status used to be
+   * declared but unreachable -- `CalendarPlanningItems`' `CalendarEventTypeStatus`
+   * statusMap only ever produced `event`/`rehearsal`/`unavailable`, because a
+   * `UNION` read model can never correlate its two sources on the same row (see
+   * `EventAvailabilityConflicts`'s own comment in `domain.adlj`). This proves
+   * the whole path end to end: a real day with both a booked gig and a
+   * separately-marked unavailable note resolves the calendar *cell* to
+   * `conflict` (precedence 100, beating both `event` and `unavailable`), and a
+   * day with only one of the two facts still resolves to its ordinary status.
+   */
+  it("wires BandEventCalendar's conflict status to a real gig/unavailability correlation", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    const presentation = await seeded.runtime.evaluatePresentationView(
+      "Event",
+      "BandEventCalendar",
+      seeded.firstBandContext,
+    );
+    const section = presentation.sections.find(
+      (candidate) => candidate.name === "PlanningCalendar",
+    );
+    const calendar = section?.calendars.find((candidate) => candidate.name === "MonthPlanner");
+
+    // Casey booked the Canal Street gig and separately marked themselves
+    // unavailable that same date (`conflictAvailability`) -- a genuine
+    // double-booking, not merely two unrelated facts sharing a day.
+    const conflictCell = calendar?.cells.find((candidate) => candidate.date === "2026-08-01");
+    expect(conflictCell?.status?.name).toBe("conflict");
+    expect(conflictCell?.hasConflict).toBe(true);
+    expect(conflictCell?.items.map((item) => item.status?.name)).toEqual(
+      expect.arrayContaining(["event", "unavailable", "conflict"]),
+    );
+
+    // A day with only an unavailable note and no gig still resolves to the
+    // ordinary `unavailable` status, not `conflict` -- the overlay marks only
+    // the dates `EventAvailabilityConflicts` itself names.
+    const unavailableOnlyCell = calendar?.cells.find(
+      (candidate) => candidate.date === "2026-08-03",
+    );
+    expect(unavailableOnlyCell?.status?.name).toBe("unavailable");
+    expect(unavailableOnlyCell?.hasConflict).toBe(false);
   });
 
   it("overlays a cross-band gig on the availability board with a higher-precedence status", async () => {

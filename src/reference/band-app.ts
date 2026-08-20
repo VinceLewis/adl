@@ -70,6 +70,7 @@ export interface BandReferenceSeed {
   secondEvent: StoredObjectRecord;
   availability: StoredObjectRecord;
   crossBandAvailability: StoredObjectRecord;
+  conflictAvailability: StoredObjectRecord;
   firstSong: StoredObjectRecord;
   secondSong: StoredObjectRecord;
   thirdSong: StoredObjectRecord;
@@ -181,6 +182,7 @@ export async function seedBandReferenceRuntime(
       Amount: 450,
       PaymentMethod: "Bank Transfer",
       Agent: "Riverside Bookings",
+      CreatedBy: musician.meta.guid,
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
@@ -195,6 +197,7 @@ export async function seedBandReferenceRuntime(
       Title: "New set rehearsal",
       VenueName: "Beta Rooms",
       VenueLocation: "Unit 4",
+      CreatedBy: musician.meta.guid,
     },
     contextForBand(systemContext, secondBand.meta.guid),
   );
@@ -248,6 +251,24 @@ export async function seedBandReferenceRuntime(
       Notes: "Guest availability should not enter Casey's current-user dataset.",
     },
     { ...musicianContext, userId: guest.meta.guid },
+  );
+  // Same date as `firstEvent` (the Alphas' Canal Street headline gig): Casey
+  // is genuinely double-booked -- a real conflict, not merely a coincidence,
+  // because `firstEvent.EventType` is `Gig` and this record's own `Status` is
+  // `Unavailable`. `EventAvailabilityConflicts` (`domain.adlj`) is what turns
+  // this pair into a fact `BandEventCalendar`'s `conflict` status can render;
+  // see that read model's own comment for why a plain union could never see
+  // it, and `learnings/implementation/reference-app-models.md` for the fuller
+  // account of both fixes this seed record exercises.
+  const conflictAvailability = await runtime.create(
+    "Availability",
+    {
+      User: musician.meta.guid,
+      Date: "2026-08-01",
+      Status: "Unavailable",
+      Notes: "Forgot I already booked this date.",
+    },
+    musicianContext,
   );
 
   const firstSong = await runtime.create(
@@ -434,6 +455,7 @@ export async function seedBandReferenceRuntime(
     secondEvent,
     availability,
     crossBandAvailability,
+    conflictAvailability,
     firstSong,
     secondSong,
     thirdSong,
@@ -520,6 +542,29 @@ async function migratePersistedBandReferenceDemo(
         Date: "2026-08-03",
         Status: "Unavailable",
         Notes: "Unavailable - session prep",
+      },
+      musicianContext,
+    );
+  }
+
+  // Backfills the genuine gig/unavailability conflict onto any install that
+  // seeded before this record existed, so the fix stays demonstrable on an
+  // upgraded device too, not only a fresh one.
+  if (
+    !availabilityRecords.some(
+      (record) =>
+        record.values.Date === "2026-08-01" &&
+        record.values.Status === "Unavailable" &&
+        record.values.Notes === "Forgot I already booked this date.",
+    )
+  ) {
+    await runtime.create(
+      "Availability",
+      {
+        User: musicianContext.userId,
+        Date: "2026-08-01",
+        Status: "Unavailable",
+        Notes: "Forgot I already booked this date.",
       },
       musicianContext,
     );

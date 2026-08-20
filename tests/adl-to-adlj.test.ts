@@ -67,6 +67,31 @@ function sortedComments(value: unknown): string[] {
   return collectComments(value).slice().sort();
 }
 
+/**
+ * Deep-clones a `PartialApplicationModel` with every `conflictOverlay` key
+ * removed (a calendar's own `ResolvedPresentationCalendarConflictOverlay`,
+ * one of the small named set of constructs with no ADL text syntax -- see
+ * `docs/spec/adlj.md`'s "The printer"). `conflictOverlay` is a name specific
+ * enough to this one construct that removing it wherever it appears, rather
+ * than walking the typed structure to the exact calendar path, is safe.
+ */
+function withoutCalendarConflictOverlays<T>(value: T): T {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => withoutCalendarConflictOverlays(item)) as unknown as T;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "conflictOverlay") {
+      continue;
+    }
+    result[key] = withoutCalendarConflictOverlays(val);
+  }
+  return result as T;
+}
+
 describe("partialApplicationModelToAdljSource", () => {
   it("converts a hand-built PartialApplicationModel's computed field, object validation, and policy condition to infix strings", () => {
     const model: PartialApplicationModel = {
@@ -240,7 +265,19 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
     // Sanity: this must be a real, non-vacuous proof against real content.
     expect(originalComments.length).toBeGreaterThanOrEqual(10);
 
-    const printed = printPartialApplicationModelAsAdl(original.partialModel);
+    // `BandEventCalendar`'s `MonthPlanner` calendar declares a
+    // `conflictOverlay` (see `ResolvedPresentationCalendarConflictOverlay`),
+    // one of the small, named set of constructs with no ADL text syntax at
+    // all -- same treatment as `MATRIX`, a `select` control, or a conditional
+    // row fragment (see `docs/spec/adlj.md`'s "The printer" section). The
+    // printer correctly refuses to print it; this test's own job is comment
+    // preservation across the rest of the model, so the field is stripped
+    // from a clone before printing, exactly the way a real caller of
+    // `printPartialApplicationModelAsAdl` has to route around any
+    // unprintable construct today. It carries no `comment` of its own, so
+    // this does not remove anything `originalComments` above already counted.
+    const printableModel = withoutCalendarConflictOverlays(original.partialModel);
+    const printed = printPartialApplicationModelAsAdl(printableModel);
     for (const comment of originalComments) {
       for (const line of comment.split("\n")) {
         expect(printed).toContain(line.length === 0 ? "#" : `# ${line}`);

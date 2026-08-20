@@ -28,6 +28,64 @@ or event-entry behavior.
   The browser app must preserve the current presentation view as the return
   surface and target only the edit form at the clicked record's object.
 
+## A calendar's own `source` can show independent facts, never correlate them — `conflictOverlay` is the escape hatch
+
+`BandEventCalendar`'s `conflict` status was declared (a `STATUS`, a `STATUS_MAP`
+entry, a `LEGEND` entry, `PRECEDENCE 100`) but structurally unreachable: its
+backing read model, `CalendarPlanningItems`, is a `UNION` of an `event` source
+and an `availability` source, so every row comes from exactly one of the two
+and no row can ever see whether the *other* source also has a matching record
+for the same date. Fixing "a gig is booked and someone separately marked
+themselves unavailable that same date" needs a real correlation — a `JOIN` —
+and ADL's read-model grammar refuses a `JOIN` on any source of a `UNION`
+read model (`ADL_READ_MODEL_JOIN_STRATEGY_INVALID`).
+
+Switching `CalendarPlanningItems` itself to a `JOIN`-strategy read model does
+not work either: a declared join in this codebase is an **inner** join
+regardless of `CARDINALITY` — `applyDeclaredJoinedSource`
+(`read-model-service.ts`) drops every partial row whose join produced zero
+matches, for both `one` and `many` — so making `Event` the join's driving
+side would silently delete every ordinary gig with no availability note that
+date (the overwhelming majority), and making `Availability` the driving side
+would delete every gig with no availability note the other way around. A
+`UNION` and a `JOIN` cannot be combined in one read model, and neither
+direction of a plain join can reproduce "show every independent fact,
+correlate only where both exist."
+
+The fix is a **second, purpose-built join-based read model**
+(`EventAvailabilityConflicts` in `domain.adlj`) whose only job is naming the
+correlated dates — because the join is inner, its rows are *already* exactly
+the dates where both facts coincide, no extra filtering needed for the
+correlation itself, only for narrowing "any coincidence" down to "a genuine
+conflict" (`IsConflict: EventType == 'Gig' and AvailabilityStatus ==
+'Unavailable'`, since a gig coinciding with someone merely *available* is not
+a conflict). `CalendarPlanningItems` stays completely unchanged, still
+showing every individual gig/rehearsal/unavailable row exactly as before.
+
+Getting that second read model's rows onto the *same* calendar grid — not a
+second, visually separate month widget — needed one small, generic platform
+addition: `ResolvedPresentationCalendar.conflictOverlay`
+(`{ readModel, dateField, flagField, status }`,
+`src/model/resolved-model/presentation-calendar.ts`). `PresentationRuntime.evaluateCalendar`
+executes that read model independently of the calendar's own `source`,
+reduces it to the set of dates with `flagField: true`, and
+`evaluateCalendarCell` pushes one synthetic `RuntimePresentationCalendarItem`
+(no backing record — `sources: []`) for the overlay's declared `status` into
+each matching cell's own `items`, *before* `statusCounts`/`hasConflict`/the
+max-precedence `chooseEffectiveStatus` run. That is the whole trick: it
+participates in every piece of existing cell-aggregation logic as an
+ordinary item, so nothing about precedence, `HasConflict`, the legend, or
+the mobile agenda fallback needed touching. `adl-composed-view.ts`'s
+`renderCalendarItem` already renders a sourceless item as a plain,
+non-interactive `<div>` rather than a clickable record button — that
+fallback already existed and needed no change either.
+
+`conflictOverlay` is `.adlj`/JSON-only, the same treatment as `MATRIX`: no
+`.adl` text grammar for it, `print-adl.ts`'s `printPresentationCalendar`
+throws the same named "no ADL text syntax" error a `.adl`-printing caller
+already has to handle for those other constructs. See
+`docs/spec/adlj.md`'s "no ADL text syntax at all" list.
+
 ## Practical Guidance
 
 - Keep compact feeds as the default "what is coming up" view. Add calendars

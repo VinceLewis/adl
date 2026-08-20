@@ -166,7 +166,7 @@ describe("browser model migration over IndexedDB", () => {
       throw new Error("Giggle model is missing Event.");
     }
 
-    expect(model.modelVersion).toBe("1.4.0");
+    expect(model.modelVersion).toBe("1.5.0");
     expect(model.migrations).toContainEqual({
       from: "1.0.0",
       to: "1.1.0",
@@ -189,6 +189,16 @@ describe("browser model migration over IndexedDB", () => {
         {
           object: "Event",
           steps: [{ kind: "dropField", field: "SetList" }],
+        },
+      ],
+    });
+    expect(model.migrations).toContainEqual({
+      from: "1.4.0",
+      to: "1.5.0",
+      objects: [
+        {
+          object: "Event",
+          steps: [{ kind: "addField", field: "CreatedBy", defaultValue: null }],
         },
       ],
     });
@@ -229,16 +239,19 @@ describe("browser model migration over IndexedDB", () => {
       expect.objectContaining({
         code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MIGRATION_APPLIED,
         actual: "1.0.0",
-        expected: "1.4.0",
+        expected: "1.5.0",
       }),
     );
     expect(await storage.read("Band", persistedBand.meta.guid)).toEqual(persistedBand);
     const migratedEvent = await storage.read("Event", persistedEvent.meta.guid);
     expect(migratedEvent?.values).not.toHaveProperty("SetList");
     expect(migratedEvent?.values.Title).toBe("Canal Street headline");
+    // The `1.4.0 -> 1.5.0` hop's own `ADD FIELD ... DEFAULT(null)`, applied in
+    // the same chained migration as the `SetList` drop above.
+    expect(migratedEvent?.values.CreatedBy).toBeNull();
     expect(migratedEvent?.meta.revision).toBe(persistedEvent.meta.revision);
     expect(await storage.readApplicationMetadata()).toEqual({
-      modelVersion: "1.4.0",
+      modelVersion: "1.5.0",
       modelFingerprint: model.modelFingerprint,
     });
   });

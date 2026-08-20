@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.4.0",
+  "modelVersion": "1.5.0",
   "app": {
     "name": "Giggle Band ADL Example",
     "startView": "HomeDashboard",
@@ -49,6 +49,22 @@
             {
               "kind": "dropField",
               "field": "SetList"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "from": "1.4.0",
+      "to": "1.5.0",
+      "objects": [
+        {
+          "object": "Event",
+          "steps": [
+            {
+              "kind": "addField",
+              "field": "CreatedBy",
+              "defaultValue": null
             }
           ]
         }
@@ -710,6 +726,19 @@
             "displayField": "Title"
           },
           "comment": "Self-referencing: naming the gig this one repeats lets a repeat booking\ncarry its history forward without duplicating the earlier record.",
+          "validators": []
+        },
+        {
+          "name": "CreatedBy",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "User",
+            "displayField": "Name"
+          },
+          "comment": "Matches `Band.CreatedBy` and `SetList.CreatedBy`: an explicit creator\nlookup, not just the automatic `_createdBy` metadata field, so a gig\nrecord names who booked it the same way its sibling objects do. Neither\nof those two shows up on its own create form either -- both are\npopulated by the write path itself (`CreateBand`'s command step, and a\ndirect field on `band-app.ts`'s seed calls for `SetList`); `Event` has no\ndedicated `CreateEvent` command, so it is populated the same way\n`SetList`'s already is: directly in `band-app.ts`'s seed calls.",
           "validators": []
         }
       ],
@@ -1978,6 +2007,55 @@
           "field": "VenueName"
         }
       ]
+    },
+    {
+      "name": "EventAvailabilityConflicts",
+      "context": {
+        "mode": "required",
+        "context": "Band"
+      },
+      "sources": [
+        {
+          "name": "event",
+          "object": "Event",
+          "scope": "currentContext"
+        },
+        {
+          "name": "availability",
+          "object": "Availability",
+          "scope": "currentUser",
+          "join": {
+            "source": "event",
+            "localField": "Date",
+            "sourceField": "Date",
+            "cardinality": "one"
+          }
+        }
+      ],
+      "fields": [
+        {
+          "name": "Date",
+          "source": "event",
+          "field": "Date"
+        },
+        {
+          "name": "EventType",
+          "source": "event",
+          "field": "EventType"
+        },
+        {
+          "name": "AvailabilityStatus",
+          "source": "availability",
+          "field": "Status"
+        },
+        {
+          "name": "IsConflict",
+          "type": "boolean",
+          "expression": "EventType == 'Gig' and AvailabilityStatus == 'Unavailable'"
+        }
+      ],
+      "comment": "`BandEventCalendar`'s `conflict` status (`ui.adlj`) needs a fact\n`CalendarPlanningItems` can never produce: `CalendarPlanningItems` is a\n`UNION` of an `event` source and an `availability` source, and a `UNION`\nread model may not declare a `JOIN` on any source at all\n(`ADL_READ_MODEL_JOIN_STRATEGY_INVALID`) -- each of its rows comes from\nexactly one source, so no row can ever see whether the *other* source also\nhas a matching record for the same date.\n\nThis is a second, purpose-built read model instead, correlating the two by\n`Date` through a real `JOIN`. Because a declared join is an inner join --\nevery ADL join is, cardinality does not change that -- its rows are\nalready exactly the dates where a Gig/Rehearsal *and* a same-user\navailability note coincide; nothing else needs filtering out at the\nread-model layer. `IsConflict` narrows that correlated set one step\nfurther, to the one combination that is a genuine scheduling conflict\n(`EventType == 'Gig'` and `AvailabilityStatus == 'Unavailable'`), not\nmerely any coincidence (a gig with someone *available* that day is not a\nconflict).\n\n`event` stays the primary source (`CARDINALITY one` on the availability\njoin, matching `uniqueUserAvailabilityDate`'s own guarantee of at most one\navailability record per user per date) rather than the other way around,\nbecause an inner join drops every primary-side row with no match -- if\n`availability` were primary, every gig with no availability note that\ndate (the overwhelming majority) would vanish from this read model. That\nis fine here, because this read model's only job is naming the conflict\ndates, not rendering the calendar's ordinary day-to-day content --\n`CalendarPlanningItems` keeps doing that, completely unchanged. See\n`BandEventCalendar`'s `MonthPlanner` calendar in `ui.adlj` for how the two\nread models' outputs are layered onto the same grid without either being\nable to see the other.",
+      "sort": []
     },
     {
       "name": "BandMemberAvailability",
