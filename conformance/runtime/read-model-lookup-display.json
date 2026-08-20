@@ -1,0 +1,1576 @@
+{
+  "version": 1,
+  "models": {
+    "lookupDisplay": {
+      "app": {
+        "name": "ReadModelLookupDisplay"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "Member"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Team",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "TeamMember",
+            "userField": "User",
+            "contextField": "Team",
+            "roleField": "Role",
+            "roles": [
+              "Member"
+            ]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "businessKey": "Email",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Team",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "TeamMember",
+          "scope": {
+            "context": "Team",
+            "field": "Team"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Team",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Team",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gadget",
+          "displayField": "Label",
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Owner",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "targetField": "Email",
+                "displayField": "Name"
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "TeamRoster",
+          "context": {
+            "mode": "required",
+            "context": "Team"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "TeamMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Member",
+              "source": "member",
+              "field": "User"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Role",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GadgetOwners",
+          "sources": [
+            {
+              "name": "gadget",
+              "object": "Gadget",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "gadget",
+              "field": "Label"
+            },
+            {
+              "name": "Owner",
+              "source": "gadget",
+              "field": "Owner"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUserOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            },
+            {
+              "name": "allowAuthenticatedReadUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "TeamPolicy",
+          "object": "Team",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllTeamOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadTeam",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchTeam",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "TeamMemberPolicy",
+          "object": "TeamMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllTeamMemberOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadTeamMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchTeamMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "GadgetPolicy",
+          "object": "Gadget",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllGadgetOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadGadget",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchGadget",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        }
+      ]
+    },
+    "lookupDisplayNoUserRead": {
+      "app": {
+        "name": "ReadModelLookupDisplay"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "Member"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Team",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "TeamMember",
+            "userField": "User",
+            "contextField": "Team",
+            "roleField": "Role",
+            "roles": [
+              "Member"
+            ]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "businessKey": "Email",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Team",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "TeamMember",
+          "scope": {
+            "context": "Team",
+            "field": "Team"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Team",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Team",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gadget",
+          "displayField": "Label",
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Owner",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "targetField": "Email",
+                "displayField": "Name"
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "TeamRoster",
+          "context": {
+            "mode": "required",
+            "context": "Team"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "TeamMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Member",
+              "source": "member",
+              "field": "User"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Role",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GadgetOwners",
+          "sources": [
+            {
+              "name": "gadget",
+              "object": "Gadget",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "gadget",
+              "field": "Label"
+            },
+            {
+              "name": "Owner",
+              "source": "gadget",
+              "field": "Owner"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUserOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedSearchUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "TeamPolicy",
+          "object": "Team",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllTeamOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadTeam",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchTeam",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "TeamMemberPolicy",
+          "object": "TeamMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllTeamMemberOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadTeamMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchTeamMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "GadgetPolicy",
+          "object": "Gadget",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllGadgetOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadGadget",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchGadget",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        }
+      ]
+    },
+    "lookupDisplayNoUserSearch": {
+      "app": {
+        "name": "ReadModelLookupDisplay"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        },
+        {
+          "name": "Member"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "Team",
+          "selection": {
+            "mode": "optional"
+          },
+          "membership": {
+            "object": "TeamMember",
+            "userField": "User",
+            "contextField": "Team",
+            "roleField": "Role",
+            "roles": [
+              "Member"
+            ]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "businessKey": "Email",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Team",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "TeamMember",
+          "scope": {
+            "context": "Team",
+            "field": "Team"
+          },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Team",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "Team",
+                "displayField": "Name"
+              }
+            },
+            {
+              "name": "Role",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "Gadget",
+          "displayField": "Label",
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Owner",
+              "type": "text",
+              "required": true,
+              "lookup": {
+                "targetObject": "User",
+                "targetField": "Email",
+                "displayField": "Name"
+              }
+            }
+          ]
+        }
+      ],
+      "readModels": [
+        {
+          "name": "TeamRoster",
+          "context": {
+            "mode": "required",
+            "context": "Team"
+          },
+          "sources": [
+            {
+              "name": "member",
+              "object": "TeamMember",
+              "scope": "currentContext"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Member",
+              "source": "member",
+              "field": "User"
+            },
+            {
+              "name": "Role",
+              "source": "member",
+              "field": "Role"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Role",
+              "direction": "asc"
+            }
+          ]
+        },
+        {
+          "name": "GadgetOwners",
+          "sources": [
+            {
+              "name": "gadget",
+              "object": "Gadget",
+              "scope": "all"
+            }
+          ],
+          "fields": [
+            {
+              "name": "Label",
+              "source": "gadget",
+              "field": "Label"
+            },
+            {
+              "name": "Owner",
+              "source": "gadget",
+              "field": "Owner"
+            }
+          ],
+          "sort": [
+            {
+              "field": "Label",
+              "direction": "asc"
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUserOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadUser",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "TeamPolicy",
+          "object": "Team",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllTeamOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadTeam",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchTeam",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "TeamMemberPolicy",
+          "object": "TeamMember",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllTeamMemberOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadTeamMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchTeamMember",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "GadgetPolicy",
+          "object": "Gadget",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllGadgetOps",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            },
+            {
+              "name": "allowAuthenticatedReadGadget",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowAuthenticatedSearchGadget",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "search"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "read-model.lookup-display.projects-the-target-display-value.001",
+      "title": "A field projected from a LOOKUP field carries the target's display value beside the stored id",
+      "specRef": "runtime-semantics#projected-lookup-display-values",
+      "operation": "executeReadModel",
+      "modelRef": "lookupDisplay",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan",
+            "Email": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox",
+            "Email": "robin@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Team",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyMember",
+          "objectName": "TeamMember",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "Member"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "amp",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Amp",
+            "Owner": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "orphan",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Orphan",
+            "Owner": "nobody@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "TeamRoster",
+        "context": {
+          "userId": {
+            "$ref": "casey.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Member": "$casey",
+                "Role": "Member"
+              },
+              "display": {
+                "Member": "Casey Morgan"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.lookup-display.a-target-the-caller-may-not-read-has-no-label.002",
+      "title": "A lookup target the caller may not read leaves the row with the stored id and no display label",
+      "specRef": "runtime-semantics#projected-lookup-display-values",
+      "operation": "executeReadModel",
+      "modelRef": "lookupDisplayNoUserRead",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan",
+            "Email": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox",
+            "Email": "robin@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Team",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyMember",
+          "objectName": "TeamMember",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "Member"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "amp",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Amp",
+            "Owner": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "orphan",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Orphan",
+            "Owner": "nobody@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "TeamRoster",
+        "context": {
+          "userId": {
+            "$ref": "casey.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Member": "$casey",
+                "Role": "Member"
+              },
+              "display": "$absent"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.lookup-display.target-field-lookup-resolves-by-natural-key.003",
+      "title": "A TARGET_FIELD lookup resolves its label by matching the stored natural key, and finds nothing when no record carries it",
+      "specRef": "runtime-semantics#projected-lookup-display-values",
+      "operation": "executeReadModel",
+      "modelRef": "lookupDisplay",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan",
+            "Email": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox",
+            "Email": "robin@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Team",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyMember",
+          "objectName": "TeamMember",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "Member"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "amp",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Amp",
+            "Owner": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "orphan",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Orphan",
+            "Owner": "nobody@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GadgetOwners",
+        "context": {
+          "userId": {
+            "$ref": "casey.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Label": "Amp",
+                "Owner": "casey@example.com"
+              },
+              "display": {
+                "Owner": "Casey Morgan"
+              }
+            },
+            {
+              "values": {
+                "Label": "Orphan",
+                "Owner": "nobody@example.com"
+              },
+              "display": "$absent"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-model.lookup-display.target-field-lookup-requires-search-on-the-target-object.004",
+      "title": "A TARGET_FIELD lookup label is refused to a caller who may not search the target object",
+      "specRef": "runtime-semantics#projected-lookup-display-values",
+      "operation": "executeReadModel",
+      "modelRef": "lookupDisplayNoUserSearch",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "casey",
+          "objectName": "User",
+          "values": {
+            "Name": "Casey Morgan",
+            "Email": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "robin",
+          "objectName": "User",
+          "values": {
+            "Name": "Robin Fox",
+            "Email": "robin@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "alpha",
+          "objectName": "Team",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "caseyMember",
+          "objectName": "TeamMember",
+          "values": {
+            "User": {
+              "$ref": "casey.meta.guid"
+            },
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            },
+            "Role": "Member"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "amp",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Amp",
+            "Owner": "casey@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "orphan",
+          "objectName": "Gadget",
+          "values": {
+            "Label": "Orphan",
+            "Owner": "nobody@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-07T08:00:00.000Z",
+            "selectedContexts": {
+              "Team": {
+                "$ref": "alpha.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "readModelName": "GadgetOwners",
+        "context": {
+          "userId": {
+            "$ref": "casey.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-07T08:00:00.000Z",
+          "selectedContexts": {
+            "Team": {
+              "$ref": "alpha.meta.guid"
+            }
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "rows": [
+            {
+              "values": {
+                "Label": "Amp",
+                "Owner": "casey@example.com"
+              },
+              "display": "$absent"
+            },
+            {
+              "values": {
+                "Label": "Orphan",
+                "Owner": "nobody@example.com"
+              },
+              "display": "$absent"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

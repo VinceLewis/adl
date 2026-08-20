@@ -3,7 +3,9 @@ import type {
   ReadModelJoinCardinality,
   ReadModelSourceScope,
   ReadModelStrategy,
+  ResolvedLookup,
   ResolvedReadModel,
+  ResolvedReadModelField,
   ResolvedReadModelSource,
   ResolvedViewContext,
 } from "../../model/resolved-model.js";
@@ -243,6 +245,84 @@ export function validateReadModel(
       index: fieldIndex,
     });
   }
+
+  validateProjectedFieldLookups(readModel, readModelPath, sourcesByName, indexes, diagnostics);
+}
+/**
+ * Checks that every projected read-model field's derived `lookup` still agrees
+ * with the source object field it projects.
+ *
+ * `resolveReadModelField` copies the lookup verbatim, so nothing compiled from
+ * `.adl` or `.adlj` can disagree — this exists because `ApplicationRuntime`
+ * validates whatever *resolved* model it is handed, including one deserialised
+ * from JSON or produced by another toolchain, and the display resolver acts on
+ * this metadata by reading a record from `lookup.targetObject`. A lookup that
+ * disagrees with the projection would aim that read at an object the author
+ * never named.
+ *
+ * It deliberately reports only the disagreement. An unknown target object or
+ * unknown display field is already reported once against the object field that
+ * declares it (`ADL_LOOKUP_TARGET_OBJECT_UNKNOWN`,
+ * `ADL_LOOKUP_DISPLAY_FIELD_UNKNOWN`); repeating it here would give one
+ * authoring mistake two diagnostics.
+ */
+function validateProjectedFieldLookups(
+  readModel: ResolvedReadModel,
+  readModelPath: string,
+  sourcesByName: Map<string, NamedReference<ResolvedReadModelSource>>,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  for (let fieldIndex = 0; fieldIndex < readModel.fields.length; fieldIndex += 1) {
+    const field = readModel.fields[fieldIndex];
+    if (field?.lookup === undefined) {
+      continue;
+    }
+
+    const projected = projectedSourceLookup(field, sourcesByName, indexes);
+    if (projected !== undefined && lookupsAgree(projected, field.lookup)) {
+      continue;
+    }
+
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.READ_MODEL_FIELD_LOOKUP_MISMATCH,
+        projected === undefined
+          ? `Read model '${readModel.name}' output field '${field.name}' declares a lookup, but the field it projects declares none.`
+          : `Read model '${readModel.name}' output field '${field.name}' declares lookup ${describeLookup(field.lookup)} but projects a field declaring ${describeLookup(projected)}.`,
+        `${readModelPath}.fields[${fieldIndex}].lookup`,
+      ),
+    );
+  }
+}
+/** The lookup the field's projected source field declares, if any. */
+function projectedSourceLookup(
+  field: ResolvedReadModelField,
+  sourcesByName: Map<string, NamedReference<ResolvedReadModelSource>>,
+  indexes: ModelIndexes,
+): ResolvedLookup | undefined {
+  if (field.expression !== undefined || field.source === undefined || field.field === undefined) {
+    return undefined;
+  }
+
+  const source = sourcesByName.get(field.source)?.item;
+  const object = source === undefined ? undefined : indexes.objectsByName.get(source.object)?.item;
+  if (object === undefined) {
+    return undefined;
+  }
+
+  return object.fields.find((candidate) => candidate.name === field.field)?.lookup;
+}
+function lookupsAgree(left: ResolvedLookup, right: ResolvedLookup): boolean {
+  return (
+    left.targetObject === right.targetObject &&
+    left.displayField === right.displayField &&
+    left.targetField === right.targetField
+  );
+}
+function describeLookup(lookup: ResolvedLookup): string {
+  const targetField = lookup.targetField === undefined ? "" : ` TARGET_FIELD ${lookup.targetField}`;
+  return `'${lookup.targetObject}${targetField} DISPLAY ${lookup.displayField}'`;
 }
 /**
  * A join is only evaluable in one direction: the runtime walks the sources in

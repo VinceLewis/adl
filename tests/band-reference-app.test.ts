@@ -17,6 +17,7 @@ import {
   seedBandReferenceRuntime,
 } from "../src/reference/band-app.js";
 import { AdlAppElement } from "../src/ui/components/adl-app.js";
+import { resolveLookupTargetRecord } from "../src/ui/components/lookup-resolution.js";
 import { defineAdlComponents } from "../src/ui/components/register.js";
 
 describe("band reference app model", () => {
@@ -25,7 +26,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.7.0");
+    expect(model.modelVersion).toBe("1.8.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -66,6 +67,17 @@ describe("band reference app model", () => {
     // (their total, `duration`-formatted) -- both `.adlj`-only edit-section
     // content (Phase 87), not stored fields on any object.
     expect(model.migrations).toContainEqual({ from: "1.6.0", to: "1.7.0", objects: [] });
+    // `1.7.0 -> 1.8.0` is an empty-object hop. Two Phase 91 changes land in it:
+    // a read-model field projected from a `LOOKUP` field now carries that
+    // lookup forward (`ResolvedReadModelField.lookup`) so a read-model-backed
+    // surface can render the target's display value instead of a stored record
+    // id; and `UserPolicy`'s two rules moved from `ROLE BandMember` (which
+    // could never match a `User`-object check, so no band member could read or
+    // search any user at all) to `AUTHENTICATED`, matching Jointly Care's
+    // `UserPolicy` and its recorded rationale. Both are resolved-model content
+    // -- they change the fingerprint -- but no object gains, loses or renames a
+    // stored field.
+    expect(model.migrations).toContainEqual({ from: "1.7.0", to: "1.8.0", objects: [] });
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -78,7 +90,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-665e32890ac2d5adf090ddc5a7084103cb7ef4a6cbf42043e9f58061aa448377",
+      "sha256-8587ce8f856dc47ecee1648e36030654e14349a8d22d88b25086bac1c98f66c2",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -1242,6 +1254,58 @@ describe("band reference app runtime", () => {
     // the lower-precedence status instead.
     const availableOnlyCell = calendar?.cells.find((candidate) => candidate.date === "2026-08-03");
     expect(availableOnlyCell?.status?.name).toBe("unavailable");
+  });
+
+  it("renders member names, not stored user ids, on the read-model-backed roster", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    const presentation = await seeded.runtime.evaluatePresentationView(
+      "Availability",
+      "BandMemberAvailabilityBoard",
+      seeded.firstBandContext,
+    );
+    const roster = presentation.sections.find((candidate) => candidate.name === "TeamAvailability")
+      ?.lists[0];
+    const rowText = (roster?.rows ?? [])
+      .map((row) =>
+        row.fragments.map((fragment) => (fragment.kind === "text" ? fragment.text : "")).join(""),
+      )
+      .join("\n");
+
+    // `BandMemberAvailability` projects `FIELD Member FROM member.User`, whose
+    // source field declares `LOOKUP User DISPLAY Name`. Before Phase 91 the
+    // projection dropped that lookup and every row read
+    // "user-c52bac75-... - BandAdmin - Sat 1 Aug - Unavailable", while the
+    // object-backed `BandMemberList` rendered the same stored value as a name.
+    expect(roster?.rows.length).toBeGreaterThan(0);
+    expect(rowText).toContain("Casey Morgan");
+    expect(rowText).not.toContain("user-");
+  });
+
+  it("lets a band member resolve the User lookup label the object-backed member list renders", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const userField = seeded.runtime.model.objects
+      .find((object) => object.name === "BandMember")
+      ?.fields.find((field) => field.name === "User");
+    if (userField === undefined) {
+      throw new Error("BandMember is missing its User field.");
+    }
+
+    // The exact call `adl-list-view`/`adl-form-view` make to turn a stored
+    // lookup value into a label. Before Phase 91 `UserPolicy` named
+    // `ROLE BandMember`, which a `User`-object policy check can never resolve,
+    // so this read was denied and both surfaces fell back to the raw id.
+    const target = await resolveLookupTargetRecord(
+      seeded.runtime,
+      userField,
+      seeded.musician.meta.guid,
+      seeded.firstBandContext,
+    );
+
+    expect(target?.values.Name).toBe("Casey Morgan");
+    // And the `<select>` editor's candidate list, which searches rather than reads.
+    const candidates = await seeded.runtime.search("User", undefined, seeded.firstBandContext);
+    expect(candidates.map((record) => record.values.Name)).toContain("Casey Morgan");
   });
 
   it("adds the four new streaming platforms while still enforcing the closed enum", async () => {

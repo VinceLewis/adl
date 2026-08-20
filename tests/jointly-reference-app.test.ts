@@ -22,17 +22,24 @@ describe("jointly care reference app model", () => {
     const model = await createJointlyReferenceModel();
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.3.0");
+    expect(model.modelVersion).toBe("1.4.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
+    // `1.3.0 -> 1.4.0` is an empty-object hop, and Jointly Care gets it for the
+    // same reason Giggle Band gets `1.7.0 -> 1.8.0`: `MyPendingCircleInvites`
+    // and `CircleRecentMessages` each project a `LOOKUP User` field, so both
+    // now carry that lookup on the resolved read-model field (Phase 91). No
+    // object's stored fields change. This app needs its own bump because the
+    // fingerprint is per app, not per repository -- see AGENTS.md.
+    expect(model.migrations).toContainEqual({ from: "1.3.0", to: "1.4.0", objects: [] });
     // See the matching assertion in tests/band-reference-app.test.ts for why
     // this exists: a tripwire against content changes that skip a version
     // bump, not a meaningful value in itself. Update on a legitimate content
     // change, and treat that update as your reminder to also bump
     // modelVersion and add a migration step.
     expect(model.modelFingerprint).toBe(
-      "sha256-48871d107d91cd094aac3fdc5234093f9c21ea04f4a2bae2aa70db45124bf9b4",
+      "sha256-e82da010cc4c493a45fa239d46e52e7c94ba674848dcbff2514cc48b0856559a",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(

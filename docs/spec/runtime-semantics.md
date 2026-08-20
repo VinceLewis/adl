@@ -461,6 +461,27 @@ and still carries the reference. This is deliberate — a half-projected row wou
 be indistinguishable from a real one — but it means a read model is not a place
 to observe why a row is absent.
 
+### Projected lookup display values
+
+An output field that projects a `lookup` field carries that lookup, and a
+conforming runtime resolves the target's display value onto the row so a surface
+can show a name where the row holds an id.
+
+- The resolved label travels **beside** the projected value, not instead of it.
+  Filters, sort, expression fields and row actions still see the stored id (or,
+  for a `targetField` lookup, the stored natural key); only what a person reads
+  changes.
+- Resolving a label is a record read on another object, and it is gated like
+  one. Projection is policy-checked per *source* record, and a lookup target is
+  not a source, so the runtime must apply the target object's read policy —
+  including field-level shaping of the display field — before the value may be
+  used. A `targetField` lookup matches by field value, which is a search however
+  it is spelled, so it additionally requires the `search` action and the
+  object-scope search check on the target object.
+- Every refusal degrades to **no label**, never to an error and never to a value
+  from elsewhere. A denied, deleted, out-of-scope or absent target leaves the
+  surface rendering the stored value the caller already legitimately holds.
+
 ## Presentation Evaluation
 
 Composed views evaluate through `ApplicationRuntime.evaluatePresentationView`.

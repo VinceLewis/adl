@@ -739,6 +739,29 @@ record still passes per-record read policy and object scope. A join may not
 appear on the primary source, may not name a later source, and may not appear in
 a `UNION` read model.
 
+### Projecting a `LOOKUP` field
+
+`FIELD Member FROM member.User` above projects a field whose object declares
+`LOOKUP User DISPLAY Name`. The projected field inherits that lookup, the same
+way it already inherits the source field's type — nothing is written to ask for
+it, and there is no syntax to ask for it. A runtime uses it to render the
+target's `DISPLAY` value wherever the row is shown to a person, so a
+read-model-backed surface reads the same as the object-backed one instead of
+showing a stored record id.
+
+Two properties are part of the contract:
+
+- **The projected value does not change.** The row still carries the stored id
+  (or, for `LOOKUP ... TARGET_FIELD`, the stored natural key), so filters,
+  `ORDER BY`, expression fields and row actions keep seeing what they always
+  saw. The display value travels beside it, not instead of it.
+- **The label is a record read, and it is policy-gated like one.** The target is
+  a record on another object with its own read policy; a caller who may not read
+  it — or may not `search` the target object, for a `TARGET_FIELD` lookup, since
+  matching by field value is a search — gets no label, and the surface falls
+  back to the stored value it already legitimately holds. A denied, deleted or
+  missing target never produces a name.
+
 Generic CRUD views also resolve an `editContainer` hint with values `modal`,
 `drawer`, `page`, or `splitPane`, declared in source with `EDIT_CONTAINER` inside
 a `VIEW` block. The hint in force is the one on the **form view that opens**, not

@@ -74,6 +74,7 @@ export function readModelRowToPresentationRow(row: RuntimeReadModelRow): BoundPr
   return {
     id: row.id,
     values: cloneJson(row.values),
+    ...(row.display === undefined ? {} : { display: { ...row.display } }),
     sources: Object.entries(row.sources).map(([source, reference]) => ({
       source,
       objectName: reference.objectName,

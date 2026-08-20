@@ -415,6 +415,13 @@ export interface BoundPresentationRow {
   id: string;
   values: Record<string, JsonValue>;
   sources: RuntimePresentationRowSource[];
+  /**
+   * Display labels for projected `LOOKUP` fields, carried through from
+   * {@link RuntimeReadModelRow.display}. A `TEXT <field>` fragment renders the
+   * label instead of the stored id when one is present; absent means the label
+   * could not be produced and the raw value is shown.
+   */
+  display?: Record<string, string>;
 }
 
 /** Resolved, ready-to-apply form of a calendar's `conflictOverlay`. */

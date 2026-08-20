@@ -133,6 +133,7 @@ export class RowRuntime extends StatusRuntime {
         list.row.fragments,
         view,
         row.values,
+        row.display,
         state,
         context,
         diagnostics,
@@ -324,6 +325,7 @@ export class RowRuntime extends StatusRuntime {
     fragments: ResolvedPresentationRowFragment[],
     view: ResolvedView,
     values: Record<string, JsonValue>,
+    display: Record<string, string> | undefined,
     state: Record<string, JsonValue>,
     context: RuntimeContext,
     diagnostics: RuntimePresentationDiagnostic[],
@@ -343,7 +345,7 @@ export class RowRuntime extends StatusRuntime {
           output.push({ kind: "text", text: fragment.text, style: fragment.style });
           break;
         case "field": {
-          const text = this.evaluateFieldText(fragment, values, diagnostics, {
+          const text = this.evaluateFieldText(fragment, values, display, diagnostics, {
             ...location,
             path: fragmentPath,
             field: fragment.field,
@@ -391,6 +393,7 @@ export class RowRuntime extends StatusRuntime {
                 fragment.fragments,
                 view,
                 values,
+                display,
                 state,
                 context,
                 diagnostics,
@@ -418,9 +421,24 @@ export class RowRuntime extends StatusRuntime {
   private evaluateFieldText(
     fragment: Extract<ResolvedPresentationRowFragment, { kind: "field" }>,
     values: Record<string, JsonValue>,
+    display: Record<string, string> | undefined,
     diagnostics: RuntimePresentationDiagnostic[],
     location: DiagnosticLocation,
   ): string {
+    /*
+     * A resolved lookup label wins outright, including over a declared FORMAT.
+     * The label is a name the target object chose as its DISPLAY field, so
+     * every format pattern in the vocabulary — date, time, number, duration —
+     * describes the stored id rather than the label, and applying one could
+     * only produce an invalid-value diagnostic for a value the reader was never
+     * shown. No label means resolution was refused or found nothing, and the
+     * stored value is rendered exactly as it always was.
+     */
+    const label = display?.[fragment.field];
+    if (label !== undefined) {
+      return label;
+    }
+
     if (!Object.prototype.hasOwnProperty.call(values, fragment.field)) {
       diagnostics.push({
         severity: "warning",

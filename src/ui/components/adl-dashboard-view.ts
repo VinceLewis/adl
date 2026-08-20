@@ -90,7 +90,7 @@ export class AdlDashboardViewElement extends HTMLElement {
     return `
       <div>
         <dt>${escapeHtml(titleCaseIdentifier(field.name))}</dt>
-        <dd>${escapeHtml(formatValue(row.values[field.name]))}</dd>
+        <dd>${escapeHtml(formatValue(readValue(row, field)))}</dd>
       </div>
     `;
   }
@@ -109,8 +109,17 @@ function findDateField(fields: ResolvedReadModelField[]): ResolvedReadModelField
   );
 }
 
+/**
+ * A projected `LOOKUP` field's resolved display label if the runtime produced
+ * one, else the stored value. Absent means the target could not be read, and
+ * the id the caller already holds is the honest fallback.
+ */
 function readValue(row: RuntimeReadModelRow, field: ResolvedReadModelField | undefined): unknown {
-  return field === undefined ? undefined : row.values[field.name];
+  if (field === undefined) {
+    return undefined;
+  }
+
+  return row.display?.[field.name] ?? row.values[field.name];
 }
 
 function formatValue(value: unknown): string {

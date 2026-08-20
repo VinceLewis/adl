@@ -1,4 +1,5 @@
 import type { FieldType } from "./shared.js";
+import type { ResolvedLookup } from "./object-field.js";
 import type { ResolvedExpression } from "./expression.js";
 import type { PartialPolicyConditionModel } from "./policy.js";
 import type { PartialViewContextModel, ResolvedSort, ResolvedViewContext } from "./view.js";
@@ -63,6 +64,23 @@ export interface ResolvedReadModelField {
   source?: string;
   field?: string;
   expression?: ResolvedExpression;
+  /**
+   * The `LOOKUP` the projected source field declares, carried forward verbatim.
+   *
+   * Derived, never authored: `resolveReadModelField` copies it from the source
+   * object's field, exactly as it already derives {@link type} from that same
+   * field. Without it a projected lookup field is indistinguishable from any
+   * other text field, so every read-model-backed surface renders the stored
+   * record id where the object-backed surfaces render the target's display
+   * value — the asymmetry Phase 91 closed.
+   *
+   * Carrying the lookup is only permission to *attempt* a resolution. The
+   * target record is a separate record with its own read policy, so a runtime
+   * must read it through a policy-checked path and degrade to the raw stored
+   * value when the caller may not read it. See
+   * `ReadModelService.resolveLookupDisplayLabel`.
+   */
+  lookup?: ResolvedLookup;
 }
 export interface PartialReadModelModel {
   name: string;

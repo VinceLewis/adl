@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.7.0",
+  "modelVersion": "1.8.0",
   "app": {
     "name": "Giggle Band ADL Example",
     "startView": "HomeDashboard",
@@ -78,6 +78,11 @@
     {
       "from": "1.6.0",
       "to": "1.7.0",
+      "objects": []
+    },
+    {
+      "from": "1.7.0",
+      "to": "1.8.0",
       "objects": []
     }
   ],
@@ -2908,15 +2913,14 @@
     {
       "name": "UserPolicy",
       "object": "User",
+      "comment": "`AUTHENTICATED`, not `ROLE BandMember`, and for exactly the reason Jointly\nCare's own `UserPolicy` already records: a context-scoped `ROLE` condition\nonly resolves against an object that is itself scoped to that context\n(`SCOPE Band FIELD Band`) or is a context's own bound object (`Band`, for\n`CONTEXT Band OBJECT Band`). `User` is neither -- it is the bound object of\nthe *`User`* context -- so `getPolicyRequestContextTargets`\n(`context-scope.ts`) can only ever resolve a `User`-object check against the\ncaller's own identity selection, which a `Band`-derived role can never\nreach. The two rules this replaced named `ROLE BandMember` and therefore\nmatched nothing at all: no band member could read or search a single `User`\nrecord, so every `LOOKUP User DISPLAY Name` label in the app -- the member\nlist, the invitation forms, the availability board -- silently degraded to a\nraw `user-...` id. Any authenticated caller may look a musician up to invite\nor recognise them, which is what `BandInvitation`'s `Invitee`/`InviteeEmail`\npair already assumes; that does not depend on already sharing a band.",
       "rules": [
         {
-          "name": "allowBandMemberSearchUsers",
+          "name": "allowAuthenticatedSearchUsers",
           "effect": "allow",
           "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
+            "match": "authenticated",
+            "roles": [],
             "groupRoles": [],
             "users": [],
             "owner": false
@@ -2926,13 +2930,11 @@
           "fields": []
         },
         {
-          "name": "allowBandMemberReadUsers",
+          "name": "allowAuthenticatedReadUsers",
           "effect": "allow",
           "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
+            "match": "authenticated",
+            "roles": [],
             "groupRoles": [],
             "users": [],
             "owner": false

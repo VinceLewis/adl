@@ -166,7 +166,7 @@ describe("browser model migration over IndexedDB", () => {
       throw new Error("Giggle model is missing Event.");
     }
 
-    expect(model.modelVersion).toBe("1.7.0");
+    expect(model.modelVersion).toBe("1.8.0");
     expect(model.migrations).toContainEqual({
       from: "1.0.0",
       to: "1.1.0",
@@ -207,6 +207,10 @@ describe("browser model migration over IndexedDB", () => {
     // collection gains `projectedFields`/`summary` (Phase 87), edit-section
     // content, not a stored field on any object.
     expect(model.migrations).toContainEqual({ from: "1.6.0", to: "1.7.0", objects: [] });
+    // `1.7.0 -> 1.8.0` is an empty-object hop: read-model fields projected from
+    // a `LOOKUP` field carry that lookup forward (Phase 91), which is resolved
+    // content, not a stored field on any object.
+    expect(model.migrations).toContainEqual({ from: "1.7.0", to: "1.8.0", objects: [] });
 
     const storage = new IndexedDbObjectStorageBackend({ databaseName });
     const persistedBand = storedRecord("Band", "band-before-explicit-nav", band.schemaVersion, {
@@ -244,7 +248,7 @@ describe("browser model migration over IndexedDB", () => {
       expect.objectContaining({
         code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MIGRATION_APPLIED,
         actual: "1.0.0",
-        expected: "1.7.0",
+        expected: "1.8.0",
       }),
     );
     expect(await storage.read("Band", persistedBand.meta.guid)).toEqual(persistedBand);
@@ -256,7 +260,7 @@ describe("browser model migration over IndexedDB", () => {
     expect(migratedEvent?.values.CreatedBy).toBeNull();
     expect(migratedEvent?.meta.revision).toBe(persistedEvent.meta.revision);
     expect(await storage.readApplicationMetadata()).toEqual({
-      modelVersion: "1.7.0",
+      modelVersion: "1.8.0",
       modelFingerprint: model.modelFingerprint,
     });
   });

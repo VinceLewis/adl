@@ -85,6 +85,41 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   joined record just loses the row, it does not throw) rather than error --
   easy to miss without a grant-only test case exercising exactly that caller.
 
+## Key decisions from Phase 91: the unreachable-`ROLE` trap recurred, undetected
+
+- **Documenting a trap did not stop it recurring.** The bullet above — a
+  context-scoped `ROLE` condition can only match an object that is itself scoped
+  to that context or is the context's own bound object — was written from
+  Jointly Care. Giggle Band shipped the *identical* defect and nobody noticed:
+  `POLICY UserPolicy ON User` granted `SEARCH` and `READ` to `ROLE BandMember`,
+  and `User` is neither `SCOPE Band`-scoped nor the `Band` context's bound
+  object, so `getPolicyRequestContextTargets` could only ever evaluate it
+  against the `User` context. **No band member could read or search a single
+  `User` record.** Every `LOOKUP User DISPLAY Name` label in the app — the
+  member list, the invitation surfaces, the availability board — silently
+  degraded to a raw `user-...` id, because both the browser's lookup-label
+  resolver and Phase 91's new read-model resolver treat a denied target as "no
+  label" rather than an error. That degradation is the correct behaviour and it
+  is exactly what made the defect invisible.
+- **The fix mirrors Jointly Care's own `UserPolicy`**: `AUTHENTICATED` for both
+  `SEARCH` and `READ`, carrying the same recorded rationale (a caller may look a
+  collaborator up to invite or recognise them; that does not depend on already
+  sharing a context). It is a small deliberate widening over what the dead rules
+  *said*, and the honest alternative — a `CONTEXT_MEMBER` principal keyed on the
+  record's own id — does not exist: `recordBelongsToContextMember` reads
+  `record.values[field]`, and a `User` record has no field holding its own id.
+  If a future phase wants "only people I share a band with", that is the
+  extension to make (let `contextMember.field` accept `id`, the way
+  `RECORD_ID_JOIN_FIELD` already means the record's own id for a read-model
+  join), not a role condition.
+- **Nothing in the compiler detects this.** A `ROLE` rule that can never match is
+  accepted silently, unlike the two `SEARCH` unreachability cases which are
+  compile errors. The check is decidable exactly where those are: at
+  `validatePolicyRule`, a `specific` principal naming a role that is only ever
+  earned through a context's `MEMBERSHIP`, on an object that is neither scoped
+  to that context nor that context's bound object, can never fire. Two shipped
+  reference apps hit it; a diagnostic would have caught both at compile time.
+
 ## Practical guidance
 
 - Add policy enforcement tests against direct runtime calls, not only UI rendering.
@@ -100,4 +135,9 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
 - A `ROLE` condition on an object with no `SCOPE` only works when that object
   is itself a context's own bound object (e.g. `Band`/`Circle`). For anything
   else unscoped (e.g. `User`), reach for `AUTHENTICATED`, `OWNER`, or a
-  structured field condition instead.
+  structured field condition instead. **This has now been got wrong in both
+  reference apps.** When a phase's acceptance criterion is "this surface shows a
+  name", check the target object's policy against a *real* caller context before
+  assuming the rendering layer is the only thing in the way — a dead `ROLE` rule
+  looks exactly like a working grant, and every lookup-label path degrades
+  quietly rather than throwing.

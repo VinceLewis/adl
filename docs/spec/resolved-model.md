@@ -216,6 +216,17 @@ A join may not appear on the primary source, may not name a later source, and ma
 not appear in a `union` read model, which interleaves independent feeds and has
 no row to join onto.
 
+An output field that projects a source field carries that field's `lookup` —
+target object, display field, and `targetField` when the source field declares
+one. It is **derived, never authored**: resolution copies it from the source
+object's field, exactly as it derives the output field's type from that same
+field, and there is no surface syntax for it. A resolved model whose projected
+`lookup` disagrees with the field it projects is invalid.
+
+The metadata is permission to attempt a display resolution, not a licence to
+denormalise. See runtime semantics for what a conforming runtime must do with
+it.
+
 ## Ordered Collections
 
 An `ordered` object constraint declares a parent field, a position field, scope

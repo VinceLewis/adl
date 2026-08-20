@@ -2145,11 +2145,22 @@ function normaliseRuntimeResult(value: unknown, state: RunState): JsonValue {
   }
 
   if (isObject(value) && "rows" in value) {
-    const rows = value.rows as Array<{ values: Record<string, JsonValue>; sources?: JsonValue }>;
+    const rows = value.rows as Array<{
+      values: Record<string, JsonValue>;
+      sources?: JsonValue;
+      display?: JsonValue;
+    }>;
     return {
       rows: rows.map((row) => ({
-        values: row.values,
+        // Projected values go through the alias table for the same reason
+        // `sources` always did: a read model that projects a lookup field puts a
+        // *generated record id* in `values`, and a case may not depend on one
+        // (see the corpus's own no-generated-values check). Without this the
+        // property that a resolved display label leaves the stored id in place
+        // would be unassertable.
+        values: normaliseRecordIds(row.values, state) as Record<string, JsonValue>,
         ...(row.sources === undefined ? {} : { sources: normaliseRecordIds(row.sources, state) }),
+        ...(row.display === undefined ? {} : { display: row.display }),
       })),
     };
   }

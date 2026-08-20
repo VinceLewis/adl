@@ -103,6 +103,16 @@ function resolveReadModelField(
           (field) => field.name === input.field,
         );
   const fieldType = input.type ?? (input.expression === undefined ? sourceField?.type : undefined);
+  // A projected field inherits its source field's `LOOKUP` for the same reason
+  // it already inherits that field's type: the projection is the *same* value,
+  // and dropping what the value means leaves every read-model-backed surface
+  // rendering a stored record id where the object-backed ones render the
+  // target's display value. Expression fields compute a new value rather than
+  // projecting one, so they never inherit a lookup.
+  const sourceLookup =
+    input.expression === undefined && sourceField !== undefined && "lookup" in sourceField
+      ? sourceField.lookup
+      : undefined;
 
   return {
     name: input.name,
@@ -110,5 +120,6 @@ function resolveReadModelField(
     ...(sourceName === undefined ? {} : { source: sourceName }),
     ...(input.field === undefined ? {} : { field: input.field }),
     ...(input.expression === undefined ? {} : { expression: resolveExpression(input.expression) }),
+    ...(sourceLookup === undefined ? {} : { lookup: sourceLookup }),
   };
 }

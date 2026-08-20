@@ -2,6 +2,7 @@ import type {
   JsonValue,
   ReadModelSourceScope,
   ResolvedApplicationModel,
+  ResolvedLookup,
   ResolvedObject,
   ResolvedReadModel,
   ResolvedReadModelField,
@@ -64,6 +65,10 @@ export class ReadModelService {
     const sorted = sortRows(rows, query.sort ?? readModel.sort);
     const limited =
       query.limit === undefined || query.limit < 0 ? sorted : sorted.slice(0, query.limit);
+    // Resolved after limiting, not during projection: a display label costs a
+    // policy-checked record read, and only the rows actually being returned can
+    // ever be read by anybody.
+    await this.attachLookupDisplayLabels(readModel, limited, executionContext);
 
     this.logger.debug("EXIT ReadModelService.execute", {
       readModelName,
@@ -642,6 +647,131 @@ export class ReadModelService {
         },
         context,
       ).effect === "allow"
+    );
+  }
+
+  /**
+   * Fills each row's `display` channel with the target's `DISPLAY` value for
+   * every projected `LOOKUP` field.
+   *
+   * This is deliberately *not* done inside {@link projectRow}. Projection is
+   * policy-checked per **source** record, and a lookup target is not a source:
+   * it is a record on another object with its own read policy. Denormalising it
+   * during projection would hand the caller a value their policy may forbid, so
+   * each target is read through the same gates a source record clears, and a
+   * target that cannot be read simply has no label — the renderer then shows
+   * the raw stored value, which the caller already legitimately holds.
+   *
+   * Labels are cached per execution because a roster projects the same handful
+   * of member ids across many rows.
+   */
+  private async attachLookupDisplayLabels(
+    readModel: ResolvedReadModel,
+    rows: RuntimeReadModelRow[],
+    context: RuntimeContext,
+  ): Promise<void> {
+    const lookupFields = readModel.fields.filter(
+      (field): field is ResolvedReadModelField & { lookup: ResolvedLookup } =>
+        field.lookup !== undefined,
+    );
+    if (lookupFields.length === 0 || rows.length === 0) {
+      return;
+    }
+
+    const labels = new Map<string, string | undefined>();
+
+    for (const row of rows) {
+      for (const field of lookupFields) {
+        const value = row.values[field.name];
+        if (typeof value !== "string" || value.length === 0) {
+          continue;
+        }
+
+        const key = `${field.lookup.targetObject}\u0000${field.lookup.targetField ?? ""}\u0000${field.lookup.displayField}\u0000${value}`;
+        if (!labels.has(key)) {
+          labels.set(key, await this.resolveLookupDisplayLabel(field.lookup, value, context));
+        }
+
+        const label = labels.get(key);
+        if (label !== undefined) {
+          row.display = { ...row.display, [field.name]: label };
+        }
+      }
+    }
+  }
+
+  /**
+   * The target record's `DISPLAY` value for one stored lookup value, or
+   * `undefined` when it must not or cannot be produced.
+   *
+   * Every refusal path returns `undefined` rather than throwing: a label is
+   * cosmetic, and a caller who may not read the target still legitimately holds
+   * the stored value the row projected. The gates are the same ones a source
+   * record clears — object scope, and the record's own read policy, applied
+   * through `applyReadPolicy` so a `HIDE`/`MASK` on the display field is
+   * honoured too rather than being read around.
+   */
+  private async resolveLookupDisplayLabel(
+    lookup: ResolvedLookup,
+    value: string,
+    context: RuntimeContext,
+  ): Promise<string | undefined> {
+    let object: ResolvedObject;
+    try {
+      object = this.index.getObject(lookup.targetObject);
+    } catch {
+      return undefined;
+    }
+
+    const record =
+      lookup.targetField === undefined
+        ? await this.readLookupTargetById(object, value)
+        : await this.findLookupDisplayTargetByField(object, lookup.targetField, value, context);
+    if (
+      record === undefined ||
+      !recordMatchesObjectScope(this.index, object.name, record, context)
+    ) {
+      return undefined;
+    }
+
+    const shaped = this.policyEngine.applyReadPolicy(object.name, record, context);
+    const label = shaped.values[lookup.displayField];
+    if (typeof label !== "string" && typeof label !== "number" && typeof label !== "boolean") {
+      return undefined;
+    }
+
+    const text = String(label);
+    return text.length === 0 ? undefined : text;
+  }
+
+  /**
+   * A `LOOKUP ... TARGET_FIELD` value is a natural key, so resolving its label
+   * is a match by field value — a search however it is spelled (Phase 68), and
+   * so gated on the `search` action and the object-scope search check before a
+   * single candidate is loaded. Both gates throw on refusal; a refused label is
+   * an absent label here, never an error, so both are caught.
+   */
+  private async findLookupDisplayTargetByField(
+    object: ResolvedObject,
+    targetField: string,
+    value: string,
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord | undefined> {
+    try {
+      this.policyEngine.requireAllowed({ objectName: object.name, action: "search" }, context);
+      requireObjectScopeForSearch(this.index, object.name, context);
+    } catch {
+      return undefined;
+    }
+
+    const candidates = await this.storage.search({
+      object,
+      fields: object.fields.map((field) => field.name),
+    });
+
+    return candidates.find(
+      (candidate) =>
+        candidate.meta.deletedAt === undefined && candidate.values[targetField] === value,
     );
   }
 

@@ -168,6 +168,60 @@ Read this before changing read-model execution, read-model-backed dashboards, re
   consuming view) — the wrong `CONTEXT` mode compiles and validates cleanly
   and only shows up as a silently short row set.
 
+## Key decisions from Phase 91: a projected `LOOKUP` field keeps its display
+
+- **A projected field inherits its source field's `lookup`, exactly as it
+  already inherited that field's `type`.** `resolveReadModelField`
+  (`src/compiler/resolve-model/read-model.ts`) already copied
+  `sourceField.type` onto the output field; Phase 91 copies
+  `sourceField.lookup` alongside it into
+  `ResolvedReadModelField.lookup`. There is no authoring syntax for it and
+  there must not be — it is derived, and a resolved model whose projected
+  `lookup` disagrees with the field it projects is now a validation error
+  (`ADL_READ_MODEL_FIELD_LOOKUP_MISMATCH`). That code is unreachable from
+  `.adl`/`.adlj`; it exists because `ApplicationRuntime` validates whatever
+  *resolved* model it is handed, including one deserialised from JSON.
+- **Resolution happens in `ReadModelService`, after limiting, into a separate
+  `display` channel.** `RuntimeReadModelRow.display?: Record<string, string>`
+  carries the label; `values` still carries the stored id. Substituting into
+  `values` instead would silently change what `WHERE` filters, `ORDER BY`,
+  expression fields and row actions see. `attachLookupDisplayLabels` runs on the
+  already-limited row set and caches per `(targetObject, targetField,
+  displayField, value)`, because a roster projects the same handful of ids
+  across many rows.
+- **Projection is policy-checked per *source* record; a lookup target is not a
+  source.** `projectRow` applies `canReadSourceRecord` and `applyReadPolicy` to
+  each source record — but the lookup target is a record on *another* object
+  with its own policy, and nothing in the projection path covered it. So
+  denormalising a display value during projection would genuinely have leaked.
+  `resolveLookupDisplayLabel` therefore reads the target itself, checks
+  `recordMatchesObjectScope`, and takes the display field from
+  `applyReadPolicy`'s output so a field-level `HIDE`/`MASK` is honoured rather
+  than read around. A `targetField` lookup is a match by field value, so it
+  additionally clears `search` + `requireObjectScopeForSearch` — the Phase 68
+  rule, applied to a third feature.
+- **Every refusal degrades to no label, never to an error.** Denied, deleted,
+  out-of-scope, absent, or a non-primitive display value all return `undefined`,
+  and the renderer falls back to the stored value the caller already holds.
+  `evaluateFieldText` prefers the label over a declared `FORMAT`: a format
+  pattern describes the stored id, not the name, so applying one could only
+  produce an invalid-value diagnostic for a value nobody sees.
+- **The consumers are the presentation runtime and the generic dashboard
+  renderer**, both of which now read `display` first: `BoundPresentationRow`
+  carries it through `readModelRowToPresentationRow` into row fragments and into
+  a calendar item's title/summary; `adl-dashboard-view.ts`'s `readValue` prefers
+  it. `authoritative-reporting.ts`'s `shapeReportRow` and
+  `edit-surface-runtime.ts`'s picker filter deliberately still use `values` — a
+  report is data and a filter matches what is stored.
+- **`adl-list-view.ts`'s resolver was deliberately not converged.** It resolves
+  labels for *object* records fetched by `search`, not for read-model rows, and
+  it already goes through the shared `lookup-resolution.ts` helper over
+  policy-checked `runtime.read`/`runtime.search`. `ReadModelService` cannot use
+  that helper: it takes an `ApplicationRuntime`, and `ReadModelService` is one of
+  that runtime's own collaborators, so the import would be a cycle. The two
+  paths converge on the *rule* (policy-checked read, degrade to the stored
+  value), not on one function.
+
 ## Practical guidance
 
 - Add new read-model behavior through resolved-model declarations and `ReadModelService`; keep parser syntax and backend execution strategies separate.
@@ -176,3 +230,11 @@ Read this before changing read-model execution, read-model-backed dashboards, re
 - Before trusting that a resolved-model field is load-bearing, grep every
   runtime reader of it, not just the validator. `TARGET_FIELD` proves a field
   can be fully compile-time-checked and still be dead at runtime.
+- Adding a derived field to a resolved-model shape changes `modelFingerprint`
+  for **every** app whose model reaches it. Phase 91 added
+  `ResolvedReadModelField.lookup` and had to bump *two* reference apps
+  (Giggle Band 1.7.0 -> 1.8.0, Jointly Care 1.3.0 -> 1.4.0), each with its own
+  empty-object migration hop and golden-fingerprint update, even though only
+  Giggle Band's rendering visibly changed. Enumerate the affected apps by
+  grepping every `readModels` declaration before assuming one app is the only
+  one.

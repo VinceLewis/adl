@@ -332,14 +332,18 @@ export class CalendarRuntime extends RowRuntime {
             diagnostics,
             location,
           );
+    // A resolved lookup label stands in for the stored id wherever a calendar
+    // shows a projected field to a reader, exactly as it does in a list row.
     const titleValue =
-      calendar.titleField === undefined ? row.id : (row.values[calendar.titleField] ?? row.id);
+      calendar.titleField === undefined
+        ? row.id
+        : (row.display?.[calendar.titleField] ?? row.values[calendar.titleField] ?? row.id);
     const title = primitiveToText(titleValue, diagnostics, {
       ...location,
       field: calendar.titleField,
     });
     const summary = calendar.summaryFields
-      .map((field) => row.values[field])
+      .map((field) => row.display?.[field] ?? row.values[field])
       .filter((value) => value !== undefined && value !== null && value !== "")
       .map((value) => primitiveToText(value, diagnostics, location))
       .join(" ");

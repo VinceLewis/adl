@@ -104,6 +104,19 @@ export interface RuntimeReadModelRow {
   readModel: string;
   values: Record<string, JsonValue>;
   sources: Record<string, RuntimeReadModelSourceReference>;
+  /**
+   * Human-readable labels for projected `LOOKUP` fields, keyed by output field
+   * name — the target record's `DISPLAY` value for the id (or natural key)
+   * `values` holds.
+   *
+   * A separate channel rather than a substitution into `values`, because the
+   * stored value is what filters, sorts, expressions and row actions must keep
+   * seeing; only what a human reads should change. A field is absent here
+   * whenever the target could not be resolved — no such record, deleted, or the
+   * caller's read policy denies it — so a renderer that falls back to
+   * `values[field]` degrades to the raw id and never to a fabricated name.
+   */
+  display?: Record<string, string>;
 }
 
 export interface RuntimeReadModelResult {

@@ -320,6 +320,23 @@ export const MODEL_VALIDATION_CODES = {
   READ_MODEL_FIELD_SHAPE_INVALID: "ADL_READ_MODEL_FIELD_SHAPE_INVALID",
   READ_MODEL_FIELD_TYPE_INVALID: "ADL_READ_MODEL_FIELD_TYPE_INVALID",
   READ_MODEL_FIELD_UNKNOWN: "ADL_READ_MODEL_FIELD_UNKNOWN",
+  /**
+   * A projected read-model field carries a `lookup` that disagrees with the
+   * source object field it projects.
+   *
+   * That metadata is derived — `resolveReadModelField` copies it verbatim from
+   * the source field, so a compiled model can never trip this. What it guards
+   * is the resolved model reaching a runtime by some other route (deserialised
+   * JSON, a model built by hand or by another toolchain): `ApplicationRuntime`
+   * validates whatever resolved model it is handed, and a lookup that names an
+   * object or display field the source field does not would send the display
+   * resolver at a record the author never pointed it at. The unknown-target and
+   * unknown-display-field cases are already reported against the object field
+   * itself (`ADL_LOOKUP_TARGET_OBJECT_UNKNOWN`,
+   * `ADL_LOOKUP_DISPLAY_FIELD_UNKNOWN`), so this code deliberately reports only
+   * the disagreement, never a second copy of those.
+   */
+  READ_MODEL_FIELD_LOOKUP_MISMATCH: "ADL_READ_MODEL_FIELD_LOOKUP_MISMATCH",
   READ_MODEL_JOIN_CARDINALITY_INVALID: "ADL_READ_MODEL_JOIN_CARDINALITY_INVALID",
   READ_MODEL_JOIN_FIELD_UNKNOWN: "ADL_READ_MODEL_JOIN_FIELD_UNKNOWN",
   READ_MODEL_JOIN_PRIMARY_SOURCE_INVALID: "ADL_READ_MODEL_JOIN_PRIMARY_SOURCE_INVALID",
