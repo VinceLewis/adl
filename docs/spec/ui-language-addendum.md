@@ -437,11 +437,11 @@ unanswered.
 A model that declares no shell gets both by default, in the order
 `contextSelector`, `connectivity`, `syncStatus`.
 
-Per-view `presentation.shell.regions` remains available in JSON/TypeScript
-partial models for view-local presentation-control placement, but source syntax
-for view-declared shell regions is not implemented. Phase 100 left it that way
-on purpose rather than by omission: whether it should exist at all is still an
-open question below, and inventing syntax would answer it by fiat.
+Per-view `presentation.shell.regions` has **no** source syntax and will not be
+given one. Phase 100 deferred it as an open question; that question is now
+answered under Decisions below — the shell stays global, and a screen needing a
+control puts it in the screen's own content. The remaining JSON/TypeScript
+capability is dead rather than pending, and is due for removal.
 
 ## Giggle Dashboard Example
 
@@ -856,17 +856,39 @@ combinations, number patterns such as `fixed:1`, and primitive text conversion.
 Unsupported patterns produce `ADL_PRESENTATION_FORMAT_UNSUPPORTED` diagnostics
 and fall back to raw values where possible.
 
-## Open Questions
+## Decisions (settled 2026-08-21)
 
-- Should view-scoped shell regions get source syntax, or should shell stay
-  global with view-local controls referenced through presentation? (Still open;
-  Phase 100 deferred the printer's own gap here rather than pre-empt it.)
-- Should icon names be restricted to a standard set at compile time?
-- Should date/time format strings use a single ADL-supported pattern language
-  across runtimes?
-- Should view-local state be persisted per device, per user, or only in memory?
-- How much conditional logic should be allowed in row templates before it
-  becomes a computed/read-model concern? (Still open, and the reason conditional
-  row fragments still have no `ROW` syntax.)
-- Should `RENDER_AS` values be standardized, or should they be theme/runtime
-  extension points?
+These were open questions. The repository owner answered all six; they are
+recorded here as decisions so they are not reopened by default. Each says what
+was decided and what follows from it.
+
+- **View-scoped shell regions: no.** The shell stays global. A screen that
+  needs a control puts it in the screen's own content, not in the top bar.
+  Consequence: `presentation.shell.regions` is now dead capability rather than
+  unimplemented syntax, and should be **removed** from the resolved model
+  rather than given `.adl` text syntax. Neither reference app declares one.
+  This closes the gap Phase 100 deferred.
+- **Conditional logic in row templates: no.** A row template renders fields;
+  it does not ask questions. Anything conditional belongs in a computed field
+  or a read model, where it can be tested without rendering. The common
+  "show something else when this is blank" case is already served by a text
+  fragment's `FALLBACK` (Phase 100), which is a default, not a condition.
+  Consequence: conditional row fragments correctly have no `ROW` syntax, and
+  this is now a decision rather than an omission. This closes the second gap
+  Phase 100 deferred.
+- **Icon names restricted at compile time: yes.** An unknown icon name should
+  be a compile-time diagnostic, not a blank space discovered by looking at the
+  screen. Consequence: needs a known-icon set and a validator diagnostic; not
+  yet implemented.
+- **One date/time pattern language across runtimes: yes.** ADL defines the
+  pattern language and every runtime implements the same one, rather than
+  deferring to a host platform's formatter. Consequence: mostly a commitment
+  to what `formatPresentationValue` already implements, plus conformance
+  coverage that pins it.
+- **View-local state persistence: per device.** `memory`, `session` and
+  `local` stay as they are. State does not follow a user between devices;
+  that would require sending it to the authority, which is deliberately not
+  being taken on now.
+- **`RENDER_AS` values: a fixed set.** `table`, `feed`, `compactFeed`,
+  `cards`. Themes do not add their own. A value can be added later; removing
+  one after apps depend on it cannot.
