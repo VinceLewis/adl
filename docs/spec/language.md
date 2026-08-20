@@ -34,6 +34,30 @@ how each construct below maps into JSON, how expressions are represented, and
 a worked example — see [adlj.md](adlj.md), specifically its "Authoring a
 `.adlj` document from scratch" section.
 
+### Reference-app citations point at a frozen snapshot
+
+This document cites `src/reference/giggle-band/domain.adl` and
+`src/reference/giggle-band/ui.adl` by exact line number throughout, and quotes
+several blocks from them verbatim. **Those two files are a frozen snapshot of
+the Giggle Band application at model version 1.0.0, not its current compiled
+source.** `src/reference/giggle-band/app.yaml` compiles `domain.adlj` and
+`ui.adlj`, which are at model version 1.9.0 and have since diverged from the
+snapshot in thirty-two enumerated ways — a set list is now a many-to-many, the
+gig form grew a child collection, the shell moved its theme switch, and more.
+The divergence is pinned construct by construct in
+`tests/reference-adl-snapshot.test.ts`, and reasoned through in
+`docs/phases/phase-94-adl-adlj-divergence.md`.
+
+Citing the snapshot is deliberate, not an oversight. Line numbers stay valid
+only because the file is frozen, and the snapshot cannot be regenerated from
+the `.adlj` source in any case: the real application now declares three
+constructs with no ADL text syntax at all (a calendar `conflictOverlay`, and a
+child collection's `projectedFields` and `summary`), so `print-adl.ts` refuses
+to render it. Read every reference-app example below as valid ADL *text*
+illustrating the construct under discussion — which is what this document is
+for — and never as evidence about what the running Giggle Band application
+declares today. For that, read the `.adlj`.
+
 ## Syntax Shape
 
 The current parser is line-oriented and block-based. Top-level declarations use

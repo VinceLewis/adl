@@ -645,17 +645,42 @@ POLICY DevicePreferencePolicy ON DevicePreference
   RULE allowDevicePreferenceOwnerDelete ALLOW DELETE OWNER
 END.POLICY
 
-# SUPERSEDED AS COMPILED SOURCE: `app.yaml` now compiles `domain.adlj`, not
-# this file. Kept on disk, unmodified, byte-for-byte and at the same line
-# numbers, because `docs/spec/language.md` and several `docs/phases/*.md`
-# documents cite specific line numbers in this file as illustrative examples
-# (search the repository for `giggle-band/domain.adl:` before ever editing a
-# line above this note) -- a header note here, the way Jointly Care's kept
-# `.adl` files carry one, would have silently invalidated every one of those
-# citations, so this note is appended at the end instead. `domain.adlj` is
-# the real, `.adlj`-native source `domain.adl` was converted from (via
-# `importAdlAsAdlj`, preserving every real leading comment through the new
+# FROZEN SNAPSHOT, NOT A VIEW OF `domain.adlj`. `app.yaml` compiles
+# `domain.adlj`, not this file, and the two have since diverged: this is the
+# Giggle Band application as it stood at model version 1.0.0, while
+# `domain.adlj` is at 1.9.0. Thirty-two divergences are enumerated and pinned
+# in `tests/reference-adl-snapshot.test.ts`; the reasoning is in
+# `docs/phases/phase-94-adl-adlj-divergence.md`. Read this file as a dated
+# snapshot of an earlier release, never as evidence about what the running
+# application declares now -- check `domain.adlj` for that.
+#
+# It cannot be regenerated. `domain.adlj` now declares three constructs with
+# no ADL text syntax at all (a calendar `conflictOverlay`, and a child
+# collection's `projectedFields` and `summary`), so `print-adl.ts` refuses to
+# render it and no `.adl` text exists that says what the real source says.
+#
+# It is kept for two reasons, neither of which is currency:
+#
+#   1. `docs/spec/language.md` and a dozen `docs/phases/*.md` documents cite
+#      exact line numbers into this file. Every line ABOVE this note must keep
+#      its number forever -- search the repository for `giggle-band/domain.adl:`
+#      before ever touching one. A prepended header note, the way Jointly
+#      Care's kept `.adl` files carried one before they were deleted, would
+#      silently shift every cited line, which is why this note is appended
+#      instead. `tests/reference-adl-snapshot.test.ts` hashes everything above
+#      this note, so a hand edit up there now fails a test rather than passing
+#      unnoticed; the note itself is outside the hash and may be rewritten.
+#
+#   2. Together with `domain.adl` it is this repository's richest real `.adl`
+#      *text* corpus, and it is still parsed on every run --
+#      `tests/compile-adlj.test.ts` uses it to prove the `.adl` printer's
+#      construct coverage round-trips, and `tests/compile-adl-project-v2.test.ts`
+#      uses it to prove `compileAdlProject` still handles real text. (An
+#      earlier version of this note claimed the file was "not reparsed,
+#      tested"; that was never true.)
+#
+# `domain.adlj` is the real, `.adlj`-native source this file was converted from
+# via `importAdlAsAdlj`, preserving every real leading comment through the
 # `.adlj` "comment" field -- see
-# `learnings/implementation/adlj-json-authoring-surface.md`); this file is
-# not reparsed, tested, or kept in sync with `domain.adlj` going forward.
-# Treat it as a historical/citation reference, not a source of truth.
+# `learnings/implementation/adlj-json-authoring-surface.md` and
+# `learnings/implementation/reference-app-drift.md`.

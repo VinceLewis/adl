@@ -420,7 +420,15 @@ survived (matching commit `a76f7ab`'s own count for this corpus).
   information, placed where it cannot perturb an existing citation. Worth
   checking for this before reflexively reusing the header-note pattern on
   any future `.adl` file that has accumulated external line-number
-  references.
+  references. **Phase 94 follow-up:** keeping the files was right, but the
+  note's wording was not -- "superseded as compiled source" read to every
+  later reader as "same content, different encoding", and the two files had
+  in fact drifted through nine model versions. The note now says what the
+  files *are* (a frozen model-version-1.0.0 snapshot, unregenerable because
+  the real source uses three constructs with no ADL text syntax at all), the
+  frozen region is hashed by `tests/reference-adl-snapshot.test.ts` rather
+  than requested by comment, and the divergence itself is pinned there too.
+  See `implementation/reference-app-drift.md`.
 - **A generic, non-browser consumer of `app.yaml`+sources also needed
   `.adlj` support for real, not just the browser bundle.**
   `src/server/authority-entrypoint.ts`'s `loadAuthorityModel` reads any

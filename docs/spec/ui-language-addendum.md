@@ -689,7 +689,12 @@ loops, and DOM-specific declarations.
 
 The first implementation target is the Giggle Band home dashboard source in
 `src/reference/giggle-band/ui.adl`. It proves that non-CRUD presentation can be
-authored without app-specific UI components.
+authored without app-specific UI components. That file is now a frozen
+model-version-1.0.0 snapshot rather than the app's compiled source — Giggle
+Band's `app.yaml` lists `domain.adlj`/`ui.adlj` — so read it as the original
+implementation target it was, not as the current dashboard. See
+`docs/spec/language.md`'s "Reference-app citations point at a frozen snapshot"
+and `docs/phases/phase-94-adl-adlj-divergence.md`.
 
 The compiler should accept presentation declarations from any source listed in
 `app.yaml`, so an app can keep domain and UI source separate:
@@ -697,14 +702,17 @@ The compiler should accept presentation declarations from any source listed in
 ```text
 src/reference/giggle-band/
   app.yaml
-  domain.adl
-  ui.adl
+  domain.adlj
+  ui.adlj
 ```
 
 Current parser detail: view declarations are object-scoped. A later `OBJECT`
 declaration that contains only `VIEW` blocks extends the earlier object
-declaration of the same name, which allows `domain.adl` to define fields and
-`ui.adl` to add authored presentation views.
+declaration of the same name, which allows a domain source to define fields and
+a UI source to add authored presentation views. The same split works for either
+surface: `.adl` text merges at the AST level through `compileAdlProject`, and
+`.adlj` merges at the `PartialApplicationModel` level through
+`compileAdlProjectV2` (see [adlj.md](adlj.md)).
 
 Runtime evaluation is implemented by `ApplicationRuntime.evaluatePresentationView`.
 It initializes resolved local state defaults, applies local state updates, binds

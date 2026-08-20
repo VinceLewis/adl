@@ -27,10 +27,16 @@ chain-ordering rule you must respect when adding one.
 ## Key decisions after the Giggle Band ADL conversion
 
 - `src/reference/giggle-band/app.yaml` is the folder-level manifest for the
-  band reference app, and `src/reference/giggle-band/domain.adl` is the current
-  authored source listed by that manifest. `src/reference/band-app.ts` imports
-  both as raw text, compiles them with `compileAdlProject`, and keeps only
-  executable runtime/seed helpers in TypeScript.
+  band reference app, and `src/reference/giggle-band/domain.adl` was the
+  authored source listed by that manifest. `src/reference/band-app.ts` imported
+  both as raw text, compiled them with `compileAdlProject`, and kept only
+  executable runtime/seed helpers in TypeScript. **No longer current:**
+  `app.yaml` lists `domain.adlj`/`ui.adlj`, and `band-app.ts` compiles them with
+  `compileAdlProjectV2` behind a lazy dynamic `import()`. `domain.adl`/`ui.adl`
+  remain on disk as a frozen model-version-1.0.0 snapshot and as this
+  repository's richest `.adl`-text parser corpus — see
+  `learnings/implementation/reference-app-drift.md`. The parser decisions
+  recorded below are unaffected; only the file the manifest names has changed.
 - The parser now supports top-level `CONTEXT` declarations, object `SCOPE`,
   `CONSTRAINT UNIQUE`, `CONSTRAINT ORDERED`, view `CONTEXT`, view `READ_MODEL`,
   and read-model `CONTEXT` declarations. These compile through the normal

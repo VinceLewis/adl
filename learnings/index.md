@@ -195,6 +195,10 @@ Jointly Care doesn't exercise: `UNION` read models, `ORDERED` constraints,
 `CHILD_COLLECTION`/`PICKER`, `STATUS_MAP`/`ICON_MAP`, a multi-hop `JOIN`, and
 `EDIT_SECTION`) — between the two, every construct in `docs/spec/adlj.md`'s
 mapping table has a real, compiling worked example.
+Do **not** read `src/reference/giggle-band/domain.adl`/`ui.adl` as evidence
+about what that app declares: they are a frozen model-version-1.0.0 snapshot
+that diverges from the `.adlj` source in 32 recorded ways, and they cannot be
+regenerated from it — see `implementation/reference-app-drift.md`.
 `implementation/adlj-json-authoring-surface.md` is the implementation-history
 companion — read it too when the task is likely to run into one of its
 documented gotchas (the `principal.match` default-inference gap, the
@@ -298,6 +302,14 @@ kind, or anything that adds another ad-hoc multi-record write, also read:
 Before tasks that add or change ADL reference applications, model-driven demo fixtures, or follow-up platform gaps discovered by a reference app, also read:
 
 - `implementation/reference-app-models.md`
+- `implementation/reference-app-drift.md`
+
+Before citing, quoting, or reasoning from `src/reference/giggle-band/domain.adl`
+or `ui.adl` — and before keeping any superseded or generated file on disk "for
+reference", or adding a line-number citation into a file this repository
+maintains — read:
+
+- `implementation/reference-app-drift.md`
 
 Before tasks that change resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`, also read:
 
@@ -355,6 +367,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/sync-mode-delivery.md`: read before changing which sync modes queue, the client's delivery path, the authority's acceptance of a mode, undelivered-write presentation, or anything that decides whether an accepted write reaches the authority.
 - `implementation/theme-system.md`: read before changing resolved theme tokens, theme resolution, UI CSS custom properties, or parser support for `THEME`.
 - `implementation/reference-app-models.md`: read before adding or changing ADL reference applications, browser demo fixtures, or reference-app-driven platform gap work -- it carries the Jointly Care conversion of `OSV_PRD_Elixir_Canonical_Jointly.md` (`src/reference/jointly-care/`), including why `DISPLAY` can never name a `COMPUTED` field, why a `CONTEXT_GRANT` never extends to the context's own root object (a join across it silently drops rows rather than erroring), and why a row action still needs its own `WHEN` guard even when the command underneath it already refuses the write safely -- and now also both apps' full conversion to `.adlj` as their real compiled source (`domain.adlj`/`ui.adlj`, comments included), with Giggle Band as the construct-richer second precedent (`UNION`, `ORDERED`, `CHILD_COLLECTION`/`PICKER`, `STATUS_MAP`/`ICON_MAP`, a multi-hop `JOIN`, `EDIT_SECTION`) and the dynamic-`import()` lazy-compilation pattern both `jointly-app.ts` and `band-app.ts` now use to keep `.adlj`/`ajv` tooling out of the main browser bundle.
+- `implementation/reference-app-drift.md`: read before citing, quoting or reasoning from Giggle Band's kept `src/reference/giggle-band/domain.adl`/`ui.adl`, before keeping any superseded file on disk "for reference", and before adding a line-number citation into any maintained file -- it carries the Phase 94 finding that those two files are a frozen model-version-1.0.0 snapshot rather than a view of `domain.adlj`/`ui.adlj` (32 enumerated divergences, pinned in `tests/reference-adl-snapshot.test.ts`), that they *cannot* be regenerated because the real source uses three constructs with no ADL text syntax at all (`conflictOverlay`, `projectedFields`, `summary`), that they are nonetheless live test corpus for two `.adl`-text pipeline tests despite an earlier note claiming otherwise, the measured lesson that a divergence pin over *paths* is not a pin over *values* (renaming an already-divergent nav label left the path set identical and the test green), the two diff mechanics that made a 1,629-line comparison readable as 32 entries (re-key named arrays by name; report the shallowest differing path and stop), and the evidence that line-number citations survive into a frozen file (20/20) but not into a living one (every spot-checked `language.md:NNN` citation in `docs/phases/*.md` already lands on unrelated text).
 - `implementation/conformance-suite.md`: read before changing runtime semantics, resolved-model defaults, policy decision behavior, inspection/explain output, conformance cases, the conformance runner's operations and step options, or the generated-value guard that keeps minted text out of the corpus.
 - `implementation/authority-server.md`: read before changing authority replay, server sessions, accepted-state persistence, operation idempotency, browser/server reconciliation, or the `baseRevision` conflict check and the rule that mints a record revision.
 - `implementation/remote-bootstrap-and-sync-state.md`: read before changing authenticated remote bootstrap/pull, browser sync-state persistence, reconciliation, conflict recovery, or sync cursors.
