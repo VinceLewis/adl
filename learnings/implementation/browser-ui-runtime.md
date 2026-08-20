@@ -2,6 +2,17 @@
 
 Read this before changing browser UI components, runtime/UI policy integration, demo fixtures, or browser verification.
 
+**Where the code is (Phase 89).** `src/ui/components/adl-app.ts` is a barrel
+holding only the public surface (`AdlAppElement`, `defineAdlApp`). The class it
+used to hold is now a linear chain of shell-area class files under
+`src/ui/components/adl-app/` — `state.ts`, `model-lookup.ts`,
+`render-chrome.ts`, `render.ts`, `data.ts`, `events-shell.ts`,
+`events-record.ts`, `index.ts`. Every member named anywhere below still exists
+with the same name and body — see [[adl-app-file-map]] for which file each one
+lives in, for the chain-ordering rule you must respect when adding one, and for
+the field-initialization-order and accessor-pair rules that make a careless move
+fail *silently* rather than at `tsc`.
+
 ## Key decisions from Phase 4
 
 - The browser demo uses native Web Components, not Lit, because the repository had no UI framework dependency and the brief asked for a framework-light runtime.
