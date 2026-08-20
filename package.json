@@ -6,6 +6,7 @@
   "description": "Standalone ADL resolved model contract and resolver.",
   "scripts": {
     "dev": "vite",
+    "dev:authority": "VITE_ADL_AUTHORITY_URL=${ADL_AUTHORITY_URL:-http://localhost:8787} vite",
     "build": "vite build",
     "build:authority": "tsc -p tsconfig.server.json",
     "start:authority": "npm run build:authority && node dist-server/src/server/authority-main.js",
