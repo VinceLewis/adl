@@ -1,4 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  downgradePersistedApplicationMetadata,
+  readAllPersistedRecords,
+  readMountedModelVersion,
+  readPersistedApplicationMetadata,
+} from "./support/persisted-upgrade.js";
 
 interface VisualPage {
   name: string;
@@ -13,7 +19,80 @@ const jointlyCarePages: VisualPage[] = [
   { name: "my-invites", navItem: "MyPendingInvites", expectedText: "Your pending invites" },
 ];
 
+const JOINTLY_CARE_EXAMPLE_DATABASE_NAME = "adl-jointly-care-example";
+
 test.describe("Jointly Care visual smoke", () => {
+  /**
+   * Phase 82 (`03c41b8`) advanced Jointly Care from model version `1.0.0`
+   * to `1.1.0` with an empty-object migration alongside Giggle Band's, but
+   * shipped a real-browser persisted-upgrade regression for Giggle only.
+   * Later, independent content changes advanced both apps further still
+   * (see `src/reference/jointly-care/domain.adlj`'s declared migrations) --
+   * this test seeds a real pre-`1.1.0` installation and asserts against
+   * whatever `modelVersion` the app currently declares, so it does not go
+   * stale the next time either app's model version advances. This is
+   * Jointly Care's equivalent of Giggle Band's persisted-upgrade test, per
+   * Phase 83 -- see AGENTS.md's "Persisted-state upgrade testing"
+   * subsection.
+   *
+   * Unlike Giggle Band's test, this one seeds by mounting the real app
+   * first and letting it seed its own real reference dataset (Users,
+   * Circles, Events, Messages, ...), then rolling back only the metadata
+   * row underneath that data -- proving the *entire* real dataset survives
+   * a migration byte-identical, not one hand-picked record.
+   */
+  test("opens and migrates a persisted pre-1.1.0 installation", async ({ page }, testInfo) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await openJointlyCareApp(page);
+    await expectAppReady(page);
+    const recordsBeforeDowngrade = await readAllPersistedRecords(
+      page,
+      JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
+    );
+    expect(recordsBeforeDowngrade.length).toBeGreaterThan(0);
+
+    // Reproduce a real pre-`1.1.0` installation: the same real records this
+    // app just seeded itself, persisted under the oldest declared version's
+    // metadata.
+    await downgradePersistedApplicationMetadata(page, JOINTLY_CARE_EXAMPLE_DATABASE_NAME, {
+      modelVersion: "1.0.0",
+      modelFingerprint: `sha256-${"0".repeat(64)}`,
+    });
+
+    await page.reload();
+    await expectAppReady(page);
+    await expect(page.getByRole("heading", { name: "Jointly Care ADL Example" })).toBeVisible();
+    expect(pageErrors).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("Persisted runtime data is incompatible")]),
+    );
+
+    // Asserted against the model's own current version rather than a
+    // hard-coded string, so this test does not go stale the next time
+    // Jointly Care's `modelVersion` advances for an unrelated reason.
+    const liveModelVersion = await readMountedModelVersion(page);
+    const metadata = await readPersistedApplicationMetadata(
+      page,
+      JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
+    );
+    expect(metadata?.modelVersion).toBe(liveModelVersion);
+
+    // Every declared migration for this app is an empty-object no-op, so
+    // the whole real seeded dataset -- not just one hand-picked record --
+    // survives the migration byte-identical.
+    const recordsAfterMigration = await readAllPersistedRecords(
+      page,
+      JOINTLY_CARE_EXAMPLE_DATABASE_NAME,
+    );
+    expect(recordsAfterMigration).toEqual(recordsBeforeDowngrade);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`jointly-care-${testInfo.project.name}-persisted-upgrade.png`),
+      fullPage: true,
+    });
+  });
+
   for (const pageSpec of jointlyCarePages) {
     test(`captures ${pageSpec.name} on every configured viewport`, async ({ page }, testInfo) => {
       await openJointlyCareApp(page);

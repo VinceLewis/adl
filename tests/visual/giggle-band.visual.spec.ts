@@ -1,4 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  readMountedModelVersion,
+  readPersistedApplicationMetadata,
+  seedStalePersistedInstallation,
+} from "./support/persisted-upgrade.js";
 
 interface VisualPage {
   name: string;
@@ -40,39 +45,12 @@ test.describe("Giggle Band visual smoke", () => {
     // Establish this test context's app origin without mounting Giggle, then
     // reproduce the real pre-Phase-80 metadata in Giggle's actual database.
     await page.goto("/?demo=unregistered");
-    await page.evaluate(async () => {
-      await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.deleteDatabase("adl-giggle-band-example");
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-        request.onblocked = () => reject(new Error("Giggle database deletion was blocked."));
-      });
-
-      const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open("adl-giggle-band-example", 1);
-        request.onupgradeneeded = () => {
-          const store = request.result.createObjectStore("objectRecords", { keyPath: "key" });
-          store.createIndex("object", "object", { unique: false });
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-      const transaction = db.transaction("objectRecords", "readwrite");
-      transaction.objectStore("objectRecords").put({
-        kind: "applicationMetadata",
-        key: "__adl_application_metadata",
-        object: "__adl_application_metadata",
-        metadata: {
-          modelVersion: "1.0.0",
-          modelFingerprint: `sha256-${"0".repeat(64)}`,
-        },
-      });
-      await new Promise<void>((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-        transaction.onabort = () => reject(transaction.error);
-      });
-      db.close();
+    await seedStalePersistedInstallation(page, {
+      dbName: "adl-giggle-band-example",
+      staleMetadata: {
+        modelVersion: "1.0.0",
+        modelFingerprint: `sha256-${"0".repeat(64)}`,
+      },
     });
 
     await openGiggleApp(page);
@@ -82,24 +60,15 @@ test.describe("Giggle Band visual smoke", () => {
       expect.arrayContaining([expect.stringContaining("Persisted runtime data is incompatible")]),
     );
 
-    const metadata = await page.evaluate(async () => {
-      const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open("adl-giggle-band-example", 1);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-      const transaction = db.transaction("objectRecords", "readonly");
-      const request = transaction.objectStore("objectRecords").get("__adl_application_metadata");
-      const entry = await new Promise<{ metadata?: { modelVersion?: string } } | undefined>(
-        (resolve, reject) => {
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error);
-        },
-      );
-      db.close();
-      return entry?.metadata;
-    });
-    expect(metadata?.modelVersion).toBe("1.1.0");
+    const metadata = await readPersistedApplicationMetadata(page, "adl-giggle-band-example");
+    // Asserted against the model's own current version, not a hard-coded
+    // string: Giggle Band's `modelVersion` has already advanced past the
+    // `1.1.0` this test was first written against (later, independent
+    // content changes -- see `src/reference/giggle-band/domain.adlj`'s
+    // declared migrations), and `planModelMigration` chains through every
+    // declared hop in one migration, so the seeded `1.0.0` install still
+    // lands correctly on whatever version the app currently declares.
+    expect(metadata?.modelVersion).toBe(await readMountedModelVersion(page));
 
     await page.screenshot({
       path: testInfo.outputPath(`giggle-${testInfo.project.name}-persisted-upgrade.png`),

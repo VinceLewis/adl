@@ -244,6 +244,11 @@ Before tasks that change model version declaration or derivation, the model fing
 - `implementation/conformance-suite.md`
 - `implementation/offline-session-lifetime.md`
 
+Before tasks that change a resolved-model shape reachable from a shipped reference/demo app's model, or that bump a reference/demo app's `modelVersion` for any reason (including a content-only change to shell, presentation or anything else that participates in the model fingerprint), also read:
+
+- `implementation/model-versions-and-migrations.md` (Phase 83 section: the persisted-state upgrade testing requirement, the shared `tests/visual/support/persisted-upgrade.ts` helper, and why every affected app needs its own test, not one representative app)
+- AGENTS.md's `## Testing` → "Persisted-state upgrade testing" subsection (the binding rule itself)
+
 Before tasks that change browser UI runtime components, browser demo fixtures, UI policy or sync presentation, or browser verification, also read:
 
 - `implementation/browser-ui-runtime.md`
@@ -357,7 +362,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/command-intent-replay.md`: read before changing how a locally executed command is queued, the `command` local-operation kind, the command intent's record-id manifest, the authority's re-execution of a command, the sync-queueability rule on command steps, or which selected contexts an operation replays against.
 - `implementation/command-read-steps.md`: read before changing command step kinds, the command value-expression vocabulary (`stepField`/`stepMeta`), command step-ordering validation, or anything that lets a command read an existing record rather than only create or update one — it carries the Phase 71 decision to bind a `read` step's record into the same `stepRecords` namespace a `create`/`update` step's own written record already uses, rather than a second expression kind, and the decision to enforce read policy through `ObjectStore.read` rather than the write-path's unauthorized `getRecordForRuntime` lookup.
 - `implementation/passkey-identity.md`: read before changing WebAuthn ceremonies, identity keying or identity links, the authority's identity-verification mode, the passkey sign-in surface, or invite-based identity recovery.
-- `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read.
+- `implementation/model-versions-and-migrations.md`: read before changing model version declaration or derivation, the model fingerprint, `MIGRATION` syntax, migration planning or execution, the startup compatibility guard, persisted application metadata, or anything that decides whether persisted data may be read — it also carries the Phase 83 persisted-state upgrade testing requirement (AGENTS.md's `## Testing` subsection of the same name), the shared `tests/visual/support/persisted-upgrade.ts` helper, and a real recurrence of the failure mode the rule exists to close within the same session that wrote it.
 - `implementation/context-grants-and-relationship-access.md`: read before changing business-context availability, the object-scope gate, policy principals, read-model joins, command-established contexts, or anything that decides whether one user may see another user's records.
 - `implementation/record-sync-state.md`: read before changing how a record's sync state is produced or cleared, before adding a surface that reports what a device is holding, or before adding any local removal of a row the authority refused.
 - `implementation/offline-session-lifetime.md`: read before changing the declared offline grace or its resolved shape, the authority's session lifetime or cookie attributes, session rotation, the browser sync gate, the cached browser identity, or the device/session list.

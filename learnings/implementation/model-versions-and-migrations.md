@@ -153,6 +153,84 @@ instead names the model that *wrote* the state and the runner derives the
 metadata from it. `compareModelFingerprints` asserts the *relation* between two
 models' fingerprints for the same reason.
 
+## Phase 83: persisted-state upgrade testing is now a structural requirement
+
+Phase 82 fixed one shipped regression (Giggle Band's blank-page-on-reload after
+`d020b2d` changed shell content without a `modelVersion` bump) and added a real
+IndexedDB regression test for it — but only for Giggle Band, even though the
+same commit bumped Jointly Care and the generic persistent browser demo too.
+`AGENTS.md`'s `## Testing` section now has a "Persisted-state upgrade testing"
+subsection making this mandatory for **every** reference/demo app a change
+touches, not one representative app, and a shared helper —
+`tests/visual/support/persisted-upgrade.ts` — so a new app's test is a few
+lines against real IndexedDB and a real app URL, not another ~80-line
+hand-rolled `indexedDB.open`/`transaction` block. See
+`tests/visual/giggle-band.visual.spec.ts`, `tests/visual/jointly-care.visual.spec.ts`
+and `tests/visual/browser-demo.visual.spec.ts` for the resulting three tests.
+
+**Two seeding patterns, not one.** Giggle Band's original test (kept
+behavior-identical through the Phase 83 refactor) deletes and recreates the
+database from nothing with hand-supplied stale metadata
+(`seedStalePersistedInstallation`) — it seeds no records at all, so it only
+proves the metadata transition. Jointly Care's and the generic browser
+demo's Phase 83 tests use a different, stronger pattern instead: mount the
+real app first and let it seed its own real reference dataset through its
+normal `seedIfEmpty` path, snapshot every persisted record
+(`readAllPersistedRecords`), roll back *only* the application metadata row
+in place (`downgradePersistedApplicationMetadata` — the existing database,
+untouched otherwise), reload, and assert the post-migration record snapshot
+is deep-equal to the pre-downgrade one. This proves the *entire* real seeded
+dataset survives a migration byte-identical, not one hand-picked record, and
+needs no hand-authored `StoredObjectRecord` at all. Prefer this pattern for
+any new app's persisted-upgrade test; the delete-and-reseed pattern remains
+available for a case that genuinely needs to control persisted shape from
+nothing (an app with no real seed data, or a migration under test that must
+see specific stale field values `seedIfEmpty` would not produce).
+
+**Read the current model version from the mounted app in the page
+(`readMountedModelVersion`, via `<adl-app>`'s own `model.modelVersion`), not
+by importing a reference app's model factory into the spec file.**
+`band-app.ts` and `jointly-app.ts` load their `.adlj`/`.yaml` sources through
+Vite's `?raw` import suffix, which only Vite's own dev/build transform
+understands. A Playwright spec file that imports either module directly —
+even transitively, for something as small as reading `modelVersion` off a
+freshly resolved model — fails to even parse: Playwright's own TypeScript
+loader tries to parse the `.yaml`/`.adlj` file as JavaScript and throws a
+syntax error before any test runs. `demo-fixture.ts` has no such import and
+would likely work, but the mounted-app read works for all three apps
+uniformly and needed discovering only once.
+
+**This recurred three more times in the same session that wrote the rule**,
+concurrently with this phase's own execution, before this phase's commit
+landed: `010dfc8` bumped Giggle Band and Jointly Care from `1.1.0` to `1.2.0`
+(a dropped duplicate row-icon fragment changed resolved presentation
+content); `cf12207` moved a `themeSwitch` control from the top bar into the
+nav drawer, judging (in its own commit message) that `010dfc8`'s bump already
+covered the resulting fingerprint change; and `517f874` corrected that
+judgment — the theme-switch move needed its *own* bump, `1.2.0` to `1.3.0`,
+because `010dfc8`'s bump had already been spent on the row-icon fix. All
+three were real, reactively-discovered regressions against a real dev
+server, not hypothetical — direct evidence that "change resolved content,
+forget the version bump" (or misjudge which bump already covers which
+change) is a standing failure mode in this codebase, not a one-off from
+`d020b2d`, and that procedural text in `AGENTS.md` is worth writing even
+though it cannot yet be mechanically enforced (see this phase's Planning
+Handoff for that as a candidate). It also means this phase's own tests were
+written against a version number that moved three times *while the phase was
+being executed* — direct, immediate motivation for the next paragraph.
+
+**Assert against the model's own current `modelVersion`, not a hard-coded
+string.** All three Phase 83 tests assert persisted metadata equals the
+*live*, already-mounted app's own `modelVersion`, not a literal like
+`"1.1.0"`. A reference app's version advances independently of any one
+phase — as the paragraph above demonstrates three times over in one
+session — and a literal string in a test goes stale for reasons that have
+nothing to do with the test itself. Multi-hop chains are already handled:
+`planModelMigration` resolves every declared hop from the persisted version
+to the current one in a single migration, so seeding the oldest real version
+and asserting the current one exercises the full chain, not just the most
+recent hop.
+
 ## Phase 82: platform changes still need application migrations
 
 - A change to resolver defaults can change existing applications even when no

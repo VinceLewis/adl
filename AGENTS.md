@@ -62,6 +62,20 @@ Before pushing any change that affects browser UI rendering, shell chrome, refer
 
 For documentation-only phases, no automated tests are expected, but verify the requested files exist and that instructions do not contradict the repository boundary.
 
+### Persisted-state upgrade testing
+
+Any phase that changes a resolved-model shape reachable from a shipped reference/demo app's model (adding, removing, or renaming a field; changing how a default resolves; changing shell, presentation, or any other content that participates in the model fingerprint) — **or** bumps a reference/demo app's `modelVersion` for any reason — MUST add or update a persisted-state upgrade test for **every** reference/demo app whose model changed, not one representative app. "It's the same kind of change as the app that already has a test" is not a reason to skip the others: Phase 82 shipping only Giggle Band's test while also changing Jointly Care and the generic persistent browser demo is the failure mode this rule exists to close, and it recurred three more times (`010dfc8`, `cf12207`, `517f874`) in the very session that authored this rule — real content changes that bumped `modelVersion` without, at the time, a matching test update, including one (`517f874`) that corrected a *previous* bump's own mistaken claim that no further version bump was needed.
+
+The test must, against a real browser (Playwright) and a real app URL, not a mock:
+
+1. Seed a real IndexedDB database with the *previous* version's actual persisted shape — application metadata (`modelVersion`, `modelFingerprint`) and at least one real record for an object the migration touches (or, if the migration is a no-op empty-object migration, at least one record proving byte-identical survival).
+2. Load the actual app URL — not a synthetic test harness page.
+3. Verify: migration is applied (not refused — the fail-closed guard firing here is the bug, not the fix), the app renders its real start view rather than a blank page or a thrown `RuntimeStartupError`, and persisted metadata now reflects the new version.
+
+Assert the resulting version by reading it back from the real mounted app in the page (its `<adl-app>` element's own `model.modelVersion`), not a hard-coded version string: a reference app's `modelVersion` moves independently of any one phase, and a hard-coded expected value goes stale the next time it does, for reasons unrelated to the test itself. Do not import a reference app's model factory (`band-app.ts`, `jointly-app.ts`, `demo-fixture.ts`) directly into a Playwright spec file to compute this instead — anything that transitively loads `.adl`/`.adlj`/`.yaml` via Vite's `?raw` imports fails to parse under Playwright's own module loader, which does not share Vite's transform. Read whatever the test needs from the real page instead.
+
+This is a real-browser-only requirement, distinct from and in addition to any `fake-indexeddb` unit coverage of the migration mechanism itself (see `tests/browser-model-migration.test.ts`, Phase 51) — the unit layer proves the mechanism; this layer proves a specific shipped app's specific transition. A shared helper for seeding and reading back persisted state lives at `tests/visual/support/persisted-upgrade.ts`; use it rather than hand-rolling raw `indexedDB` calls per app. See `tests/visual/giggle-band.visual.spec.ts`, `tests/visual/jointly-care.visual.spec.ts`, and `tests/visual/browser-demo.visual.spec.ts` for worked examples, and `learnings/implementation/model-versions-and-migrations.md` for the mechanism these tests exercise end to end.
+
 ### Compile-check ADL source before presenting it
 
 Any ADL source drafted or edited by an agent — reference app source, spec
