@@ -2137,7 +2137,6 @@ export class AdlAppElement extends HTMLElement {
             this._model.shell.navDrawer.title ?? this._model.app.name,
           )}</span>
         </div>
-        ${this.renderNavDrawerControls()}
         <div class="adl-nav-list">
           ${navGroups
             .map(
@@ -2180,6 +2179,7 @@ export class AdlAppElement extends HTMLElement {
             )
             .join("")}
         </div>
+        ${this.renderNavDrawerControls()}
       </nav>
     `;
   }
