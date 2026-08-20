@@ -395,6 +395,14 @@ button:disabled {
   font-size: 17px;
 }
 
+/* Single-class on purpose: the mobile block at the end of this file overrides
+   `justify-content` to `flex-start`, and a media query adds no specificity of
+   its own. An app-scoped copy of this declaration
+   (`.adl-topbar-app .adl-topbar-tools`, 0,2,0) existed from Phase 28 to Phase
+   95 and silently defeated that override -- it set the identical value, so it
+   changed nothing on desktop while leaving the top-bar tools right-aligned on
+   phones, where `Install` wrapped alone onto a stranded right-aligned second
+   row. Do not re-scope this declaration to `.adl-topbar-app`. */
 .adl-topbar-tools {
   align-items: center;
   display: flex;
@@ -528,10 +536,6 @@ button:disabled {
   align-items: center;
   display: inline-flex;
   gap: var(--adl-space-xs);
-}
-
-.adl-topbar-app .adl-topbar-tools {
-  justify-content: flex-end;
 }
 
 .adl-topbar-app .adl-view-switch,

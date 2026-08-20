@@ -73,10 +73,23 @@ test.describe("startup failure recovery", () => {
     await expect(resetButton).toBeVisible();
     await resetButton.click();
 
-    // The click deletes all three IndexedDB databases and reloads; the app
-    // then starts with nothing local to read and re-seeds itself, exactly as
-    // `seedIfEmpty` already does for a genuinely first-ever install.
-    await openJointlyCareApp(page);
+    // The click deletes all three IndexedDB databases and then *the app
+    // itself* reloads the page; it starts with nothing local to read and
+    // re-seeds itself, exactly as `seedIfEmpty` already does for a genuinely
+    // first-ever install.
+    //
+    // Deliberately no `page.goto` here, and this is the whole point of the
+    // assertion below. A test-issued navigation races the app-initiated
+    // reload and loses -- `net::ERR_ABORTED at page.goto`, this spec's
+    // long-standing flake (12/50 repeats before this was changed) -- and it
+    // would also prove the wrong thing: what this test exists to show is that
+    // the app's *own* reload recovers, not that a fresh visit to the URL
+    // does. Waiting on the recovered app's markup is therefore both the
+    // synchronisation and the assertion. It cannot pass against the
+    // pre-reload document: that document has no `<adl-app>` at all (the
+    // failure threw before one was ever appended, asserted above) and does
+    // have `<adl-startup-error>`.
+    await expectJointlyCareAppReady(page);
     await expect(page.locator("adl-startup-error")).toHaveCount(0);
 
     const recordsAfterReset = await readAllPersistedRecords(
@@ -137,6 +150,16 @@ test.describe("startup failure recovery", () => {
 
 async function openJointlyCareApp(page: Page): Promise<void> {
   await page.goto("/?demo=jointly-care");
+  await expectJointlyCareAppReady(page);
+}
+
+/**
+ * The readiness half of `openJointlyCareApp`, separated so it can be awaited
+ * after a navigation the *app* initiated rather than the test. Locator waits
+ * are navigation-resilient, so this settles on whichever document finally
+ * mounts `<adl-app>` -- which is exactly the reload being waited for.
+ */
+async function expectJointlyCareAppReady(page: Page): Promise<void> {
   await page.locator("adl-app").waitFor({ state: "attached" });
   await expect(page.getByRole("heading", { name: "Jointly Care ADL Example" })).toBeVisible();
 }

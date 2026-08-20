@@ -188,13 +188,25 @@ or mobile business-context selection.
   text floating above the chip it names. `align-self: center` on the label — a
   **direct-child** selector, so it never touches `.adl-context-single`'s or
   `.adl-context-compact`'s inner spans — fixes it.
-- **`.adl-topbar-app .adl-topbar-tools { justify-content: flex-end }` defeats the
-  mobile block's `.adl-topbar-tools { justify-content: flex-start }`** on
-  specificity (0,2,0 beats 0,1,0), so the mobile rule and its explanatory
-  comment are dead: the tools row is right-aligned on phones and `Install`
-  wraps alone to a right-aligned second row. Found in Phase 92, deliberately
-  left alone as outside its five listed items — but it is a live defect, not a
-  design choice, and the comment above it asserts the opposite.
+- **An app-scoped copy of a base declaration silently kills its media-query
+  override.** `.adl-topbar-app .adl-topbar-tools { justify-content: flex-end }`
+  (0,2,0) beat the mobile block's `.adl-topbar-tools { justify-content:
+  flex-start }` (0,1,0) — a media query adds no specificity of its own — so
+  from Phase 28 to Phase 95 the mobile rule and the long comment above it were
+  dead: the tools row was right-aligned on phones and `Install` wrapped alone
+  onto a stranded right-aligned second row. The app-scoped copy set the
+  *identical* value the base rule already set, so it changed nothing on desktop
+  either; it existed only to break the override. **Phase 95 deleted it** and
+  left a comment on the base rule saying not to re-scope it. When a base rule
+  is overridden by source order inside `@media`, any descendant-scoped restating
+  of the same property outranks the override — check for one before concluding a
+  media-query rule is in effect.
+- **The mobile top bar's context selector is not full width, despite the comment
+  saying it is.** The flex child of `.adl-topbar-tools` is the unstyled
+  `<adl-context-selector>` custom element; the mobile block's
+  `.adl-context-selector { width: 100% }` targets a class on an element *inside*
+  that host, so it never sizes the flex item. Measured at 141px (Giggle) /
+  145px (Jointly) against a 369px row at 393px viewport. Open as of Phase 95.
 - **`ui.adl` and `ui.adlj` have diverged.** `ui.adl:13-19` still places
   `themeSwitch` in the top bar; the real compiled source `ui.adlj` places it in
   the nav drawer and gives the top bar four controls, not five. The `.adl` files
