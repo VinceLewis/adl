@@ -1689,17 +1689,28 @@ export class PresentationRuntime {
         case "text":
           output.push({ kind: "text", text: fragment.text, style: fragment.style });
           break;
-        case "field":
-          output.push({
-            kind: "text",
-            text: this.evaluateFieldText(fragment, values, diagnostics, {
-              ...location,
-              path: fragmentPath,
-              field: fragment.field,
-            }),
-            style: fragment.style,
+        case "field": {
+          const text = this.evaluateFieldText(fragment, values, diagnostics, {
+            ...location,
+            path: fragmentPath,
+            field: fragment.field,
           });
+          if (text === "") {
+            // A field with no value and no declared fallback renders nothing —
+            // and so should whatever literal separator immediately precedes it
+            // in the row. Without this, an optional field (for example a gig's
+            // start time, absent on a personal availability row) leaves its
+            // neighbor's separator stranded: "Mon 3 Aug" + " " + "" + " - " is
+            // a visible double space before the dash, not a graceful gap. Only
+            // a *pure-whitespace* preceding literal is dropped — a separator
+            // that also carries real characters (a dash, a bullet) is kept,
+            // since that punctuation is still meaningful with the value gone.
+            dropTrailingWhitespaceOnlyFragment(output);
+            break;
+          }
+          output.push({ kind: "text", text, style: fragment.style });
           break;
+        }
         case "icon": {
           const icon = this.resolveIcon(fragment.icon, view, state, values, diagnostics, {
             ...location,
@@ -1711,6 +1722,8 @@ export class PresentationRuntime {
               icon,
               ...(fragment.label === undefined ? {} : { label: fragment.label }),
             });
+          } else {
+            dropTrailingWhitespaceOnlyFragment(output);
           }
           break;
         }
@@ -2616,6 +2629,24 @@ function matrixEditPatch(
  * a fixed, system-wide meaning, so a same-named field could never have meant
  * anything else.
  */
+/**
+ * Pops `output`'s last entry if it is a `text` fragment consisting entirely
+ * of whitespace. Called whenever a `field` or `icon` row fragment renders
+ * nothing (no value, no fallback icon) — the literal separator a row
+ * template places immediately before an optional fragment exists only to
+ * separate it from its neighbor, so it should disappear along with it,
+ * rather than leaving a visible gap (`evaluateFragments`). A literal that
+ * carries real punctuation alongside whitespace (`" - "`) is left alone:
+ * that punctuation is still meaningful once the value before it is gone,
+ * only a *pure* separator (`" "`) is ever silently dropped.
+ */
+function dropTrailingWhitespaceOnlyFragment(output: RuntimePresentationFragment[]): void {
+  const last = output[output.length - 1];
+  if (last?.kind === "text" && last.text.trim() === "") {
+    output.pop();
+  }
+}
+
 function rowActionValues(row: BoundPresentationRow): Record<string, JsonValue> {
   const recordId = row.sources[0]?.recordId;
   return recordId === undefined

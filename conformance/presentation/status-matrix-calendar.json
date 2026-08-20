@@ -2999,10 +2999,7 @@
                         { "kind": "text", "text": "Beta", "style": "bold" },
                         { "kind": "text", "text": " on ", "style": "muted" },
                         { "kind": "text", "text": "no date", "style": "plain" },
-                        { "kind": "text", "text": " at ", "style": "plain" },
-                        { "kind": "text", "text": "", "style": "plain" },
-                        { "kind": "text", "text": " ", "style": "plain" },
-                        { "kind": "text", "text": "", "style": "caption" }
+                        { "kind": "text", "text": " at ", "style": "plain" }
                       ]
                     }
                   ]
