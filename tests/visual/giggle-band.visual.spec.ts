@@ -357,6 +357,38 @@ test("captures the navigation drawer and its declared chrome", async ({ page }, 
   await expect(page.locator(".adl-topbar-tools")).not.toContainText("Sign out");
   await expect(drawer.locator("[data-nav-item='BandMemberAvailabilityBoard']")).toBeVisible();
 
+  // Icons are optional shell metadata. Exercise the generic no-icon branch
+  // explicitly: a previous two-column grid still reserved the icon column,
+  // squeezing labels into 22px and overlapping their object-name subtitles.
+  await drawer.locator(".adl-nav-icon").evaluateAll((icons) => {
+    for (const icon of icons) {
+      icon.remove();
+    }
+  });
+  await drawer.locator(".adl-nav-item").evaluateAll((items) => {
+    for (const item of items) {
+      item.classList.remove("has-icon");
+    }
+  });
+  const iconlessItem = drawer.locator("[data-nav-item='BandMemberAvailabilityBoard']");
+  const iconlessLayout = await iconlessItem.evaluate((item) => {
+    const title = item.querySelector(":scope > span");
+    const subtitle = item.querySelector("small");
+    if (title === null || subtitle === null) {
+      throw new Error("Expected a navigation title and subtitle.");
+    }
+
+    const titleBox = title.getBoundingClientRect();
+    const subtitleBox = subtitle.getBoundingClientRect();
+    return {
+      titleWidth: titleBox.width,
+      titleBottom: titleBox.bottom,
+      subtitleTop: subtitleBox.top,
+    };
+  });
+  expect(iconlessLayout.titleWidth).toBeGreaterThan(22);
+  expect(iconlessLayout.subtitleTop).toBeGreaterThanOrEqual(iconlessLayout.titleBottom);
+
   await page.screenshot({
     path: testInfo.outputPath(`giggle-${testInfo.project.name}-nav-drawer.png`),
     fullPage: false,

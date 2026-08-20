@@ -29,6 +29,10 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   drawer for application view navigation. Business context selectors stay in the
   top bar. Avoid putting the raw object/view selector back into the top bar for
   app-like reference experiences.
+- Navigation-item icons are optional shell metadata. The drawer's layout must
+  use its two-column icon/content grid only for items that actually have an
+  icon (`.has-icon`); iconless generated navigation otherwise puts its label
+  in the reserved 22px icon column and overlaps the object-name subtitle.
 - Shell chrome is app-level, not presentation-view-specific. The browser uses
   the same app top bar across composed dashboards/calendars and generic CRUD
   list/form pages; only the workspace body switches renderer by view kind.

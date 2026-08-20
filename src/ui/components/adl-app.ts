@@ -2143,7 +2143,7 @@ export class AdlAppElement extends HTMLElement {
                     const owner = this.findView(item.view)?.object.name;
                     return `
                       <button
-                        class="adl-nav-item ${active ? "active" : ""}"
+                        class="adl-nav-item ${item.icon === undefined ? "" : "has-icon"} ${active ? "active" : ""}"
                         type="button"
                         data-view-nav="${escapeHtml(item.view)}"
                         data-nav-item="${escapeHtml(item.name)}"

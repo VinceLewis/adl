@@ -307,12 +307,21 @@ button:disabled {
   color: var(--adl-color-text-inverted);
   display: grid;
   gap: 2px;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   justify-items: start;
   min-height: 50px;
   padding: 8px 12px;
   text-align: left;
   width: 100%;
+}
+
+/*
+ * Icons are optional navigation metadata. Keep icon-free items in a single
+ * content column: otherwise their label is auto-placed in the 22px icon
+ * column and the object-name subtitle overlaps it in the second column.
+ */
+.adl-nav-item.has-icon {
+  grid-template-columns: 22px minmax(0, 1fr);
 }
 
 .adl-nav-item:hover,
@@ -344,6 +353,9 @@ button:disabled {
 .adl-nav-item small {
   color: rgba(255, 255, 255, 0.76);
   font-size: 12px;
+}
+
+.adl-nav-item.has-icon small {
   grid-column: 2;
 }
 
