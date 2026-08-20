@@ -159,6 +159,73 @@ branding fields — done as application-layer content, no platform change.
   `ui.adl` rather than silently omitted, so a future reader does not mistake
   it for an oversight.
 
+## `Event.SetList` was an under-representation, found by diffing the real schema
+
+The gig/availability content pass above modelled the gig↔set-list
+relationship as a single `SetList` lookup on `Event`, authored without the
+real production schema in front of it. Diffing `src/reference/giggle-band/`
+against giggle.band's actual PostgreSQL cluster dump surfaced two real gaps,
+both fixed by advancing `modelVersion` to `1.4.0`:
+
+- **`gig_set_lists(gig_id, set_list_id, position)` is a real ordered
+  many-to-many**, not a one-to-one: production data has 6 of 70 gigs running
+  two ordered set lists in one night (an opening set and a second set). A
+  single lookup field can never express that. Replaced with a new
+  `EventSetList` object — same shape as `SetListItem` one level up
+  (`ORDERED` constraint under a parent, `UNIQUE` guard against linking the
+  same child twice) — because it is the same *kind* of relationship:
+  `SetListItem` orders songs within a set list, `EventSetList` orders set
+  lists within a gig. `Event` dropped its `SetList` field entirely rather
+  than keeping both — two ways to say the same thing is worse than one
+  field removal from a cited app, and nothing would have populated the old
+  field going forward anyway.
+- **`set_list_songs`' real `UNIQUE (set_list_id, song_id)` was enforced only
+  by `SongPicker`'s `EXCLUDE_LINKED`** — a picker that declines to *offer* a
+  duplicate is a UI affordance, not enforcement; nothing stopped a direct
+  create or a replayed authority write from making one. Added
+  `uniqueSongInSetList` as a real object constraint, matching this project's
+  own "UI must never be the only enforcement point" rule.
+
+**Practical lesson**: a reference app authored from a task description or a
+sibling site's *client-facing* behavior (its HTML/JS) can still miss a real
+relationship that only shows up in the actual schema — the old single
+`SetList` lookup passed every existing test and rendered correctly, because
+nothing in the reference app's own seed data or tests exercised a gig with
+more than one set list. Nothing was "wrong" by any check this project had;
+it was incomplete in a way only the real data could reveal. Deliberately
+*not* generalized into "always diff against a real production schema before
+authoring reference-app content" — that source doesn't exist for most
+content — but worth remembering when one does.
+
+**A related, deliberately unresolved gap found in the same pass: total
+set-list duration cannot be expressed on the current platform at all.**
+`giggle-new` shows a running duration per set (`Set 1 (47:20)`), computed by
+summing each set's songs' `DurationSeconds`. Checked all three plausible ADL
+mechanisms and confirmed none support aggregating a value across a
+collection of records:
+- `COMPUTED FIELD` (`ResolvedComputedField`) evaluates a scalar
+  `ResolvedExpression` — `ExpressionBinaryOperator` is exactly
+  `+ - * / == != < <= > >= and or in ??`, no aggregate/sum/count operator
+  exists anywhere in the expression grammar — over the record's *own*
+  field values only; it has no access to child records at all.
+- `READ_MODEL` joins only ever fan out, never fold down: `docs/spec/language.md`'s
+  own Read Models section states it plainly — "`many` fans out: an upstream
+  row with several matches becomes several rows" — there is no `GROUP BY` or
+  reduction of any kind.
+- A `COMMAND STEP`'s `FOR EACH` iteration writes one record per item, each
+  independently; an iterating step's outputs cannot be referenced by a later
+  step at all (`STEP x FIELD y`/`STEP x META y` are refused for one,
+  validated at `validateCommandStepIteration`), so there is no accumulator
+  mechanism there either, and `READ` steps read exactly one existing record
+  by id, never a filtered set.
+- This is a genuine platform capability gap, not a reference-app content
+  gap — closing it needs new expression/read-model/runtime work (an
+  aggregate expression kind, at minimum), shaped like Phase 71's command
+  read step (new `ResolvedCommandValueExpression`/`ResolvedExpression`
+  kind, parser syntax, resolution, validation, runtime evaluation, its own
+  conformance coverage), not something a reference-app phase can add on its
+  own. Left undone here; a candidate for a dedicated phase if pursued.
+
 ## Key decisions from the Jointly Care ADL conversion
 
 A second folder app, `src/reference/jointly-care/` (`app.yaml`, `domain.adlj`,
