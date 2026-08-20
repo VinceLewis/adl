@@ -112,13 +112,59 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   extension to make (let `contextMember.field` accept `id`, the way
   `RECORD_ID_JOIN_FIELD` already means the record's own id for a read-model
   join), not a role condition.
-- **Nothing in the compiler detects this.** A `ROLE` rule that can never match is
-  accepted silently, unlike the two `SEARCH` unreachability cases which are
-  compile errors. The check is decidable exactly where those are: at
-  `validatePolicyRule`, a `specific` principal naming a role that is only ever
-  earned through a context's `MEMBERSHIP`, on an object that is neither scoped
-  to that context nor that context's bound object, can never fire. Two shipped
-  reference apps hit it; a diagnostic would have caught both at compile time.
+- **Nothing in the compiler detects this.** *(Fixed in Phase 93 — see below.)* A
+  `ROLE` rule that can never match was accepted silently, unlike the two
+  `SEARCH` unreachability cases which are compile errors. The check is decidable
+  exactly where those are: at `validatePolicyRule`, a `specific` principal naming
+  a role that is only ever earned through a context's `MEMBERSHIP`, on an object
+  that is neither scoped to that context nor that context's bound object, can
+  never fire. Two shipped reference apps hit it; a diagnostic would have caught
+  both at compile time.
+
+## Key decisions from Phase 93: the unreachable-`ROLE` trap is now a compile error
+
+- **`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`** (`validatePolicyRoleReach`,
+  `src/compiler/validate-model/policy.ts`, beside its two `SEARCH` siblings)
+  refuses a policy rule whose only way to match is a membership-earned `ROLE`
+  the target object's `ROLE` check is never evaluated against. Severity is
+  **error**, on the evidence that not one rule in the repository would newly
+  fail: 180 models — both reference apps, the retained `.adl` text view, the
+  `examples/` corpus and every conformance model — carry 352 `specific`
+  principals naming roles, and the check fires on exactly zero of them (plus the
+  one deliberately dead fixture added by Phase 93 itself).
+- **It fires only where the model can prove the rule dead.** All of:
+  the principal's only disjunct is roles (no `users`, no `groupRoles`, no
+  `owner` — a principal is a disjunction, so any of those keeps it live);
+  *every* named role is unreachable; each named role is conferred by some
+  context's `MEMBERSHIP ... ROLES` and is not reachable from a role no
+  membership confers; and no target context declares a `MEMBERSHIP` with no
+  `ROLES` list (which confers whatever string its records carry, so nothing is
+  decidable). `getRoleCheckContexts` mirrors `getPolicyRequestContextTargets`
+  exactly — the object's own `SCOPE` context, or the contexts naming it as their
+  bound `OBJECT`.
+- **What it deliberately does not catch**, so nobody reads a clean compile as
+  proof of role reach: a rule naming one dead role *alongside* a live one (the
+  rule still matches, and the dead half stays invisible); a role dead only
+  because the host never puts it in `RuntimeContext.roles`, since the model has
+  no declaration of global role assignment to read; and anything about a
+  membership with no declared `ROLES` list.
+- **How "global" is decided, since the model never states it.** `RuntimeContext.roles`
+  is host-supplied, so the check leans on the one convention the model *does*
+  express and both reference apps follow: a role no context membership confers
+  (`SystemAdmin`) is a globally-assigned one, and so is anything reachable from
+  it by `INHERITS`. This is an assumption, not a proof — a host that hands out
+  `BandMember` globally would make a refused rule live. It is the conservative
+  direction (it only ever suppresses the diagnostic), and it is why the check
+  can be an error at all.
+- **It immediately found a third instance.** `src/reference/giggle-band/domain.adl` —
+  the `.adl` text view retained as a large real-world parser fixture, frozen at
+  the `.adlj` conversion commit — still carried the pre-Phase-91
+  `POLICY UserPolicy ON User / ROLE BandMember` rules. Phase 91 fixed `domain.adlj`
+  and the `.adl` snapshot kept the defect; two tests that compile that file
+  (`tests/compile-adlj.test.ts`, `tests/compile-adl-project-v2.test.ts`) went red
+  the moment the diagnostic existed. Phase 93 corrected the fixture to match the
+  `.adlj`. **A frozen text snapshot of a model is a place defects go to survive a
+  fix** — worth checking whenever a reference app's `.adlj` is corrected.
 
 ## Practical guidance
 
@@ -136,7 +182,10 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   is itself a context's own bound object (e.g. `Band`/`Circle`). For anything
   else unscoped (e.g. `User`), reach for `AUTHENTICATED`, `OWNER`, or a
   structured field condition instead. **This has now been got wrong in both
-  reference apps.** When a phase's acceptance criterion is "this surface shows a
+  reference apps**, and since Phase 93 the compiler refuses the provable cases
+  (`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`) — but a clean compile is not proof
+  of role reach, since the check stays silent on a rule that names a live role
+  alongside a dead one. When a phase's acceptance criterion is "this surface shows a
   name", check the target object's policy against a *real* caller context before
   assuming the rendering layer is the only thing in the way — a dead `ROLE` rule
   looks exactly like a working grant, and every lookup-label path degrades

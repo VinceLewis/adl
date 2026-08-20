@@ -552,9 +552,17 @@ POLICY DevicePreferenceSystemAdminPolicy ON DevicePreference
   RULE allowSystemAdminAllDevicePreferenceOps ALLOW * ROLE SystemAdmin
 END.POLICY
 
+# `AUTHENTICATED`, not `ROLE BandMember`: a context-scoped `ROLE` condition only
+# resolves against an object that is itself scoped to that context (`SCOPE Band
+# FIELD Band`) or is a context's own bound object (`Band`, for `CONTEXT Band
+# OBJECT Band`). `User` is neither, so the two rules this replaced matched
+# nothing at all -- no band member could read or search a single `User` record,
+# and every `LOOKUP User DISPLAY Name` label degraded to a raw id. Mirrors the
+# same correction in `domain.adlj` (Phase 91); `ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`
+# now refuses the dead shape outright (Phase 93).
 POLICY UserPolicy ON User
-  RULE allowBandMemberSearchUsers ALLOW SEARCH ROLE BandMember
-  RULE allowBandMemberReadUsers ALLOW READ ROLE BandMember
+  RULE allowAuthenticatedSearchUsers ALLOW SEARCH AUTHENTICATED
+  RULE allowAuthenticatedReadUsers ALLOW READ AUTHENTICATED
 END.POLICY
 
 POLICY BandPolicy ON Band

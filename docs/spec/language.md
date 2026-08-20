@@ -640,6 +640,29 @@ context or scope with the record at all — reach for `AUTHENTICATED`,
 `OWNER`, or a structured field condition (`WHEN <field> == runtime.userId`)
 instead of a `ROLE` condition that can never fire.
 
+Where the model can prove such a rule is dead, the compiler refuses it
+(`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`, Phase 93) rather than accepting a
+grant that matches nothing. It fires only when *all* of the following hold, so
+that firing is a proof rather than a guess:
+
+- the rule's principal is `ROLE`-only — a principal that also names specific
+  users, group roles, or `OWNER` can still match, so it is left alone;
+- **every** role the principal names is unreachable — one reachable role keeps
+  the rule live, since a principal is a disjunction;
+- each named role is conferred by some context's `MEMBERSHIP ... ROLES` list
+  and is not reachable from any role that no membership confers. A
+  globally-assigned role such as `SystemAdmin` — and anything such a role
+  `INHERITS` — is never refused, because `RuntimeContext.roles` is supplied by
+  the host and can satisfy a `ROLE` check on any object;
+- no context the object's `ROLE` check is evaluated against declares a
+  `MEMBERSHIP` without a `ROLES` list. Such a membership confers whatever role
+  its records carry, so nothing about role reach is decidable there.
+
+Two shapes it deliberately does **not** catch: a rule naming one dead role
+alongside a live one (the rule still works, and the dead half is invisible to
+this check), and a role dead only because the *host* never assigns it — the
+model has no declaration of global role assignment for the compiler to read.
+
 Lifecycle transition policy can name an action and state. Field rules restrict
 specific fields. Conditions compile to resolved expressions.
 

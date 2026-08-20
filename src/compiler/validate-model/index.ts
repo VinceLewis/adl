@@ -20,6 +20,7 @@ export function validateApplicationModel(model: ResolvedApplicationModel): Diagn
   const diagnostics: Diagnostic[] = [];
   const indexes: ModelIndexes = {
     contextsByName: indexByName(model.contexts ?? []),
+    rolesByName: indexByName(model.roles),
     commandsByName: indexByName(model.commands ?? []),
     decisionTablesByName: indexByName(model.decisionTables ?? []),
     objectsByName: indexByName(model.objects),

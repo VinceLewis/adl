@@ -1,0 +1,302 @@
+{
+  "version": 1,
+  "models": {
+    "roleReachDeadRule": {
+      "app": { "name": "RoleReachDeadRule" },
+      "roles": [
+        { "name": "SystemAdmin" },
+        { "name": "BandMember" },
+        { "name": "BandAdmin", "inherits": ["BandMember"] }
+      ],
+      "contexts": [
+        { "name": "User", "object": "User", "selection": { "mode": "required" } },
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": { "mode": "optional" },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandAdmin", "BandMember"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "BandMember",
+          "scope": { "context": "Band", "field": "Band" },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "User", "displayField": "Name" }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "Band", "displayField": "Name" }
+            },
+            { "name": "Role", "type": "text", "required": true }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowBandMemberReadUsers",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandMember"] },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "roleReachLiveRules": {
+      "app": { "name": "RoleReachLiveRules" },
+      "roles": [
+        { "name": "SystemAdmin" },
+        { "name": "BandMember" },
+        { "name": "BandAdmin", "inherits": ["BandMember"] }
+      ],
+      "contexts": [
+        { "name": "User", "object": "User", "selection": { "mode": "required" } },
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": { "mode": "optional" },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role",
+            "roles": ["BandAdmin", "BandMember"]
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "BandMember",
+          "scope": { "context": "Band", "field": "Band" },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "User", "displayField": "Name" }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "Band", "displayField": "Name" }
+            },
+            { "name": "Role", "type": "text", "required": true }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowAuthenticatedReadUsers",
+              "effect": "allow",
+              "principal": { "match": "authenticated" },
+              "action": "read"
+            },
+            {
+              "name": "allowSystemAdminAllUserOps",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["SystemAdmin"] },
+              "action": "*"
+            },
+            {
+              "name": "allowOwnerUpdateOwnUser",
+              "effect": "allow",
+              "principal": { "match": "owner" },
+              "action": "update"
+            },
+            {
+              "name": "allowNamedUserReadUsers",
+              "effect": "allow",
+              "principal": { "match": "specific", "users": ["user-1"] },
+              "action": "read"
+            },
+            {
+              "name": "allowBandMemberOrSystemAdminReadUsers",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandMember", "SystemAdmin"] },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandPolicy",
+          "object": "Band",
+          "rules": [
+            {
+              "name": "allowBandMemberReadBand",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandMember"] },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "BandMemberPolicy",
+          "object": "BandMember",
+          "rules": [
+            {
+              "name": "allowBandMemberReadBandMember",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandMember"] },
+              "action": "read"
+            },
+            {
+              "name": "allowBandAdminUpdateBandMember",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandAdmin"] },
+              "action": "update"
+            },
+            {
+              "name": "allowBandMemberSearchBandMember",
+              "effect": "allow",
+              "principal": {
+                "match": "contextMember",
+                "contextMember": { "context": "Band", "field": "User" }
+              },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "roleReachUndeclaredMembershipRoles": {
+      "app": { "name": "RoleReachUndeclaredMembershipRoles" },
+      "roles": [{ "name": "BandMember" }],
+      "contexts": [
+        { "name": "User", "object": "User", "selection": { "mode": "required" } },
+        {
+          "name": "Band",
+          "object": "Band",
+          "selection": { "mode": "optional" },
+          "membership": {
+            "object": "BandMember",
+            "userField": "User",
+            "contextField": "Band",
+            "roleField": "Role"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "Band",
+          "displayField": "Name",
+          "fields": [{ "name": "Name", "type": "text", "required": true }]
+        },
+        {
+          "name": "BandMember",
+          "scope": { "context": "Band", "field": "Band" },
+          "fields": [
+            {
+              "name": "User",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "User", "displayField": "Name" }
+            },
+            {
+              "name": "Band",
+              "type": "text",
+              "required": true,
+              "lookup": { "targetObject": "Band", "displayField": "Name" }
+            },
+            { "name": "Role", "type": "text", "required": true }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowBandMemberReadUsers",
+              "effect": "allow",
+              "principal": { "match": "specific", "roles": ["BandMember"] },
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "policy.role-reach.membership-role-on-an-object-outside-its-context.001",
+      "title": "A rule whose only principal is a membership-earned ROLE is refused on an object that is neither scoped to that context nor that context's own bound object",
+      "specRef": "language#role-reach",
+      "operation": "validateModel",
+      "modelRef": "roleReachDeadRule",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE",
+            "path": "policies[3].rules[0].principal.roles"
+          }
+        ]
+      }
+    },
+    {
+      "id": "policy.role-reach.reachable-role-principals-are-accepted.002",
+      "title": "A membership ROLE on the context's own bound object or on an object scoped to it, an inherited role, a globally-assigned role, a role named alongside a globally-assigned one, and non-role principals are all accepted",
+      "specRef": "language#role-reach",
+      "operation": "validateModel",
+      "modelRef": "roleReachLiveRules",
+      "expected": { "ok": true, "result": [] }
+    },
+    {
+      "id": "policy.role-reach.membership-without-a-declared-role-list.003",
+      "title": "A membership that declares no ROLES list confers whatever role its records carry, so no ROLE principal is refused as unreachable",
+      "specRef": "language#role-reach",
+      "operation": "validateModel",
+      "modelRef": "roleReachUndeclaredMembershipRoles",
+      "expected": { "ok": true, "result": [] }
+    }
+  ]
+}

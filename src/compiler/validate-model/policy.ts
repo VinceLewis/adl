@@ -65,6 +65,8 @@ export function validatePolicy(
       ? new Map<string, NamedReference<unknown>>()
       : indexByName(object.lifecycle.actions);
 
+  const roleReach = buildRoleReach(indexes);
+
   for (let ruleIndex = 0; ruleIndex < policy.rules.length; ruleIndex += 1) {
     const rule = policy.rules[ruleIndex];
     if (rule === undefined) {
@@ -78,6 +80,7 @@ export function validatePolicy(
       statesByName,
       actionsByName,
       indexes,
+      roleReach,
       diagnostics,
     );
   }
@@ -90,6 +93,7 @@ function validatePolicyRule(
   statesByName: Map<string, NamedReference<unknown>>,
   actionsByName: Map<string, NamedReference<unknown>>,
   indexes: ModelIndexes,
+  roleReach: RoleReach,
   diagnostics: Diagnostic[],
 ): void {
   if (!POLICY_ACTIONS.has(rule.action)) {
@@ -231,6 +235,7 @@ function validatePolicyRule(
     indexes,
     diagnostics,
   );
+  validatePolicyRoleReach(rule, rulePath, object, indexes, roleReach, diagnostics);
 }
 /**
  * The `contextMember` principal fails closed at runtime when it cannot resolve a
@@ -303,4 +308,195 @@ function validatePolicyPrincipal(
       ),
     );
   }
+}
+
+/**
+ * What the model can prove about where a role can be held.
+ *
+ * `PolicyEngine.principalMatches` satisfies a `specific` principal's `ROLE` by
+ * either of two routes: `contextHasGlobalRole` (the caller's host-supplied
+ * `RuntimeContext.roles`) or `requestHasContextRole` (a role earned inside a
+ * business context the *target object* can be evaluated against). Deciding
+ * that a `ROLE` is dead therefore needs both routes ruled out, so this records
+ * both: which roles a context membership confers, and which roles could still
+ * arrive globally.
+ */
+interface RoleReach {
+  /**
+   * Roles conferred by some context's `MEMBERSHIP ... ROLES` list, closed under
+   * role inheritance the same way `RuntimeModelIndex.expandRoles` closes a
+   * held role (holding `BandAdmin INHERITS BandMember` satisfies a
+   * `ROLE BandMember` check).
+   */
+  membershipEarned: Set<string>;
+  /**
+   * Roles a caller could plausibly hold in `RuntimeContext.roles`. The model
+   * never enumerates global role assignment — the host supplies it — so this is
+   * the deliberately generous read of the one convention the model *does*
+   * express: a role a context membership never confers is one the host assigns
+   * globally, as `SystemAdmin` is in both reference apps. Anything reachable
+   * from such a role by inheritance is treated as globally reachable too.
+   */
+  globallyReachable: Set<string>;
+  /**
+   * Per business context, the roles a member of it satisfies. `"any"` is a
+   * membership with no declared `ROLES` list: `listMembershipContexts` accepts
+   * whatever string the membership record's role field holds, so nothing about
+   * that context's roles is decidable here.
+   */
+  earnedByContext: Map<string, Set<string> | "any">;
+}
+function expandDeclaredRoles(indexes: ModelIndexes, roles: Iterable<string>): Set<string> {
+  const expanded = new Set(roles);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const role of [...expanded]) {
+      for (const inherited of indexes.rolesByName.get(role)?.item.inherits ?? []) {
+        if (!expanded.has(inherited)) {
+          expanded.add(inherited);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  return expanded;
+}
+function buildRoleReach(indexes: ModelIndexes): RoleReach {
+  const membershipEarned = new Set<string>();
+  const earnedByContext = new Map<string, Set<string> | "any">();
+
+  for (const { item: context } of indexes.contextsByName.values()) {
+    if (context.membership === undefined) {
+      earnedByContext.set(context.name, new Set<string>());
+      continue;
+    }
+
+    if (context.membership.roles.length === 0) {
+      earnedByContext.set(context.name, "any");
+      continue;
+    }
+
+    const earned = expandDeclaredRoles(indexes, context.membership.roles);
+    earnedByContext.set(context.name, earned);
+    for (const role of earned) {
+      membershipEarned.add(role);
+    }
+  }
+
+  const globallyReachable = new Set<string>();
+  for (const { item: role } of indexes.rolesByName.values()) {
+    if (membershipEarned.has(role.name)) {
+      continue;
+    }
+    for (const reachable of expandDeclaredRoles(indexes, [role.name])) {
+      globallyReachable.add(reachable);
+    }
+  }
+
+  return { membershipEarned, globallyReachable, earnedByContext };
+}
+/**
+ * The business contexts a `ROLE` check on this object is ever evaluated
+ * against, mirroring `getPolicyRequestContextTargets` (`context-scope.ts`)
+ * exactly: the object's own `SCOPE` context, or — for an unscoped object — the
+ * contexts that name it as their own bound `OBJECT`. Nothing else is consulted,
+ * however closely a context relates to the object otherwise.
+ *
+ * `undefined` means "not decidable": the object's `SCOPE` names a context that
+ * does not exist, which `ADL_OBJECT_SCOPE_CONTEXT_UNKNOWN` already reports
+ * against the declaration actually at fault.
+ */
+function getRoleCheckContexts(object: ResolvedObject, indexes: ModelIndexes): string[] | undefined {
+  if (object.scope !== undefined) {
+    return indexes.contextsByName.has(object.scope.context) ? [object.scope.context] : undefined;
+  }
+
+  return [...indexes.contextsByName.values()]
+    .filter(({ item: context }) => context.object === object.name)
+    .map(({ item: context }) => context.name);
+}
+/**
+ * Refuses a rule whose only way to match is a role that cannot resolve for this
+ * object.
+ *
+ * A `ROLE` earned through a business context's `MEMBERSHIP` is only ever
+ * checked against the contexts `getRoleCheckContexts` names, so naming such a
+ * role on an object that is neither scoped to that context nor that context's
+ * own bound object produces a rule that reads as a working grant and matches
+ * nothing. Both shipped reference apps did exactly this on `User`
+ * (`ROLE BandMember` / `ROLE CircleMember`), and the failure is invisible:
+ * every `LOOKUP ... DISPLAY` label degrades quietly to a raw record id rather
+ * than raising. See learnings/implementation/policy-engine.md and Phase 91.
+ *
+ * The check is deliberately narrow, so that firing is proof of a dead rule
+ * rather than a guess:
+ *
+ * - only a `specific` principal whose *sole* disjunct is roles — a principal
+ *   that also names users, group roles, or `owner` can still match, so the rule
+ *   is not dead even when a role it names is;
+ * - only when *every* named role is unreachable, for the same reason;
+ * - only roles the model shows to be membership-earned and not reachable
+ *   globally (a `SystemAdmin`-shaped role, or anything a non-membership role
+ *   inherits, is never caught);
+ * - never when a target context's membership declares no `ROLES` list, since
+ *   such a membership confers whatever role its records carry.
+ */
+function validatePolicyRoleReach(
+  rule: ResolvedPolicyRule,
+  rulePath: string,
+  object: ResolvedObject,
+  indexes: ModelIndexes,
+  roleReach: RoleReach,
+  diagnostics: Diagnostic[],
+): void {
+  const principal = rule.principal;
+  if (
+    principal.match !== "specific" ||
+    principal.roles.length === 0 ||
+    principal.users.length > 0 ||
+    principal.groupRoles.length > 0 ||
+    principal.owner
+  ) {
+    return;
+  }
+
+  const targets = getRoleCheckContexts(object, indexes);
+  if (targets === undefined) {
+    return;
+  }
+
+  for (const role of principal.roles) {
+    if (!roleReach.membershipEarned.has(role) || roleReach.globallyReachable.has(role)) {
+      return;
+    }
+
+    const reachable = targets.some((name) => {
+      const earned = roleReach.earnedByContext.get(name);
+      return earned === "any" || earned?.has(role) === true;
+    });
+    if (reachable) {
+      return;
+    }
+  }
+
+  const roleNames = principal.roles;
+  const earningContexts = [...roleReach.earnedByContext.entries()]
+    .filter(([, earned]) => earned !== "any" && roleNames.some((role) => earned.has(role)))
+    .map(([name]) => name);
+
+  diagnostics.push(
+    diagnostic(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+      `Policy rule '${rule.name}' can only match ${quoteList(roleNames, "ROLE")}, which can never be satisfied on object '${object.name}': ${roleNames.length === 1 ? "that role is" : "those roles are"} only earned through membership of ${quoteList(earningContexts, "business context")}, and a ROLE check on '${object.name}' is only ever evaluated against ${targets.length === 0 ? `no business context, because '${object.name}' declares no SCOPE and is not a business context's own OBJECT` : quoteList(targets, "business context")}. Scope '${object.name}' to the context that earns the role, or match AUTHENTICATED, OWNER, or CONTEXT_MEMBER instead.`,
+      `${rulePath}.principal.roles`,
+    ),
+  );
+}
+function quoteList(names: string[], noun: string): string {
+  const quoted = names.map((name) => `'${name}'`).join(", ");
+  return `${noun}${names.length === 1 ? "" : "s"} ${quoted}`;
 }

@@ -752,6 +752,375 @@ END.OBJECT
   });
 
   /**
+   * Phase 93. A `ROLE` earned through a business context's `MEMBERSHIP` is only
+   * ever checked against the contexts `getPolicyRequestContextTargets`
+   * (`src/runtime/context-scope.ts`) derives for the *target object* -- its own
+   * `SCOPE` context, or the context that names it as its own bound `OBJECT`.
+   * Naming such a role on any other object produces a rule that reads as a
+   * working grant and matches nothing. Both shipped reference apps did exactly
+   * this on `User` (`ROLE BandMember` / `ROLE CircleMember`), and the failure
+   * was invisible: every `LOOKUP ... DISPLAY` label degraded quietly to a raw
+   * record id. See `learnings/implementation/policy-engine.md` and Phase 91.
+   */
+  it("refuses a rule whose only principal is a membership ROLE the target object can never be checked against", () => {
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "UserPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowBandMemberReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"] },
+              action: "read",
+            },
+          ],
+        },
+      ],
+    });
+
+    const rulePath = `policies[${resolved.policies.length - 1}].rules[0].principal.roles`;
+    const diagnostics = validateApplicationModel(resolved);
+    expect(diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.path])).toEqual(
+      expect.arrayContaining([
+        [MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE, rulePath],
+      ]),
+    );
+    expect(
+      diagnostics.find(
+        (diagnostic) =>
+          diagnostic.code === MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+      ),
+    ).toMatchObject({
+      severity: "error",
+      message: expect.stringContaining("can never be satisfied on object 'User'"),
+    });
+  });
+
+  it("refuses an inherited membership ROLE the target object can never be checked against", () => {
+    // `BandAdmin` is only conferred by `Band`'s membership too, so naming it on
+    // `User` is dead for the same reason -- inheritance does not widen where a
+    // role can be *held*, only which checks a held role satisfies.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      roles: [{ name: "BandMember" }, { name: "BandAdmin", inherits: ["BandMember"] }],
+      policies: [
+        {
+          name: "UserPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowBandAdminUpdateUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandAdmin"] },
+              action: "update",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  it("accepts a membership ROLE on an object scoped to that context and on the context's own bound object", () => {
+    // `Gig` and `BandMember` both declare `SCOPE Band`; `Band` is the `Band`
+    // context's own `OBJECT`. All three are contexts a `ROLE BandMember` check
+    // is genuinely evaluated against.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "GigPolicy",
+          object: "Gig",
+          rules: [
+            {
+              name: "allowBandMemberReadGig",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"] },
+              action: "read",
+            },
+          ],
+        },
+        {
+          name: "BandPolicy",
+          object: "Band",
+          rules: [
+            {
+              name: "allowBandMemberReadBand",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"] },
+              action: "read",
+            },
+          ],
+        },
+        {
+          name: "BandMemberPolicy",
+          object: "BandMember",
+          rules: [
+            {
+              name: "allowBandAdminUpdateBandMember",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandAdmin"] },
+              action: "update",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  it("never refuses a role no context membership confers", () => {
+    // `SystemAdmin` is a globally-assigned role -- no context's `MEMBERSHIP`
+    // lists it, and `RuntimeContext.roles` is host-supplied -- so
+    // `contextHasGlobalRole` can satisfy it on any object, `User` included.
+    // This is the case the check must never catch.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      roles: [{ name: "SystemAdmin" }, { name: "BandAdmin" }, { name: "BandMember" }],
+      policies: [
+        {
+          name: "UserSystemAdminPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowSystemAdminAllUserOps",
+              effect: "allow",
+              principal: { match: "specific", roles: ["SystemAdmin"] },
+              action: "*",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  it("never refuses a role a globally-assigned role inherits", () => {
+    // A global `SystemAdmin INHERITS BandMember` means `expandRoles` satisfies
+    // a `ROLE BandMember` check from the caller's global roles alone, so the
+    // rule is reachable on `User` after all.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      roles: [
+        { name: "SystemAdmin", inherits: ["BandMember"] },
+        { name: "BandAdmin" },
+        { name: "BandMember" },
+      ],
+      policies: [
+        {
+          name: "UserPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowBandMemberReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"] },
+              action: "read",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  it("never refuses a principal that can still match without its roles", () => {
+    // A `specific` principal is a disjunction. A named user, a group role, or
+    // `owner` keeps the rule live even when a role it also names is dead, and a
+    // second reachable role does the same -- so none of these is a dead rule,
+    // and reporting them would be a false positive on a working policy.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      roles: [{ name: "SystemAdmin" }, { name: "BandAdmin" }, { name: "BandMember" }],
+      policies: [
+        {
+          name: "UserPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowBandMemberOrNamedUserReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"], users: ["user-1"] },
+              action: "read",
+            },
+            {
+              name: "allowBandMemberOrGroupReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"], groupRoles: ["Support"] },
+              action: "read",
+            },
+            {
+              name: "allowBandMemberOrOwnerReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"], owner: true },
+              action: "read",
+            },
+            {
+              name: "allowBandMemberOrSystemAdminReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember", "SystemAdmin"] },
+              action: "read",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  it("never refuses a non-role principal", () => {
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "UserPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowAuthenticatedReadUsers",
+              effect: "allow",
+              principal: { match: "authenticated" },
+              action: "read",
+            },
+            {
+              name: "allowOwnerUpdateOwnUser",
+              effect: "allow",
+              principal: { match: "owner" },
+              action: "update",
+            },
+            {
+              name: "allowNamedUserDeleteUsers",
+              effect: "allow",
+              principal: { match: "specific", users: ["user-1"] },
+              action: "delete",
+            },
+            {
+              name: "allowEveryoneSearchUsers",
+              effect: "allow",
+              principal: { match: "everyone" },
+              action: "search",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  it("never refuses a ROLE that another context could confer without a declared ROLES list", () => {
+    // `Band` bounds its membership to `BandAdmin`/`BandMember`, but the `User`
+    // context -- the only one a `ROLE` check on `User` is evaluated against --
+    // bounds nothing, so its members can hold `BandMember` there too. The role
+    // is membership-earned *and* reachable on this object.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      contexts: [
+        {
+          name: "User",
+          object: "User",
+          selection: { mode: "required" },
+          membership: {
+            object: "BandMember",
+            userField: "User",
+            contextField: "User",
+            roleField: "Role",
+          },
+        },
+        {
+          name: "Band",
+          selection: { mode: "optional" },
+          membership: {
+            object: "BandMember",
+            userField: "User",
+            contextField: "Band",
+            roleField: "Role",
+            roles: ["BandAdmin", "BandMember"],
+          },
+        },
+      ],
+      policies: [
+        {
+          name: "UserPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowBandMemberReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"] },
+              action: "read",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  it("never refuses a ROLE when the target context's membership declares no ROLES list", () => {
+    // `listMembershipContexts` accepts whatever string the membership record's
+    // role field holds when no `ROLES` list bounds it, so such a context can
+    // confer any role and nothing about role reach is decidable.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      contexts: [
+        { name: "User", object: "User", selection: { mode: "required" } },
+        {
+          name: "Band",
+          selection: { mode: "optional" },
+          membership: {
+            object: "BandMember",
+            userField: "User",
+            contextField: "Band",
+            roleField: "Role",
+          },
+        },
+      ],
+      policies: [
+        {
+          name: "UserPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowBandMemberReadUsers",
+              effect: "allow",
+              principal: { match: "specific", roles: ["BandMember"] },
+              action: "read",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved).map((diagnostic) => diagnostic.code)).not.toContain(
+      MODEL_VALIDATION_CODES.POLICY_ROLE_PRINCIPAL_UNREACHABLE,
+    );
+  });
+
+  /**
    * A `currentUser` read-model source whose object matches the current user
    * through a `TARGET_FIELD` lookup used to get a compile-time warning
    * (`ADL_LOOKUP_TARGET_FIELD_CURRENT_USER_SOURCE_UNHONOURED`, Phase 72)

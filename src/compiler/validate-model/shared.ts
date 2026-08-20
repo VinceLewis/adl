@@ -11,6 +11,7 @@ import type {
   ResolvedObject,
   ResolvedPolicy,
   ResolvedReadModel,
+  ResolvedRole,
   ResolvedTheme,
   SyncMode,
   SyncScope,
@@ -66,6 +67,7 @@ export interface NamedReference<T> {
 export type ExpressionFieldReference = Pick<ResolvedField | ResolvedComputedField, "type">;
 export interface ModelIndexes {
   contextsByName: Map<string, NamedReference<ResolvedBusinessContext>>;
+  rolesByName: Map<string, NamedReference<ResolvedRole>>;
   commandsByName: Map<string, NamedReference<ResolvedCommand>>;
   decisionTablesByName: Map<string, NamedReference<ResolvedDecisionTable>>;
   objectsByName: Map<string, NamedReference<ResolvedObject>>;
