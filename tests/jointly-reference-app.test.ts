@@ -22,7 +22,7 @@ describe("jointly care reference app model", () => {
     const model = await createJointlyReferenceModel();
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.4.0");
+    expect(model.modelVersion).toBe("1.5.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -33,13 +33,22 @@ describe("jointly care reference app model", () => {
     // object's stored fields change. This app needs its own bump because the
     // fingerprint is per app, not per repository -- see AGENTS.md.
     expect(model.migrations).toContainEqual({ from: "1.3.0", to: "1.4.0", objects: [] });
+    // `1.4.0 -> 1.5.0` is an empty-object hop (Phase 101). `UserPolicy` narrows
+    // from a whole-object `ALLOW SEARCH/READ AUTHENTICATED` pair to a single
+    // field-scoped `ALLOW READ AUTHENTICATED FIELDS DisplayName`; `User`'s
+    // `DISPLAY` moves off `Email` (granting "the display field" while the
+    // display field *was* the email would have closed nothing) and every
+    // `LOOKUP User` follows it; and `CircleMemberRoster` drops its `User`
+    // source in favour of projecting `member.User`'s own lookup. All resolved
+    // content -- no object gains, loses or renames a stored field.
+    expect(model.migrations).toContainEqual({ from: "1.4.0", to: "1.5.0", objects: [] });
     // See the matching assertion in tests/band-reference-app.test.ts for why
     // this exists: a tripwire against content changes that skip a version
     // bump, not a meaningful value in itself. Update on a legitimate content
     // change, and treat that update as your reminder to also bump
     // modelVersion and add a migration step.
     expect(model.modelFingerprint).toBe(
-      "sha256-e82da010cc4c493a45fa239d46e52e7c94ba674848dcbff2514cc48b0856559a",
+      "sha256-73c3718aa5007907be81719d247a4612b1e18af8358345bfbe6f24bf10ce1a43",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -163,9 +172,72 @@ describe("jointly care reference app model", () => {
       "CircleMemberRoster",
       seeded.firstCircleContext,
     );
-    expect(roster.rows.map((row) => row.values.MemberEmail).sort()).toEqual(
-      ["jordan@example.com", "sam@example.com"].sort(),
+    // The roster projects `member.User`, so the stored value is the member's
+    // id and the label travels beside it in `display` (Phase 91). It used to
+    // project `user.Email` off a second `User` source, which made the circle
+    // overview a per-circle email directory; Phase 101 removed both the field
+    // and the source. A degraded label here -- a `user-...` id where a name
+    // belongs -- is the exact failure a field-scoped `UserPolicy` reintroduces
+    // if a label is ever read as a whole record again.
+    expect(roster.rows.map((row) => row.display?.Member).sort()).toEqual(
+      ["Jordan Casey", "Sam Rivera"].sort(),
     );
+    expect(roster.rows.map((row) => row.values.Member).join(" ")).not.toContain("@");
+    expect(JSON.stringify(roster.rows)).not.toContain("@example.com");
+  });
+
+  it("refuses a circle member the whole User record, the Email field, and the directory", async () => {
+    const seeded = await createSeededJointlyReferenceRuntime();
+
+    // A whole-record read: `FIELDS DisplayName` cannot match a request with no
+    // field, so this is default deny, not a shaped record with fields missing.
+    await expect(
+      seeded.runtime.read("User", seeded.coCarer.meta.guid, seeded.firstCircleContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    // The field itself, asked for directly through the same field-scoped path
+    // the display label uses. Only `DisplayName` has a rule; `Email` and
+    // `Timezone` fall to the object's default deny.
+    const attempt = await seeded.runtime.readFieldsForDisplay(
+      "User",
+      seeded.coCarer.meta.guid,
+      ["Email", "Timezone", "DisplayName"],
+      seeded.firstCircleContext,
+    );
+    expect(attempt?.values).toEqual({ DisplayName: "Sam Rivera" });
+
+    // And enumeration, the thing that turns a per-record grant into a
+    // directory. `UserPolicy` carries no `SEARCH` rule at all.
+    await expect(
+      seeded.runtime.search("User", undefined, seeded.firstCircleContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    // A signed-in stranger who shares no circle is in exactly the same
+    // position, which is the point: nothing here depends on membership,
+    // because nothing here grants more than the display name.
+    const stranger = {
+      userId: "stranger-with-no-circle",
+      roles: [],
+      channel: "ui" as const,
+      now: new Date("2026-08-15T09:00:00.000Z"),
+    };
+    await expect(
+      seeded.runtime.read("User", seeded.coCarer.meta.guid, stranger),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+    await expect(seeded.runtime.search("User", undefined, stranger)).rejects.toBeInstanceOf(
+      PolicyDeniedError,
+    );
+
+    // `SystemAdmin` still holds all three through `UserSystemAdminPolicy`.
+    const adminRead = await seeded.runtime.read(
+      "User",
+      seeded.coCarer.meta.guid,
+      jointlyReferenceSystemContext,
+    );
+    expect(adminRead?.values.Email).toBe("sam@example.com");
+    expect(
+      (await seeded.runtime.search("User", undefined, jointlyReferenceSystemContext)).length,
+    ).toBeGreaterThan(0);
   });
 
   it("surfaces a not-yet-joined invitee's own pending invite across circles", async () => {

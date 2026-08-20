@@ -611,7 +611,7 @@
                       "fragments": [
                         {
                           "kind": "field",
-                          "field": "MemberEmail",
+                          "field": "Member",
                           "style": "bold"
                         },
                         {

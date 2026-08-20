@@ -87,6 +87,31 @@ test.describe("Giggle Band visual smoke", () => {
     });
   });
 
+  /**
+   * Phase 101. `UserPolicy` grants a signed-in caller `FIELDS Name` and nothing
+   * else — a rule that cannot match a whole-record read at all. Every path that
+   * turns a stored `user-...` id into a name degrades silently on refusal, so
+   * the only honest proof that the narrowing kept the app readable is the real
+   * browser rendering a real name on both a read-model-backed surface (the
+   * availability board) and an object-backed one (the member list).
+   */
+  test("shows band members by name on the availability board, never by raw user id", async ({
+    page,
+  }) => {
+    await openGiggleApp(page);
+    await selectBandContext(page);
+    await navigateTo(page, {
+      name: "band-availability",
+      navItem: "BandMemberAvailabilityBoard",
+      expectedText: "Availability",
+    });
+
+    const workspace = page.locator(".adl-workspace, .adl-composed-workspace, .adl-dashboard");
+    await expect(workspace).toContainText("Casey Morgan");
+    await expect(workspace).not.toContainText("user-");
+    await expect(workspace).not.toContainText("@example.com");
+  });
+
   for (const pageSpec of gigglePages) {
     test(`captures ${pageSpec.name} on every configured viewport`, async ({ page }, testInfo) => {
       await openGiggleApp(page);

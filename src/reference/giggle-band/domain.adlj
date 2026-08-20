@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.9.0",
+  "modelVersion": "1.10.0",
   "app": {
     "name": "Giggle Band ADL Example",
     "startView": "HomeDashboard",
@@ -88,6 +88,11 @@
     {
       "from": "1.8.0",
       "to": "1.9.0",
+      "objects": []
+    },
+    {
+      "from": "1.9.0",
+      "to": "1.10.0",
       "objects": []
     }
   ],
@@ -1905,15 +1910,11 @@
     },
     {
       "name": "CurrentUserAvailability",
+      "comment": "Projects the availability row's own `User` lookup rather than joining the\n`User` object as a second source.\n\nIt used to source `User` with `SCOPE currentUser` purely to project\n`user.Name`, which made the read model depend on a whole-record read grant\non `User` that `UserPolicy` no longer gives an ordinary caller. `FIELD\nUserName FROM availability.User` inherits that field's `LOOKUP User DISPLAY\nName` (Phase 91), so the row carries the musician's id in `values` and\ntheir name in `display`, resolved through the same field-scoped label read\nevery other lookup label in this app uses.",
       "sources": [
         {
           "name": "availability",
           "object": "Availability",
-          "scope": "currentUser"
-        },
-        {
-          "name": "user",
-          "object": "User",
           "scope": "currentUser"
         }
       ],
@@ -1936,8 +1937,8 @@
         },
         {
           "name": "UserName",
-          "source": "user",
-          "field": "Name"
+          "source": "availability",
+          "field": "User"
         }
       ]
     },
@@ -2918,24 +2919,10 @@
     {
       "name": "UserPolicy",
       "object": "User",
-      "comment": "`AUTHENTICATED`, not `ROLE BandMember`, and for exactly the reason Jointly\nCare's own `UserPolicy` already records: a context-scoped `ROLE` condition\nonly resolves against an object that is itself scoped to that context\n(`SCOPE Band FIELD Band`) or is a context's own bound object (`Band`, for\n`CONTEXT Band OBJECT Band`). `User` is neither -- it is the bound object of\nthe *`User`* context -- so `getPolicyRequestContextTargets`\n(`context-scope.ts`) can only ever resolve a `User`-object check against the\ncaller's own identity selection, which a `Band`-derived role can never\nreach. The two rules this replaced named `ROLE BandMember` and therefore\nmatched nothing at all: no band member could read or search a single `User`\nrecord, so every `LOOKUP User DISPLAY Name` label in the app -- the member\nlist, the invitation forms, the availability board -- silently degraded to a\nraw `user-...` id. Any authenticated caller may look a musician up to invite\nor recognise them, which is what `BandInvitation`'s `Invitee`/`InviteeEmail`\npair already assumes; that does not depend on already sharing a band.",
+      "comment": "A signed-in caller may resolve a musician's *name*, and nothing else.\n\n`FIELDS Name` is what makes that true rather than aspirational: a rule that\nnames `FIELDS` cannot match a whole-record request at all (`ruleMatches`,\n`policy-engine.ts`), so this grants the display field and never the record\nit lives on. `Email` has no rule of its own, so default deny applies to it,\nand there is deliberately no `SEARCH` rule -- search is the enumeration\nprimitive over a user directory, and once `CurrentUserAvailability` stopped\nsourcing `User` nothing legitimate needed it. `UserSystemAdminPolicy` above\nkeeps `SystemAdmin`'s whole-record access untouched.\n\nThis narrows the whole-object `ALLOW SEARCH/READ AUTHENTICATED` pair Phase\n91 put here, which was defensible only while registration was invite-only:\nevery authenticated caller had been vouched for by somebody already inside.\nPhase 99 adds self-service registration, so \"anyone who can reach the\nauthority may sign up\" plus \"any authenticated caller may read every `User`\nrecord\" would have been an open directory of every user's name and email.\n\nWhat must not come back is the *pre*-Phase-91 `ROLE BandMember` pair, which\nmatched nothing at all: a context-scoped `ROLE` condition only resolves\nagainst an object that is itself scoped to that context (`SCOPE Band FIELD\nBand`) or is a context's own bound object (`Band`, for `CONTEXT Band OBJECT\nBand`). `User` is neither -- it is the bound object of the *`User`* context\n-- so `getPolicyRequestContextTargets` (`context-scope.ts`) could only ever\nresolve a `User`-object check against the caller's own identity selection.\nThe compiler refuses that shape now (`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`,\nPhase 93).\n\nTwo narrower grants remain inexpressible and are not attempted here. \"Only\npeople I share a band with\" needs `CONTEXT_MEMBER` to key on a field holding\nthe record's own id, and a `User` record has none. \"My own record in full\"\nneeds the same thing: `OWNER` matches `meta.createdBy`/`CreatedBy`/`OwnerId`,\nnone of which a `User` record carries about itself, and no policy condition\ncan compare a record's id to `runtime.userId`.",
       "rules": [
         {
-          "name": "allowAuthenticatedSearchUsers",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedReadUsers",
+          "name": "allowAuthenticatedReadUserName",
           "effect": "allow",
           "principal": {
             "match": "authenticated",
@@ -2946,7 +2933,9 @@
           },
           "action": "read",
           "state": [],
-          "fields": []
+          "fields": [
+            "Name"
+          ]
         }
       ]
     },

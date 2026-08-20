@@ -471,13 +471,19 @@ can show a name where the row holds an id.
   Filters, sort, expression fields and row actions still see the stored id (or,
   for a `targetField` lookup, the stored natural key); only what a person reads
   changes.
-- Resolving a label is a record read on another object, and it is gated like
+- Resolving a label is a **field** read on another object, and it is gated like
   one. Projection is policy-checked per *source* record, and a lookup target is
-  not a source, so the runtime must apply the target object's read policy —
-  including field-level shaping of the display field — before the value may be
-  used. A `targetField` lookup matches by field value, which is a search however
-  it is spelled, so it additionally requires the `search` action and the
-  object-scope search check on the target object.
+  not a source, so the runtime must clear the target object's scope and then the
+  **display field's own** read decision before the value may be used. It must
+  not require a whole-record read grant: a rule naming fields cannot match a
+  whole-record request (see "Policy Decisions"), so an application that grants
+  `read` on a display field and nothing else would otherwise have every label
+  refused. An explicit row-level `deny`, `hidden` or `mask` rule carries no
+  fields, so it matches the field request too and still suppresses the label; it
+  is only the object's default deny that a field-scoped grant escapes. A
+  `targetField` lookup matches by field value, which is a search however it is
+  spelled, so it additionally requires the `search` action and the object-scope
+  search check on the target object.
 - Every refusal degrades to **no label**, never to an error and never to a value
   from elsewhere. A denied, deleted, out-of-scope or absent target leaves the
   surface rendering the stored value the caller already legitimately holds.

@@ -8,6 +8,7 @@ import type {
 import type { RuntimeContext, RuntimeValidationIssue } from "../../runtime/runtime-types.js";
 import type { FieldPresentation, UiMode } from "../types.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
+import { resolveLookupTargetRecord } from "./lookup-resolution.js";
 
 export class AdlFieldRendererElement extends HTMLElement {
   private _runtime: ApplicationRuntime | undefined;
@@ -21,6 +22,8 @@ export class AdlFieldRendererElement extends HTMLElement {
   private lookupOptions: StoredObjectRecord[] = [];
   private lookupLoadKey = "";
   private lookupLoading = false;
+  private selectedLookupLabel: string | undefined;
+  private selectedLookupKey = "";
 
   set runtime(runtime: ApplicationRuntime | undefined) {
     this._runtime = runtime;
@@ -52,6 +55,7 @@ export class AdlFieldRendererElement extends HTMLElement {
 
   set value(value: JsonValue | undefined) {
     this._value = value;
+    this.queueSelectedLookupLabel();
     this.render();
   }
 
@@ -147,6 +151,7 @@ export class AdlFieldRendererElement extends HTMLElement {
       presentation,
       this.lookupOptions,
       this.lookupLoading,
+      this.selectedLookupLabel,
     );
     const issues = renderIssues(this._issues);
 
@@ -224,6 +229,8 @@ export class AdlFieldRendererElement extends HTMLElement {
       return;
     }
 
+    this.queueSelectedLookupLabel();
+
     const lookup = this._field.lookup;
     const key = [
       lookup.targetObject,
@@ -263,10 +270,94 @@ export class AdlFieldRendererElement extends HTMLElement {
       this.lookupOptions = [];
     } finally {
       this.lookupLoading = false;
+      this.queueSelectedLookupLabel();
       if (this.lookupLoadKey === key) {
         this.render();
       }
     }
+  }
+
+  /**
+   * Resolves a label for the value already selected, when the candidate list
+   * cannot supply one.
+   *
+   * The `<select>`'s options come from `search`, and an application may
+   * legitimately refuse `SEARCH` on a lookup target while still granting its
+   * display field — a `User` directory that must not be enumerable is the
+   * case this exists for. Without this, such a field renders its stored value
+   * as its own label and the person editing the record sees a raw
+   * `user-...` id where a name belongs; the read is the same field-scoped one
+   * every other label path makes, so a caller who may not have the label keeps
+   * the id they already hold.
+   */
+  private queueSelectedLookupLabel(): void {
+    const runtime = this._runtime;
+    const field = this._field;
+    const context = this._context;
+    const value = typeof this._value === "string" ? this._value : "";
+
+    if (
+      !this.isConnected ||
+      runtime === undefined ||
+      field?.lookup === undefined ||
+      context === undefined ||
+      value.length === 0 ||
+      this.lookupOptions.some((option) => lookupOptionValue(field, option) === value)
+    ) {
+      this.selectedLookupKey = "";
+      this.selectedLookupLabel = undefined;
+      return;
+    }
+
+    const key = `${field.lookup.targetObject}|${field.lookup.displayField}|${value}|${context.userId}`;
+    if (key === this.selectedLookupKey) {
+      return;
+    }
+
+    this.selectedLookupKey = key;
+    this.selectedLookupLabel = undefined;
+    void this.loadSelectedLookupLabel(runtime, field, context, value, key);
+  }
+
+  private async loadSelectedLookupLabel(
+    runtime: ApplicationRuntime,
+    field: ResolvedField,
+    context: RuntimeContext,
+    value: string,
+    key: string,
+  ): Promise<void> {
+    let label: string | undefined;
+    try {
+      const record = await resolveLookupTargetRecord(runtime, field, value, context);
+      const display = record?.values[field.lookup?.displayField ?? ""];
+      if (typeof display === "string" || typeof display === "number") {
+        label = String(display);
+      }
+    } catch {
+      label = undefined;
+    }
+
+    if (this.selectedLookupKey !== key || label === undefined || label.length === 0) {
+      return;
+    }
+
+    this.selectedLookupLabel = label;
+
+    // Patch the option in place rather than re-rendering. The label arrives
+    // asynchronously, so a full `render()` here can land while someone already
+    // has the control focused — replacing `innerHTML` under them blurs the
+    // `<select>` and discards a selection in progress. Only the fallback
+    // option's text changes, so patching it is both sufficient and safe. The
+    // `render()` fallback covers the case where nothing is mounted yet.
+    const option = this.querySelector<HTMLOptionElement>(
+      `[data-field-input] option[data-lookup-fallback]`,
+    );
+    if (option !== null && option.value === value) {
+      option.textContent = label;
+      return;
+    }
+
+    this.render();
   }
 }
 
@@ -302,6 +393,7 @@ function renderInput(
   presentation: FieldPresentation,
   lookupOptions: StoredObjectRecord[],
   lookupLoading: boolean,
+  selectedLookupLabel: string | undefined,
 ): string {
   const disabled = presentation.masked || field.type === "attachment";
   const readonly = presentation.readonly && !disabled;
@@ -329,7 +421,9 @@ function renderInput(
         ${
           selectedKnown
             ? ""
-            : `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedValue)}</option>`
+            : `<option data-lookup-fallback value="${escapeHtml(selectedValue)}" selected>${escapeHtml(
+                selectedLookupLabel ?? selectedValue,
+              )}</option>`
         }
         ${lookupOptions
           .map((option) => {

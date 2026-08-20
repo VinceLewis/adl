@@ -165,6 +165,59 @@ export class PolicyEngine {
     };
   }
 
+  /**
+   * Field-scoped read shaping for a *label*: the values of exactly the named
+   * fields, each cleared through its own field-level read decision.
+   *
+   * This deliberately does **not** consult the row-level read gate the way
+   * {@link applyReadPolicy} does, and that difference is the whole point. A
+   * policy rule that names `fields` cannot match a whole-record request at all
+   * (see {@link ruleMatches}), so `ALLOW READ AUTHENTICATED FIELDS Name` is a
+   * grant to one field and to nothing else — the caller may learn a person's
+   * display name without being able to pull the record it lives on. Reading a
+   * lookup label through `applyReadPolicy` would therefore refuse every such
+   * grant at the row gate and degrade the label to a raw id, silently, because
+   * every label path treats a refusal as "no label" rather than an error.
+   *
+   * Nothing is widened by the omission: an explicit row-level `deny`, `hidden`
+   * or `mask` rule carries no `fields`, so it matches a field request too and
+   * still wins here. Only the *default* deny that a row request would have hit
+   * is bypassed, which is exactly what a field-scoped allow is for.
+   */
+  applyDisplayFieldReadPolicy(
+    objectName: string,
+    record: StoredObjectRecord,
+    fieldNames: readonly string[],
+    context: RuntimeContext,
+  ): Record<string, JsonValue> {
+    const object = this.index.getObject(objectName);
+    const currentState = getRecordState(object, record);
+    const values: Record<string, JsonValue> = {};
+
+    for (const fieldName of new Set(fieldNames)) {
+      const stored = record.values[fieldName];
+      if (stored === undefined) {
+        continue;
+      }
+
+      values[fieldName] = cloneJson(stored);
+      const decision = this.evaluate(
+        {
+          objectName,
+          action: "read",
+          field: fieldName,
+          record,
+          ...(currentState === undefined ? {} : { currentState }),
+        },
+        context,
+      );
+
+      applyFieldReadDecision(values, fieldName, decision.effect);
+    }
+
+    return values;
+  }
+
   private ruleMatches(
     rule: ResolvedPolicyRule,
     request: PolicyRequest,

@@ -166,6 +166,78 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   `.adlj`. **A frozen text snapshot of a model is a place defects go to survive a
   fix** — worth checking whenever a reference app's `.adlj` is corrected.
 
+## Key decisions from Phase 101: a field-scoped `ALLOW` is a real narrowing, and its trap
+
+- **`FIELDS` on an `ALLOW` rule grants a field without granting the record.**
+  `ruleMatches` refuses a rule naming `fields` for a whole-record request
+  (`request.field === undefined`), and matches a field request only for a field
+  the rule names. So `ALLOW READ AUTHENTICATED FIELDS Name` on a default-deny
+  object means exactly "you may learn this person's name, and you may not pull
+  their record". Two conformance cases pin it:
+  `policy.field.allow-does-not-grant-row.001` and
+  `policy.field.allow-named-field.001` (`conformance/runtime/context-policy.json`).
+  This is what both reference apps' `UserPolicy` now is, replacing the
+  whole-object `ALLOW SEARCH/READ AUTHENTICATED` pair Phase 91 introduced —
+  defensible while registration was invite-only, an open directory of every
+  user's name and email once Phase 99 lets anyone sign themselves up.
+- **Reach for a field-scoped `ALLOW`, not a field-scoped `DENY`/`HIDDEN`/`MASK`,
+  when the goal is "this much and no more".** A restriction rule wins over
+  *every* matching allow across *every* policy on the object, and there is no
+  "authenticated but not admin" principal to scope it away from a
+  `SystemAdmin`-style `ALLOW *` — so `DENY READ AUTHENTICATED FIELDS Email`
+  strips the administrator too. Restriction effects narrow a row the caller may
+  already read; a field-scoped allow is how you grant less than a row in the
+  first place.
+- **The trap: a label is a field read, and every label path degrades silently.**
+  `applyReadPolicy` evaluates the **row** first and returns `values: {}` on
+  refusal, so routing a lookup label through it makes a field-scoped grant
+  invisible — and `ReadModelService.resolveLookupDisplayLabel`,
+  `resolveLookupTargetRecord`, `adl-list-view` and `adl-form-view` all treat a
+  refused label as "no label" and fall back to the raw stored id. The visible
+  result is an application rendering `user-c52bac75-…` wherever a name belongs,
+  with a clean `tsc` and a green unit suite. This is the *same* symptom the dead
+  `ROLE BandMember` rule produced (Phase 91) reached by an opposite cause, which
+  is exactly why it is easy to reintroduce.
+- **The fix, and where it lives.** `PolicyEngine.applyDisplayFieldReadPolicy`
+  is the field-only sibling of `applyReadPolicy` and deliberately does not
+  consult the row gate; `ObjectStore.readFieldsForDisplay` /
+  `ApplicationRuntime.readFieldsForDisplay` are its browser-facing form (active
+  record, object scope, then the named fields' own decisions; `null` on any
+  refusal; no audit event, because a label is not a disclosure of the record).
+  Nothing is widened by skipping the row gate: an explicit row-level `DENY`,
+  `HIDDEN` or `MASK` carries no `fields`, so it matches a field request too and
+  still wins. Only the object's *default* deny is escaped.
+- **Prove a label with a rendered assertion, and mutation-test it.** "The tests
+  passed" is not evidence here. The assertions that matter say the row contains
+  a real name **and no `user-` prefix**, in the real browser; and reverting each
+  label path to its whole-record read must turn specific tests red. Reverting
+  `resolveLookupTargetRecord` to `runtime.read` fails two; reverting
+  `resolveLookupDisplayLabel` to `applyReadPolicy` fails three.
+- **`SEARCH` is not `READ` and should not be narrowed by reflex.** A
+  field-scoped `SEARCH` rule can never match — a `search` request carries no
+  field — and no diagnostic catches that shape, so writing one is a silent
+  no-op dressed as a control. The only real choices are whole-object search or
+  none. For a user directory, none: search is the enumeration primitive.
+  Removing it is also what completes the row refusal, since `ObjectStore.search`
+  filters candidates through the row-level read decision anyway.
+- **Two narrowings still do not exist, and a third does not either.** "Only
+  people I share a context with" still needs `contextMember.field` to accept
+  `id` (see the Phase 91 note above). "My own record in full" needs the same
+  thing: `OWNER` matches `meta.createdBy`, `values.CreatedBy`, `values.OwnerId`
+  or `values.ownerId` (`isOwner`), none of which a `User` record carries about
+  itself, and `ResolvedPolicyConditionOperand` has no operand for a record's own
+  id — `evaluateField` reads `record.values` only. Do not assume `OWNER` means
+  "the user this record is about"; it means "the user who created it".
+- **A display field can be the thing you are trying to withhold.** Jointly Care
+  declared `DISPLAY Email` on `User`, so "grant the display field only" would
+  have granted the email and closed nothing, while reading in the diff like a
+  fix. Check what `DISPLAY` actually names before treating it as the safe
+  projection — and check the read models too: `CircleMemberRoster` was
+  projecting `user.Email` onto a screenshotted screen from a second `User`
+  source. Projecting the membership row's own `LOOKUP User` field instead
+  removes both the email and the read model's dependency on a whole-record read
+  grant.
+
 ## Practical guidance
 
 - Add policy enforcement tests against direct runtime calls, not only UI rendering.
@@ -178,6 +250,13 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   different: its policy check always carries the actual record (see the
   follow-up note above), so a `WHEN` condition on `EXPORT` is reachable and
   legitimate -- do not carry the `SEARCH` rule-of-thumb over to it.
+- When a policy must grant *less than a whole record*, write a field-scoped
+  `ALLOW` (`FIELDS ...`) over the object's default deny — not a `DENY`/`HIDDEN`/
+  `MASK` on the fields you want withheld, which also strips every
+  higher-privilege `ALLOW *` on the same object. Then check every path that
+  reads that object for display: a lookup label is a *field* read, and routing
+  it through `applyReadPolicy`'s row gate turns the grant into a screenful of
+  raw record ids, silently. See the Phase 101 section above.
 - A `ROLE` condition on an object with no `SCOPE` only works when that object
   is itself a context's own bound object (e.g. `Band`/`Circle`). For anything
   else unscoped (e.g. `User`), reach for `AUTHENTICATED`, `OWNER`, or a

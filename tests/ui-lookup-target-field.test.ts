@@ -198,3 +198,137 @@ describe("adl-field-renderer TARGET_FIELD lookup editor", () => {
     renderer.remove();
   });
 });
+
+/**
+ * Phase 101. A lookup target may grant its display field and refuse everything
+ * else, including `SEARCH` — which is exactly what both reference apps' `User`
+ * object now does, so that a self-registered stranger cannot enumerate the user
+ * directory. The candidate list is then empty by design, and the `<select>`
+ * used to fall back to rendering the stored value as its own label: a raw
+ * `user-...` id sitting in a form field where a name belongs, which is the same
+ * silent degradation the list and read-model label paths guard against.
+ */
+describe("adl-field-renderer lookup editor without SEARCH on the target", () => {
+  it("labels the selected option by name when the target object refuses search", async () => {
+    const model = resolveApplicationModel(displayOnlyPartialModel);
+    const adminContext: RuntimeContext = {
+      userId: "admin-1",
+      roles: ["SystemAdmin"],
+      channel: "ui",
+      now: new Date("2026-08-19T09:00:00.000Z"),
+    };
+    const runtime = new ApplicationRuntime(model);
+    const author = await runtime.create(
+      "Person",
+      { Name: "Casey Morgan", Email: "casey@example.com" },
+      adminContext,
+    );
+    await runtime.create("Post", { Title: "First", Author: author.meta.guid }, adminContext);
+
+    const object = model.objects.find((candidate) => candidate.name === "Post");
+    const field = object?.fields.find((candidate) => candidate.name === "Author");
+    if (object === undefined || field === undefined) {
+      throw new Error("Fixture is missing Post.Author.");
+    }
+
+    const renderer = document.createElement("adl-field-renderer") as AdlFieldRendererElement;
+    document.body.append(renderer);
+    renderer.runtime = runtime;
+    renderer.object = object;
+    renderer.context = viewerContext;
+    renderer.field = field;
+    renderer.presentation = resolveFieldPresentation({
+      runtime,
+      object,
+      field,
+      context: viewerContext,
+      mode: "edit",
+    });
+    renderer.value = author.meta.guid;
+    await flushUi();
+    await flushUi();
+    await flushUi();
+
+    const select = renderer.querySelector<HTMLSelectElement>("select[data-field-input]");
+    if (select === null) {
+      throw new Error("No <select> rendered for the Author lookup field.");
+    }
+
+    const selected = [...select.options].find((option) => option.value === author.meta.guid);
+    expect(selected?.textContent?.trim()).toBe("Casey Morgan");
+    // The value written back is still the record id, and the email never
+    // reaches the DOM at all.
+    expect(renderer.getValue()).toBe(author.meta.guid);
+    expect(renderer.textContent).not.toContain("casey@example.com");
+
+    renderer.remove();
+  });
+});
+
+const displayOnlyPartialModel = {
+  app: { name: "DisplayFieldOnlyDemo" },
+  roles: [{ name: "SystemAdmin" }, { name: "Viewer" }],
+  objects: [
+    {
+      name: "Person",
+      businessKey: "Email",
+      displayField: "Name",
+      fields: [
+        { name: "Name", type: "text", required: true },
+        { name: "Email", type: "text", required: true },
+      ],
+    },
+    {
+      name: "Post",
+      displayField: "Title",
+      fields: [
+        { name: "Title", type: "text", required: true },
+        {
+          name: "Author",
+          type: "text",
+          lookup: { targetObject: "Person", displayField: "Name" },
+        },
+      ],
+      views: [
+        {
+          name: "PostList",
+          kind: "list",
+          fields: ["Title", "Author"],
+          actions: ["create", "read", "update"],
+        },
+      ],
+    },
+  ],
+  policies: [
+    {
+      name: "PersonSystemAdminPolicy",
+      object: "Person",
+      rules: [
+        {
+          name: "allowAdminAll",
+          effect: "allow",
+          principal: { match: "specific", roles: ["SystemAdmin"] },
+          action: "*",
+        },
+      ],
+    },
+    {
+      name: "PersonPolicy",
+      object: "Person",
+      rules: [
+        {
+          name: "allowAuthenticatedReadName",
+          effect: "allow",
+          principal: { match: "authenticated" },
+          action: "read",
+          fields: ["Name"],
+        },
+      ],
+    },
+    {
+      name: "PostPolicy",
+      object: "Post",
+      rules: [{ name: "allowAll", effect: "allow", principal: { match: "everyone" }, action: "*" }],
+    },
+  ],
+} satisfies PartialApplicationModel;

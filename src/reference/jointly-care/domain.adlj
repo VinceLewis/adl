@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.4.0",
+  "modelVersion": "1.5.0",
   "app": {
     "name": "Jointly Care ADL Example",
     "startView": "HomeDashboard",
@@ -43,13 +43,18 @@
       "from": "1.3.0",
       "to": "1.4.0",
       "objects": []
+    },
+    {
+      "from": "1.4.0",
+      "to": "1.5.0",
+      "objects": []
     }
   ],
   "objects": [
     {
       "name": "User",
       "businessKey": "Email",
-      "displayField": "Email",
+      "displayField": "DisplayName",
       "constraints": [],
       "policies": [],
       "fields": [
@@ -71,7 +76,7 @@
           "required": false,
           "readonly": false,
           "hidden": false,
-          "comment": "PRD 1.2: `display_name` defaults to `\"\"` and an empty one renders as the\nemail prefix in the UI. ADL's `DISPLAY` directive must name a stored\nfield (`ADL_OBJECT_DISPLAY_FIELD_UNKNOWN` rejects a `COMPUTED` one), so\nthis app displays `Email` directly rather than reproducing the\nempty-string fallback -- a simpler, always-populated label with the same\npractical effect. `DisplayName` is still a real field a person can set.",
+          "comment": "PRD 1.2: `display_name` defaults to `\"\"` and an empty one renders as the\nemail prefix in the UI. ADL's `DISPLAY` directive must name a stored field\n(`ADL_OBJECT_DISPLAY_FIELD_UNKNOWN` rejects a `COMPUTED` one), so this app\ncannot reproduce the empty-string fallback exactly. It used to display\n`Email` instead -- simpler, and always populated. That is no longer\nacceptable: `UserPolicy` now grants a signed-in caller the display field\nand nothing else, so displaying `Email` would grant every caller the very\naddress the policy exists to withhold. `DISPLAY` is `DisplayName`, and a\nrecord left without one shows the raw id rather than an email -- the\nfail-closed direction, and the reason the seeded dataset always sets it.\nMaking the field `required` is a separate product decision this change\ndeliberately does not take on.",
           "validators": []
         },
         {
@@ -146,7 +151,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "comment": "Optional, not `REQUIRED`: only `CreateCircle` ever writes it (`VALUE\nOwner RUNTIME userId`), matching Giggle Band's `Band.CreatedBy` -- a\ngeneric `ACTIONS create` view has no way to stamp the current user onto\na field (`RUNTIME.userId` is a command-step-only value source; see\n`CircleInvite.InvitedBy` below for the fuller version of this note), so\n`Circle` is never created through a plain create form, only through the\ncommand.",
           "validators": []
@@ -251,7 +256,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "validators": []
         },
@@ -350,7 +355,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "comment": "Optional, like `Circle.Owner` above: `CircleInviteList`'s create form\n(`FIELDS InviteeEmail`) has no way to stamp the sending owner's id onto\nthe write, since only a `COMMAND` step's `VALUE ... RUNTIME userId` can\ndo that and a plain object `ACTIONS create` action is not a command.\nLeft unset when sent from the generic form; a future command could set\nit deliberately, the same way `AcceptCircleInvite` below sets `Invitee`.",
           "validators": []
@@ -363,7 +368,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "comment": "Also optional: the owner sending the invite may not know whether the\ninvitee already has an account. `AcceptCircleInvite` fills this in from\n`RUNTIME.userId` when the invitation is accepted.",
           "validators": []
@@ -485,7 +490,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "comment": "Optional -- see `Circle.Owner` above for why a plain create form cannot\nstamp the current user onto this field. Populated by seed/test data, and\navailable for a future command to set deliberately.",
           "validators": []
@@ -642,7 +647,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "validators": []
         },
@@ -742,7 +747,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "validators": []
         },
@@ -833,7 +838,7 @@
           "hidden": false,
           "lookup": {
             "targetObject": "User",
-            "displayField": "Email"
+            "displayField": "DisplayName"
           },
           "validators": []
         },
@@ -1086,6 +1091,7 @@
     },
     {
       "name": "CircleMemberRoster",
+      "comment": "Projects the membership row's own `User` lookup rather than joining the\n`User` object as a second source.\n\nIt used to source `User` with `SCOPE all` and project `user.Email`, which\nmade the circle overview a per-circle directory of email addresses. It also\nmade the roster depend on a whole-record read grant on `User`, which\n`UserPolicy` no longer gives an ordinary caller. `FIELD Member FROM\nmember.User` inherits that field's `LOOKUP User DISPLAY DisplayName`\n(Phase 91), so the row carries the member's id in `values` and their\ndisplay name in `display` -- exactly what Giggle Band's\n`BandMemberAvailability.Member` already does, resolved through the same\nfield-scoped label read.",
       "context": {
         "mode": "required",
         "context": "Circle"
@@ -1095,11 +1101,6 @@
           "name": "member",
           "object": "CircleMember",
           "scope": "currentContext"
-        },
-        {
-          "name": "user",
-          "object": "User",
-          "scope": "all"
         }
       ],
       "sort": [
@@ -1110,9 +1111,9 @@
       ],
       "fields": [
         {
-          "name": "MemberEmail",
-          "source": "user",
-          "field": "Email"
+          "name": "Member",
+          "source": "member",
+          "field": "User"
         },
         {
           "name": "Role",
@@ -1541,24 +1542,10 @@
     {
       "name": "UserPolicy",
       "object": "User",
-      "comment": "`AUTHENTICATED`, not `ROLE CircleMember`: a context-scoped `ROLE` condition\nonly resolves against an object that is itself scoped to that context\n(`SCOPE Circle FIELD Circle`, as `Event`/`Note`/... declare) or is itself a\ncontext's own bound object (`Circle`, for `CONTEXT Circle OBJECT Circle`).\n`User` is neither, so `getPolicyRequestContextTargets` (`context-scope.ts`)\ncan only ever resolve targets against the `User` context (a caller's own\nidentity selection) for a `User`-object policy check -- a `Circle`-derived\nrole can never reach it, no matter which circle is selected. Any\nauthenticated caller may look up a collaborator's profile to invite or\nrecognise them; that does not depend on already sharing a circle.",
+      "comment": "A signed-in caller may resolve a collaborator's *display name*, and nothing\nelse -- in particular not their email address.\n\n`FIELDS DisplayName` is what makes that true rather than aspirational: a\nrule that names `FIELDS` cannot match a whole-record request at all\n(`ruleMatches`, `policy-engine.ts`), so this grants the display field and\nnever the record it lives on. `Email` and `Timezone` have no rule of their\nown, so default deny applies to them, and there is deliberately no `SEARCH`\nrule -- search is the enumeration primitive over a user directory, and once\n`CircleMemberRoster` stopped sourcing `User` nothing legitimate needed it.\n`UserSystemAdminPolicy` above keeps `SystemAdmin`'s whole-record access\nuntouched.\n\n`DISPLAY` moved from `Email` to `DisplayName` in the same change, and had\nto: while `Email` was the display field, \"the display field only\" would\nhave granted exactly the thing this policy exists to withhold. Every\n`LOOKUP User` in this app now displays `DisplayName` for the same reason.\n\nThis narrows the whole-object `ALLOW SEARCH/READ AUTHENTICATED` pair that\nstood here while registration was invite-only -- every authenticated caller\nhad been vouched for by somebody already inside. Phase 99 adds self-service\nregistration, so \"anyone who can reach the authority may sign up\" plus \"any\nauthenticated caller may read every `User` record\" would have been an open\ndirectory of every user's name and email.\n\nWhat must not come back is `ROLE CircleMember`, which would match nothing:\na context-scoped `ROLE` condition only resolves against an object that is\nitself scoped to that context (`SCOPE Circle FIELD Circle`, as\n`Event`/`Note`/... declare) or is itself a context's own bound object\n(`Circle`, for `CONTEXT Circle OBJECT Circle`). `User` is neither, so\n`getPolicyRequestContextTargets` (`context-scope.ts`) can only ever resolve\ntargets against the `User` context -- the caller's own identity selection.\nThe compiler refuses that shape now\n(`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`, Phase 93).\n\nTwo narrower grants remain inexpressible and are not attempted here. \"Only\npeople I share a circle with\" needs `CONTEXT_MEMBER` to key on a field\nholding the record's own id, and a `User` record has none. \"My own record\nin full\" needs the same thing: `OWNER` matches\n`meta.createdBy`/`CreatedBy`/`OwnerId`, none of which a `User` record\ncarries about itself, and no policy condition can compare a record's id to\n`runtime.userId`.",
       "rules": [
         {
-          "name": "allowAuthenticatedSearchUsers",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedReadUsers",
+          "name": "allowAuthenticatedReadUserDisplayName",
           "effect": "allow",
           "principal": {
             "match": "authenticated",
@@ -1569,7 +1556,9 @@
           },
           "action": "read",
           "state": [],
-          "fields": []
+          "fields": [
+            "DisplayName"
+          ]
         }
       ]
     },

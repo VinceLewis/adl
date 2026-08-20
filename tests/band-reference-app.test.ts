@@ -26,7 +26,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.9.0");
+    expect(model.modelVersion).toBe("1.10.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -85,6 +85,14 @@ describe("band reference app model", () => {
     // (Phase 92). Presentation and shell content only -- no object's stored
     // fields change.
     expect(model.migrations).toContainEqual({ from: "1.8.0", to: "1.9.0", objects: [] });
+    // `1.9.0 -> 1.10.0` is an empty-object hop: `UserPolicy` narrows from a
+    // whole-object `ALLOW SEARCH/READ AUTHENTICATED` pair to a single
+    // field-scoped `ALLOW READ AUTHENTICATED FIELDS Name`, and
+    // `CurrentUserAvailability` drops its `User` source in favour of projecting
+    // `availability.User`'s own lookup (Phase 101). Policy and read-model
+    // content -- they change the fingerprint -- but no object gains, loses or
+    // renames a stored field.
+    expect(model.migrations).toContainEqual({ from: "1.9.0", to: "1.10.0", objects: [] });
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -97,7 +105,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-20f7ee6c231d6c64fd4d12f6b751a70a0b4b58b1c774a399889f6c79ac62052a",
+      "sha256-bcab87d091293ffd6c0554614b54b08fc91995ce4a0c341c441e1831ab0fd252",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -1302,6 +1310,10 @@ describe("band reference app runtime", () => {
     // lookup value into a label. Before Phase 91 `UserPolicy` named
     // `ROLE BandMember`, which a `User`-object policy check can never resolve,
     // so this read was denied and both surfaces fell back to the raw id.
+    // Phase 101 narrowed the replacement grant to `FIELDS Name`, which a
+    // whole-record read can never match, so this now has to be -- and is -- a
+    // field-scoped read; routing it through `runtime.read` again would put the
+    // raw `user-...` id back on every one of those surfaces.
     const target = await resolveLookupTargetRecord(
       seeded.runtime,
       userField,
@@ -1310,9 +1322,49 @@ describe("band reference app runtime", () => {
     );
 
     expect(target?.values.Name).toBe("Casey Morgan");
-    // And the `<select>` editor's candidate list, which searches rather than reads.
-    const candidates = await seeded.runtime.search("User", undefined, seeded.firstBandContext);
-    expect(candidates.map((record) => record.values.Name)).toContain("Casey Morgan");
+    // The name, and *only* the name: the label read carries nothing else off
+    // the record, whatever the caller asked for.
+    expect(target?.values.Email).toBeUndefined();
+  });
+
+  it("refuses a band member the whole User record, the Email field, and the directory", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const otherMusician = seeded.guest;
+
+    // A whole-record read: `FIELDS Name` cannot match a request with no field,
+    // so this is default deny, not a shaped record with fields missing.
+    await expect(
+      seeded.runtime.read("User", otherMusician.meta.guid, seeded.firstBandContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    // The field itself, asked for directly through the same field-scoped path
+    // the display label uses. Nothing comes back at all -- `Name` is the only
+    // field with a rule, so `Email` falls to the object's default deny.
+    const emailAttempt = await seeded.runtime.readFieldsForDisplay(
+      "User",
+      otherMusician.meta.guid,
+      ["Email", "Name"],
+      seeded.firstBandContext,
+    );
+    expect(emailAttempt?.values).toEqual({ Name: expect.any(String) });
+    expect(emailAttempt?.values.Email).toBeUndefined();
+
+    // And enumeration, the thing that turns a per-record grant into a
+    // directory. `UserPolicy` carries no `SEARCH` rule at all.
+    await expect(
+      seeded.runtime.search("User", undefined, seeded.firstBandContext),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+    // `SystemAdmin` still holds all three through `UserSystemAdminPolicy`.
+    const adminRead = await seeded.runtime.read(
+      "User",
+      otherMusician.meta.guid,
+      bandReferenceSystemContext,
+    );
+    expect(adminRead?.values.Email).toEqual(expect.any(String));
+    expect(
+      (await seeded.runtime.search("User", undefined, bandReferenceSystemContext)).length,
+    ).toBeGreaterThan(0);
   });
 
   it("adds the four new streaming platforms while still enforcing the closed enum", async () => {
@@ -2075,6 +2127,43 @@ describe("band reference browser demo", () => {
     expect(app.textContent).toContain("No pending invitations");
     expect(app.textContent).toContain("The Alphas");
     expect(app.textContent).toContain("The Betas");
+  });
+
+  it("renders band members by name, not by raw user id, under the field-scoped UserPolicy", async () => {
+    // The regression this exists to catch is silent by construction. Every
+    // lookup-label path degrades to the raw stored value on refusal, so a
+    // `UserPolicy` narrowed to `FIELDS Name` read as a whole record puts
+    // `user-c52bac75-...` in every one of these cells with nothing failing.
+    const seeded = await createSeededBandReferenceRuntime();
+    const app = document.createElement("adl-app") as AdlAppElement;
+    seeded.model.shell.nav.items.push({
+      name: "BandMemberList",
+      view: "BandMemberList",
+      label: "Members",
+      order: 998,
+      activeWhen: ["BandMemberList"],
+      visibility: { kind: "always" },
+    });
+    app.model = seeded.model;
+    app.runtime = seeded.runtime;
+    app.context = { ...seeded.firstBandContext, channel: "ui" };
+
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    navigateWithDrawer(app, "BandMemberList");
+    await flushUi();
+    await waitForText(app, "Casey Morgan");
+
+    const rows = [...app.querySelectorAll("adl-list-view tbody tr")];
+    expect(rows.length).toBeGreaterThan(0);
+    const rowText = rows.map((row) => row.textContent ?? "").join("\n");
+    expect(rowText).toContain("Casey Morgan");
+    expect(rowText).not.toContain("user-");
+    expect(rowText).not.toContain(seeded.musician.meta.guid);
+    // The name reached the screen; the email never left the record.
+    expect(app.textContent).not.toContain("casey@example.com");
   });
 
   it("renders lookup choices for set-list item creation in the generic browser form", async () => {

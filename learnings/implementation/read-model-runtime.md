@@ -222,6 +222,34 @@ Read this before changing read-model execution, read-model-backed dashboards, re
   paths converge on the *rule* (policy-checked read, degrade to the stored
   value), not on one function.
 
+## Phase 101: a projected lookup label is a *field* read, and a `User` source is a liability
+
+- **`resolveLookupDisplayLabel` now goes through
+  `PolicyEngine.applyDisplayFieldReadPolicy`, not `applyReadPolicy`.** A policy
+  may legitimately grant a lookup target's display field and nothing else (both
+  reference apps' `UserPolicy` now does), and `applyReadPolicy` refuses at the
+  **row** gate before any field is considered — returning `values: {}`, which
+  this resolver correctly reads as "no label" and degrades to the raw id. The
+  degradation is silent by design, so the whole application renders
+  `user-c52bac75-…` where names belong with nothing failing. Explicit row-level
+  `DENY`/`HIDDEN`/`MASK` rules still suppress the label (they carry no `fields`,
+  so they match a field request too); only the object's default deny is escaped.
+- **Preferring a projected lookup over a second source is the safer modelling
+  choice, and sometimes the only working one.** A secondary source resolved by
+  `resolveJoinedSource` still has to clear `canReadSourceRecord` — a *row* read
+  on the joined object — so a read model that sources `User` breaks the moment
+  `User`'s policy stops granting rows. Projecting the upstream row's own
+  `LOOKUP` field instead (`FIELD Member FROM member.User`) needs only the
+  display field's own read decision. Jointly Care's `CircleMemberRoster` and
+  Giggle Band's `CurrentUserAvailability` were both converted this way in Phase
+  101; the roster additionally stopped projecting `user.Email` onto a
+  screenshotted screen.
+- **A read model can be the leak.** `CircleMemberRoster` projected a required
+  `Email` field from a `SCOPE all` `User` source, which no amount of policy
+  narrowing on `User`'s *own* screens would have caught. When auditing what an
+  object exposes, enumerate every read model that sources or projects it, not
+  just its own views.
+
 ## Practical guidance
 
 - Add new read-model behavior through resolved-model declarations and `ReadModelService`; keep parser syntax and backend execution strategies separate.

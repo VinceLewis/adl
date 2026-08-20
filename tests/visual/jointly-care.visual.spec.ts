@@ -98,6 +98,33 @@ test.describe("Jointly Care visual smoke", () => {
     });
   });
 
+  /**
+   * Phase 101. `UserPolicy` now grants a signed-in caller the `User` display
+   * field and nothing else, and `User`'s `DISPLAY` moved off `Email` onto
+   * `DisplayName` so that grant withholds the address rather than handing it
+   * over. Both changes are invisible to a type-check and to a passing unit
+   * suite if the label read regresses to a whole-record read: every label path
+   * degrades quietly to the stored id. This is the real browser, on the real
+   * screen, saying a person's name is there and neither an id nor an email is.
+   */
+  test("shows circle members by name, with no email address and no raw user id", async ({
+    page,
+  }) => {
+    await openJointlyCareApp(page);
+    await selectCircleContext(page);
+    await navigateTo(page, {
+      name: "circle-overview",
+      navItem: "CircleOverview",
+      expectedText: "Who is here",
+    });
+
+    const workspace = page.locator(".adl-workspace, .adl-composed-workspace, .adl-dashboard");
+    await expect(workspace).toContainText("Jordan Casey");
+    await expect(workspace).toContainText("Sam Rivera");
+    await expect(workspace).not.toContainText("@example.com");
+    await expect(workspace).not.toContainText("user-");
+  });
+
   for (const pageSpec of jointlyCarePages) {
     test(`captures ${pageSpec.name} on every configured viewport`, async ({ page }, testInfo) => {
       await openJointlyCareApp(page);

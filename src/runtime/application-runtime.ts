@@ -389,6 +389,28 @@ export class ApplicationRuntime {
     return result;
   }
 
+  /**
+   * The named fields of one record for display as a *label*, or `null` when the
+   * caller may not have them. See {@link ObjectStore.readFieldsForDisplay}: a
+   * lookup label is a field read, and requiring the whole-record read grant
+   * `read` requires is what turns a field-scoped policy into a screen full of
+   * raw record ids.
+   */
+  async readFieldsForDisplay(
+    objectName: string,
+    id: string,
+    fieldNames: readonly string[],
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord | null> {
+    await this.whenReady();
+    return this.objectStore.readFieldsForDisplay(
+      objectName,
+      id,
+      fieldNames,
+      await this.withContextMembers(context),
+    );
+  }
+
   async reconcileRemoteRecord(objectName: string, record: StoredObjectRecord): Promise<void> {
     await this.whenReady();
     await this.objectStore.reconcileRemoteRecord(objectName, record);

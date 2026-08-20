@@ -310,6 +310,54 @@ export class ObjectStore {
     );
   }
 
+  /**
+   * The named fields of one record, for a *label* — a lookup display value, and
+   * nothing a caller could mistake for the record itself.
+   *
+   * Separate from {@link read} because a label is a field read, not a record
+   * read. `read` requires a whole-record read grant, which a policy that says
+   * `ALLOW READ AUTHENTICATED FIELDS Name` deliberately withholds: the caller
+   * may learn a person's display name without being able to pull their record.
+   * Routing lookup labels through `read` would refuse every such grant at the
+   * row gate, and because both browser label paths swallow a refusal and fall
+   * back to the raw stored id, the whole application would quietly render
+   * `user-...` ids instead of names.
+   *
+   * Every refusal is quiet and lands on `null` for the same reason: a caller
+   * who may not see the label already legitimately holds the id the surface
+   * falls back to. Object scope still applies, explicit `DENY`/`HIDDEN`/`MASK`
+   * rules still win (they carry no `FIELDS`, so they match a field request
+   * too), and no audit event is written — this is the same cosmetic read the
+   * read-model label resolver performs, not a disclosure of the record.
+   */
+  async readFieldsForDisplay(
+    objectName: string,
+    id: string,
+    fieldNames: readonly string[],
+    context: RuntimeContext,
+  ): Promise<StoredObjectRecord | null> {
+    await this.startupGuard();
+    const record = await this.getActiveRecord(objectName, id);
+    if (record === undefined) {
+      return null;
+    }
+
+    try {
+      requireObjectScopeForRecord(this.index, objectName, record, context, "read");
+    } catch {
+      return null;
+    }
+
+    const values = this.policyEngine.applyDisplayFieldReadPolicy(
+      objectName,
+      record,
+      fieldNames,
+      context,
+    );
+
+    return Object.keys(values).length === 0 ? null : { meta: cloneJson(record.meta), values };
+  }
+
   /** Trusted sync projection write. It deliberately does not create local intent, audit, or queue side effects. */
   async reconcileRemoteRecord(objectName: string, record: StoredObjectRecord): Promise<void> {
     await this.startupGuard();

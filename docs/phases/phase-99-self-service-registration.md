@@ -504,32 +504,56 @@ Nothing, because:
   list, so the shell renders
   `No Band contexts are available for this view.`
 
-The exception: **both apps grant `SEARCH` and `READ` on `User` to the
-`AUTHENTICATED` principal** (`UserPolicy` in each `domain.adlj` —
-`allowAuthenticatedSearchUsers`, `allowAuthenticatedReadUsers`). A
-self-registered stranger can therefore enumerate the user directory, including
-`Email`, which is a required field on `User` in both apps. Before this phase
-every authenticated caller had been invited by somebody; after it, anyone can
-become authenticated.
+The exception, **closed by Phase 101 before this phase executes**: both apps
+used to grant `SEARCH` and `READ` on the whole `User` object to the
+`AUTHENTICATED` principal (`UserPolicy` in each `domain.adlj` —
+`allowAuthenticatedSearchUsers`, `allowAuthenticatedReadUsers`), and `Email` is
+a required field on `User` in both. A self-registered stranger could therefore
+have enumerated the user directory, addresses included. Before self-service
+registration every authenticated caller had been invited by somebody; after it,
+anyone can become authenticated, so that pairing had to go.
 
-This is a real, new exposure and the phase does not close it. It cannot, within
-scope: `learnings/implementation/policy-engine.md`'s Phase 91 section records
-that the honest narrowing — "only people I share a band with" — **does not exist
-in the language**, because `recordBelongsToContextMember` reads
-`record.values[field]` and a `User` record has no field holding its own id; and
-a `ROLE BandMember` rule on `User` is the dead-rule trap the compiler now
-refuses outright (`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`, Phase 93). A
-field-level mask on `Email` has the same problem: there is no principal to
-un-mask it for.
+**What replaced it** (see `docs/phases/phase-101-user-directory-exposure.md`):
 
-So the phase does three things instead: it records the exposure in the runbook's
-self-service section, it records it in learnings, and it makes it a first-class
-reason the declaration is **per application** — an application whose `User`
-object carries anything more sensitive simply does not declare `SELF_SERVICE`.
-The Planning Handoff nominates the platform extension that would close it
-(letting `contextMember.field` accept `id`, which
-`learnings/implementation/policy-engine.md` already proposes for a different
-reason).
+- `UserPolicy` in each app is now a single **field-scoped** rule —
+  `ALLOW READ AUTHENTICATED FIELDS Name` in Giggle Band,
+  `... FIELDS DisplayName` in Jointly Care. A rule that names `FIELDS` cannot
+  match a whole-record request at all (`PolicyEngine.ruleMatches`; pinned by
+  `policy.field.allow-does-not-grant-row.001` in the conformance corpus), so a
+  self-registered caller may resolve a person's display name and can neither
+  pull the record it lives on nor reach `Email`, which has no rule and falls to
+  the object's default deny.
+- **The `SEARCH` grant is gone entirely**, not narrowed. Search is the
+  enumeration primitive over a directory, a field-scoped `SEARCH` rule would be
+  dead on arrival (a `search` request carries no field), and nothing legitimate
+  needed it once the two read models that sourced `User` stopped doing so.
+- Jointly Care's `User.DISPLAY` moved from `Email` to `DisplayName` in the same
+  change — while `Email` *was* the display field, "the display field only"
+  would have granted exactly what the policy exists to withhold.
+- `UserSystemAdminPolicy` is untouched in both apps, so an administrator still
+  reads the whole record.
+
+This is a real narrowing, not a mask: an earlier draft of this section reasoned
+that a field-level control could not work because "there is no principal to
+un-mask it for". That is true of a *mask* over an otherwise-readable record and
+false of a field-scoped `ALLOW` over a default-deny object, which needs no
+un-masking principal because nothing was granted in the first place.
+
+Two narrower grants remain genuinely inexpressible, and Phase 101 did not
+attempt either: "only people I share a band with" still needs
+`recordBelongsToContextMember` to key on a field holding the record's own id,
+which a `User` record has none of; and "my own record in full" needs the same
+thing, since `OWNER` matches `meta.createdBy`/`CreatedBy`/`OwnerId` and no
+policy condition can compare a record's id to `runtime.userId`. A `ROLE
+BandMember` rule on `User` remains the dead-rule trap the compiler refuses
+outright (`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`, Phase 93). The Planning
+Handoff still nominates the platform extension that would make the
+context-scoped version possible (letting `contextMember.field` accept `id`).
+
+Per-application judgement still matters and is unchanged: an application whose
+`User` object carries anything more sensitive than a display name simply does
+not declare `SELF_SERVICE`. What has changed is that the two shipped reference
+apps no longer *need* that judgement to hold the line.
 
 ### 7. Observability
 
@@ -1081,9 +1105,15 @@ does.
    `identity_verification_configured`; that the proxy **must set, not append**,
    `x-forwarded-for` or the per-client rate bucket is attacker-chosen; that
    `FixedWindowRateLimiter` is per-process, so N replicas mean N× the limit; and
-   — stated plainly, not buried — that in both reference apps a self-registered
-   identity holding no membership can still search and read every `User` record
-   including `Email`, and that this is why the declaration is per application.
+   — stated plainly, not buried — what a self-registered identity holding no
+   membership may see of other people. Since Phase 101 that is, in both
+   reference apps, a display name and nothing else: `UserPolicy` grants
+   `READ ... FIELDS <displayField>` only, carries no `SEARCH` rule, and Jointly
+   Care's `User.DISPLAY` is `DisplayName` rather than `Email`. The section must
+   still say that this is an application-by-application judgement — an
+   application whose `User` object carries more than a display name should not
+   declare `SELF_SERVICE`, and the platform does not check what a model's
+   policies expose.
 3. `## Incidents` (:994) gains one line: how to switch self-service off without
    a release (`ADL_SELF_SERVICE_REGISTRATION=off`, restart) and what that does
    not do (it does not disable identities already created).
@@ -1175,8 +1205,9 @@ is deliberate and should be recorded in the code comment.
   untouched.
 - **No change to `bypass` or `upstream` mode**, or to `/v1/session/issue`, which
   remains `503` in `passkey` mode.
-- **No narrowing of `UserPolicy`** in either reference app. Out of reach; see
-  "What a self-registered identity may see and do".
+- **No narrowing of `UserPolicy`** in either reference app — already done, by
+  Phase 101, precisely so this phase would not have to. Do not re-open it here;
+  see "What a self-registered identity may see and do" for what it now grants.
 - **No change to `src/ui/demo-fixture.ts`**, the `examples/` corpus, or any
   conformance model's expected resolved output.
 

@@ -330,7 +330,17 @@ covered by its own Playwright visual spec
   never-exercised gap) to `AUTHENTICATED`, and `CircleInvitePolicy`'s
   invitee-facing `SEARCH` rule had to drop its `WHEN Invitee ==
   runtime.userId` and become unconditioned, leaning on the paired `READ` rule
-  for row shaping.
+  for row shaping. **Superseded in part by Phase 101**: both apps'
+  `UserPolicy` is now a single field-scoped `ALLOW READ AUTHENTICATED FIELDS
+  <displayField>` with no `SEARCH` rule at all, because self-service
+  registration (Phase 99) turned "any authenticated caller may read every
+  `User` record" into an open directory of names and email addresses. Jointly
+  Care's `User.DISPLAY` moved off `Email` in the same change -- while `Email`
+  *was* the display field, granting "the display field only" would have
+  granted precisely the thing being withheld -- and both apps' remaining
+  `User`-sourced read models were converted to project the upstream row's own
+  `LOOKUP User` field instead. See
+  [policy-engine#key-decisions-from-phase-101](policy-engine.md).
 - **A `CONTEXT_GRANT` does not extend to the context's own root object.**
   `MyPendingCircleInvites` (the cross-circle "invites addressed to me" read
   model `PendingInvitations`-style views need, which Giggle Band never built

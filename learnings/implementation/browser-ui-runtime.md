@@ -299,3 +299,18 @@ gap — a compile failure from `demo.createModel()` or a network failure from
   session. If a future change adds another fire-and-forget top-level call,
   check it the same way rather than assuming the one fixed in Phase 84 was
   the only one.
+- A lookup label is a **field** read, not a record read
+  (`resolveLookupTargetRecord` now calls `runtime.readFieldsForDisplay`, not
+  `runtime.read`). An application may legitimately grant a target object's
+  display field and refuse the record — both reference apps' `User` object does
+  since Phase 101 — and every label path in the browser (`adl-list-view`,
+  `adl-form-view`, `adl-field-renderer`) falls back to the raw stored id on
+  refusal, silently. Getting this wrong renders `user-c52bac75-…` wherever a
+  name belongs, with nothing failing. See
+  [policy-engine](policy-engine.md)'s Phase 101 section.
+- The same policy may also refuse `SEARCH` on the target, which empties a lookup
+  `<select>`'s candidate list. `adl-field-renderer` therefore resolves the
+  *selected* option's label through the same field-scoped read, and **patches
+  the option's `textContent` in place rather than re-rendering**: the label
+  arrives asynchronously, and replacing `innerHTML` under a focused `<select>`
+  blurs it and discards a selection in progress.

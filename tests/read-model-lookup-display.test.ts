@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ApplicationRuntime,
+  PolicyDeniedError,
   resolveApplicationModel,
   validateApplicationModel,
 } from "../src/index.js";
@@ -171,6 +172,72 @@ describe("read model lookup display resolution", () => {
       expect(result.rows.map((row) => row.display?.Member)).toEqual([undefined, undefined]);
     });
 
+    /*
+     * Phase 101. Both reference apps now grant a signed-in caller the `User`
+     * display field and nothing else, because self-service registration made
+     * "any authenticated caller may read every `User` record" an open directory
+     * of names and email addresses. A rule naming `FIELDS` cannot match a
+     * whole-record request, so a label resolved through `applyReadPolicy`'s row
+     * gate would be refused — and every label path swallows a refusal, so the
+     * visible result would be an application full of raw `user-...` ids with a
+     * green type-check and a green suite. These are the tests that fail if that
+     * happens.
+     */
+    it("resolves the label from a field-scoped grant that confers no row read", async () => {
+      const seeded = await createSeededLookupDisplayRuntime(
+        createLookupDisplayPartialModel({ fieldScopedUserNameRead: true, denyUserSearch: true }),
+      );
+
+      const result = await seeded.runtime.executeReadModel("TeamRoster", seeded.teamContext);
+
+      expect(result.rows.map((row) => row.display?.Member)).toEqual(["Casey Morgan", "Robin Fox"]);
+      expect(JSON.stringify(result.rows)).not.toContain("@example.com");
+    });
+
+    it("still refuses the record itself, the ungranted field, and the directory", async () => {
+      const seeded = await createSeededLookupDisplayRuntime(
+        createLookupDisplayPartialModel({ fieldScopedUserNameRead: true, denyUserSearch: true }),
+      );
+
+      await expect(
+        seeded.runtime.read("User", seeded.robin.meta.guid, seeded.teamContext),
+      ).rejects.toBeInstanceOf(PolicyDeniedError);
+      await expect(
+        seeded.runtime.search("User", undefined, seeded.teamContext),
+      ).rejects.toBeInstanceOf(PolicyDeniedError);
+
+      const shaped = await seeded.runtime.readFieldsForDisplay(
+        "User",
+        seeded.robin.meta.guid,
+        ["Name", "Email"],
+        seeded.teamContext,
+      );
+      expect(shaped?.values).toEqual({ Name: "Robin Fox" });
+    });
+
+    it("lets an explicit row-level DENY still suppress a field-scoped label", async () => {
+      // A rule carrying no `FIELDS` matches a field request too, so the escape
+      // hatch a field-scoped grant opens is only ever the *default* deny.
+      const seeded = await createSeededLookupDisplayRuntime(
+        createLookupDisplayPartialModel({
+          fieldScopedUserNameRead: true,
+          denyRowReadOutright: true,
+        }),
+      );
+
+      const result = await seeded.runtime.executeReadModel("TeamRoster", seeded.teamContext);
+
+      expect(result.rows.map((row) => row.display)).toEqual([undefined, undefined]);
+      expect(
+        await seeded.runtime.readFieldsForDisplay(
+          "User",
+          seeded.robin.meta.guid,
+          ["Name"],
+          seeded.teamContext,
+        ),
+      ).toBeNull();
+    });
+
     it("degrades to the raw natural key when the caller may not search the target object", async () => {
       // Matching by field value is a search however it is spelled, so a caller
       // who may not enumerate `User` must not be able to fish names out of it
@@ -299,6 +366,10 @@ interface LookupDisplayModelOptions {
   denyUserRead?: boolean;
   denyUserSearch?: boolean;
   hideUserName?: boolean;
+  /** Phase 101: `ALLOW READ AUTHENTICATED FIELDS Name` instead of the whole object. */
+  fieldScopedUserNameRead?: boolean;
+  /** An explicit row-level `DENY READ`, alongside the field-scoped allow. */
+  denyRowReadOutright?: boolean;
 }
 
 function createLookupDisplayPartialModel(
@@ -454,7 +525,28 @@ function createUserPolicy(options: LookupDisplayModelOptions): PartialPolicyMode
               action: "search" as const,
             },
           ]),
-      ...(options.denyUserRead === true
+      ...(options.denyRowReadOutright === true
+        ? [
+            {
+              name: "denyReadUserOutright",
+              effect: "deny" as const,
+              principal: { match: "authenticated" as const },
+              action: "read" as const,
+            },
+          ]
+        : []),
+      ...(options.fieldScopedUserNameRead === true
+        ? [
+            {
+              name: "allowReadUserName",
+              effect: "allow" as const,
+              principal: { match: "authenticated" as const },
+              action: "read" as const,
+              fields: ["Name"],
+            },
+          ]
+        : []),
+      ...(options.denyUserRead === true || options.fieldScopedUserNameRead === true
         ? []
         : [
             {

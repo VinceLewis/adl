@@ -706,10 +706,15 @@ export class ReadModelService {
    *
    * Every refusal path returns `undefined` rather than throwing: a label is
    * cosmetic, and a caller who may not read the target still legitimately holds
-   * the stored value the row projected. The gates are the same ones a source
-   * record clears — object scope, and the record's own read policy, applied
-   * through `applyReadPolicy` so a `HIDE`/`MASK` on the display field is
-   * honoured too rather than being read around.
+   * the stored value the row projected. The gates are object scope, and the
+   * display field's *own* read decision — `applyDisplayFieldReadPolicy`, not
+   * `applyReadPolicy`, because a label is a field read and not a record read.
+   * A `HIDE`/`MASK` on the display field is still honoured, and an explicit
+   * row-level `DENY` still wins (a rule carrying no `FIELDS` matches a field
+   * request too); what is *not* required is a whole-record read grant the
+   * caller may legitimately not hold. Requiring one is how a field-scoped
+   * grant like `ALLOW READ AUTHENTICATED FIELDS Name` silently degrades every
+   * label in an application to a raw record id.
    */
   private async resolveLookupDisplayLabel(
     lookup: ResolvedLookup,
@@ -734,8 +739,13 @@ export class ReadModelService {
       return undefined;
     }
 
-    const shaped = this.policyEngine.applyReadPolicy(object.name, record, context);
-    const label = shaped.values[lookup.displayField];
+    const shaped = this.policyEngine.applyDisplayFieldReadPolicy(
+      object.name,
+      record,
+      [lookup.displayField],
+      context,
+    );
+    const label = shaped[lookup.displayField];
     if (typeof label !== "string" && typeof label !== "number" && typeof label !== "boolean") {
       return undefined;
     }
