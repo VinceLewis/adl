@@ -138,6 +138,7 @@ not an error).
 | `.adl` construct | `.adlj` shape | Notes |
 | --- | --- | --- |
 | `APP Name` `START_VIEW`/`OFFLINE_GRACE` | `app: { name, startView?, offlineGraceDays?, theme?, comment? }` | Only `name` is required. |
+| `SHELL` / `NAV_MODE` / `NAV` | `shell: { nav?: { mode?, items? }, topBar?, navDrawer?, controls?, comment? }` | `nav.mode` is `"explicitOnly"` or `"includeUnlistedViews"`; omission defaults to explicit-only. |
 | `ROLE Name` | `roles: [{ name, comment? }]` | |
 | `CONTEXT Name ... MEMBERSHIP ...` | `contexts: [{ name, object?, selection?: { mode, ... }, membership?: { object, userField, contextField, roleField, roles? }, grants?: [AdljContextGrantModel], comment? }]` | `selection.mode`/`membership.*` mirror the `.adl` `SELECTION`/`MEMBERSHIP` sub-directives field-for-field. |
 | `CONTEXT_GRANT Name ON Context` | one entry of `contexts[i].grants`: `{ name, object, userField, contextField, condition?, comment? }` | `condition` is an infix expression string. |
@@ -158,6 +159,62 @@ not an error).
 | a `CREATE`/`UPDATE`/`READ` command step | one entry of `commands[i].steps`, discriminated by `action`: `{ action: "create", name, object, values?, establishesContext?, forEach?, authority?, preconditions?, comment? }` / `{ action: "update", name, object, recordId, patch?, forEach?, authority?, preconditions?, comment? }` / `{ action: "read", name, object, recordId, preconditions?, comment? }` | `preconditions` here are plain `string[]` (names of preconditions declared above), not inline objects. |
 | a step's `VALUE`/`SET`/`PATCH` assignment | a `ResolvedCommandValueExpression`, e.g. `{ "kind": "input", "name": "Owner" }`, `{ "kind": "literal", "value": 3 }`, `{ "kind": "runtime", "property": "userId" }`, `{ "kind": "stepField", "step": "create1", "field": "Id" }`, `{ "kind": "stepMeta", "step": "create1", "property": "recordId" }`, `{ "kind": "item", "field": "Title" }`, `{ "kind": "itemIndex" }` | This is the one place JSON structure, not an infix string, represents "an expression." |
 | `THEME Name BASE ...` | `themes: [PartialThemeModel]` | No expression-bearing fields; passes straight through. |
+
+### Shell navigation modes
+
+The default shell navigation is an allowlist: only `items` appear. No `mode`
+key is needed for the normal explicit-only case:
+
+```json
+{
+  "app": { "name": "Curated App", "startView": "HomeDashboard" },
+  "shell": {
+    "nav": {
+      "items": [
+        { "view": "HomeDashboard", "label": "Home", "icon": "home", "order": 10 },
+        { "view": "EventList", "label": "Events", "icon": "calendar", "order": 20 }
+      ]
+    }
+  },
+  "objects": [
+    {
+      "name": "Event",
+      "fields": [{ "name": "Title", "type": "text" }],
+      "views": [
+        { "name": "HomeDashboard", "kind": "dashboard", "fields": ["Title"] },
+        { "name": "EventList", "kind": "list", "fields": ["Title"] },
+        { "name": "EventForm", "kind": "form", "fields": ["Title"] }
+      ]
+    }
+  ]
+}
+```
+
+That drawer contains `HomeDashboard` and `EventList`, not `EventForm`. To add
+generated entries for every view not listed explicitly, opt in with
+`"mode": "includeUnlistedViews"`:
+
+```json
+{
+  "app": { "name": "Exploration App", "startView": "ItemList" },
+  "shell": { "nav": { "mode": "includeUnlistedViews" } },
+  "objects": [
+    {
+      "name": "Item",
+      "fields": [{ "name": "Name", "type": "text" }],
+      "views": [
+        { "name": "ItemList", "kind": "list", "fields": ["Name"] },
+        { "name": "ItemForm", "kind": "form", "fields": ["Name"] }
+      ]
+    }
+  ]
+}
+```
+
+Here both views receive generated drawer entries. An explicitly listed view
+still uses its declared label, icon, group, order, active-state names, and
+visibility; generation applies only to unlisted views. The explicit
+`"explicitOnly"` value is valid but normally unnecessary.
 
 ### Expressions
 

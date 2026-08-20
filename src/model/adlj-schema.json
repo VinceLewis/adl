@@ -2939,6 +2939,9 @@
             "$ref": "#/definitions/PartialShellNavItemModel"
           },
           "type": "array"
+        },
+        "mode": {
+          "$ref": "#/definitions/ShellNavigationMode"
         }
       },
       "type": "object"
@@ -3660,6 +3663,13 @@
       "enum": [
         "dropdown",
         "sheet"
+      ],
+      "type": "string"
+    },
+    "ShellNavigationMode": {
+      "enum": [
+        "explicitOnly",
+        "includeUnlistedViews"
       ],
       "type": "string"
     },

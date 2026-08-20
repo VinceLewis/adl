@@ -110,6 +110,7 @@ import type {
   ShellControlKind,
   ShellControlPlacement,
   ShellMobileContextSelectorMode,
+  ShellNavigationMode,
   ShellVisibilityKind,
   SyncMode,
   SyncScope,
@@ -337,6 +338,7 @@ export const MODEL_VALIDATION_CODES = {
   SHELL_NAV_ACTIVE_VIEW_UNKNOWN: "ADL_SHELL_NAV_ACTIVE_VIEW_UNKNOWN",
   SHELL_NAV_DUPLICATE: "ADL_SHELL_NAV_DUPLICATE",
   SHELL_NAV_ICON_INVALID: "ADL_SHELL_NAV_ICON_INVALID",
+  SHELL_NAV_MODE_INVALID: "ADL_SHELL_NAV_MODE_INVALID",
   SHELL_NAV_ORDER_DUPLICATE: "ADL_SHELL_NAV_ORDER_DUPLICATE",
   SHELL_NAV_VIEW_UNKNOWN: "ADL_SHELL_NAV_VIEW_UNKNOWN",
   SHELL_TOP_BAR_CONTROL_PLACEMENT_MISMATCH: "ADL_SHELL_TOP_BAR_CONTROL_PLACEMENT_MISMATCH",
@@ -636,6 +638,10 @@ const SHELL_CONTEXT_SELECTOR_PLACEMENTS = new Set<ShellContextSelectorPlacement>
 const SHELL_MOBILE_CONTEXT_SELECTOR_MODES = new Set<ShellMobileContextSelectorMode>([
   "dropdown",
   "sheet",
+]);
+const SHELL_NAVIGATION_MODES = new Set<ShellNavigationMode>([
+  "explicitOnly",
+  "includeUnlistedViews",
 ]);
 const SHELL_VISIBILITY_KINDS = new Set<ShellVisibilityKind>([
   "always",
@@ -1192,6 +1198,16 @@ function validateShell(
   indexes: ModelIndexes,
   diagnostics: Diagnostic[],
 ): void {
+  if (!SHELL_NAVIGATION_MODES.has(shell.nav.mode)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_NAV_MODE_INVALID,
+        `Shell navigation has invalid mode '${String(shell.nav.mode)}'.`,
+        "shell.nav.mode",
+      ),
+    );
+  }
+
   reportDuplicateNames(
     shell.nav.items,
     "shell.nav.items",

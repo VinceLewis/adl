@@ -942,6 +942,7 @@ END.COMMAND
 END.APP
 
 SHELL
+  NAV_MODE INCLUDE_UNLISTED_VIEWS
   NAV BandHome LABEL 'Home'
   CONTROL themeSwitch KIND THEME_SWITCH PLACEMENT navDrawer
   CONTROL logout KIND LOGOUT PLACEMENT navDrawer
@@ -1035,6 +1036,8 @@ END.POLICY
 `);
 
     expect(result.diagnostics).toEqual([]);
+    expect(result.partialModel.shell?.nav?.mode).toBe("includeUnlistedViews");
+    expect(result.model.shell.nav.mode).toBe("includeUnlistedViews");
     expect(result.partialModel.shell?.navDrawer).toEqual({
       title: "Giggle Band",
       controls: ["themeSwitch", "logout"],
@@ -1169,6 +1172,7 @@ END.POLICY
       startView: "HomeDashboard",
       offlineGraceDays: 30,
     });
+    expect(result.model.shell.nav.mode).toBe("explicitOnly");
     expect(result.model.shell.nav.items.map((item) => [item.view, item.label, item.order])).toEqual(
       [
         ["HomeDashboard", "Home", 10],
@@ -1185,16 +1189,6 @@ END.POLICY
         ["StreamingLinkList", "Streaming", 65],
         ["BandDirectory", "Bands", 70],
         ["MyInvitationList", "Sent Invitations", 80],
-        // Undeclared views keep their derived ordering after the declared ones,
-        // which is why adding a fourth NAV entry moves this block from 110 to 120.
-        ["UserProfileList", "User Profile List", 120],
-        ["BandProfile", "Band Profile", 130],
-        ["BandMemberList", "Band Member List", 140],
-        ["BandInvitationList", "Band Invitation List", 150],
-        ["BandEventForm", "Band Event Form", 160],
-        ["SetListItemList", "Set List Item List", 170],
-        ["SetListByPosition", "Set List By Position", 180],
-        ["DevicePreferenceList", "Device Preference List", 190],
       ],
     );
     expect(

@@ -34,6 +34,9 @@ export const browserDemoPartialModel = {
     startView: "UserList",
     theme: "CorporateLight",
   },
+  shell: {
+    nav: { mode: "includeUnlistedViews" },
+  },
   roles: [
     { name: "Admin" },
     { name: "Viewer" },

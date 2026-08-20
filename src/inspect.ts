@@ -100,6 +100,15 @@ function explainShellDefaults(
 ): ResolvedModelExplanationEntry[] {
   return [
     {
+      path: "shell.nav.mode",
+      value: model.shell.nav.mode,
+      origin: source?.shell?.nav?.mode === undefined ? "platformDefault" : "source",
+      note:
+        source?.shell?.nav?.mode === undefined
+          ? "Shell navigation defaulted to explicit items only."
+          : "Shell navigation mode was supplied by the source model.",
+    },
+    {
       path: "shell.topBar.contextSelector",
       value: model.shell.topBar.contextSelector,
       origin: source?.shell?.topBar?.contextSelector === undefined ? "platformDefault" : "source",

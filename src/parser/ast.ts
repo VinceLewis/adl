@@ -36,6 +36,7 @@ import type {
   ShellControlKind,
   ShellControlPlacement,
   ShellMobileContextSelectorMode,
+  ShellNavigationMode,
   ShellVisibilityKind,
   SyncMode,
   SyncScope,
@@ -170,6 +171,7 @@ export interface AppDeclarationAst {
 
 export interface ShellDeclarationAst {
   kind: "ShellDeclaration";
+  navMode?: ShellNavigationMode;
   navItems: ShellNavItemDeclarationAst[];
   controls: ShellControlDeclarationAst[];
   topBar?: ShellTopBarDeclarationAst;

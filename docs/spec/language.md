@@ -1199,6 +1199,34 @@ and `VISIBLE` conditions. Implemented visibility conditions are `ALWAYS`,
 `ONLINE`, `OFFLINE`, `WHEN CONTEXT Name AVAILABLE`, and `WHEN CONTEXT Name
 SELECTED`.
 
+Navigation is **explicit-only by default**. If `NAV_MODE` is omitted, the
+resolved drawer contains exactly the declared `NAV` entries; declaring a view
+does not itself make that view a top-level destination. This keeps supporting
+forms, child lists, and other implementation views out of user-facing
+navigation:
+
+```adl
+SHELL
+  NAV HomeDashboard LABEL 'Home' ICON home ORDER 10
+  NAV BandEventList LABEL 'Gigs' ICON calendar ORDER 20
+END.SHELL
+```
+
+The legacy generated behavior is available only through an explicit opt-in:
+
+```adl
+SHELL
+  NAV_MODE INCLUDE_UNLISTED_VIEWS
+  NAV HomeDashboard LABEL 'Home' ICON home ORDER 10
+END.SHELL
+```
+
+`INCLUDE_UNLISTED_VIEWS` retains each declared item's metadata and generates a
+label, object-name group, order, active state, and `ALWAYS` visibility for every
+resolved view that has no `NAV` entry. With no `NAV` lines it generates entries
+for every view. `NAV_MODE EXPLICIT_ONLY` is also accepted for round-trip
+completeness, but is redundant because it is the default.
+
 `CONTROL` entries support optional `LABEL`, semantic `ICON`, `PLACEMENT`, and
 `VISIBLE` metadata. Implemented control kinds are `contextSelector`,
 `syncStatus`, `connectivity`, `themeSwitch`, `logout`, and `pwaInstall`;

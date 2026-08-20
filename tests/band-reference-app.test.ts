@@ -172,14 +172,16 @@ describe("band reference app model", () => {
         },
       },
     ]);
-    // The standalone list view and its shell nav entry survive this phase: it
-    // adds in-place editing rather than replacing the separate surface.
+    // The standalone view remains available as a model surface, but explicit
+    // shell navigation no longer promotes that implementation view into the
+    // user-facing drawer by default.
     expect(
       model.objects.find((object) => object.name === "SetListItem")?.views.map((view) => view.name),
     ).toContain("SetListItemList");
     expect(model.shell.nav.items.map((item) => item.view)).toEqual(
-      expect.arrayContaining(["SetListList", "SetListForm", "SetListItemList"]),
+      expect.arrayContaining(["SetListList", "SetListForm"]),
     );
+    expect(model.shell.nav.items.map((item) => item.view)).not.toContain("SetListItemList");
     // The list that opens the surface has to agree about the container, because
     // the container is chosen by the view that is active when editing starts.
     expect(setList?.views.find((view) => view.name === "SetListList")?.editContainer).toBe("page");
@@ -1696,6 +1698,16 @@ describe("band reference browser demo", () => {
       seeded.firstBandContext,
     );
     const app = document.createElement("adl-app") as AdlAppElement;
+    // This behavioral test deliberately opts the standalone implementation
+    // view into its local test shell. The reference app itself leaves it out.
+    seeded.model.shell.nav.items.push({
+      name: "SetListItemList",
+      view: "SetListItemList",
+      label: "Set list items",
+      order: 999,
+      activeWhen: ["SetListItemList"],
+      visibility: { kind: "always" },
+    });
     app.model = seeded.model;
     app.runtime = seeded.runtime;
     app.context = {
@@ -2130,6 +2142,16 @@ describe("band reference browser demo", () => {
   it("renders finite IN validators as select controls in generic forms", async () => {
     const seeded = await createSeededBandReferenceRuntime();
     const app = document.createElement("adl-app") as AdlAppElement;
+    // The reference drawer intentionally omits this generic implementation
+    // view; this test opts it in locally to exercise its form renderer.
+    seeded.model.shell.nav.items.push({
+      name: "BandInvitationList",
+      view: "BandInvitationList",
+      label: "Band invitations",
+      order: 999,
+      activeWhen: ["BandInvitationList"],
+      visibility: { kind: "always" },
+    });
     app.model = seeded.model;
     app.runtime = seeded.runtime;
     app.context = {

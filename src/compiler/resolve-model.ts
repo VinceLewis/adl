@@ -284,22 +284,26 @@ function resolveShell(
   input: PartialShellModel | undefined,
   objects: ResolvedObject[],
 ): ResolvedShell {
+  const mode = input?.nav?.mode ?? "explicitOnly";
   const sourceItems = input?.nav?.items ?? [];
   const declaredViews = new Set(sourceItems.map((item) => item.view));
-  const defaultItems = objects
-    .flatMap((object) => object.views.map((view) => ({ object, view })))
-    .filter(({ view }) => !declaredViews.has(view.name))
-    .map(({ object, view }, index) =>
-      resolveShellNavItem(
-        {
-          view: view.name,
-          label: titleCaseIdentifier(view.name),
-          group: titleCaseIdentifier(object.name),
-          order: (sourceItems.length + index + 1) * 10,
-        },
-        sourceItems.length + index,
-      ),
-    );
+  const defaultItems =
+    mode === "includeUnlistedViews"
+      ? objects
+          .flatMap((object) => object.views.map((view) => ({ object, view })))
+          .filter(({ view }) => !declaredViews.has(view.name))
+          .map(({ object, view }, index) =>
+            resolveShellNavItem(
+              {
+                view: view.name,
+                label: titleCaseIdentifier(view.name),
+                group: titleCaseIdentifier(object.name),
+                order: (sourceItems.length + index + 1) * 10,
+              },
+              sourceItems.length + index,
+            ),
+          )
+      : [];
 
   const navItems = [
     ...sourceItems.map((item, index) => resolveShellNavItem(item, index)),
@@ -308,7 +312,7 @@ function resolveShell(
   const controls = (input?.controls ?? createDefaultShellControls()).map(resolveShellControl);
 
   return {
-    nav: { items: navItems },
+    nav: { mode, items: navItems },
     topBar: {
       contextSelector: input?.topBar?.contextSelector ?? "topBar",
       mobileContextSelector: input?.topBar?.mobileContextSelector ?? "sheet",

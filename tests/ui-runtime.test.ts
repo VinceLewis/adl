@@ -38,6 +38,26 @@ describe("browser UI runtime", () => {
     globalThis.history.replaceState({}, "", "/");
   });
 
+  it("omits the menu button and drawer when explicit navigation has no content", async () => {
+    const model = resolveApplicationModel({
+      app: { name: "Focused App", startView: "ItemList" },
+      objects: [
+        {
+          name: "Item",
+          fields: [{ name: "Name", type: "text" }],
+          views: [{ name: "ItemList", kind: "list", fields: ["Name"] }],
+        },
+      ],
+    });
+    const app = await mountApp(model, new ApplicationRuntime(model), viewerUiContext);
+
+    expect(model.shell.nav).toEqual({ mode: "explicitOnly", items: [] });
+    expect(app.querySelector("[data-shell-menu='true']")).toBeNull();
+    expect(app.querySelector(".adl-nav-drawer")).toBeNull();
+    expect(app.querySelector(".adl-nav-overlay")).toBeNull();
+    expect(app.querySelector("adl-list-view")).not.toBeNull();
+  });
+
   it("renders the model-driven User list and supports search", async () => {
     const app = await mountApp();
 

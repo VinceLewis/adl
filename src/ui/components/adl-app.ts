@@ -1552,21 +1552,29 @@ export class AdlAppElement extends HTMLElement {
     const topbarClass = "adl-topbar adl-topbar-app";
     const showWorkspace =
       this.activeRuntimeContext !== undefined && this.activeViewEmptyState === undefined;
+    const hasNavigationDrawerContent = this.hasNavigationDrawerContent;
+    if (!hasNavigationDrawerContent) {
+      this.navDrawerOpen = false;
+    }
 
     this.applyThemeTokens();
     this.innerHTML = `
       <main class="${shellClass}">
         <header class="${topbarClass}">
-          <button
-            class="adl-menu-action"
-            type="button"
-            aria-label="${this.navDrawerOpen ? "Close navigation menu" : "Open navigation menu"}"
-            aria-controls="adl-nav-drawer"
-            aria-expanded="${this.navDrawerOpen ? "true" : "false"}"
-            data-shell-menu="true"
-          >
-            <span aria-hidden="true"></span>
-          </button>
+          ${
+            hasNavigationDrawerContent
+              ? `<button
+                  class="adl-menu-action"
+                  type="button"
+                  aria-label="${this.navDrawerOpen ? "Close navigation menu" : "Open navigation menu"}"
+                  aria-controls="adl-nav-drawer"
+                  aria-expanded="${this.navDrawerOpen ? "true" : "false"}"
+                  data-shell-menu="true"
+                >
+                  <span aria-hidden="true"></span>
+                </button>`
+              : '<span class="adl-menu-placeholder" aria-hidden="true"></span>'
+          }
           <div class="adl-brand">
             <h1>${escapeHtml(this._model.app.name)}</h1>
           </div>
@@ -2106,6 +2114,10 @@ export class AdlAppElement extends HTMLElement {
   }
 
   private renderNavigationDrawer(activeView: ResolvedView): string {
+    if (!this.hasNavigationDrawerContent) {
+      return "";
+    }
+
     const activeViewName = activeView.name;
     const navGroups = groupNavItems(this.visibleNavItems);
     return `
@@ -2509,6 +2521,13 @@ export class AdlAppElement extends HTMLElement {
   private get visibleNavItems(): ResolvedShellNavItem[] {
     return this._model.shell.nav.items.filter((item) =>
       this.isShellVisibilityVisible(item.visibility),
+    );
+  }
+
+  private get hasNavigationDrawerContent(): boolean {
+    return (
+      this.visibleNavItems.length > 0 ||
+      this.placedShellControls(this._model.shell.navDrawer.controls, "navDrawer").length > 0
     );
   }
 

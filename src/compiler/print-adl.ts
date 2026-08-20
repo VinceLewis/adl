@@ -349,6 +349,9 @@ function printContextGrant(contextName: string, grant: PartialContextGrantModel)
 
 function printShell(shell: PartialShellModel): string {
   const lines = ["SHELL"];
+  if (shell.nav?.mode !== undefined) {
+    lines.push(`  NAV_MODE ${camelToUpperSnake(shell.nav.mode)}`);
+  }
   for (const item of shell.nav?.items ?? []) {
     lines.push(`  ${printShellNavItem(item)}`);
   }

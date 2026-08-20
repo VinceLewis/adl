@@ -8,9 +8,9 @@ or mobile business-context selection.
 - Application shell metadata is top-level resolved model data on
   `ResolvedApplicationModel.shell`, not parser AST and not per-app browser
   branches.
-- Resolver defaults create one nav item per resolved view, with derived labels,
-  object-name groups, stable order, target-view active state, and `always`
-  visibility.
+- Phase 31 originally made the resolver create one nav item per resolved view.
+  Phase 80 supersedes that default; see below. The derivation rules remain the
+  opt-in behavior.
 - Auth and access remain runtime-policy concerns. Shell visibility can hide
   nav items or controls based on runtime context such as online state or
   business-context availability/selection, but it is not enforcement.
@@ -131,6 +131,32 @@ or mobile business-context selection.
   gives: `adl-app.ts` is a real `HTMLElement` fully exercised by `happy-dom`
   already, and the state that matters (`activeThemeName`, the rendered
   `<select>`, the theme actually applied) belongs together in one component.
+
+## Decisions From Phase 80
+
+- **Navigation defaults to `explicitOnly`.** A `VIEW` declares a runtime
+  surface, not a promise that the surface is a top-level user destination.
+  Forms, child lists, lookup helpers, and alternate projections therefore no
+  longer leak into the drawer merely by existing in the model.
+- **The opt-in names the exceptional behavior:** `.adl` uses
+  `NAV_MODE INCLUDE_UNLISTED_VIEWS`; `.adlj` uses
+  `shell.nav.mode: "includeUnlistedViews"`. This is clearer at the call site
+  than restating the default with an `EXPLICIT_ONLY` flag. The explicit enum
+  value remains accepted so model values and printer round trips are closed.
+- **Explicit entries win by view name.** In opt-in mode the resolver only
+  derives items for views absent from `shell.nav.items`; it never merges over
+  an author's label, icon, group, order, active-state list, or visibility.
+- **An empty navigation model means no drawer chrome.** The browser hides the
+  hamburger, overlay, and drawer when there are no visible nav items and no
+  visible drawer controls. Drawer controls still keep the drawer reachable
+  even when the nav item list itself is empty.
+- **Reference applications inherit the curated default; exploratory fixtures
+  opt in.** Giggle Band and Jointly Care already declare intentional nav items,
+  so omission is meaningful. The generic browser demo explicitly requests
+  generated entries because it is a platform exploration surface.
+- **Inspect output includes `shell.nav.mode`.** The origin distinguishes an
+  omitted platform default from a mode explicitly supplied by source, making
+  this behavior diagnosable without reading resolver code.
 
 ## Practical Guidance
 

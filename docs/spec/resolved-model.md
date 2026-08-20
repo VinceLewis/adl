@@ -512,6 +512,10 @@ source models do not declare a `SHELL` block.
 
 The shell contains:
 
+- `nav.mode`: `explicitOnly` or `includeUnlistedViews`. An undeclared source
+  mode resolves to `explicitOnly`; in that mode `nav.items` contains only
+  source-declared entries. `includeUnlistedViews` additionally derives entries
+  for resolved views that have no explicit item.
 - `nav.items`: view-backed navigation items with name, target view, label,
   optional semantic icon, optional group, numeric order, active-state view
   names, and visibility metadata.
@@ -542,10 +546,11 @@ Implemented shell visibility metadata is deliberately small: `always`, `online`,
 a business context and is a rendering decision only. It does not grant or deny
 runtime access.
 
-Shell validation checks view targets, active-state view references, duplicate
-nav names and orders, semantic icon name shape, control names/kinds/placements,
-top-bar control references, and context references in shell visibility or
-controls. Invalid shell metadata produces `ADL_SHELL_*` diagnostics.
+Shell validation checks the navigation mode, view targets, active-state view
+references, duplicate nav names and orders, semantic icon name shape, control
+names/kinds/placements, top-bar control references, and context references in
+shell visibility or controls. Invalid shell metadata produces `ADL_SHELL_*`
+diagnostics.
 
 Per-view `presentation.shell.regions` remains a JSON/TypeScript partial-model
 shape for placing view-local presentation controls. It is distinct from the

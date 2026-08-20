@@ -103,6 +103,7 @@ export type ShellControlKind =
 export type ShellControlPlacement = "topBar" | "navDrawer";
 export type ShellContextSelectorPlacement = "topBar" | "navDrawer" | "hidden";
 export type ShellMobileContextSelectorMode = "dropdown" | "sheet";
+export type ShellNavigationMode = "explicitOnly" | "includeUnlistedViews";
 export type ShellVisibilityKind =
   | "always"
   | "contextAvailable"
@@ -339,6 +340,7 @@ export interface ResolvedShell {
 }
 
 export interface ResolvedShellNavigation {
+  mode: ShellNavigationMode;
   items: ResolvedShellNavItem[];
 }
 
@@ -1703,6 +1705,7 @@ export interface PartialShellNavDrawerModel {
 }
 
 export interface PartialShellNavigationModel {
+  mode?: ShellNavigationMode;
   items?: PartialShellNavItemModel[];
 }
 

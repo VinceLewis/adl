@@ -1578,6 +1578,7 @@ END.OBJECT
     (invalid.shell.topBar as unknown as { contextSelector: string }).contextSelector = "toolbar";
     (invalid.shell.topBar as unknown as { mobileContextSelector: string }).mobileContextSelector =
       "popover";
+    (invalid.shell.nav as unknown as { mode: string }).mode = "implicitEverything";
     (invalid.shell.nav.items[1]?.visibility as unknown as { kind: string }).kind = "sometimes";
 
     const codes = validateApplicationModel(invalid).map((diagnostic) => diagnostic.code);
@@ -1594,6 +1595,7 @@ END.OBJECT
         MODEL_VALIDATION_CODES.SHELL_NAV_ACTIVE_VIEW_UNKNOWN,
         MODEL_VALIDATION_CODES.SHELL_NAV_DUPLICATE,
         MODEL_VALIDATION_CODES.SHELL_NAV_ICON_INVALID,
+        MODEL_VALIDATION_CODES.SHELL_NAV_MODE_INVALID,
         MODEL_VALIDATION_CODES.SHELL_NAV_ORDER_DUPLICATE,
         MODEL_VALIDATION_CODES.SHELL_NAV_VIEW_UNKNOWN,
         MODEL_VALIDATION_CODES.SHELL_TOP_BAR_CONTROL_UNKNOWN,

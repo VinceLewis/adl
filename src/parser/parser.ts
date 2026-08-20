@@ -40,6 +40,7 @@ import type {
   ShellControlKind,
   ShellControlPlacement,
   ShellMobileContextSelectorMode,
+  ShellNavigationMode,
   ShellVisibilityKind,
   SyncMode,
   SyncScope,
@@ -666,6 +667,7 @@ class AdlParser {
   private parseShell(): ShellDeclarationAst {
     const leadingComment = this.takeLeadingComment();
     const startToken = this.expectWord("SHELL", "SHELL declaration");
+    let navMode: ShellNavigationMode | undefined;
     const navItems: ShellNavItemDeclarationAst[] = [];
     const controls: ShellControlDeclarationAst[] = [];
     let topBar: ShellTopBarDeclarationAst | undefined;
@@ -683,6 +685,7 @@ class AdlParser {
         const end = this.parseEnd("SHELL");
         return {
           kind: "ShellDeclaration",
+          ...(navMode === undefined ? {} : { navMode }),
           navItems,
           controls,
           ...(topBar === undefined ? {} : { topBar }),
@@ -693,9 +696,13 @@ class AdlParser {
         };
       }
 
-      // `NAV_DRAWER` is tested before `NAV` because the dotted spelling starts
+      // `NAV_MODE` and `NAV_DRAWER` are tested before `NAV` because they start
       // with the same word as a navigation item.
-      if (this.checkWord("NAV_DRAWER") || this.checkDottedWord("NAV", "DRAWER")) {
+      if (this.checkWord("NAV_MODE")) {
+        this.expectWord("NAV_MODE", "SHELL NAV_MODE declaration");
+        navMode = this.parseShellNavigationMode();
+        this.consumeLineEnd("SHELL NAV_MODE declaration");
+      } else if (this.checkWord("NAV_DRAWER") || this.checkDottedWord("NAV", "DRAWER")) {
         navDrawer = this.parseShellNavDrawer();
       } else if (this.checkWord("NAV")) {
         navItems.push(this.parseShellNavItem());
@@ -704,7 +711,9 @@ class AdlParser {
       } else if (this.checkWord("TOP_BAR") || this.checkDottedWord("TOP", "BAR")) {
         topBar = this.parseShellTopBar();
       } else {
-        this.failUnexpected("SHELL directive NAV, NAV_DRAWER, CONTROL, TOP_BAR, or END.SHELL");
+        this.failUnexpected(
+          "SHELL directive NAV_MODE, NAV, NAV_DRAWER, CONTROL, TOP_BAR, or END.SHELL",
+        );
       }
     }
   }
@@ -4282,6 +4291,21 @@ class AdlParser {
         return "sheet";
       default:
         this.failExpected("shell mobile context selector mode DROPDOWN or SHEET", token);
+    }
+  }
+
+  private parseShellNavigationMode(): ShellNavigationMode {
+    const token = this.consumeWordToken("shell navigation mode");
+
+    switch (normaliseKeyword(token.lexeme)) {
+      case "explicitonly":
+      case "explicit_only":
+        return "explicitOnly";
+      case "includeunlistedviews":
+      case "include_unlisted_views":
+        return "includeUnlistedViews";
+      default:
+        this.failExpected("shell navigation mode EXPLICIT_ONLY or INCLUDE_UNLISTED_VIEWS", token);
     }
   }
 

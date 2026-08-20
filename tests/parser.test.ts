@@ -315,6 +315,7 @@ END.OBJECT
 END.APP
 
 SHELL
+  NAV_MODE INCLUDE_UNLISTED_VIEWS
   NAV Home LABEL 'Home' ICON home GROUP Main ORDER 10 ACTIVE_WHEN Home HomeDetail
   NAV Availability LABEL 'Availability' ICON calendar GROUP Main ORDER 20 VISIBLE WHEN CONTEXT Band SELECTED
   CONTROL contextSelector KIND contextSelector PLACEMENT topBar
@@ -339,6 +340,7 @@ END.OBJECT
 `);
 
     expect(ast.shell).toMatchObject({
+      navMode: "includeUnlistedViews",
       navItems: [
         expect.objectContaining({
           view: "Home",
@@ -367,6 +369,21 @@ END.OBJECT
         controls: ["contextSelector", "syncStatus"],
       }),
     });
+  });
+
+  it("accepts the explicit shell navigation mode used by canonical round trips", () => {
+    const ast = parseAdl(`APP ExplicitShell
+END.APP
+
+SHELL
+  NAV_MODE EXPLICIT_ONLY
+END.SHELL
+
+OBJECT Item
+END.OBJECT
+`);
+
+    expect(ast.shell?.navMode).toBe("explicitOnly");
   });
 
   it("parses top-level context grants, nav drawer chrome, and ordered constraint options", () => {

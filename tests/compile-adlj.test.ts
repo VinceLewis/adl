@@ -73,6 +73,41 @@ describe("compileAdlj", () => {
     }
   });
 
+  it("compiles and round-trips the opt-in mode for generated navigation", () => {
+    const source = JSON.stringify({
+      app: { name: "GeneratedNavigation", startView: "ItemList" },
+      shell: { nav: { mode: "includeUnlistedViews" } },
+      objects: [
+        {
+          name: "Item",
+          fields: [{ name: "Name", type: "text" }],
+          views: [{ name: "ItemList", kind: "list", fields: ["Name"] }],
+        },
+      ],
+    });
+
+    const compiled = compileAdlj(source);
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.model.shell.nav).toMatchObject({
+      mode: "includeUnlistedViews",
+      items: [expect.objectContaining({ view: "ItemList" })],
+    });
+
+    const printed = printPartialApplicationModelAsAdl(compiled.partialModel);
+    expect(printed).toContain("NAV_MODE INCLUDE_UNLISTED_VIEWS");
+    expect(compileAdl(printed).model.shell.nav).toEqual(compiled.model.shell.nav);
+  });
+
+  it("rejects an unknown .adlj shell navigation mode", () => {
+    const source = JSON.stringify({
+      app: { name: "BadNavigation" },
+      shell: { nav: { mode: "everythingImplicit" } },
+      objects: [{ name: "Item" }],
+    });
+
+    expect(() => compileAdlj(source)).toThrowError(AdljParseError);
+  });
+
   it("fails loudly when an expression-bearing field has trailing garbage", () => {
     const document: AdljSourceDocument = {
       app: { name: "TrailingGarbage" },

@@ -133,14 +133,7 @@ describe("resolveApplicationModel", () => {
       theme: DEFAULT_THEME_NAME,
       offlineGraceDays: DEFAULT_OFFLINE_GRACE_DAYS,
     });
-    expect(resolved.shell.nav.items[0]).toMatchObject({
-      view: "PatientRecordList",
-      label: "Patient Record List",
-      group: "Patient Record",
-      order: 10,
-      activeWhen: ["PatientRecordList"],
-      visibility: { kind: "always" },
-    });
+    expect(resolved.shell.nav).toEqual({ mode: "explicitOnly", items: [] });
     expect(resolved.shell.topBar).toEqual({
       contextSelector: "topBar",
       mobileContextSelector: "sheet",
@@ -395,6 +388,7 @@ describe("resolveApplicationModel", () => {
       ["TicketList", "Tickets", 10],
       ["TicketBoard", "Work", 20],
     ]);
+    expect(resolved.shell.nav.mode).toBe("explicitOnly");
     expect(resolved.shell.nav.items[0]).toMatchObject({
       icon: "list",
       group: "Main",
@@ -409,24 +403,64 @@ describe("resolveApplicationModel", () => {
       },
     ]);
 
-    expect(
-      explainResolvedModel(resolved, {
-        app: { name: "ShellOps", startView: "TicketBoard" },
-        shell: {
-          nav: { items: [{ view: "TicketBoard", label: "Work" }] },
+    const explanation = explainResolvedModel(resolved, {
+      app: { name: "ShellOps", startView: "TicketBoard" },
+      shell: {
+        nav: { items: [{ view: "TicketBoard", label: "Work" }] },
+      },
+      objects: [
+        {
+          name: "Ticket",
+          fields: [{ name: "Title", type: "text" }],
+          views: [{ name: "TicketBoard", kind: "dashboard", fields: ["Title"] }],
         },
-        objects: [
-          {
-            name: "Ticket",
-            fields: [{ name: "Title", type: "text" }],
-            views: [{ name: "TicketBoard", kind: "dashboard", fields: ["Title"] }],
-          },
-        ],
-      }).entries.find((entry) => entry.path === "shell.nav.items[1].label"),
+      ],
+    });
+    expect(explanation.entries.find((entry) => entry.path === "shell.nav.mode")).toMatchObject({
+      value: "explicitOnly",
+      origin: "platformDefault",
+    });
+    expect(
+      explanation.entries.find((entry) => entry.path === "shell.nav.items[1].label"),
     ).toMatchObject({
       value: "Work",
       origin: "source",
     });
+  });
+
+  it("generates entries only when shell navigation opts into unlisted views", () => {
+    const resolved = resolveApplicationModel({
+      app: { name: "GeneratedNav", startView: "TicketBoard" },
+      shell: {
+        nav: {
+          mode: "includeUnlistedViews",
+          items: [{ view: "TicketBoard", label: "Work", order: 10 }],
+        },
+      },
+      objects: [
+        {
+          name: "Ticket",
+          fields: [{ name: "Title", type: "text" }],
+          views: [
+            { name: "TicketBoard", kind: "dashboard", fields: ["Title"] },
+            { name: "TicketList", kind: "list", fields: ["Title"] },
+          ],
+        },
+      ],
+    });
+
+    expect(resolved.shell.nav.mode).toBe("includeUnlistedViews");
+    expect(resolved.shell.nav.items.map((item) => [item.view, item.label, item.order])).toEqual([
+      ["TicketBoard", "Work", 10],
+      ["TicketList", "Ticket List", 20],
+    ]);
+    expect(
+      explainResolvedModel(resolved, {
+        app: { name: "GeneratedNav", startView: "TicketBoard" },
+        shell: { nav: { mode: "includeUnlistedViews" } },
+        objects: [],
+      }).entries.find((entry) => entry.path === "shell.nav.mode"),
+    ).toMatchObject({ value: "includeUnlistedViews", origin: "source" });
   });
 
   it("resolves all object-level sync modes", () => {

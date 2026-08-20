@@ -203,6 +203,7 @@ function migrationStepToPartial(step: MigrationStepAst): ResolvedModelMigrationS
 function shellToPartial(shell: ShellDeclarationAst): PartialShellModel {
   return {
     nav: {
+      ...(shell.navMode === undefined ? {} : { mode: shell.navMode }),
       items: shell.navItems.map(shellNavItemToPartial),
     },
     ...(shell.topBar === undefined ? {} : { topBar: shellTopBarToPartial(shell.topBar) }),

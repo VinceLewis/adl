@@ -5,6 +5,9 @@ export const bandContextPartialModel = {
     name: "BandOps",
     startView: "HomeDashboard",
   },
+  // This test fixture exercises arbitrary generated CRUD views. Unlike the
+  // curated reference apps, that exploration behavior is intentional here.
+  shell: { nav: { mode: "includeUnlistedViews" } },
   roles: [{ name: "BandAdmin" }, { name: "BandMember" }],
   contexts: [
     {
