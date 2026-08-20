@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.1.0",
+  "modelVersion": "1.2.0",
   "app": {
     "name": "Jointly Care ADL Example",
     "startView": "HomeDashboard",
@@ -27,6 +27,11 @@
     {
       "from": "1.0.0",
       "to": "1.1.0",
+      "objects": []
+    },
+    {
+      "from": "1.1.0",
+      "to": "1.2.0",
       "objects": []
     }
   ],
