@@ -594,6 +594,7 @@ export const bandReferenceDemo: ReferenceDemoDefinition = {
   databaseName: BAND_REFERENCE_DATABASE_NAME,
   createPersistentRuntime: createPersistentBandReferenceRuntime,
   seedIfEmpty: seedBandReferenceDemo,
+  iconUrl: "/giggle-band-icon.svg",
 };
 
 export const giggleBandExampleDemo: ReferenceDemoDefinition = {
@@ -602,4 +603,5 @@ export const giggleBandExampleDemo: ReferenceDemoDefinition = {
   databaseName: GIGGLE_BAND_EXAMPLE_DATABASE_NAME,
   createPersistentRuntime: createPersistentGiggleBandExampleRuntime,
   seedIfEmpty: seedBandReferenceDemo,
+  iconUrl: "/giggle-band-icon.svg",
 };

@@ -78,6 +78,11 @@ test.describe("Jointly Care visual smoke", () => {
     );
     expect(metadata?.modelVersion).toBe(liveModelVersion);
 
+    // Jointly Care has no icon of its own; it keeps the generic ADL mark
+    // every reference app falls back to absent a more specific `iconUrl`
+    // (Phase 86).
+    await expect(page.locator("link#adl-app-favicon")).toHaveAttribute("href", "/adl-icon.svg");
+
     // Every declared migration for this app is an empty-object no-op, so
     // the whole real seeded dataset -- not just one hand-picked record --
     // survives the migration byte-identical.

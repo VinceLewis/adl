@@ -35,6 +35,13 @@ export interface ReferenceDemoDefinition {
   /** Database name for this demo's IndexedDB-backed persistent runtime. */
   databaseName: string;
   /**
+   * Browser-tab favicon URL for this demo, set on `index.html`'s
+   * `#adl-app-favicon` link by `mountReferenceDemo()`. Optional: a demo that
+   * omits it falls back to the generic `/adl-icon.svg` already declared in
+   * `index.html`.
+   */
+  iconUrl?: string;
+  /**
    * Always called with the model `createModel()` already produced — never
    * relied on to resolve one itself, which is what lets it stay synchronous
    * even for a `.adlj`-sourced demo.

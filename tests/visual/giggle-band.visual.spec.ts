@@ -70,6 +70,13 @@ test.describe("Giggle Band visual smoke", () => {
     // lands correctly on whatever version the app currently declares.
     expect(metadata?.modelVersion).toBe(await readMountedModelVersion(page));
 
+    // Giggle Band gets its own browser-tab icon (Phase 86), not the generic
+    // ADL mark every other reference app falls back to.
+    await expect(page.locator("link#adl-app-favicon")).toHaveAttribute(
+      "href",
+      "/giggle-band-icon.svg",
+    );
+
     await page.screenshot({
       path: testInfo.outputPath(`giggle-${testInfo.project.name}-persisted-upgrade.png`),
       fullPage: true,
