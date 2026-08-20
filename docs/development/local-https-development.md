@@ -131,7 +131,7 @@ ADL_IDENTITY_VERIFICATION=passkey
 ADL_UPSTREAM_IDENTITY_ISSUER=https://identity.localhost
 ADL_UPSTREAM_IDENTITY_AUDIENCE=adl-authority
 ADL_WEBAUTHN_RP_ID=localhost
-ADL_WEBAUTHN_RP_NAME=Giggle Band (local development)
+ADL_WEBAUTHN_RP_NAME="Giggle Band (local development)"
 ADL_WEBAUTHN_ORIGINS=https://localhost:5173
 ADL_COOKIE_SECURE=true
 EOF
