@@ -2,6 +2,14 @@
 
 Read this before changing the ADL lexer, parser, AST-to-partial-model compiler, parser tests, or examples.
 
+**Where the code is (Phase 88).** `src/parser/parser.ts` is a barrel holding
+only the public surface (`parseAdl`, `parseExpressionSource`, `ParseError`,
+`ParserDiagnostic`). The `AdlParser` class it used to hold is now a linear
+chain of grammar-area class files under `src/parser/grammar/`. Every
+`parseXxx` named anywhere below still exists with the same name and body —
+see [[parser-grammar-file-map]] for which file each one lives in, and for the
+chain-ordering rule you must respect when adding one.
+
 ## Key decisions from Phase 6
 
 - The initial ADL parser is hand-written TypeScript under `src/parser/`. It is line-oriented inside explicit blocks and supports `END.APP`, `END.OBJECT`, `END.LIFECYCLE`, `END.ACTION`, `END.VIEW`, `END.POLICY`, and `END.THEME`.

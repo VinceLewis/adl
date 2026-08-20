@@ -21,6 +21,8 @@ Before tasks that design the ADL resolved model, parser, validator, lifecycle, p
 
 Before any task that touches `src/model/resolved-model.ts`, `src/compiler/validate-model.ts`, or `src/compiler/resolve-model.ts` — or that needs to locate a specific type, validator, or resolver by domain (object/field, presentation-matrix, decision-table, sync, etc.) rather than grepping an 8,000-line file — read `implementation/compiler-model-layer-file-map.md` first. Since Phase 81, these are directories of domain files behind a barrel, not single files.
 
+Before any task that touches ADL grammar — or that needs to locate a keyword, clause, or `parseXxx` by grammar area rather than grepping a 5,750-line file — read `implementation/parser-grammar-file-map.md` first. Since Phase 88, `src/parser/parser.ts` is a barrel over `src/parser/grammar/`, a linear chain of grammar-area class files, not a single file.
+
 Before tasks that change resolved model defaults, model validation, policy evaluation, object constraints, commands, storage metadata, or runtime record handling, also read:
 
 - `implementation/compiler-model-layer-file-map.md`
@@ -152,6 +154,7 @@ Before tasks that integrate compile-time validation, runtime model startup check
 
 Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour, also read:
 
+- `implementation/parser-grammar-file-map.md`
 - `implementation/adl-parser.md`
 - `implementation/expression-language.md`
 - `process/syntax-uniformity-and-behavioral-guardrails.md`
@@ -159,6 +162,7 @@ Before tasks that change ADL lexer/parser syntax, AST conversion, `compileAdl`, 
 Before tasks that change a parser keyword alias, modifier-value parenthesization, `AUTO_ID`, `CONTEXT_MEMBER` policy principals, sync scope windows, or `LOOKUP TARGET_FIELD`, also read:
 
 - `process/syntax-uniformity-and-behavioral-guardrails.md`
+- `implementation/parser-grammar-file-map.md`
 - `implementation/adl-parser.md`
 - `implementation/model-validator.md`
 - `implementation/policy-engine.md`
@@ -326,6 +330,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/model-validator.md`: read before changing resolved-model validation, validation diagnostics, parser validation integration, object constraints, command declarations, or runtime model startup checks.
 - `implementation/auto-id-minting.md`: read before changing `AUTO_ID` field declarations, `ObjectStore.planCreateForTransaction`, or anything that decides where a `CREATE` write gets its final field values from — it carries the Phase 74 minting design, why `ValidationEngine`'s required-field check needed a small change too, and the collision-is-accepted (not solved) tradeoff plus the `CONSTRAINT ... UNIQUE` pairing recommendation.
 - `implementation/adl-parser.md`: read before changing ADL lexer/parser syntax, AST conversion, `compileAdl`, parser examples, or parsed policy/theme behaviour.
+- `implementation/parser-grammar-file-map.md`: read before changing ADL grammar, or to locate a keyword/clause by grammar area — it carries the Phase 88 file map for `src/parser/grammar/`, the linear-class-chain rule that makes a lower file unable to call a higher one (and the two areas, `clauses.ts` and `presentation-scalars.ts`/`presentation-action.ts`, that measured cycles forced into existence), the `private`/`protected` visibility rule, and the differential parser corpus technique — every `.adl` file truncated at every line boundary, which drove 1,250 distinct `ParseError` paths — that is the only real proof a parser relocation changed nothing.
 - `implementation/runtime-services.md`: read before changing runtime services, model-declared commands, UI runtime integration, lifecycle execution, audit, operation log handling, or runtime tests.
 - `implementation/storage-backend.md`: read before changing runtime persistence, object storage backends, browser demo seeding, sync replay storage, persisted record tests, or anything that mints a value identifying persisted state — it carries the Phase 61 decision that a record revision is durable state and that already-persisted old-format revisions are deliberately not migrated.
 - `implementation/model-versioning-guard.md`: read before changing runtime startup compatibility checks, persisted application metadata, object schema version guards, or future migration handling.
