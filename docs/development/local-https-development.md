@@ -171,6 +171,21 @@ production rule, and it holds here too, which is why a missing grant shows up on
 a laptop rather than in production. `scripts/dev/postgres.sh down` removes the
 container and its data.
 
+If that fails with `failed to bind host port 127.0.0.1:5432/tcp: address
+already in use`, a PostgreSQL is already running — on a Debian/Ubuntu machine
+the packaged server listens there by default (`systemctl status postgresql`).
+Give the container its own port rather than stopping the system one, and point
+the authority at the same port:
+
+```bash
+ADL_DEV_PG_PORT=55432 scripts/dev/postgres.sh up
+sed -i 's|@127.0.0.1:5432/|@127.0.0.1:55432/|' .env.authority.local
+set -a; . ./.env.authority.local; set +a
+```
+
+`ADL_DEV_PG_PORT` moves only the host-side port; everything inside the
+container, and every later step, is unchanged.
+
 ### 2. The authority
 
 ```bash
