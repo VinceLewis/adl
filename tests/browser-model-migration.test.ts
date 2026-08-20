@@ -23,6 +23,7 @@ import type {
   StoredObjectRecord,
 } from "../src/index.js";
 import { IndexedDbSessionIdentityStorage } from "../src/ui/offline-session.js";
+import { createGiggleBandExampleModel } from "../src/reference/band-app.js";
 
 /**
  * Phase 51, browser half: a model version change must migrate persisted
@@ -149,6 +150,52 @@ describe("browser model migration over IndexedDB", () => {
   afterEach(() => {
     restoreIndexedDb?.();
     restoreIndexedDb = undefined;
+  });
+
+  it("opens Giggle data persisted before explicit shell navigation without clearing it", async () => {
+    installFakeIndexedDb();
+    const databaseName = nextDatabaseName();
+    const model = await createGiggleBandExampleModel();
+    const band = model.objects.find((object) => object.name === "Band");
+    if (band === undefined) {
+      throw new Error("Giggle model is missing Band.");
+    }
+
+    expect(model.modelVersion).toBe("1.1.0");
+    expect(model.migrations).toContainEqual({
+      from: "1.0.0",
+      to: "1.1.0",
+      objects: [],
+    });
+
+    const storage = new IndexedDbObjectStorageBackend({ databaseName });
+    const persistedBand = storedRecord("Band", "band-before-explicit-nav", band.schemaVersion, {
+      Name: "The Alphas",
+    });
+    await storage.create("Band", persistedBand);
+    await storage.writeApplicationMetadata({
+      modelVersion: "1.0.0",
+      // The precise old digest is immaterial once a declared migration moves
+      // the version forward; its disagreement is what reproduced the blank
+      // page before this migration existed.
+      modelFingerprint: `sha256-${"0".repeat(64)}`,
+    });
+
+    const runtime = new ApplicationRuntime(model, { storage });
+    await runtime.whenReady();
+
+    expect(runtime.getStartupDiagnostics()).toContainEqual(
+      expect.objectContaining({
+        code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MIGRATION_APPLIED,
+        actual: "1.0.0",
+        expected: "1.1.0",
+      }),
+    );
+    expect(await storage.read("Band", persistedBand.meta.guid)).toEqual(persistedBand);
+    expect(await storage.readApplicationMetadata()).toEqual({
+      modelVersion: "1.1.0",
+      modelFingerprint: model.modelFingerprint,
+    });
   });
 
   it("migrates persisted records on whenReady and loses none of them", async () => {

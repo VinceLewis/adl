@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.0.0",
+  "modelVersion": "1.1.0",
   "app": {
     "name": "Jointly Care ADL Example",
     "startView": "HomeDashboard",
@@ -23,7 +23,13 @@
     }
   ],
   "themes": [],
-  "migrations": [],
+  "migrations": [
+    {
+      "from": "1.0.0",
+      "to": "1.1.0",
+      "objects": []
+    }
+  ],
   "objects": [
     {
       "name": "User",

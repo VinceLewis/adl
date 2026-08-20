@@ -29,6 +29,7 @@ export const browserDemoContext: RuntimeContext = {
 };
 
 export const browserDemoPartialModel = {
+  modelVersion: "0.2.0",
   app: {
     name: "ADL Runtime Demo",
     startView: "UserList",
@@ -37,6 +38,7 @@ export const browserDemoPartialModel = {
   shell: {
     nav: { mode: "includeUnlistedViews" },
   },
+  migrations: [{ from: "0.1.0", to: "0.2.0", objects: [] }],
   roles: [
     { name: "Admin" },
     { name: "Viewer" },

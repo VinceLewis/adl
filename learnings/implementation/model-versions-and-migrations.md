@@ -152,3 +152,20 @@ break on any unrelated model addition, teaching a second runtime nothing. A case
 instead names the model that *wrote* the state and the runner derives the
 metadata from it. `compareModelFingerprints` asserts the *relation* between two
 models' fingerprints for the same reason.
+
+## Phase 82: platform changes still need application migrations
+
+- A change to resolver defaults can change existing applications even when no
+  application source file changed. Phase 80 added `shell.nav.mode` to the
+  resolved model and changed which nav items were derived; that changed the
+  model fingerprint for persisted reference demos.
+- Fresh Playwright contexts cannot prove upgrade compatibility because they
+  carry no old IndexedDB metadata. Any resolved-model change affecting a
+  persistent browser app needs a test that seeds the previous declared version
+  and fingerprint, then opens the new model against the same database.
+- Do not weaken the stale-fingerprint guard for presentation-only changes.
+  Fingerprints deliberately cover the whole resolved contract, and deciding
+  after the fact that one mismatch is safe from only an opaque digest is a
+  guess. Advance the application model version and declare an empty-object
+  migration when records need no transformation; this preserves the guard and
+  records the compatibility claim explicitly.

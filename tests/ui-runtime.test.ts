@@ -61,6 +61,9 @@ describe("browser UI runtime", () => {
   it("renders the model-driven User list and supports search", async () => {
     const app = await mountApp();
 
+    expect(app.model.modelVersion).toBe("0.2.0");
+    expect(app.model.migrations).toContainEqual({ from: "0.1.0", to: "0.2.0", objects: [] });
+
     expect(app.querySelector("adl-form-view")).toBeNull();
     expect(requireElement<HTMLElement>(app, "[data-edit-container]").dataset.editContainer).toBe(
       "modal",

@@ -22,6 +22,8 @@ describe("jointly care reference app model", () => {
     const model = await createJointlyReferenceModel();
 
     expect(validateApplicationModel(model)).toEqual([]);
+    expect(model.modelVersion).toBe("1.1.0");
+    expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
       expect.arrayContaining([
