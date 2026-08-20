@@ -231,34 +231,51 @@ export class AdlComposedViewElement extends HTMLElement {
       return "";
     }
 
+    /*
+     * The title is a sibling of the *items container*, never of the items.
+     *
+     * It used to be a bare `<div>` inside the same wrapping flex row as the
+     * swatches, which cost two things at once. The title-to-first-item gap was
+     * identical to the item-to-item gap, so a reader could not tell whether the
+     * title labelled the legend or was itself an unswatched entry. And the
+     * wrapper carried `role="list"` while holding a child that was not a
+     * `listitem`, which is invalid ARIA — a screen reader is entitled to drop
+     * or mis-announce it. Nesting the items in their own `role="list"` fixes
+     * both: the list contains only list items, and the title can be spaced
+     * away from them (see `.adl-presentation-legend` in `styles.css`).
+     */
     return legends
       .map(
         (legend) => `
           <div
             class="adl-presentation-legend"
             data-presentation-legend="${escapeHtml(legend.name)}"
-            role="list"
-            aria-label="${escapeHtml(legend.title ?? `${legend.name} legend`)}"
           >
             ${
               legend.title === undefined
                 ? ""
                 : `<div class="adl-presentation-legend-title">${escapeHtml(legend.title)}</div>`
             }
-            ${legend.items
-              .map(
-                (item) => `
-                  <div
-                    class="adl-presentation-legend-item"
-                    data-status="${escapeHtml(item.status.name)}"
-                    role="listitem"
-                  >
-                    ${this.renderStatusIndicator(item.status)}
-                    <span>${escapeHtml(item.status.label)}</span>
-                  </div>
-                `,
-              )
-              .join("")}
+            <div
+              class="adl-presentation-legend-items"
+              role="list"
+              aria-label="${escapeHtml(legend.title ?? `${legend.name} legend`)}"
+            >
+              ${legend.items
+                .map(
+                  (item) => `
+                    <div
+                      class="adl-presentation-legend-item"
+                      data-status="${escapeHtml(item.status.name)}"
+                      role="listitem"
+                    >
+                      ${this.renderStatusIndicator(item.status)}
+                      <span>${escapeHtml(item.status.label)}</span>
+                    </div>
+                  `,
+                )
+                .join("")}
+            </div>
           </div>
         `,
       )

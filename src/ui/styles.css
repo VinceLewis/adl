@@ -18,6 +18,15 @@
   --adl-color-status-busy-elsewhere: #dc6803;
   --adl-color-status-conflict: #b42318;
   --adl-color-status-unset: #667085;
+  /* Status-dot colours for readouts that sit *on* the primary-coloured top bar.
+     The `--adl-color-status-*` ramp above is calibrated for a light content
+     surface and goes muddy against the bar, so these are its on-primary
+     counterparts. Stylesheet constants, exactly like the ramp above: a
+     declared THEME sets `colorPrimary`/`colorDanger`/... and nothing else, so
+     these are not theme tokens and must not be treated as such. */
+  --adl-color-on-primary-ok: #6ce9a6;
+  --adl-color-on-primary-pending: #fec84b;
+  --adl-color-on-primary-alert: #fda29b;
   --adl-radius: 6px;
   --adl-control-height: 34px;
   --adl-space-xs: 6px;
@@ -537,33 +546,112 @@ button:disabled {
   font-size: 12px;
 }
 
+/* The control's own label, not the value inside it. It is a direct child, so
+   this never touches `.adl-context-single`/`.adl-context-compact`'s inner
+   span. `align-self` matters on mobile, where the wrapper is
+   `align-items: stretch` to give the control full width -- which left a
+   top-aligned 12px label floating above the chip row it names. */
+.adl-topbar-app .adl-view-switch > span,
+.adl-topbar-app .adl-context-selector > span,
+.adl-topbar-app .adl-theme-switch > span {
+  align-self: center;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Interactive top-bar controls take a *darker* overlay than the bar, not a
+   lighter one. The old `rgba(255, 255, 255, 0.16)` fill lifted the backdrop
+   under white text to #3a78f2, where white measures 4.08:1 -- below WCAG AA
+   for every select, the context chip and every button in the bar. Darkening
+   instead of lightening keeps the same on-brand chip while taking white to
+   7.3:1. */
 .adl-topbar-app .adl-view-switch select,
 .adl-topbar-app .adl-context-selector select,
 .adl-topbar-app .adl-theme-switch select,
 .adl-topbar-app .adl-context-empty,
 .adl-topbar-app .adl-context-single,
 .adl-topbar-app .adl-context-compact,
+.adl-topbar-app .adl-shell-control {
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text-inverted);
+}
+
+.adl-topbar-app .adl-shell-control {
+  min-height: var(--adl-control-height);
+  padding: 0 12px;
+}
+
+.adl-topbar-app .adl-context-compact:hover,
+.adl-topbar-app .adl-shell-control:hover:not(:disabled),
+.adl-topbar-app .adl-context-compact:focus-visible,
+.adl-topbar-app .adl-shell-control:focus-visible {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--adl-color-text-inverted);
+}
+
+/* An unavailable control must not simply fade: the global
+   `button:disabled { opacity: 0.55 }` is calibrated for a light surface, and
+   over the primary colour it pulled `Install` down to 2.0:1 against the bar
+   while still looking like a filled, pressable button. Say "unavailable" by
+   dropping the fill instead, and keep the label legible at 4.7:1. */
+.adl-topbar-app .adl-shell-control:disabled {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+  opacity: 1;
+}
+
+/* A status readout is not a control, so it is not shaped like one: no fill, no
+   border, no button height -- a state dot and a word. Before this it shared
+   the chip treatment with the context selector beside it, so `The Alphas` (a
+   selector you can open) and `Online` / `25 pending` (things you can only
+   read) presented as three identical chips. Dropping the fill also takes its
+   own text from 4.08:1 to 5.4:1 against the bar. */
 .adl-topbar-app .adl-shell-status {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.34);
+  background: transparent;
+  border: 0;
   color: var(--adl-color-text-inverted);
+  gap: var(--adl-space-xs);
+  padding: 0 2px;
 }
 
-/* The app top bar paints on the primary colour, where coloured text reads
-   poorly. Pending keeps the bar's own treatment because it is not an alarm;
-   the two states that need a person get a solid fill so they stand out
-   against it. */
-.adl-topbar-app .adl-shell-status[data-sync-state="pending"] {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.34);
-  color: var(--adl-color-text-inverted);
+.adl-topbar-app .adl-shell-status::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: "";
+  flex: none;
+  height: 7px;
+  width: 7px;
 }
 
+.adl-topbar-app .adl-shell-status-online::before,
+.adl-topbar-app .adl-shell-status[data-sync-state="synced"]::before {
+  background: var(--adl-color-on-primary-ok);
+}
+
+.adl-topbar-app .adl-shell-status-offline::before {
+  background: var(--adl-color-on-primary-alert);
+}
+
+.adl-topbar-app .adl-shell-status[data-sync-state="pending"]::before {
+  background: var(--adl-color-on-primary-pending);
+}
+
+/* The two states that need a person are the deliberate exception: they keep a
+   solid fill, because an alarm should be loud and should not read as one more
+   quiet readout. */
 .adl-topbar-app .adl-shell-status[data-sync-state="rejected"],
 .adl-topbar-app .adl-shell-status[data-sync-state="conflict"] {
   background: var(--adl-color-danger);
-  border-color: var(--adl-color-danger);
+  border: 1px solid var(--adl-color-danger);
+  border-radius: var(--adl-radius);
   color: var(--adl-color-text-inverted);
+  min-height: var(--adl-control-height);
+  padding: 0 10px;
 }
 
 .adl-scroll-region {
@@ -897,11 +985,27 @@ button:disabled {
   gap: var(--adl-space-sm);
 }
 
+/* The title sits outside the item list and is spaced away from it, so the gap
+   before the first swatch is visibly larger than the gap between swatches.
+   With both gaps equal, the title read as an unswatched legend entry. */
 .adl-presentation-legend {
+  align-items: center;
+  column-gap: var(--adl-space-lg);
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  row-gap: var(--adl-space-xs);
+}
+
+/* Three deliberately distinct gaps, so the eye groups correctly without any
+   separator: 6px inside an item (swatch to icon to label), 12px between items,
+   16px between the title and the first item. They used to be 6px, 8px and 8px,
+   which is not enough difference to bind a label to its own swatch. */
+.adl-presentation-legend-items {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--adl-space-sm);
+  gap: var(--adl-space-md);
   min-width: 0;
 }
 
@@ -918,6 +1022,14 @@ button:disabled {
   font-size: 12px;
   gap: var(--adl-space-xs);
   min-width: 0;
+}
+
+/* The status indicator carries a 6px trailing margin for row use, which here
+   stacked on the item's own 6px gap and made swatch-to-label exactly as wide as
+   item-to-item -- so the three gaps that are supposed to be 6 / 12 / 16 were
+   really 12 / 12 / 16, and a label still floated between two swatches. */
+.adl-presentation-legend-item .adl-presentation-status {
+  margin-right: 0;
 }
 
 .adl-presentation-toggle,

@@ -555,6 +555,21 @@ describe("browser UI runtime", () => {
     expect(
       requireElement<HTMLElement>(app, "[data-presentation-legend='ScheduleStatus']").textContent,
     ).toContain("Gig");
+    // Phase 92: the legend's `role="list"` holds only `listitem` children. The
+    // title used to be a bare `<div>` inside it, which is invalid ARIA and also
+    // left the title-to-first-item gap identical to the item-to-item gap.
+    const scheduleLegend = requireElement<HTMLElement>(
+      app,
+      "[data-presentation-legend='ScheduleStatus']",
+    );
+    const legendList = requireElement<HTMLElement>(scheduleLegend, "[role='list']");
+    expect(
+      [...legendList.children].every((child) => child.getAttribute("role") === "listitem"),
+    ).toBe(true);
+    expect(legendList.querySelector(".adl-presentation-legend-title")).toBeNull();
+    expect(
+      requireElement<HTMLElement>(scheduleLegend, ".adl-presentation-legend-title").textContent,
+    ).toContain("Schedule status");
     expect(
       requireElement<HTMLElement>(
         app,

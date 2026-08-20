@@ -26,7 +26,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.8.0");
+    expect(model.modelVersion).toBe("1.9.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -78,6 +78,13 @@ describe("band reference app model", () => {
     // -- they change the fingerprint -- but no object gains, loses or renames a
     // stored field.
     expect(model.migrations).toContainEqual({ from: "1.7.0", to: "1.8.0", objects: [] });
+    // `1.8.0 -> 1.9.0` is an empty-object hop: `BandMemberAvailabilityBoard`'s
+    // section heading becomes `Availability`, its nav label becomes `Band
+    // Availability` (so it no longer collides with `MyAvailabilityList`'s
+    // `Availability`), and its redundant `LEGEND MyScheduleLegend` is removed
+    // (Phase 92). Presentation and shell content only -- no object's stored
+    // fields change.
+    expect(model.migrations).toContainEqual({ from: "1.8.0", to: "1.9.0", objects: [] });
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -90,7 +97,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-8587ce8f856dc47ecee1648e36030654e14349a8d22d88b25086bac1c98f66c2",
+      "sha256-20f7ee6c231d6c64fd4d12f6b751a70a0b4b58b1c774a399889f6c79ac62052a",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(

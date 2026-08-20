@@ -158,6 +158,49 @@ or mobile business-context selection.
   omitted platform default from a mode explicitly supplied by source, making
   this behavior diagnosable without reading resolver code.
 
+## Key decisions from Phase 92: the top bar has three visual registers
+
+- **A readout is not a control, and must not be shaped like one.** `Online` and
+  `25 pending` are `<span class="adl-shell-status">` — correct, non-interactive
+  markup — but the CSS gave them the same fill, border, radius and control
+  height as the context selector beside them, so three visually identical chips
+  sat in the bar and only one of them did anything. They are now dot + text with
+  no box; interactive controls keep the chip; a disabled control gets an
+  outlined, unfilled variant. Three registers, one glance.
+- **Nothing checks that non-interactive markup *looks* non-interactive.**
+  `tests/ui-runtime.test.ts` asserted the `<span>` and passed throughout. If
+  affordance matters, it has to be looked at.
+- **A translucent white overlay on a coloured bar is a contrast trap.**
+  `rgba(255, 255, 255, 0.16)` over `#155eef` resolves to `#3a78f2`, where white
+  text measures **4.08:1** — below WCAG AA, on every select, the context chip
+  and every button in the bar. Darkening (`rgba(0, 0, 0, 0.18)`) instead of
+  lightening keeps the same on-brand chip and takes white to **7.29:1**. Reach
+  for a darker overlay, not a lighter one, whenever the backdrop is already
+  mid-tone.
+- **`button:disabled { opacity: 0.55 }` is calibrated for a light surface.** On
+  the primary-coloured bar it pulled `Install`'s label to **2.03:1** against the
+  bar while leaving it looking like a filled, pressable button — the worst of
+  both. A disabled control in an inverted region needs its own treatment
+  (drop the fill, keep the label at 4.7:1), not a blanket opacity.
+- **`align-items: stretch` on mobile top-aligns a control's own label.** The
+  mobile block stretches `.adl-context-selector` to full width so the control
+  fills the row; that also stretched the `Band` label's box, leaving its 12px
+  text floating above the chip it names. `align-self: center` on the label — a
+  **direct-child** selector, so it never touches `.adl-context-single`'s or
+  `.adl-context-compact`'s inner spans — fixes it.
+- **`.adl-topbar-app .adl-topbar-tools { justify-content: flex-end }` defeats the
+  mobile block's `.adl-topbar-tools { justify-content: flex-start }`** on
+  specificity (0,2,0 beats 0,1,0), so the mobile rule and its explanatory
+  comment are dead: the tools row is right-aligned on phones and `Install`
+  wraps alone to a right-aligned second row. Found in Phase 92, deliberately
+  left alone as outside its five listed items — but it is a live defect, not a
+  design choice, and the comment above it asserts the opposite.
+- **`ui.adl` and `ui.adlj` have diverged.** `ui.adl:13-19` still places
+  `themeSwitch` in the top bar; the real compiled source `ui.adlj` places it in
+  the nav drawer and gives the top bar four controls, not five. The `.adl` files
+  are superseded citation snapshots (their own trailing note says so), so cite
+  them for line numbers but read the `.adlj` for what the app actually does.
+
 ## Practical Guidance
 
 - Add new shell behavior to the resolved shell contract first, then render it

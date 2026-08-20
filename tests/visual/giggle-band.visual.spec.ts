@@ -21,9 +21,13 @@ const gigglePages: VisualPage[] = [
     expectedText: "Unavailable - session prep",
   },
   {
-    name: "who-is-free",
+    // Renamed from `who-is-free` in Phase 92: the section heading is now
+    // `Availability` (the list is an unfiltered whole-band roster, so the old
+    // heading overclaimed), and the nav item is `Band Availability` so it does
+    // not collide with `MyAvailabilityList`'s own `Availability` entry.
+    name: "band-availability",
     navItem: "BandMemberAvailabilityBoard",
-    expectedText: "Who is free",
+    expectedText: "Availability",
   },
   { name: "songs", navItem: "SongLibrary", expectedText: "Neon Map" },
   { name: "set-lists", navItem: "SetListList", expectedText: "August headline" },

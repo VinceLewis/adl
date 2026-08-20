@@ -1179,7 +1179,7 @@ END.POLICY
         ["BandEventList", "Gigs", 20],
         ["BandEventCalendar", "Calendar", 30],
         ["MyAvailabilityList", "Availability", 40],
-        ["BandMemberAvailabilityBoard", "Who is free", 45],
+        ["BandMemberAvailabilityBoard", "Band Availability", 45],
         ["SongLibrary", "Songs", 50],
         ["SetListList", "Set Lists", 60],
         ["StreamingLinkList", "Streaming", 65],

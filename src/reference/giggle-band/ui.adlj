@@ -75,7 +75,7 @@
         },
         {
           "view": "BandMemberAvailabilityBoard",
-          "label": "Who is free",
+          "label": "Band Availability",
           "icon": "users",
           "group": "Main",
           "order": 45,
@@ -938,7 +938,7 @@
             "read",
             "search"
           ],
-          "comment": "`BandMemberAvailabilityBoard` keeps its whole-band roster (`Who is free`,\nbacked by `BandMemberAvailability`, unchanged) and adds a second section:\nthe signed-in member's own schedule, overlaid with gigs booked with *any*\nband they belong to, not just the one currently selected. A gig-derived\nstatus outranks a plain availability status on the same date -- the same\n`PRECEDENCE 100` device `BandEventCalendar`'s `conflict` status already\nuses, reused here so a real booking outranks a stale \"I'm free\" note on\nthe same date.\n\nThe label deliberately says \"Gig booked\" rather than naming which band:\na read-model expression only ever sees `RUNTIME.userId` / `RUNTIME.now`\n(see `docs/spec/language.md`'s Read Models section), never which business\ncontext the *consuming view* currently has selected, so nothing here can\ntell the currently-selected band's own gig apart from another band's. Both\nare still correctly \"booked\" -- the wording just does not overclaim which\none.",
+          "comment": "`BandMemberAvailabilityBoard` keeps its whole-band roster (the `Availability`\nsection, backed by `BandMemberAvailability`, unchanged) and adds a second:\nthe signed-in member's own schedule, overlaid with gigs booked with *any*\nband they belong to, not just the one currently selected. A gig-derived\nstatus outranks a plain availability status on the same date -- the same\n`PRECEDENCE 100` device `BandEventCalendar`'s `conflict` status already\nuses, reused here so a real booking outranks a stale \"I'm free\" note on\nthe same date.\n\nThe label deliberately says \"Gig booked\" rather than naming which band:\na read-model expression only ever sees `RUNTIME.userId` / `RUNTIME.now`\n(see `docs/spec/language.md`'s Read Models section), never which business\ncontext the *consuming view* currently has selected, so nothing here can\ntell the currently-selected band's own gig apart from another band's. Both\nare still correctly \"booked\" -- the wording just does not overclaim which\none.",
           "presentation": {
             "layout": "stack",
             "density": "compact",
@@ -1010,21 +1010,12 @@
                 "defaultStatus": "unavailable"
               }
             ],
-            "legends": [
-              {
-                "name": "MyScheduleLegend",
-                "title": "My schedule",
-                "statuses": [
-                  "conflict",
-                  "available",
-                  "unavailable"
-                ]
-              }
-            ],
+            "legends": [],
             "sections": [
               {
+                "comment": "`Availability`, not `Who is free`: `TeamAvailabilityList` carries no\nfilter, so the section lists every member's availability including\n`Unavailable` rows. The roster is deliberate -- the heading was the part\nthat overclaimed. The view's nav item stays distinct (`Band Availability`)\nbecause `MyAvailabilityList` already owns the `Availability` nav label,\nand two identical nav entries would be worse than either wording.\n\nThe view also declares no `LEGEND`. Each status carries a distinct colour\n*and* a distinct icon (`calendar` vs `x`) plus an `ARIA_LABEL`, so the\nencoding is never colour-only and a legend explains nothing the cells do\nnot already say.",
                 "name": "TeamAvailability",
-                "heading": "Who is free",
+                "heading": "Availability",
                 "controls": [],
                 "lists": [
                   {

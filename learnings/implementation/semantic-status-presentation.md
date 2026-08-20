@@ -41,6 +41,41 @@ name below still exists with the same name and body — see
   Runtime diagnostics cover runtime misses such as missing fields or unmapped
   values.
 
+## Key decisions from Phase 92: legend markup and the on-primary status ramp
+
+- **A legend's `role="list"` must contain only `listitem` children.** The title
+  used to be a bare `<div>` inside the same `role="list"` wrapper as the items,
+  which is invalid ARIA *and* put the title in the same flex row as the
+  swatches, so the title-to-first-item gap equalled the item-to-item gap.
+  `renderLegends` now nests the items in their own
+  `.adl-presentation-legend-items` list and leaves the title outside it.
+  `tests/ui-runtime.test.ts` asserts the shape so it cannot silently revert.
+- **Three gaps, deliberately distinct: 6 / 12 / 16.** Inside an item (swatch →
+  icon → label), between items, and between the title and the first item. The
+  trap on the way there: `.adl-presentation-status` carries
+  `margin-right: var(--adl-space-xs)` for row use, which stacked on the legend
+  item's own 6px gap and made swatch-to-label exactly as wide as
+  item-to-item — so setting the item gap to 12px produced 12/12/16, which still
+  reads ambiguously. The legend zeroes that margin.
+- **A legend is not mandatory when the encoding is not colour-only.** Giggle
+  Band's availability board dropped its legend rather than having it fixed:
+  every status there carries a distinct colour *and* a distinct icon *and* an
+  `ARIA_LABEL`, so the legend restated what each cell already said. A legend
+  earns its place when colour alone distinguishes statuses.
+- **A view-level `LEGEND` renders above the *first* section, always.** That is
+  fine when the legend describes the first section's content and wrong when it
+  describes a later one. `HomeDashboard` and both calendars are the former; the
+  availability board was the latter, which is part of why removing it was right.
+  If a future phase needs a section-scoped legend, that is a language addition,
+  not a renderer tweak.
+- **`--adl-color-status-*` is calibrated for the light content surface, not for
+  the primary-coloured top bar.** Phase 92 added a small `--adl-color-on-primary-*`
+  ramp (`ok`/`pending`/`alert`) for status dots that sit on the bar. Like the
+  `--adl-color-status-*` ramp, these are stylesheet constants, **not** theme
+  tokens: a declared `THEME` only ever sets the twelve colours in
+  `THEME_COLOR_CSS_VARIABLES`, so anything else in `:root` is a constant a theme
+  cannot reach.
+
 ## Practical Guidance
 
 - Prefer read models for business-derived status facts. Presentation status maps
