@@ -2,6 +2,10 @@ import type {
   PartialViewPresentationModel,
   ResolvedViewPresentation,
 } from "./presentation-core.js";
+import type {
+  PartialPresentationFormatModel,
+  ResolvedPresentationFormat,
+} from "./presentation-row-format.js";
 
 export type ViewKind =
   | "list"
@@ -22,6 +26,17 @@ export type EditChildOperationKind =
   | "unlink"
   | "remove"
   | "reorder";
+/**
+ * The closed aggregate vocabulary a child collection's `summary` may declare.
+ *
+ * Deliberately not an open expression grammar: every declarative-total feature
+ * checked while designing this (SQL aggregates, Excel, Airtable rollups,
+ * Salesforce Roll-Up Summary fields, Crystal Reports' Summary field) converges
+ * on exactly this small, closed set. See Phase 87 and
+ * `learnings/implementation/edit-surface-language.md`.
+ */
+export type EditChildCollectionSummaryAggregate = "sum" | "avg" | "min" | "max" | "count";
+export type EditChildCollectionSummaryPlacement = "header" | "footer";
 /**
  * `syncStatus` reports the sync state of the device's *records*; `connectivity`
  * reports whether the device can reach the authority. They were one control
@@ -71,9 +86,52 @@ export interface ResolvedEditChildCollectionSection extends ResolvedEditSectionB
   orderField?: string;
   emptyState: ResolvedEditChildCollectionEmptyState;
   picker?: ResolvedRelationshipPicker;
+  /**
+   * A row field sourced from a related object reached through one of the
+   * child object's own lookup fields, not just the child object's own stored
+   * fields. `.adlj`-only — no `.adl` text syntax, see `print-adl.ts`'s
+   * `printEditChildCollection` and `docs/spec/adlj.md`'s "no ADL text
+   * syntax" list. Phase 87.
+   */
+  projectedFields?: ResolvedProjectedField[];
+  /**
+   * A single aggregated value over the collection's current rows (persisted
+   * *and* staged), shown once at `header` or `footer`. `.adlj`-only, same
+   * treatment as `projectedFields`. Phase 87.
+   */
+  summary?: ResolvedEditChildCollectionSummary;
 }
 export interface ResolvedEditChildCollectionEmptyState {
   text: string;
+}
+/**
+ * `through` must name a field on the child object carrying a `lookup`;
+ * `field` must exist on that lookup's `targetObject` and not be `hidden`;
+ * `name` must not collide with any existing field name (own or projected) on
+ * the section. Reaches exactly one lookup hop — a multi-hop chain
+ * (`Song.Composer.SomeField`-style) is out of scope for this phase. See
+ * Phase 87.
+ */
+export interface ResolvedProjectedField {
+  name: string;
+  through: string;
+  field: string;
+}
+/**
+ * Computed once per `evaluateChildCollectionSection` call, over the *final*
+ * assembled row set (persisted rows plus staged, not-yet-saved changes), so
+ * it updates live as a person edits. `field` must resolve to a field on the
+ * child object or to one of the section's own `projectedFields` names, and
+ * must be numeric for every aggregate except `count`. `field` is optional
+ * only for `count`: present, it counts rows with a non-null value for that
+ * field; omitted, it counts every row. See Phase 87.
+ */
+export interface ResolvedEditChildCollectionSummary {
+  aggregate: EditChildCollectionSummaryAggregate;
+  field?: string;
+  label?: string;
+  format: ResolvedPresentationFormat;
+  placement: EditChildCollectionSummaryPlacement;
 }
 export interface ResolvedRelationshipPicker {
   name: string;
@@ -145,9 +203,23 @@ export interface PartialEditChildCollectionSectionModel extends PartialEditSecti
   orderField?: string;
   emptyState?: PartialEditChildCollectionEmptyStateModel;
   picker?: PartialRelationshipPickerModel;
+  projectedFields?: PartialProjectedFieldModel[];
+  summary?: PartialEditChildCollectionSummaryModel;
 }
 export interface PartialEditChildCollectionEmptyStateModel {
   text?: string;
+}
+export interface PartialProjectedFieldModel {
+  name: string;
+  through: string;
+  field: string;
+}
+export interface PartialEditChildCollectionSummaryModel {
+  aggregate: EditChildCollectionSummaryAggregate;
+  field?: string;
+  label?: string;
+  format?: PartialPresentationFormatModel;
+  placement?: EditChildCollectionSummaryPlacement;
 }
 export interface PartialRelationshipPickerModel {
   name?: string;

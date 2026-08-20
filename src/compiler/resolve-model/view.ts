@@ -1,12 +1,16 @@
 import type {
+  PartialEditChildCollectionSummaryModel,
   PartialEditSectionModel,
   PartialObjectModel,
+  PartialProjectedFieldModel,
   PartialRelationshipPickerModel,
   PartialViewContextModel,
   PartialViewModel,
   ResolvedComputedField,
+  ResolvedEditChildCollectionSummary,
   ResolvedEditSection,
   ResolvedField,
+  ResolvedProjectedField,
   ResolvedRelationshipPicker,
   ResolvedSort,
   ResolvedView,
@@ -14,6 +18,7 @@ import type {
 } from "../../model/resolved-model.js";
 import { orderedComputedFieldNames } from "./object-field.js";
 import { resolveViewPresentation } from "./presentation-core.js";
+import { resolvePresentationFormat } from "./presentation-row-format.js";
 
 export function resolveViews(
   input: PartialObjectModel,
@@ -150,8 +155,39 @@ function resolveEditSections(
       ...(section.picker === undefined
         ? {}
         : { picker: resolveRelationshipPicker(section.picker, section) }),
+      ...(section.projectedFields === undefined
+        ? {}
+        : { projectedFields: section.projectedFields.map(resolveProjectedField) }),
+      ...(section.summary === undefined
+        ? {}
+        : { summary: resolveEditChildCollectionSummary(section.summary) }),
     };
   });
+}
+function resolveProjectedField(input: PartialProjectedFieldModel): ResolvedProjectedField {
+  return {
+    name: input.name,
+    through: input.through,
+    field: input.field,
+  };
+}
+function resolveEditChildCollectionSummary(
+  input: PartialEditChildCollectionSummaryModel,
+): ResolvedEditChildCollectionSummary {
+  return {
+    aggregate: input.aggregate,
+    ...(input.field === undefined ? {} : { field: input.field }),
+    ...(input.label === undefined ? {} : { label: input.label }),
+    // Defaults to a bare number so an author who supplies `aggregate` without
+    // `format` still gets a rendered value rather than a resolver error --
+    // matching this project's general preference for a sane default over
+    // forcing every optional shape to be spelled out. See Phase 87.
+    format: resolvePresentationFormat(input.format ?? { kind: "number" }),
+    // `footer` is the shape every declarative-total system checked while
+    // designing this defaults to (a total below its rows), so it is what an
+    // unauthored `placement` resolves to. See Phase 87.
+    placement: input.placement ?? "footer",
+  };
 }
 function resolveRelationshipPicker(
   input: PartialRelationshipPickerModel,

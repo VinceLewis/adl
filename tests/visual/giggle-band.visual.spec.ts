@@ -184,6 +184,12 @@ test.describe("Giggle Band visual smoke", () => {
     // worth editing in place at all.
     await expect(songs).toContainText("Acoustic");
     await expect(songs).toContainText("Closes the night as the encore.");
+    // Phase 87: each song's own `DurationSeconds` (Song, not SetListItem)
+    // projected through the `Song` lookup, summed at the section's footer.
+    // Neon Map (214s) + Late Signal (188s) + Harbour Lights (236s) = 638s.
+    const summary = songs.locator("[data-child-collection-summary='Songs']");
+    await expect(summary).toContainText("Total");
+    await expect(summary).toContainText("10:38");
     // One control adds songs, and it opens a chooser rather than asking anyone to
     // type a record id. Its presence is also the visible proof that a
     // context-scoped child's create is permitted: the control renders only when
@@ -212,6 +218,31 @@ test.describe("Giggle Band visual smoke", () => {
     await picker.locator("button[data-picker-action='add']").click();
     await expect(page.locator(".adl-relationship-picker")).toHaveCount(0);
     await expect(songs).toContainText("Slow Tide");
+    // Live, before Save: Slow Tide (245s) added to the previous 638s total.
+    await expect(summary).toContainText("14:43");
+
+    // Removing the just-staged row (not yet saved) takes it back out of the
+    // total immediately too — the same live recomputation, the other
+    // direction. `Remove` on a staged row un-stages it outright, matching
+    // `RuntimeEditChildAction`'s `removeStagedAction` on a `source: "staged"`
+    // row (as opposed to a persisted row's `remove`, which stages a delete
+    // applied at Save and is not what this collection stages away
+    // immediately -- see this file's own comments on `staged` rows above).
+    const stagedRow = songs.locator("[data-child-row]").last();
+    await expect(stagedRow).toContainText("Slow Tide");
+    await stagedRow.locator("button[data-child-action='remove']").click();
+    await expect(songs).not.toContainText("Slow Tide");
+    await expect(summary).toContainText("10:38");
+
+    // Re-add it so the rest of this test (Save, the saved row count, the
+    // inline edit below) exercises the same flow it always has.
+    await add.click();
+    await expect(picker).toBeVisible();
+    await picker.locator("input[data-picker-candidate]").first().check();
+    await picker.locator("button[data-picker-action='add']").click();
+    await expect(page.locator(".adl-relationship-picker")).toHaveCount(0);
+    await expect(songs).toContainText("Slow Tide");
+    await expect(summary).toContainText("14:43");
 
     await page.locator("button[data-action-name='save']").click();
     await expect(page.locator(".adl-message-area")).toContainText("SetList saved.");
@@ -223,6 +254,13 @@ test.describe("Giggle Band visual smoke", () => {
     await expect(savedRows).toHaveCount(4);
     await expect(savedRows.nth(3)).toContainText("Slow Tide");
     await expect(savedRows.nth(3)).toHaveAttribute("data-child-row-position", "4");
+    // The total survives the reload from storage, not just the in-session
+    // staged computation above: 638s + Slow Tide's 245s = 883s = 14:43.
+    await expect(
+      page.locator(
+        "section.adl-child-section[data-child-section='Songs'] [data-child-collection-summary='Songs']",
+      ),
+    ).toContainText("14:43");
 
     // Editing a row in place. `Edit` opens the row with the platform's real field
     // controls — the `Song` lookup is a chooser, not a box to type an id into —

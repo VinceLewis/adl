@@ -534,9 +534,32 @@ export class AdlFormViewElement extends HTMLElement {
             }
           </div>
         </header>
+        ${this.renderChildCollectionSummary(section, "header")}
         ${this.renderChildRows(section)}
+        ${this.renderChildCollectionSummary(section, "footer")}
         ${this.renderChildDraft(section)}
       </section>
+    `;
+  }
+
+  /**
+   * A single aggregated value over the section's own already-rendered rows
+   * (persisted and staged together), at the `header`/`footer` placement the
+   * model declares. See `ResolvedEditChildCollectionSummary` and Phase 87.
+   */
+  private renderChildCollectionSummary(
+    section: RuntimeEditChildCollectionSection,
+    placement: "header" | "footer",
+  ): string {
+    if (section.summary === undefined || section.summary.placement !== placement) {
+      return "";
+    }
+
+    return `
+      <div class="adl-child-collection-summary" data-child-collection-summary="${escapeHtml(section.name)}" data-child-collection-summary-placement="${placement}">
+        ${section.summary.label === undefined ? "" : `<span class="adl-child-collection-summary-label">${escapeHtml(section.summary.label)}</span>`}
+        <span class="adl-child-collection-summary-value">${escapeHtml(section.summary.text)}</span>
+      </div>
     `;
   }
 
@@ -839,6 +862,17 @@ export class AdlFormViewElement extends HTMLElement {
                   .map(
                     (field) =>
                       `<span>${escapeHtml(this.formatChildCell(field, row.values[field.name]))}</span>`,
+                  )
+                  .join("") +
+                // A projected field is sourced from a related object, not stored on
+                // this record, so it has no `ResolvedField` of its own and is never
+                // part of the open row editor — it renders read-only, appended after
+                // the child object's own fields. See `ResolvedProjectedField` and
+                // Phase 87.
+                section.projectedFields
+                  .map(
+                    (name) =>
+                      `<span data-child-projected-field="${escapeHtml(name)}">${escapeHtml(formatChildValue(row.values[name]))}</span>`,
                   )
                   .join("")
           }

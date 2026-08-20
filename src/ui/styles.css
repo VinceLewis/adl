@@ -1470,6 +1470,31 @@ button:disabled {
   overflow: hidden;
 }
 
+/*
+ * A single aggregated value over the collection's rows (e.g. a set list's
+ * total duration), at the section's declared header or footer placement.
+ * Right-aligned like a total line in a table rather than left-aligned like a
+ * row, so it reads as a summary of what is above/below it rather than as one
+ * more row. See `ResolvedEditChildCollectionSummary` and Phase 87.
+ */
+.adl-child-collection-summary {
+  align-items: baseline;
+  display: flex;
+  gap: var(--adl-space-xs);
+  justify-content: end;
+  padding: var(--adl-space-xs) var(--adl-space-sm);
+}
+
+.adl-child-collection-summary-label {
+  color: var(--adl-color-text-muted);
+  font-size: 13px;
+}
+
+.adl-child-collection-summary-value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .adl-child-row {
   align-items: center;
   background: var(--adl-color-surface);
@@ -1541,6 +1566,17 @@ button:disabled {
 .adl-child-row-values > span {
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+/*
+ * A projected field's value is read from a related record, not stored on
+ * this row -- muted so it reads as supplementary, computed context rather
+ * than one more of the row's own stored fields (which is what an
+ * unstyled span beside them would otherwise suggest). See
+ * `ResolvedProjectedField` and Phase 87.
+ */
+.adl-child-row-values > [data-child-projected-field] {
+  color: var(--adl-color-text-muted);
 }
 
 .adl-child-row-actions {

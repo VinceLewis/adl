@@ -1201,6 +1201,21 @@ function printEditFieldsSection(section: PartialEditFieldsSectionModel): string 
 }
 
 function printEditChildCollection(section: PartialEditChildCollectionSectionModel): string {
+  // NO TEXT SYNTAX: `projectedFields` and `summary` have a full
+  // resolved-model/JSON shape (`ResolvedProjectedField`,
+  // `ResolvedEditChildCollectionSummary`) but the parser has no
+  // `PROJECTED_FIELD`/`SUMMARY`-equivalent `CHILD_COLLECTION` directive --
+  // same treatment as `MATRIX` and `conflictOverlay` above. See Phase 87.
+  if (section.projectedFields !== undefined && section.projectedFields.length > 0) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: child collection '${section.name}' declares projectedFields, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
+    );
+  }
+  if (section.summary !== undefined) {
+    throw new Error(
+      `printPartialApplicationModelAsAdl: child collection '${section.name}' declares a summary, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
+    );
+  }
   let header = `CHILD_COLLECTION ${section.name}`;
   if (section.heading !== undefined) {
     header += ` HEADING ${printStringLiteral(section.heading)}`;

@@ -487,6 +487,150 @@
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
       ]
+    },
+    "projectedFieldsAndSummary": {
+      "app": {
+        "name": "TracksDemo"
+      },
+      "objects": [
+        {
+          "name": "Playlist",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "views": [
+            {
+              "name": "PlaylistForm",
+              "kind": "form",
+              "editSections": [
+                {
+                  "name": "Tracks",
+                  "kind": "childCollection",
+                  "childObject": "Track",
+                  "parentField": "Playlist",
+                  "operations": [
+                    "createChild",
+                    "remove"
+                  ],
+                  "projectedFields": [
+                    {
+                      "name": "LengthSeconds",
+                      "through": "Album",
+                      "field": "LengthSeconds"
+                    }
+                  ],
+                  "summary": {
+                    "field": "LengthSeconds",
+                    "aggregate": "sum"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Track",
+          "fields": [
+            {
+              "name": "Playlist",
+              "type": "text",
+              "lookup": {
+                "targetObject": "Playlist",
+                "displayField": "Title"
+              }
+            },
+            {
+              "name": "Album",
+              "type": "text",
+              "lookup": {
+                "targetObject": "Album",
+                "displayField": "Title"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Album",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "LengthSeconds",
+              "type": "number"
+            }
+          ]
+        }
+      ]
+    },
+    "projectedFieldsInvalid": {
+      "app": {
+        "name": "TracksDemo"
+      },
+      "objects": [
+        {
+          "name": "Playlist",
+          "fields": [
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "views": [
+            {
+              "name": "PlaylistForm",
+              "kind": "form",
+              "editSections": [
+                {
+                  "name": "Tracks",
+                  "kind": "childCollection",
+                  "childObject": "Track",
+                  "parentField": "Playlist",
+                  "operations": [
+                    "createChild",
+                    "remove"
+                  ],
+                  "projectedFields": [
+                    {
+                      "name": "Bogus",
+                      "through": "NotAField",
+                      "field": "X"
+                    }
+                  ],
+                  "summary": {
+                    "field": "Description",
+                    "aggregate": "sum"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Track",
+          "fields": [
+            {
+              "name": "Playlist",
+              "type": "text",
+              "lookup": {
+                "targetObject": "Playlist",
+                "displayField": "Title"
+              }
+            },
+            {
+              "name": "Description",
+              "type": "text"
+            }
+          ]
+        }
+      ]
     }
   },
   "cases": [
@@ -497,7 +641,10 @@
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
       "input": {
-        "select": ["objects.0.views.0.editContainer", "objects.0.views.1.editContainer"]
+        "select": [
+          "objects.0.views.0.editContainer",
+          "objects.0.views.1.editContainer"
+        ]
       },
       "expected": {
         "ok": true,
@@ -513,7 +660,11 @@
       "specRef": "language#edit-surfaces",
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
-      "input": { "select": ["objects.0.views.0.editSections.0"] },
+      "input": {
+        "select": [
+          "objects.0.views.0.editSections.0"
+        ]
+      },
       "expected": {
         "ok": true,
         "result": {
@@ -521,7 +672,10 @@
             "name": "Details",
             "kind": "fields",
             "heading": "Order",
-            "fields": ["Code", "Notes"]
+            "fields": [
+              "Code",
+              "Notes"
+            ]
           }
         }
       }
@@ -532,7 +686,11 @@
       "specRef": "language#edit-surfaces",
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
-      "input": { "select": ["objects.0.views.0.editSections.1"] },
+      "input": {
+        "select": [
+          "objects.0.views.0.editSections.1"
+        ]
+      },
       "expected": {
         "ok": true,
         "result": {
@@ -543,20 +701,39 @@
             "childObject": "OrderLine",
             "parentField": "Order",
             "childView": "OrderLineList",
-            "operations": ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
+            "operations": [
+              "createChild",
+              "linkExisting",
+              "updateChild",
+              "remove",
+              "reorder"
+            ],
             "staged": true,
             "orderField": "Position",
-            "emptyState": { "text": "No lines yet." },
+            "emptyState": {
+              "text": "No lines yet."
+            },
             "picker": {
               "name": "LinePicker",
               "sourceKind": "object",
               "source": "OrderLine",
               "selection": "single",
-              "displayFields": ["Description"],
-              "searchFields": ["Description"],
-              "sort": [{ "field": "Position", "direction": "asc" }],
+              "displayFields": [
+                "Description"
+              ],
+              "searchFields": [
+                "Description"
+              ],
+              "sort": [
+                {
+                  "field": "Position",
+                  "direction": "asc"
+                }
+              ],
               "excludeAlreadyLinked": true,
-              "emptyState": { "text": "Nothing to link." }
+              "emptyState": {
+                "text": "Nothing to link."
+              }
             }
           }
         }
@@ -568,12 +745,23 @@
       "specRef": "resolved-model#view-presentation",
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
-      "input": { "select": ["objects.0.views.1.editSections"] },
+      "input": {
+        "select": [
+          "objects.0.views.1.editSections"
+        ]
+      },
       "expected": {
         "ok": true,
         "result": {
           "objects.0.views.1.editSections": [
-            { "name": "Fields", "kind": "fields", "fields": ["Code", "Notes"] }
+            {
+              "name": "Fields",
+              "kind": "fields",
+              "fields": [
+                "Code",
+                "Notes"
+              ]
+            }
           ]
         }
       }
@@ -584,11 +772,19 @@
       "specRef": "resolved-model#view-presentation",
       "operation": "resolveModel",
       "modelRef": "childCollectionWithoutOperations",
-      "input": { "select": ["objects.0.views.0.editSections.0.operations"] },
+      "input": {
+        "select": [
+          "objects.0.views.0.editSections.0.operations"
+        ]
+      },
       "expected": {
         "ok": true,
         "result": {
-          "objects.0.views.0.editSections.0.operations": ["createChild", "updateChild", "remove"]
+          "objects.0.views.0.editSections.0.operations": [
+            "createChild",
+            "updateChild",
+            "remove"
+          ]
         }
       }
     },
@@ -617,7 +813,13 @@
             },
             {
               "path": "objects[0].views[0].editSections[1].operations",
-              "value": ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
+              "value": [
+                "createChild",
+                "linkExisting",
+                "updateChild",
+                "remove",
+                "reorder"
+              ],
               "origin": "source"
             },
             {
@@ -640,7 +842,10 @@
       "specRef": "resolved-model#validation",
       "operation": "validateModel",
       "modelRef": "orderEditSurfaces",
-      "expected": { "ok": true, "result": [] }
+      "expected": {
+        "ok": true,
+        "result": []
+      }
     },
     {
       "id": "edit-surface.validation.child-object-unknown.001",
@@ -734,7 +939,10 @@
       "specRef": "resolved-model#validation",
       "operation": "validateModel",
       "modelRef": "unlinkOnOptionalParentField",
-      "expected": { "ok": true, "result": [] }
+      "expected": {
+        "ok": true,
+        "result": []
+      }
     },
     {
       "id": "edit-surface.validation.picker-link-operation.001",
@@ -759,7 +967,11 @@
       "specRef": "language#edit-surfaces",
       "operation": "resolveModel",
       "modelRef": "songMintingPicker",
-      "input": { "select": ["objects.0.views.0.editSections.0.picker"] },
+      "input": {
+        "select": [
+          "objects.0.views.0.editSections.0.picker"
+        ]
+      },
       "expected": {
         "ok": true,
         "result": {
@@ -769,11 +981,24 @@
             "source": "Song",
             "candidateField": "Song",
             "selection": "multiple",
-            "displayFields": ["Title", "Composer"],
-            "searchFields": ["Title", "Composer"],
-            "sort": [{ "field": "Title", "direction": "asc" }],
+            "displayFields": [
+              "Title",
+              "Composer"
+            ],
+            "searchFields": [
+              "Title",
+              "Composer"
+            ],
+            "sort": [
+              {
+                "field": "Title",
+                "direction": "asc"
+              }
+            ],
             "excludeAlreadyLinked": true,
-            "emptyState": { "text": "Every song in the library is already in this set list." }
+            "emptyState": {
+              "text": "Every song in the library is already in this set list."
+            }
           }
         }
       }
@@ -784,7 +1009,10 @@
       "specRef": "resolved-model#validation",
       "operation": "validateModel",
       "modelRef": "songMintingPicker",
-      "expected": { "ok": true, "result": [] }
+      "expected": {
+        "ok": true,
+        "result": []
+      }
     },
     {
       "id": "edit-surface.language.candidate-field.003",
@@ -792,7 +1020,10 @@
       "specRef": "resolved-model#validation",
       "operation": "validateModel",
       "modelRef": "songMintingPickerFromReadModel",
-      "expected": { "ok": true, "result": [] }
+      "expected": {
+        "ok": true,
+        "result": []
+      }
     },
     {
       "id": "edit-surface.validation.picker-candidate-source.001",
@@ -885,6 +1116,58 @@
             "severity": "error",
             "code": "ADL_RELATIONSHIP_PICKER_SORT_FIELD_UNKNOWN",
             "path": "objects[0].views[0].editSections[0].picker.sort[0].field"
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit-surface.language.projected-fields-and-summary.001",
+      "title": "A CHILD_COLLECTION section's projectedFields and summary resolve, with format/placement defaults applied",
+      "specRef": "adlj#the-printer-one-direction-only",
+      "operation": "resolveModel",
+      "modelRef": "projectedFieldsAndSummary",
+      "input": {
+        "select": [
+          "objects.0.views.0.editSections.0.projectedFields.0.name",
+          "objects.0.views.0.editSections.0.projectedFields.0.through",
+          "objects.0.views.0.editSections.0.projectedFields.0.field",
+          "objects.0.views.0.editSections.0.summary.aggregate",
+          "objects.0.views.0.editSections.0.summary.field",
+          "objects.0.views.0.editSections.0.summary.placement",
+          "objects.0.views.0.editSections.0.summary.format.kind"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objects.0.views.0.editSections.0.projectedFields.0.name": "LengthSeconds",
+          "objects.0.views.0.editSections.0.projectedFields.0.through": "Album",
+          "objects.0.views.0.editSections.0.projectedFields.0.field": "LengthSeconds",
+          "objects.0.views.0.editSections.0.summary.aggregate": "sum",
+          "objects.0.views.0.editSections.0.summary.field": "LengthSeconds",
+          "objects.0.views.0.editSections.0.summary.placement": "footer",
+          "objects.0.views.0.editSections.0.summary.format.kind": "number"
+        }
+      }
+    },
+    {
+      "id": "edit-surface.validation.projected-field-and-summary.001",
+      "title": "An unknown projectedFields.through and a non-numeric summary field are both refused",
+      "specRef": "resolved-model#validation",
+      "operation": "validateModel",
+      "modelRef": "projectedFieldsInvalid",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_EDIT_SECTION_PROJECTED_FIELD_THROUGH_UNKNOWN",
+            "path": "objects[0].views[0].editSections[0].projectedFields[0].through"
+          },
+          {
+            "severity": "error",
+            "code": "ADL_VIEW_EDIT_SECTION_SUMMARY_FIELD_NOT_NUMERIC",
+            "path": "objects[0].views[0].editSections[0].summary.field"
           }
         ]
       }

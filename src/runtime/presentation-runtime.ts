@@ -2336,7 +2336,7 @@ interface PlannedMatrixCellWrite {
   patch: Record<string, JsonValue>;
 }
 
-interface DiagnosticLocation {
+export interface DiagnosticLocation {
   path: string;
   section?: string | undefined;
   list?: string | undefined;
@@ -2848,7 +2848,15 @@ function valueMatchesPresentationStateType(
   }
 }
 
-function formatPresentationValue(
+/**
+ * Exported for `edit-surface-runtime.ts`'s child-collection `summary`
+ * formatting (Phase 87) — the one consumer of this formatter outside the
+ * presentation runtime itself. A `CHILD_COLLECTION` summary is computed over
+ * that collection's own already-assembled row set, not over a presentation
+ * `LIST`, so it has no `RuntimePresentationDiagnostic` location of its own to
+ * synthesize here; the caller supplies one.
+ */
+export function formatPresentationValue(
   value: JsonValue | undefined,
   format: ResolvedPresentationFormat,
   diagnostics: RuntimePresentationDiagnostic[],
@@ -2865,6 +2873,8 @@ function formatPresentationValue(
       return formatTime(value, format, diagnostics, location);
     case "datetime":
       return formatDateTime(value, format, diagnostics, location);
+    case "duration":
+      return formatDuration(value, format, diagnostics, location);
   }
 }
 
@@ -2987,6 +2997,42 @@ function formatTime(
   }
 
   return applyTimePattern(parts, format, diagnostics, location) ?? value;
+}
+
+/**
+ * Seconds -> pattern-driven text. Follows `applyTimePattern`'s small,
+ * closed-token-vocabulary style rather than inventing a different
+ * convention: today only `m:ss` (minutes, then seconds zero-padded to two
+ * digits) is supported, which is the shape a song or set-list duration
+ * actually needs ("47:20"). Negative or non-finite input is invalid, the
+ * same posture `formatNumber` takes.
+ */
+function formatDuration(
+  value: JsonValue | undefined,
+  format: ResolvedPresentationFormat,
+  diagnostics: RuntimePresentationDiagnostic[],
+  location: DiagnosticLocation,
+): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    diagnostics.push(
+      invalidFormatValue(
+        "Duration format requires a non-negative finite number of seconds.",
+        location,
+      ),
+    );
+    return "";
+  }
+
+  const pattern = format.pattern ?? "m:ss";
+  if (pattern !== "m:ss") {
+    diagnostics.push(unsupportedFormat(format, location));
+    return String(value);
+  }
+
+  const totalSeconds = Math.round(value);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function formatDateTime(

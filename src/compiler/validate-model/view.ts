@@ -1,10 +1,15 @@
 import type {
+  EditChildCollectionSummaryAggregate,
+  EditChildCollectionSummaryPlacement,
   EditChildOperationKind,
   EditContainerMode,
+  FieldType,
   RelationshipPickerSelectionMode,
   RelationshipPickerSourceKind,
+  ResolvedEditChildCollectionSummary,
   ResolvedEditSection,
   ResolvedObject,
+  ResolvedProjectedField,
   ResolvedRelationshipPicker,
   ResolvedView,
   ResolvedViewContext,
@@ -47,6 +52,17 @@ const RELATIONSHIP_PICKER_SOURCE_KINDS = new Set<RelationshipPickerSourceKind>([
 const RELATIONSHIP_PICKER_SELECTION_MODES = new Set<RelationshipPickerSelectionMode>([
   "single",
   "multiple",
+]);
+const EDIT_CHILD_COLLECTION_SUMMARY_AGGREGATES = new Set<EditChildCollectionSummaryAggregate>([
+  "sum",
+  "avg",
+  "min",
+  "max",
+  "count",
+]);
+const EDIT_CHILD_COLLECTION_SUMMARY_PLACEMENTS = new Set<EditChildCollectionSummaryPlacement>([
+  "header",
+  "footer",
 ]);
 export function validateView(
   view: ResolvedView,
@@ -306,6 +322,27 @@ function validateViewEditSections(
           diagnostics,
         );
       }
+
+      // `summary.field` may resolve against a projected field's name, so
+      // projected fields must be validated (and their target types collected)
+      // before the summary is checked against them. See Phase 87.
+      const projectedFieldTypes = validateProjectedFields(
+        section.projectedFields,
+        `${sectionPath}.projectedFields`,
+        childObject,
+        indexes,
+        diagnostics,
+      );
+
+      if (section.summary !== undefined) {
+        validateEditChildCollectionSummary(
+          section.summary,
+          `${sectionPath}.summary`,
+          childObject,
+          projectedFieldTypes,
+          diagnostics,
+        );
+      }
     }
 
     for (let operationIndex = 0; operationIndex < section.operations.length; operationIndex += 1) {
@@ -332,6 +369,174 @@ function validateViewEditSections(
         ),
       );
     }
+  }
+}
+/**
+ * `through` must name a field on `childObject` carrying a `lookup`; `field`
+ * must exist on that lookup's `targetObject` and not be `hidden`; `name` must
+ * not collide with the child object's own field names or with another
+ * projected field's name in the same section. See Phase 87.
+ *
+ * Returns each successfully-validated projected field's *target* field type,
+ * keyed by the projected field's own `name` -- what `validateEditChildCollectionSummary`
+ * needs to check a summary field that resolves to a projected field (rather
+ * than an own field) for numeric-ness. A projected field that failed its own
+ * validation is left out, so a summary referencing it fails with "unknown
+ * field" rather than compounding a second, confusing diagnostic about it.
+ */
+function validateProjectedFields(
+  projectedFields: ResolvedProjectedField[] | undefined,
+  projectedFieldsPath: string,
+  childObject: ResolvedObject,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): Map<string, FieldType> {
+  const types = new Map<string, FieldType>();
+  if (projectedFields === undefined) {
+    return types;
+  }
+
+  const ownFieldNames = new Set(childObject.fields.map((field) => field.name));
+
+  for (let index = 0; index < projectedFields.length; index += 1) {
+    const projectedField = projectedFields[index];
+    if (projectedField === undefined) {
+      continue;
+    }
+    const fieldPath = `${projectedFieldsPath}[${index}]`;
+
+    if (ownFieldNames.has(projectedField.name) || types.has(projectedField.name)) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PROJECTED_FIELD_NAME_DUPLICATE,
+          `Projected field name '${projectedField.name}' collides with an existing field on child object '${childObject.name}' or another projected field in the same section.`,
+          `${fieldPath}.name`,
+        ),
+      );
+      continue;
+    }
+
+    const throughField = childObject.fields.find((field) => field.name === projectedField.through);
+    if (throughField === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PROJECTED_FIELD_THROUGH_UNKNOWN,
+          `Projected field '${projectedField.name}' references unknown field '${projectedField.through}' on child object '${childObject.name}'.`,
+          `${fieldPath}.through`,
+        ),
+      );
+      continue;
+    }
+
+    if (throughField.lookup === undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PROJECTED_FIELD_THROUGH_INVALID,
+          `Projected field '${projectedField.name}' field '${projectedField.through}' must be a lookup field on child object '${childObject.name}'.`,
+          `${fieldPath}.through`,
+        ),
+      );
+      continue;
+    }
+
+    const targetObject = indexes.objectsByName.get(throughField.lookup.targetObject)?.item;
+    if (targetObject === undefined) {
+      // An unresolvable lookup target is already reported by field-level
+      // lookup validation; reporting it again here would only be noise.
+      continue;
+    }
+
+    const targetField = targetObject.fields.find((field) => field.name === projectedField.field);
+    if (targetField === undefined || targetField.hidden) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_PROJECTED_FIELD_FIELD_UNKNOWN,
+          `Projected field '${projectedField.name}' references unknown or hidden field '${projectedField.field}' on '${targetObject.name}' (via '${projectedField.through}').`,
+          `${fieldPath}.field`,
+        ),
+      );
+      continue;
+    }
+
+    types.set(projectedField.name, targetField.type);
+  }
+
+  return types;
+}
+/**
+ * `field` must resolve to a field on `childObject` **or** to one of the
+ * section's own projected field names (checked in that order, after
+ * `projectedFields` has already been validated); it must be `type: "number"`
+ * for every aggregate except `count`, which counts rows with a non-null
+ * value for `field`, or every row if `field` is omitted. See Phase 87.
+ */
+function validateEditChildCollectionSummary(
+  summary: ResolvedEditChildCollectionSummary,
+  summaryPath: string,
+  childObject: ResolvedObject,
+  projectedFieldTypes: Map<string, FieldType>,
+  diagnostics: Diagnostic[],
+): void {
+  if (!EDIT_CHILD_COLLECTION_SUMMARY_AGGREGATES.has(summary.aggregate)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_SUMMARY_AGGREGATE_INVALID,
+        `Edit child collection summary has invalid aggregate '${String(summary.aggregate)}'.`,
+        `${summaryPath}.aggregate`,
+      ),
+    );
+    return;
+  }
+
+  if (!EDIT_CHILD_COLLECTION_SUMMARY_PLACEMENTS.has(summary.placement)) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_SUMMARY_PLACEMENT_INVALID,
+        `Edit child collection summary has invalid placement '${String(summary.placement)}'.`,
+        `${summaryPath}.placement`,
+      ),
+    );
+  }
+
+  if (summary.field === undefined) {
+    if (summary.aggregate !== "count") {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_SUMMARY_FIELD_REQUIRED,
+          `Edit child collection summary aggregate '${summary.aggregate}' requires a field.`,
+          `${summaryPath}.field`,
+        ),
+      );
+    }
+    return;
+  }
+
+  const ownField = childObject.fields.find((field) => field.name === summary.field);
+  const projectedType = projectedFieldTypes.get(summary.field);
+  if (ownField === undefined && projectedType === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_SUMMARY_FIELD_UNKNOWN,
+        `Edit child collection summary references unknown field '${summary.field}' on child object '${childObject.name}' (checked own fields and projected fields).`,
+        `${summaryPath}.field`,
+      ),
+    );
+    return;
+  }
+
+  if (summary.aggregate === "count") {
+    return;
+  }
+
+  const fieldType = ownField?.type ?? projectedType;
+  if (fieldType !== "number") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.VIEW_EDIT_SECTION_SUMMARY_FIELD_NOT_NUMERIC,
+        `Edit child collection summary aggregate '${summary.aggregate}' requires field '${summary.field}' to be numeric.`,
+        `${summaryPath}.field`,
+      ),
+    );
   }
 }
 function validateRelationshipPicker(

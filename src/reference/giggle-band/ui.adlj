@@ -1211,6 +1211,23 @@
                   "text": "Every song in the library is already in this set list."
                 },
                 "comment": "Adding a song is choosing one, not typing its record id. CANDIDATE_FIELD\nmakes each choice mint a SetListItem naming that Song, appended to the end\nof the set list and ready to be reordered. Songs already in this set list\nare excluded, so the same song cannot be added twice."
+              },
+              "projectedFields": [
+                {
+                  "name": "DurationSeconds",
+                  "through": "Song",
+                  "field": "DurationSeconds"
+                }
+              ],
+              "summary": {
+                "field": "DurationSeconds",
+                "aggregate": "sum",
+                "label": "Total",
+                "format": {
+                  "kind": "duration",
+                  "pattern": "m:ss"
+                },
+                "placement": "footer"
               }
             }
           ]

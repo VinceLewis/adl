@@ -68,26 +68,29 @@ function sortedComments(value: unknown): string[] {
 }
 
 /**
- * Deep-clones a `PartialApplicationModel` with every `conflictOverlay` key
- * removed (a calendar's own `ResolvedPresentationCalendarConflictOverlay`,
- * one of the small named set of constructs with no ADL text syntax -- see
- * `docs/spec/adlj.md`'s "The printer"). `conflictOverlay` is a name specific
- * enough to this one construct that removing it wherever it appears, rather
- * than walking the typed structure to the exact calendar path, is safe.
+ * Deep-clones a `PartialApplicationModel` with every key from the small,
+ * named set of constructs that have no ADL text syntax at all removed --
+ * a calendar's own `conflictOverlay`
+ * (`ResolvedPresentationCalendarConflictOverlay`), and a `CHILD_COLLECTION`
+ * section's own `projectedFields`/`summary` (`ResolvedProjectedField[]` /
+ * `ResolvedEditChildCollectionSummary`, Phase 87) -- see `docs/spec/adlj.md`'s
+ * "The printer". Each name is specific enough to its one construct that
+ * removing it wherever it appears, rather than walking the typed structure to
+ * its exact path, is safe.
  */
-function withoutCalendarConflictOverlays<T>(value: T): T {
+function withoutUnprintableJsonOnlyConstructs<T>(value: T): T {
   if (value === null || typeof value !== "object") {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.map((item) => withoutCalendarConflictOverlays(item)) as unknown as T;
+    return value.map((item) => withoutUnprintableJsonOnlyConstructs(item)) as unknown as T;
   }
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-    if (key === "conflictOverlay") {
+    if (key === "conflictOverlay" || key === "projectedFields" || key === "summary") {
       continue;
     }
-    result[key] = withoutCalendarConflictOverlays(val);
+    result[key] = withoutUnprintableJsonOnlyConstructs(val);
   }
   return result as T;
 }
@@ -251,7 +254,10 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
     // Giggle Band exercises comment shapes Jointly Care does not: a SECTION
     // comment (`DuplicateGig`), a row ACTION comment (`duplicateGig`), a
     // PICKER comment (`SongPicker`), and READ_MODEL/FIELD comments on
-    // `SentBandInvitations`/`MyAvailabilityWithGigs`.
+    // `SentBandInvitations`/`MyAvailabilityWithGigs`. It also exercises a
+    // second unprintable construct beyond `conflictOverlay`: `SetListForm`'s
+    // `Songs` child collection declares `projectedFields`/`summary`
+    // (Phase 87), also `.adlj`-only.
     const original = compileAdlProjectV2({
       manifestSource: readReference("giggle-band/app.yaml"),
       sources: {
@@ -267,16 +273,18 @@ describe("comment preservation through the full .adl -> .adlj -> .adl round trip
 
     // `BandEventCalendar`'s `MonthPlanner` calendar declares a
     // `conflictOverlay` (see `ResolvedPresentationCalendarConflictOverlay`),
-    // one of the small, named set of constructs with no ADL text syntax at
-    // all -- same treatment as `MATRIX`, a `select` control, or a conditional
-    // row fragment (see `docs/spec/adlj.md`'s "The printer" section). The
-    // printer correctly refuses to print it; this test's own job is comment
-    // preservation across the rest of the model, so the field is stripped
-    // from a clone before printing, exactly the way a real caller of
-    // `printPartialApplicationModelAsAdl` has to route around any
-    // unprintable construct today. It carries no `comment` of its own, so
-    // this does not remove anything `originalComments` above already counted.
-    const printableModel = withoutCalendarConflictOverlays(original.partialModel);
+    // and `SetListForm`'s `Songs` section declares `projectedFields`/
+    // `summary` (Phase 87) -- all in the small, named set of constructs with
+    // no ADL text syntax at all -- same treatment as `MATRIX`, a `select`
+    // control, or a conditional row fragment (see `docs/spec/adlj.md`'s "The
+    // printer" section). The printer correctly refuses to print any of them;
+    // this test's own job is comment preservation across the rest of the
+    // model, so these fields are stripped from a clone before printing,
+    // exactly the way a real caller of `printPartialApplicationModelAsAdl`
+    // has to route around any unprintable construct today. None of them
+    // carries a `comment` of its own, so this does not remove anything
+    // `originalComments` above already counted.
+    const printableModel = withoutUnprintableJsonOnlyConstructs(original.partialModel);
     const printed = printPartialApplicationModelAsAdl(printableModel);
     for (const comment of originalComments) {
       for (const line of comment.split("\n")) {

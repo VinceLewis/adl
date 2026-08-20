@@ -364,6 +364,125 @@ A consequence worth stating plainly: `EDIT_CONTAINER` on a `LIST` view no longer
 governs the form that list opens. Declaring it there is not an error — a list may
 itself be opened as an edit surface — but it is not how a list controls its form.
 
+## Projected fields and summary (Phase 87)
+
+A real, concrete need: showing a set list's total duration on
+`SetListForm`'s `Songs` child collection — the page where songs are actually
+added, removed and reordered — not on a separate browse screen. Two small,
+`.adlj`-only additions to `ResolvedEditChildCollectionSection`:
+`projectedFields?: ResolvedProjectedField[]` (a row field sourced from a
+related object reached through one of the child object's own lookup fields —
+`SetListItem.Song` → `Song.DurationSeconds`, not just the child object's own
+stored fields) and `summary?: ResolvedEditChildCollectionSummary` (one
+aggregated value — `sum`/`avg`/`min`/`max`/`count` — over the collection's
+current rows, persisted and staged together, at `header` or `footer`).
+Neither has `.adl` text syntax — same treatment as `MATRIX` and a calendar's
+`conflictOverlay` (see `docs/spec/adlj.md`'s "no ADL text syntax" list) —
+because the concrete need was JSON-authorable already and inventing text
+grammar under time pressure for a construct not yet proven out is how a
+language accumulates syntax nobody asked for.
+
+### Two alternatives considered and rejected
+
+- **Async computed fields.** `computed-fields.ts`'s
+  `applyComputedFieldsToRecord` is synchronous — it evaluates a field's
+  expression over the record's own already-loaded `values` only, no object
+  store access, no `await` anywhere in the call chain. Reaching a *related*
+  object's field would mean making that evaluation async, which every call
+  site of computed fields would have to absorb — a broad, invasive change
+  across the runtime for a need that is really scoped to one rendering path
+  (one `CHILD_COLLECTION` section). Rejected in favor of the smaller,
+  contained option: resolve the projected field only where it is rendered
+  (`toPersistedChildRow`/`evaluateStagedChildRows` in
+  `edit-surface-runtime.ts`), not everywhere a computed field is evaluated.
+- **A generic `SUMMARY` on the presentation `LIST`.** The phase's own first
+  design draft, and *wrong*: a `CHILD_COLLECTION` edit section is evaluated
+  entirely by `EditSurfaceRuntime.evaluateChildCollectionSection`, producing
+  `RuntimeEditChildCollectionSection`/`RuntimeEditChildRow` — a completely
+  separate type and code path from `PresentationRuntime.evaluateList`/
+  `RuntimePresentationList`. A construct built against the presentation-`LIST`
+  path never reaches `SetListForm`'s `Songs` section, because that section
+  is not a `LIST` — it is a child collection, rendered by a different
+  runtime class entirely. Tracing which pipeline actually renders the target
+  screen *before* designing the construct is what caught this; it would not
+  have been caught by testing the construct in isolation, only by trying to
+  reach the real screen with it. A `SUMMARY` on the generic presentation
+  `LIST` remains a real, separable piece of future work if a non-child-collection
+  list ever wants the same idea — deliberately not attempted here, to keep
+  this phase's scope to the one pipeline the concrete need actually reaches.
+
+### Why the policy-safe read path is `this.dataSource.read`, not `ObjectStore.getRecordForRuntime`
+
+Phase 71's command `READ` step (`command-service.ts`'s `planStepRead`) reads
+a related record via `this.objectStore.read(step.object, recordId,
+stepContext)` — object scope, row policy, and field-level read shaping all
+apply, deliberately: "a command step gets no more of the record than the
+caller could see by reading it directly." `edit-surface-runtime.ts` already
+had the same method available on its own `this.dataSource`, so the
+projected-field fetch reuses it rather than building a second, weaker read
+path. `ObjectStore.getRecordForRuntime` was considered and rejected — it
+applies **no** read policy at all, which is correct for its own narrow job
+(elsewhere in the runtime) and wrong here: a projected field is a value the
+UI shows a person, and it must be shaped by the same policy a direct read of
+that record would apply.
+
+A denied or missing projected-field fetch degrades to `null`, never throws:
+- **Found and readable**: `values[name] = record.values[field] ?? null`.
+- **`PolicyDeniedError`**: caught, `values[name] = null`, and a warning
+  diagnostic (`ADL_EDIT_CHILD_PROJECTED_FIELD_DENIED`) is recorded on the
+  surface rather than the error propagating and failing the whole section's
+  rendering — the general diagnostics-not-crashes posture this project
+  already follows elsewhere (`ADL_PRESENTATION_FIELD_MISSING` is the model).
+- **Missing/absent lookup value** (the row's own lookup field is `null` or
+  not a string — should not happen for a `REQUIRED` lookup like
+  `SetListItem.Song`, but is not assumed): `values[name] = null`, no fetch
+  attempted at all, no diagnostic (this is not an exceptional case — a
+  staged draft row genuinely may not have chosen a related record yet).
+- A related record that *did* exist at the id but has since been deleted
+  (`this.dataSource.read` returns `null`, not a thrown error) is treated the
+  same as "missing" — `null`, no diagnostic. Only a policy *denial* is
+  reported, because only a denial is something an author or reviewer would
+  want to know about; a dangling reference to a deleted record is not a
+  policy question.
+
+Fetches are cached only *within* one `evaluateChildCollectionSection` call
+(keyed by `` `${targetObjectName}:${lookupValue}` ``), so ten rows naming the
+same related record cost one read, not ten — but the cache is thrown away at
+the end of the call. No cross-request cache: caching across calls would mean
+a projected field could show a value staler than the record it was read
+from, for a feature whose entire point is being live against unsaved edits.
+
+### The summary is computed over the *final* assembled row set
+
+`computeChildCollectionSummary` runs in `evaluateChildCollectionSection`
+*after* `rows: [...persistedRows, ...stagedRows]` is fully assembled — which
+is the whole reason this lives here rather than in a hypothetical generic
+`LIST`-level summary: this collection already recomputes its full row set on
+every add/remove/reorder before save, so a summary computed from that same
+already-assembled row set updates live as a person edits, with no additional
+wiring, no separate "recompute the total" step to remember to call. `null`
+per-row values are skipped (matching the convention `formatPresentationValue`
+already uses elsewhere), and `field` is validated to resolve against the
+child object's own fields **or** the section's own `projectedFields` names —
+in that order, since a projected field's resolved type is only known once
+`projectedFields` itself has been validated. `count` is the one aggregate
+that tolerates an absent `field`: present, it counts rows with a non-null
+value for that field; absent, it counts every row.
+
+### The `duration` format kind
+
+Added to `PresentationFormatKind` generally (usable anywhere a presentation
+format is declared, not only in a child-collection summary), with a
+`formatDuration` function in `presentation-runtime.ts` alongside the existing
+date/time formatters. Supports one pattern, `m:ss` (minutes, then seconds
+zero-padded to two digits) — the shape a duration actually needs
+(`giggle-new`'s own real display, `"47:20"`), following `applyTimePattern`'s
+small-closed-token-vocabulary style rather than inventing a different
+convention. `formatPresentationValue` itself had to be exported from
+`presentation-runtime.ts` — previously module-private — because the child
+collection summary is the first consumer of that formatter from outside the
+presentation runtime.
+
 ## Practical guidance
 
 - Add syntax by extending the AST-to-partial-model conversion, never by

@@ -5,7 +5,7 @@ import type { PresentationDensity } from "./presentation-core.js";
 
 export type PresentationRowLayout = "inline" | "stack";
 export type PresentationFragmentStyle = "plain" | "bold" | "muted" | "caption";
-export type PresentationFormatKind = "text" | "number" | "date" | "datetime" | "time";
+export type PresentationFormatKind = "text" | "number" | "date" | "datetime" | "time" | "duration";
 export interface ResolvedPresentationRowTemplate {
   layout: PresentationRowLayout;
   density: PresentationDensity;

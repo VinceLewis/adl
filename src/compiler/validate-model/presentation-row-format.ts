@@ -38,6 +38,7 @@ const PRESENTATION_FORMAT_KINDS = new Set<PresentationFormatKind>([
   "date",
   "datetime",
   "time",
+  "duration",
 ]);
 export function validatePresentationActionControl(
   control: Extract<ResolvedPresentationControl, { kind: "action" }>,

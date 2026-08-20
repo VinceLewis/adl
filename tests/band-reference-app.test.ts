@@ -25,7 +25,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.6.0");
+    expect(model.modelVersion).toBe("1.7.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -60,6 +60,12 @@ describe("band reference app model", () => {
     // -- see adl-app.ts's renderCrudWorkspace) changes shell content but no
     // object's fields.
     expect(model.migrations).toContainEqual({ from: "1.5.0", to: "1.6.0", objects: [] });
+    // `1.6.0 -> 1.7.0` is an empty-object hop: `SetListForm`'s `Songs` child
+    // collection gains `projectedFields` (the set list's songs' own
+    // `DurationSeconds`, projected through `SetListItem.Song`) and a `summary`
+    // (their total, `duration`-formatted) -- both `.adlj`-only edit-section
+    // content (Phase 87), not stored fields on any object.
+    expect(model.migrations).toContainEqual({ from: "1.6.0", to: "1.7.0", objects: [] });
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -72,7 +78,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-c6a3d94c6ee3fa4cad92683fc960fc8be47e24c37bd50181596e759f0eaff970",
+      "sha256-665e32890ac2d5adf090ddc5a7084103cb7ef4a6cbf42043e9f58061aa448377",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -235,6 +241,17 @@ describe("band reference app model", () => {
           emptyState: {
             text: "Every song in the library is already in this set list.",
           },
+        },
+        // A song's own `DurationSeconds` (Song, not SetListItem) projected
+        // through the `Song` lookup, and their `sum` shown as the section's
+        // footer -- both `.adlj`-only content, Phase 87.
+        projectedFields: [{ name: "DurationSeconds", through: "Song", field: "DurationSeconds" }],
+        summary: {
+          field: "DurationSeconds",
+          aggregate: "sum",
+          label: "Total",
+          format: { kind: "duration", pattern: "m:ss" },
+          placement: "footer",
         },
       },
     ]);

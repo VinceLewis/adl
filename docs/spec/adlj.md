@@ -650,6 +650,23 @@ than guessing at invented syntax or silently dropping content:
 - Per-view `presentation.shell.regions` — only the global `SHELL` block (now
   printed too) has ADL source syntax; per-view shell regions are
   JSON/TypeScript-only per `docs/spec/ui-language-addendum.md`.
+- A `CHILD_COLLECTION` edit section's `projectedFields`
+  (`ResolvedProjectedField[]`) — a row field sourced from a related object
+  reached through one of the child object's own lookup fields (e.g.
+  `SetListItem.Song` → `Song.DurationSeconds`), not just the child object's
+  own stored fields.
+- A `CHILD_COLLECTION` edit section's `summary`
+  (`ResolvedEditChildCollectionSummary`) — a single aggregated value
+  (`sum`/`avg`/`min`/`max`/`count`) over the collection's current rows
+  (persisted and staged together), shown at `header` or `footer`. Both added
+  Phase 87, for the same reason as `conflictOverlay`: real, concrete need
+  (a set list's total duration on `SetListForm`'s `Songs` collection, the
+  screen where songs are actually added/removed/reordered) with no existing
+  parser grammar to reach for — see `src/reference/giggle-band/ui.adlj`'s
+  `SetListForm` `Songs` section for the real, compiling worked example, and
+  `learnings/implementation/edit-surface-language.md` for the full design
+  rationale, including the two alternatives it rejected (async computed
+  fields; a generic presentation-`LIST`-level `SUMMARY`).
 
 Getting the Giggle Band round-trip to actually pass also surfaced and fixed
 several **pre-existing** printer defects outside composed presentation/edit

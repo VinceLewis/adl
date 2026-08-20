@@ -1418,6 +1418,24 @@
       ],
       "type": "string"
     },
+    "EditChildCollectionSummaryAggregate": {
+      "description": "The closed aggregate vocabulary a child collection's `summary` may declare.\n\nDeliberately not an open expression grammar: every declarative-total feature checked while designing this (SQL aggregates, Excel, Airtable rollups, Salesforce Roll-Up Summary fields, Crystal Reports' Summary field) converges on exactly this small, closed set. See Phase 87 and `learnings/implementation/edit-surface-language.md`.",
+      "enum": [
+        "sum",
+        "avg",
+        "min",
+        "max",
+        "count"
+      ],
+      "type": "string"
+    },
+    "EditChildCollectionSummaryPlacement": {
+      "enum": [
+        "header",
+        "footer"
+      ],
+      "type": "string"
+    },
     "EditChildOperationKind": {
       "enum": [
         "createChild",
@@ -1676,8 +1694,17 @@
         "picker": {
           "$ref": "#/definitions/PartialRelationshipPickerModel"
         },
+        "projectedFields": {
+          "items": {
+            "$ref": "#/definitions/PartialProjectedFieldModel"
+          },
+          "type": "array"
+        },
         "staged": {
           "type": "boolean"
+        },
+        "summary": {
+          "$ref": "#/definitions/PartialEditChildCollectionSummaryModel"
         }
       },
       "required": [
@@ -1685,6 +1712,30 @@
         "kind",
         "name",
         "parentField"
+      ],
+      "type": "object"
+    },
+    "PartialEditChildCollectionSummaryModel": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregate": {
+          "$ref": "#/definitions/EditChildCollectionSummaryAggregate"
+        },
+        "field": {
+          "type": "string"
+        },
+        "format": {
+          "$ref": "#/definitions/PartialPresentationFormatModel"
+        },
+        "label": {
+          "type": "string"
+        },
+        "placement": {
+          "$ref": "#/definitions/EditChildCollectionSummaryPlacement"
+        }
+      },
+      "required": [
+        "aggregate"
       ],
       "type": "object"
     },
@@ -2655,6 +2706,26 @@
       },
       "type": "object"
     },
+    "PartialProjectedFieldModel": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "through": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "through",
+        "field"
+      ],
+      "type": "object"
+    },
     "PartialProtectedRoleObjectConstraintModel": {
       "additionalProperties": false,
       "properties": {
@@ -3216,7 +3287,8 @@
         "number",
         "date",
         "datetime",
-        "time"
+        "time",
+        "duration"
       ],
       "type": "string"
     },

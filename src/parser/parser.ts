@@ -4686,6 +4686,8 @@ class AdlParser {
         return "datetime";
       case "time":
         return "time";
+      case "duration":
+        return "duration";
       default:
         return "text";
     }

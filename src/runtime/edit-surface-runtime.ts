@@ -3,7 +3,9 @@ import type {
   JsonValue,
   ResolvedApplicationModel,
   ResolvedEditChildCollectionSection,
+  ResolvedEditChildCollectionSummary,
   ResolvedEditFieldsSection,
+  ResolvedProjectedField,
   ResolvedRelationshipPicker,
   ResolvedEditSection,
   ResolvedField,
@@ -14,9 +16,16 @@ import type {
 } from "../model/resolved-model.js";
 import type { PlannedObjectWrite } from "./object-store.js";
 import { RuntimeModelIndex } from "./model-helpers.js";
-import { RuntimeModelError, RuntimeValidationError, cloneJson } from "./runtime-types.js";
+import {
+  PolicyDeniedError,
+  RuntimeModelError,
+  RuntimeValidationError,
+  cloneJson,
+} from "./runtime-types.js";
 import type { PolicyDecision, RuntimeContext, RuntimeLogger } from "./runtime-types.js";
 import type { RuntimeReadModelResult, RuntimeReadModelRow } from "./runtime-types.js";
+import { formatPresentationValue } from "./presentation-runtime.js";
+import type { RuntimePresentationDiagnostic } from "./presentation-runtime.js";
 
 export interface RuntimeEditSurfaceDataSource {
   read(objectName: string, id: string, context: RuntimeContext): Promise<StoredObjectRecord | null>;
@@ -114,6 +123,13 @@ export interface RuntimeEditChildCollectionSection {
   parentField: string;
   childView?: string;
   fields: ResolvedField[];
+  /**
+   * Names of row values sourced from a related object rather than stored
+   * directly on the child record -- present in `RuntimeEditChildRow.values`
+   * alongside the child object's own fields once resolved. See
+   * `ResolvedProjectedField` and Phase 87.
+   */
+  projectedFields: string[];
   operations: EditChildOperationKind[];
   staged: boolean;
   orderField?: string;
@@ -121,6 +137,18 @@ export interface RuntimeEditChildCollectionSection {
   picker?: RuntimeRelationshipPickerSummary;
   rows: RuntimeEditChildRow[];
   actions: RuntimeEditChildAction[];
+  /**
+   * A single aggregated value over `rows` (persisted and staged together),
+   * present only when the section declares one. Computed fresh on every
+   * evaluation, so it is live against unsaved edits. See Phase 87.
+   */
+  summary?: RuntimeEditChildCollectionSummary;
+}
+
+export interface RuntimeEditChildCollectionSummary {
+  label?: string;
+  text: string;
+  placement: "header" | "footer";
 }
 
 export interface RuntimeRelationshipPickerSummary {
@@ -471,21 +499,40 @@ export class EditSurfaceRuntime {
   }): Promise<RuntimeEditChildCollectionSection> {
     const childObject = this.index.getObject(input.section.childObject);
     const fields = getChildSectionFields(childObject, input.section);
-    const persistedRows =
+    /*
+     * Scoped to this one evaluation, not shared across calls: caching a
+     * fetched related record across requests would mean a projected field
+     * could show a value staler than the record it was read from, for a
+     * feature whose whole point is being live against unsaved edits. See
+     * Phase 87 (Constraints: no cross-request cache).
+     */
+    const projectedFieldCache = new Map<string, StoredObjectRecord | null>();
+    const persistedRecords =
       input.record === undefined
         ? []
-        : (await this.dataSource.search(childObject.name, input.context))
-            .filter(
-              (record) => record.values[input.section.parentField] === input.record?.meta.guid,
-            )
-            .map((record) =>
-              this.toPersistedChildRow(record, input.section, input.context, input.stagedChanges),
-            );
+        : (await this.dataSource.search(childObject.name, input.context)).filter(
+            (record) => record.values[input.section.parentField] === input.record?.meta.guid,
+          );
+    const persistedRows = await Promise.all(
+      persistedRecords.map((record) =>
+        this.toPersistedChildRow(
+          record,
+          input.section,
+          input.context,
+          input.stagedChanges,
+          input.diagnostics,
+          projectedFieldCache,
+        ),
+      ),
+    );
     const stagedRows = await this.evaluateStagedChildRows(
       input.section,
       input.stagedChanges,
       input.context,
+      input.diagnostics,
+      projectedFieldCache,
     );
+    const rows = [...persistedRows, ...stagedRows];
 
     return {
       name: input.section.name,
@@ -495,6 +542,7 @@ export class EditSurfaceRuntime {
       parentField: input.section.parentField,
       ...(input.section.childView === undefined ? {} : { childView: input.section.childView }),
       fields,
+      projectedFields: (input.section.projectedFields ?? []).map((field) => field.name),
       operations: [...input.section.operations],
       staged: input.section.staged,
       ...(input.section.orderField === undefined ? {} : { orderField: input.section.orderField }),
@@ -502,7 +550,7 @@ export class EditSurfaceRuntime {
       ...(input.section.picker === undefined
         ? {}
         : { picker: summarizePicker(input.section.picker) }),
-      rows: [...persistedRows, ...stagedRows],
+      rows,
       actions: input.section.operations.map((operation) =>
         this.evaluateCollectionAction(
           operation,
@@ -512,15 +560,27 @@ export class EditSurfaceRuntime {
           input.record,
         ),
       ),
+      ...(input.section.summary === undefined
+        ? {}
+        : {
+            summary: computeChildCollectionSummary(
+              input.section.summary,
+              rows,
+              input.section.name,
+              input.diagnostics,
+            ),
+          }),
     };
   }
 
-  private toPersistedChildRow(
+  private async toPersistedChildRow(
     record: StoredObjectRecord,
     section: ResolvedEditChildCollectionSection,
     context: RuntimeContext,
-    stagedChanges: RuntimeStagedChildOperation[] = [],
-  ): RuntimeEditChildRow {
+    stagedChanges: RuntimeStagedChildOperation[],
+    diagnostics: RuntimeEditSurfaceDiagnostic[],
+    projectedFieldCache: Map<string, StoredObjectRecord | null>,
+  ): Promise<RuntimeEditChildRow> {
     const childObject = this.index.getObject(section.childObject);
     /*
      * A staged edit is shown on the row it changes, not held back until the
@@ -542,15 +602,17 @@ export class EditSurfaceRuntime {
         operation.operation === "updateChild" &&
         operation.childId === record.meta.guid,
     );
+    const values = staged.reduce<Record<string, JsonValue>>(
+      (values, operation) => ({ ...values, ...cloneJson(operation.values ?? {}) }),
+      cloneJson(record.values),
+    );
+    await this.applyProjectedFields(section, values, context, diagnostics, projectedFieldCache);
 
     return {
       id: record.meta.guid,
       source: "persisted",
       record,
-      values: staged.reduce<Record<string, JsonValue>>(
-        (values, operation) => ({ ...values, ...cloneJson(operation.values ?? {}) }),
-        cloneJson(record.values),
-      ),
+      values,
       actions: section.operations
         .filter((operation) => operation !== "createChild" && operation !== "linkExisting")
         .map((operation) =>
@@ -559,10 +621,78 @@ export class EditSurfaceRuntime {
     };
   }
 
+  /**
+   * Resolves `section.projectedFields` onto `values` in place, one related
+   * read per distinct `(through, lookup value)` pair per evaluation (see
+   * `projectedFieldCache`).
+   *
+   * Reuses `this.dataSource.read` -- the same policy-respecting method Phase
+   * 71's command `READ` step uses via `objectStore.read` -- rather than
+   * `ObjectStore.getRecordForRuntime`, which applies no read policy at all.
+   * A denied or missing related record degrades the projected field to
+   * `null` with a diagnostic (denial) or silently (missing lookup value, or
+   * a lookup value naming a record that no longer exists); it never throws
+   * and fails the whole section. See Phase 87.
+   */
+  private async applyProjectedFields(
+    section: ResolvedEditChildCollectionSection,
+    values: Record<string, JsonValue>,
+    context: RuntimeContext,
+    diagnostics: RuntimeEditSurfaceDiagnostic[],
+    cache: Map<string, StoredObjectRecord | null>,
+  ): Promise<void> {
+    const projectedFields = section.projectedFields;
+    if (projectedFields === undefined || projectedFields.length === 0) {
+      return;
+    }
+
+    const childObject = this.index.getObject(section.childObject);
+    for (const projected of projectedFields) {
+      const lookupValue = values[projected.through];
+      if (typeof lookupValue !== "string" || lookupValue.length === 0) {
+        values[projected.name] = null;
+        continue;
+      }
+
+      const throughField = childObject.fields.find((field) => field.name === projected.through);
+      const targetObjectName = throughField?.lookup?.targetObject;
+      if (targetObjectName === undefined) {
+        values[projected.name] = null;
+        continue;
+      }
+
+      const cacheKey = `${targetObjectName}:${lookupValue}`;
+      let related: StoredObjectRecord | null;
+      if (cache.has(cacheKey)) {
+        related = cache.get(cacheKey) ?? null;
+      } else {
+        try {
+          related = await this.dataSource.read(targetObjectName, lookupValue, context);
+        } catch (error) {
+          if (!(error instanceof PolicyDeniedError)) {
+            throw error;
+          }
+          related = null;
+          diagnostics.push({
+            severity: "warning",
+            code: "ADL_EDIT_CHILD_PROJECTED_FIELD_DENIED",
+            message: `Projected field '${projected.name}' on edit child collection '${section.name}' could not be read: access to '${targetObjectName}' record '${lookupValue}' was denied.`,
+            section: section.name,
+          });
+        }
+        cache.set(cacheKey, related);
+      }
+
+      values[projected.name] = related === null ? null : (related.values[projected.field] ?? null);
+    }
+  }
+
   private async evaluateStagedChildRows(
     section: ResolvedEditChildCollectionSection,
     stagedChanges: RuntimeStagedChildOperation[],
     context: RuntimeContext,
+    diagnostics: RuntimeEditSurfaceDiagnostic[],
+    projectedFieldCache: Map<string, StoredObjectRecord | null>,
   ): Promise<RuntimeEditChildRow[]> {
     const rows: RuntimeEditChildRow[] = [];
     for (const operation of stagedChanges) {
@@ -571,10 +701,12 @@ export class EditSurfaceRuntime {
       }
 
       if (operation.operation === "createChild") {
+        const values = cloneJson(operation.values ?? {});
+        await this.applyProjectedFields(section, values, context, diagnostics, projectedFieldCache);
         rows.push({
           id: operation.id,
           source: "staged",
-          values: cloneJson(operation.values ?? {}),
+          values,
           stagedOperationId: operation.id,
           actions: [removeStagedAction()],
         });
@@ -583,10 +715,12 @@ export class EditSurfaceRuntime {
 
       if (operation.operation === "linkExisting" && operation.childId !== undefined) {
         const child = await this.dataSource.read(section.childObject, operation.childId, context);
+        const values = cloneJson(child?.values ?? {});
+        await this.applyProjectedFields(section, values, context, diagnostics, projectedFieldCache);
         rows.push({
           id: operation.id,
           source: "staged",
-          values: cloneJson(child?.values ?? {}),
+          values,
           ...(child === null ? {} : { record: child }),
           stagedOperationId: operation.id,
           actions: [removeStagedAction()],
@@ -1100,6 +1234,79 @@ function scopeValues(object: ResolvedObject, context: RuntimeContext): Record<st
 
   const contextId = context.selectedContexts?.[scope.context];
   return contextId === undefined ? {} : { [scope.field]: contextId };
+}
+
+/**
+ * Reduces over the *final* assembled row set (persisted rows plus staged,
+ * not-yet-saved changes) rather than a fresh read from storage -- the whole
+ * reason this lives in `evaluateChildCollectionSection` rather than the
+ * generic presentation `LIST` path: this collection already recomputes its
+ * full row set on every add/remove/reorder before save, so a summary
+ * computed from that same row set updates live as a person edits, with no
+ * additional wiring. `null`/`undefined` per-row values are skipped, matching
+ * the convention `formatPresentationValue` already uses elsewhere. See
+ * Phase 87.
+ */
+function computeChildCollectionSummary(
+  summary: ResolvedEditChildCollectionSummary,
+  rows: RuntimeEditChildRow[],
+  sectionName: string,
+  diagnostics: RuntimeEditSurfaceDiagnostic[],
+): RuntimeEditChildCollectionSummary {
+  const numericValues: number[] = [];
+  let nonNullCount = 0;
+  for (const row of rows) {
+    const raw = summary.field === undefined ? undefined : row.values[summary.field];
+    if (raw === undefined || raw === null) {
+      continue;
+    }
+    nonNullCount += 1;
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      numericValues.push(raw);
+    }
+  }
+
+  let result: number;
+  switch (summary.aggregate) {
+    case "sum":
+      result = numericValues.reduce((total, value) => total + value, 0);
+      break;
+    case "avg":
+      result =
+        numericValues.length === 0
+          ? 0
+          : numericValues.reduce((total, value) => total + value, 0) / numericValues.length;
+      break;
+    case "min":
+      result = numericValues.length === 0 ? 0 : Math.min(...numericValues);
+      break;
+    case "max":
+      result = numericValues.length === 0 ? 0 : Math.max(...numericValues);
+      break;
+    case "count":
+      result = summary.field === undefined ? rows.length : nonNullCount;
+      break;
+  }
+
+  const formatDiagnostics: RuntimePresentationDiagnostic[] = [];
+  const text = formatPresentationValue(result, summary.format, formatDiagnostics, {
+    path: `editSections.${sectionName}.summary`,
+    section: sectionName,
+  });
+  for (const formatDiagnostic of formatDiagnostics) {
+    diagnostics.push({
+      severity: formatDiagnostic.severity,
+      code: formatDiagnostic.code,
+      message: formatDiagnostic.message,
+      section: sectionName,
+    });
+  }
+
+  return {
+    ...(summary.label === undefined ? {} : { label: summary.label }),
+    text,
+    placement: summary.placement,
+  };
 }
 
 function getChildSectionFields(
