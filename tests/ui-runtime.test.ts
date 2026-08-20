@@ -1061,7 +1061,8 @@ describe("browser UI runtime", () => {
       persisted.musicianContext,
     );
 
-    expect(persistedApp.textContent).toContain("Band selection was cleared.");
+    expect(persistedApp.textContent).toContain("You must select a Band to work with.");
+    expect(persistedApp.textContent).not.toContain("missing-band");
     expect(globalThis.localStorage.getItem("adl:BandOps:context:Band")).toBeNull();
     expect(persistedApp.textContent).toContain("Choose a Band context to open this view.");
 
@@ -1072,7 +1073,8 @@ describe("browser UI runtime", () => {
     });
     const routeApp = await mountApp(route.model, route.runtime, route.musicianContext);
 
-    expect(routeApp.textContent).toContain("Band selection was cleared.");
+    expect(routeApp.textContent).toContain("You must select a Band to work with.");
+    expect(routeApp.textContent).not.toContain("missing-band");
     expect(routeApp.textContent).toContain("Choose a Band context to open this view.");
   });
 

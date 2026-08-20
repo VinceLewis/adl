@@ -2200,9 +2200,7 @@ export class AdlAppElement extends HTMLElement {
 
         this.setSelectedContextId(contextModel.name, undefined, true);
         this.messages = [
-          infoMessage(`${titleCaseIdentifier(contextModel.name)} selection was cleared.`, [
-            `Context '${requested}' is no longer available to this user.`,
-          ]),
+          infoMessage(`You must select a ${titleCaseIdentifier(contextModel.name)} to work with.`),
         ];
       }
 
