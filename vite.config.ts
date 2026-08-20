@@ -24,7 +24,9 @@ export default defineConfig({
     },
   },
   server: {
-    host: "127.0.0.1",
+    // Bind on all interfaces (not just loopback) so the dev server is
+    // reachable from other devices on the LAN, e.g. testing on a phone.
+    host: "0.0.0.0",
     port: 5173,
   },
 });
