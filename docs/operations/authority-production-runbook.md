@@ -121,6 +121,13 @@ brand-new database therefore has no way to admit its first identity through the
 product surface. The first identity and its membership must be established **out
 of band by an operator**, once, before anyone can sign in.
 
+For a **local development** database, `scripts/dev/seed-local-admin.mjs`
+(`npm run dev:seed`) performs exactly this step through the repository's own
+server modules, so the records it writes are the shape the model validates. It
+is developer tooling and is not a route: point it at a development database
+only, and do the writes below for a real deployment.
+See `docs/development/local-https-development.md`.
+
 Do it as three writes plus one ordinary registration, using the model's own
 membership declaration (for `giggle-band`, `CONTEXT Band … MEMBERSHIP BandMember
 USER User CONTEXT_FIELD Band ROLE_FIELD Role`). Run the inserts as

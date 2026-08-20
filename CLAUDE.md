@@ -74,6 +74,15 @@ work unless asked.
   `compileAdlj`; `compileAdl` remains the check for hand-authored or reviewed
   `.adl` text. See `AGENTS.md`'s Testing section for both patterns.
 
+## Local Development
+
+To run the browser demo against a real local authority server, follow
+`docs/development/local-https-development.md`. It is real TLS end to end,
+because `loadAuthorityConfiguration` refuses a non-HTTPS allowed origin in every
+environment, the session cookie is `__Host-` Secure, and a WebAuthn ceremony
+needs a secure context. None of those three gets a development mode: do not add
+one. `npm run dev` on its own stays plain HTTP and entirely local.
+
 ## Parallel Execution
 
 Each phase document carries a `## Parallel Execution Plan`. You are authorised to

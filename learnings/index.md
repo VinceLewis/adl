@@ -60,6 +60,12 @@ Before tasks that change runtime stack choices, server authority, sync transport
 - `implementation/first-deployment-slice.md`
 - `implementation/passkey-identity.md`
 
+Before tasks that change `vite.config.ts`'s server/preview configuration, anything under `scripts/dev/`, `playwright.config.ts`'s web servers, the `dev:*` npm scripts, or that consider a development mode for a check in `src/server/authority-config.ts`, also read:
+
+- `implementation/local-https-development.md`
+- `implementation/first-deployment-slice.md`
+- `implementation/passkey-identity.md`
+
 Before tasks that change the authority entrypoint or its deployment configuration, the identity verification switch, identity keying or identity links, WebAuthn ceremonies, invites, membership grants/revocation or access audit, the browser authority transport, session-derived browser identity, or bootstrap paging, also read:
 
 - `implementation/first-deployment-slice.md`
@@ -383,6 +389,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/presentation-matrix-runtime.md`: read before changing resource/date matrices, availability presentation, matrix cell cycling, range editing, or future calendar work that reuses matrix status semantics.
 - `implementation/calendar-presentation-runtime.md`: read before changing calendar month planning views, calendar cell actions, or event-entry behavior.
 - `implementation/shell-navigation.md`: read before changing shell navigation metadata, drawer rendering, top-bar controls, or mobile business-context selectors. Since Phase 92 it also carries the top bar's three visual registers (readout / control / disabled control), the two contrast traps that produced them (a translucent *white* overlay on a coloured bar measures 4.08:1 for white text; `button:disabled`'s blanket opacity measures 2.03:1 on the primary bar), the mobile `align-items: stretch` label-alignment trap, the app-scoped-copy specificity trap that kept the mobile `justify-content: flex-start` rule dead from Phase 28 to Phase 95, the still-open mobile context-selector width defect, and the fact that `ui.adl` and `ui.adlj` have diverged on where `themeSwitch` is placed.
+- `implementation/local-https-development.md`: read before changing `vite.config.ts`'s server/preview configuration, anything under `scripts/dev/`, `playwright.config.ts`'s web servers, the `dev:*` npm scripts, or before proposing a development mode for a production check in `src/server/authority-config.ts` — it carries the Phase 97 decision to run real TLS locally rather than relax any of the three HTTPS controls, why TLS terminates in a committed dev proxy rather than in `authority-node.ts`, why Vite HTTPS is opt-in behind `ADL_DEV_HTTPS` (four Playwright web servers speak plain HTTP), why `passkey` and not `bypass` is the documented development identity mode, the `roles.sql` grant gap for tables created by `adl_migrator`, and the headless way to drive the real browser bridge over a real proxy for a proof.
 - `implementation/first-deployment-slice.md`: read before changing the authority entrypoint or deployment configuration, the identity verification switch, the browser authority transport, session-derived browser identity, or bootstrap paging.
 - `implementation/usable-sync-slice.md`: read before changing client conflict/rejection recovery, the browser authority bridge, sign-in or invite-claim UI, the local demo identity constant, or the service worker, web app manifest and offline shell.
 - `implementation/offline-operation-identity.md`: read before changing the create intent contract, the authority's create path, record id minting or validation, `ObjectStore.planCreateForTransaction`, or anything that reasons about which side of the sync loop names a record or names a version of one.
