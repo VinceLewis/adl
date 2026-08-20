@@ -23,6 +23,10 @@ Before any task that touches `src/model/resolved-model.ts`, `src/compiler/valida
 
 Before any task that touches ADL grammar — or that needs to locate a keyword, clause, or `parseXxx` by grammar area rather than grepping a 5,750-line file — read `implementation/parser-grammar-file-map.md` first. Since Phase 88, `src/parser/parser.ts` is a barrel over `src/parser/grammar/`, a linear chain of grammar-area class files, not a single file.
 
+Before any task that touches the browser shell — or that needs to locate shell state, a render method, an event listener, or a runtime read by area rather than grepping a 2,747-line file — read `implementation/adl-app-file-map.md` first. Since Phase 89, `src/ui/components/adl-app.ts` is a barrel over `src/ui/components/adl-app/`, a linear chain of shell-area class files, not a single file.
+
+Before any task that touches presentation evaluation — or that needs to locate a status, icon, calendar, matrix, row-binding or value-format helper by area rather than grepping a 3,304-line file — read `implementation/presentation-runtime-file-map.md` first. Since Phase 90, `src/runtime/presentation-runtime.ts` is a barrel over `src/runtime/presentation-runtime/`: seven flat modules for its types and pure functions, plus a seven-file linear class chain for `PresentationRuntime`, not a single file.
+
 Before tasks that change resolved model defaults, model validation, policy evaluation, object constraints, commands, storage metadata, or runtime record handling, also read:
 
 - `implementation/compiler-model-layer-file-map.md`
@@ -255,6 +259,8 @@ Before tasks that change a resolved-model shape reachable from a shipped referen
 
 Before tasks that change browser UI runtime components, browser demo fixtures, UI policy or sync presentation, or browser verification, also read:
 
+- `implementation/adl-app-file-map.md`
+- `implementation/presentation-runtime-file-map.md`
 - `implementation/browser-ui-runtime.md`
 - `process/visual-browser-verification.md`
 - `implementation/context-ui-navigation.md`
@@ -267,6 +273,7 @@ Before tasks that change composed UI presentation declarations, presentation
 resolved-model defaults, UI syntax for composed views, presentation validation,
 or presentation renderer behavior, also read:
 
+- `implementation/presentation-runtime-file-map.md`
 - `implementation/ui-presentation-model.md`
 - `implementation/semantic-status-presentation.md`
 - `implementation/presentation-matrix-runtime.md`
@@ -341,6 +348,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/computed-fields-and-read-model-expressions.md`: read before changing computed fields, read shaping, write validation, read-model projection expressions, or conformance coverage for derived values.
 - `implementation/offline-dataset-runtime.md`: read before changing context-aware offline dataset selection, dataset-limited local reads, the `SYNC ... WINDOW` / `SYNC ... WHERE` clauses, or future remote sync planning — it carries the Phase 62 rule that no offline scope may be declarable in a form the runtime ignores, the Phase 64 rule that a scope selects a context while a window and a predicate are independent bounds that may accompany any scope, enforced by presence rather than by the scope value, and why `recordMatchesCurrentUser`'s `LOOKUP TARGET_FIELD` fix (mirroring `ReadModelService`'s) forced its entire caller chain to `async`/`await`, replacing two `.filter()`/`.flatMap()` chains with sequential loops since neither can await a predicate.
 - `implementation/browser-ui-runtime.md`: read before changing browser UI runtime components, browser demo fixtures, UI policy presentation, or browser verification — including why `adl-field-renderer.ts`'s lookup `<select>` needs a `targetField`-aware `lookupOptionValue` helper (mirroring `lookupLabel`'s `displayField` fallback) rather than always writing back a candidate's record id.
+- `implementation/adl-app-file-map.md`: read before changing the browser shell, or to locate shell state, a render method, an event listener or a runtime read by area — it carries the Phase 89 file map for `src/ui/components/adl-app/`, the linear-class-chain rule that makes a lower file unable to call a higher one (and the four placements measured cycles forced: `runtime`/`context` down into `state.ts`, the `runCommand`/`deliverPendingWrites`/`refreshFromRuntime` 3-cycle, `events-shell` below `events-record`, `render-chrome` below `render`), the field-initialization-order rule that makes a moved field read `undefined` with no `tsc` error, the accessor-pair rule that silently loses a getter or setter, the `private`/`protected` visibility rule, and the rendered-output differential technique — both reference demos driven to every declared view, with two entropy sources pinned — that is the only real proof a shell relocation changed nothing.
 - `implementation/policy-engine.md`: read before changing policy evaluation, policy conditions, runtime record returns, UI policy presentation, lifecycle action visibility, or tests that assert policy-shaped output -- it carries the Jointly Care reference app's discovery that a `WHEN`-conditioned `SEARCH`/`EXPORT` rule can never match (no candidate record exists at the coarse object-level gate) and that a `ROLE` condition on an object with no `SCOPE` can only ever match a role earned through that same object's own context, never a role earned through an unrelated one.
 - `implementation/expression-language.md`: read before changing `ResolvedExpression`, expression evaluation, parser expression syntax, policy conditions, predicate validators, command preconditions, computed fields, decision tables, lifecycle guards, or read-model expressions.
 - `implementation/sync-policy.md`: read before changing object sync modes, runtime write gating, sync queue behavior, operation-log replay, or UI sync-state presentation.
@@ -357,6 +365,7 @@ When adding a new learning document, update this index with when future agents s
 - `implementation/membership-projection.md`: read before changing how membership records are written, resolved, reviewed or revoked, before adding a scope-indexed read model over accepted records, or before touching `adl_authority_context_memberships`, `ContextMembershipIndex`, or the authority's startup advisory lock.
 - `implementation/authority-transaction-integrity.md`: read before changing authority replay persistence, the accepted-record/runtime-audit/outcome commit boundary, the authority unit-of-work, access-lifecycle audit atomicity, authority restore/integrity verification, runtime-audit context scoping, or audit/outcome retention.
 - `implementation/ui-presentation-model.md`: read before changing composed UI presentation declarations, presentation defaults, UI syntax for composed views, presentation validation, or presentation renderer behavior.
+- `implementation/presentation-runtime-file-map.md`: read before changing presentation evaluation, or to locate a status, icon, calendar, matrix, row-binding or value-format helper by area — it carries the Phase 90 file map for `src/runtime/presentation-runtime/`, the hybrid shape (flat modules for the pure type and free-function regions, a linear class chain for `PresentationRuntime`) and why the two differ, the chain-ordering rule that makes a lower file unable to call a higher one, the exported-from-its-area-file-but-not-from-the-module rule that keeps four module-private shapes out of the package API despite `src/index.ts`'s `export *`, the `private`/`protected` visibility rule, and the differential-dump recipe — reference demos plus the conformance presentation models, because the reference apps declare no matrices and a demo-only corpus silently misses every matrix edit path.
 - `implementation/semantic-status-presentation.md`: read before changing status maps, status precedence, legends, status theme tokens, or status-colored browser presentation.
 - `implementation/presentation-matrix-runtime.md`: read before changing resource/date matrices, availability presentation, matrix cell cycling, range editing, or future calendar work that reuses matrix status semantics.
 - `implementation/calendar-presentation-runtime.md`: read before changing calendar month planning views, calendar cell actions, or event-entry behavior.
