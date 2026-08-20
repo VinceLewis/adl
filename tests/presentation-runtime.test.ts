@@ -95,10 +95,6 @@ describe("presentation runtime", () => {
       },
     ]);
     expect(schedule?.lists[0]?.rows[0]?.fragments).toEqual([
-      {
-        kind: "icon",
-        icon: { name: "music", source: { kind: "map", map: "EventTypeIcon", value: "Gig" } },
-      },
       { kind: "text", text: "Sat 1 Aug", style: "plain" },
       { kind: "text", text: " ", style: "plain" },
       { kind: "text", text: "8:00PM", style: "plain" },

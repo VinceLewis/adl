@@ -401,14 +401,6 @@
                     "row": {
                       "fragments": [
                         {
-                          "kind": "icon",
-                          "icon": {
-                            "kind": "map",
-                            "map": "EventTypeIcon",
-                            "field": "EventType"
-                          }
-                        },
-                        {
                           "kind": "field",
                           "field": "EventDate",
                           "format": {

@@ -268,13 +268,6 @@
                     "row": {
                       "fragments": [
                         {
-                          "kind": "icon",
-                          "icon": {
-                            "kind": "named",
-                            "name": "calendar"
-                          }
-                        },
-                        {
                           "kind": "field",
                           "field": "StartsAt",
                           "format": {

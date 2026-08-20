@@ -136,6 +136,19 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   browser handoff support the same resolved contract end to end. The browser's
   current drawer navigation is a generic convention, not an authored shell
   declaration.
+- A list's `status` binding already renders that status's own icon (each
+  entry in `presentation.statuses` carries an `icon`, evaluated into
+  `row.status.icon`). Do not also declare a `{"kind": "icon", ...}` row
+  fragment for the same field — it renders a second, redundant icon next to
+  the status indicator's icon. Giggle Band's `HomeDashboard.Schedule` list and
+  Jointly Care's `HomeDashboard.Schedule` list both shipped with this
+  duplication (a status-bound list whose row template also led with an
+  explicit icon fragment for the same `EventType`/status field); both were
+  fixed by dropping the redundant fragment, not by changing the runtime —
+  the runtime is behaving correctly by rendering both declared icons. When
+  authoring or reviewing a status-bound list's row template, check whether
+  the row's first fragment is an icon that duplicates the status's own icon
+  before assuming a leading icon fragment is needed.
 
 ## A row-scoped presentation ACTION can target its own record's identity (Phase 69)
 
