@@ -26,6 +26,14 @@ describe("jointly care reference app model", () => {
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
+    // See the matching assertion in tests/band-reference-app.test.ts for why
+    // this exists: a tripwire against content changes that skip a version
+    // bump, not a meaningful value in itself. Update on a legitimate content
+    // change, and treat that update as your reminder to also bump
+    // modelVersion and add a migration step.
+    expect(model.modelFingerprint).toBe(
+      "sha256-48871d107d91cd094aac3fdc5234093f9c21ea04f4a2bae2aa70db45124bf9b4",
+    );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
       expect.arrayContaining([

@@ -29,6 +29,20 @@ describe("band reference app model", () => {
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
+    // A tripwire, not a meaningful value: this fingerprint is a pure function of
+    // resolved-model content, so ANY content change -- domain or UI, intentional
+    // or not -- flips it and fails this assertion in the fast suite, before a
+    // browser is ever involved. That is the point. Three real commits in one
+    // session (010dfc8, cf12207, 517f874) changed Giggle Band's content without
+    // bumping modelVersion, each shipping a fail-closed startup refusal to every
+    // existing browser install; none of them would have passed `npm test` with
+    // this assertion in place. When this fails on a legitimate content change,
+    // update it to the new value printed in the failure diff -- that update is
+    // your reminder to also bump modelVersion and add a migration step, not a
+    // license to paste the new value and move on.
+    expect(model.modelFingerprint).toBe(
+      "sha256-2370c6239618d7c40b914dd3bb61f1ecbd652fb73298efd9c6848e49a302dc0b",
+    );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
       expect.arrayContaining([
