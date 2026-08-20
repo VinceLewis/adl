@@ -12,6 +12,7 @@ import { defineAdlMessageArea } from "./adl-message-area.js";
 import { defineAdlReportRunner } from "./adl-report-runner.js";
 import { defineAdlSessionDevices } from "./adl-session-devices.js";
 import { defineAdlSessionPanel } from "./adl-session-panel.js";
+import { defineAdlStartupError } from "./adl-startup-error.js";
 import { defineAdlSyncRecovery } from "./adl-sync-recovery.js";
 
 export function defineAdlComponents(): void {
@@ -26,6 +27,7 @@ export function defineAdlComponents(): void {
   defineAdlSessionPanel();
   defineAdlSessionDevices();
   defineAdlSyncRecovery();
+  defineAdlStartupError();
   defineAdlAuditReview();
   defineAdlAccessReview();
   defineAdlReportRunner();

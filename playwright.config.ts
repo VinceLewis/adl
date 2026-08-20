@@ -25,6 +25,7 @@ import { defineConfig, devices } from "@playwright/test";
 const GIGGLE_VISUAL_SPEC = /giggle-band\.visual\.spec\.ts$/;
 const JOINTLY_CARE_VISUAL_SPEC = /jointly-care\.visual\.spec\.ts$/;
 const BROWSER_DEMO_VISUAL_SPEC = /browser-demo\.visual\.spec\.ts$/;
+const STARTUP_FAILURE_RECOVERY_SPEC = /startup-failure-recovery\.visual\.spec\.ts$/;
 const OFFLINE_SHELL_SPEC = /offline-shell\.spec\.ts$/;
 const PASSKEY_SPEC = /passkey-sign-in\.spec\.ts$/;
 const ADMINISTRATION_SPEC = /administration\.spec\.ts$/;
@@ -45,7 +46,12 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
-      testMatch: [GIGGLE_VISUAL_SPEC, JOINTLY_CARE_VISUAL_SPEC, BROWSER_DEMO_VISUAL_SPEC],
+      testMatch: [
+        GIGGLE_VISUAL_SPEC,
+        JOINTLY_CARE_VISUAL_SPEC,
+        BROWSER_DEMO_VISUAL_SPEC,
+        STARTUP_FAILURE_RECOVERY_SPEC,
+      ],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 1000 },
@@ -53,7 +59,12 @@ export default defineConfig({
     },
     {
       name: "mobile",
-      testMatch: [GIGGLE_VISUAL_SPEC, JOINTLY_CARE_VISUAL_SPEC, BROWSER_DEMO_VISUAL_SPEC],
+      testMatch: [
+        GIGGLE_VISUAL_SPEC,
+        JOINTLY_CARE_VISUAL_SPEC,
+        BROWSER_DEMO_VISUAL_SPEC,
+        STARTUP_FAILURE_RECOVERY_SPEC,
+      ],
       use: {
         ...devices["Pixel 5"],
         viewport: { width: 393, height: 852 },

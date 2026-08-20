@@ -1,5 +1,6 @@
 import { defineAdlComponents } from "./components/register.js";
 import type { AdlAppElement } from "./components/adl-app.js";
+import type { AdlStartupErrorElement } from "./components/adl-startup-error.js";
 import { findReferenceDemo } from "../reference/reference-demos.js";
 import type { ReferenceDemoDefinition } from "../reference/reference-demo.js";
 import { readBrowserAuthorityConfiguration } from "./authority-sync.js";
@@ -16,7 +17,9 @@ import type { ResolvedApplicationModel, RuntimeContext } from "../index.js";
 
 defineAdlComponents();
 
-void mountDemo();
+void mountDemo().catch((error: unknown) => {
+  renderStartupFailure(error, resolveFailedDemoDatabaseName());
+});
 
 /**
  * Generic dispatch only: which reference app to mount, if any, comes entirely
@@ -38,6 +41,36 @@ async function mountDemo(): Promise<void> {
   }
 
   document.body.append(app);
+}
+
+/**
+ * Which app `mountDemo()` was trying to mount, purely from the URL — the
+ * same lookup `mountDemo()` itself does. `<adl-app>` may never have reached
+ * `document.body` when a failure hits (see `renderStartupFailure` below), so
+ * the catch handler cannot recover this from anything on the page; it has to
+ * re-derive it the same cheap, synchronous way `mountDemo()` did.
+ */
+function resolveFailedDemoDatabaseName(): string | undefined {
+  const search = globalThis.location?.search ?? "";
+  return findReferenceDemo(new URLSearchParams(search).get("demo"))?.databaseName;
+}
+
+/**
+ * The one fallback for a startup that never reached a working `<adl-app>` —
+ * see docs/phases/phase-84-startup-failure-recovery-ui.md. `<adl-app>` is
+ * deliberately not touched here, recovered into, or even guaranteed to
+ * exist: `mountDemo()` only appends it as its very last step, after every
+ * failure-prone `await` has already succeeded, so a failure caught here
+ * means it may never have been created, or may hold a model/runtime from a
+ * partially-completed mount. Rendering a small, independent element straight
+ * into `document.body` is the only surface known safe regardless of how far
+ * `mountDemo()` got.
+ */
+function renderStartupFailure(error: unknown, databaseName: string | undefined): void {
+  const fallback = document.createElement("adl-startup-error") as AdlStartupErrorElement;
+  fallback.error = error;
+  fallback.databaseName = databaseName;
+  document.body.append(fallback);
 }
 
 async function mountReferenceDemo(

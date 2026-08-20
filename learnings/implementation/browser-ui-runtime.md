@@ -176,6 +176,91 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   `createGiggleBandExampleModel` through that re-export now import it
   directly from `../src/reference/band-app.js`.
 
+## Key decisions from Phase 84: a startup failure must never be an unobserved rejection
+
+`main.ts`'s module-scope `void mountDemo();` had no `.catch()` anywhere in the
+file. `mountDemo()` → `await mountReferenceDemo(...)` → `demo.createModel()` /
+`createDemoRuntime(...)` / `app.context = await startingContext(...)` /
+`await connectAuthority(...)` is an unbroken `await` chain, so a failure
+anywhere in it propagated all the way back to that unobserved `void` and
+became a genuinely unhandled promise rejection: a blank page and a raw
+console stack trace, not a message. This was not a `RuntimeStartupError`-only
+gap — a compile failure from `demo.createModel()` or a network failure from
+`connectAuthority(...)` hit the exact same unhandled path.
+
+- **Why `RuntimeStartupError` reached this path so easily.**
+  `ApplicationRuntime`'s constructor deliberately does
+  `this.startupPromise = this.runStartupCompatibilityChecks(...)` then
+  immediately `void this.startupPromise.catch(() => undefined);` — the
+  constructor itself never throws. The rejection resurfaces through
+  `whenReady()`, which nearly every public runtime method awaits before doing
+  anything. `main.ts`'s `startingContext` calls a reference app's
+  `seedIfEmpty(runtime)`, which calls a runtime method, which awaits
+  `whenReady()`, which re-throws. That constructor-level suppression is
+  correct and load-bearing (it is what stops runtime *construction* from
+  crashing) — the defect was purely that nothing downstream ever looked at
+  the promise it deferred to.
+- **The fix is one `.catch()` at the one call site**
+  (`void mountDemo().catch((error) => { renderStartupFailure(error, ...) })`
+  in `main.ts`), not a change to the runtime's own suppression. Resist the
+  urge to "fix" this by making `ApplicationRuntime`'s constructor throw, or by
+  threading error state through `whenReady()` differently — the guard's shape
+  is fine; the browser entry point's fire-and-forget mount was the actual gap.
+- **Why the fallback renders into `document.body` directly, never through
+  `<adl-app>`.** `mountDemo()` only calls `document.body.append(app)` as its
+  very last line, after every failure-prone `await` has already succeeded. A
+  failure caught above that line means `<adl-app>` may never have been
+  created, may hold no model/runtime, or may be mid-failed-initialization —
+  not a safe surface to render error UI through. `src/ui/components/
+  adl-startup-error.ts` is a small, standalone custom element for exactly
+  this reason: it depends on nothing `<adl-app>` provides.
+- **Two tiers, one actionable.** A `RuntimeStartupError` gets a specific
+  message and a "Reset local data and reload" button — the one action known
+  to fix persisted local data the running model can no longer read, and
+  exactly what a developer already does by hand in DevTools. Anything else
+  (compile failure, authority network failure, an unexpected exception) gets
+  a generic message, the raw error visible in a `<details>` disclosure (this
+  is a browser app with no other error-reporting channel), and a plain
+  "Reload" with **no** reset action — clearing IndexedDB does nothing for
+  those failures, and offering an action that doesn't fix the problem is
+  worse than offering none.
+- **The reset action deletes all three of an app's IndexedDB databases,
+  including session identity, on purpose** (`src/runtime/
+  local-data-reset.ts`): `<databaseName>`, `` `${databaseName}-sync-state` ``,
+  and `` `${databaseName}-session-identity` ``. This looks like it might
+  contradict `tests/browser-model-migration.test.ts`'s warning that a
+  *migration* must never touch session identity — it does not. That warning
+  is about an automatic process silently discarding a signed-in user's
+  identity as a side effect of something else; this is the opposite, an
+  explicit, user-initiated "start completely fresh" action taken *because*
+  the app is unrecoverable otherwise. A partial reset that wiped records but
+  left a cached identity pointing at data that no longer matches would be a
+  worse, more confusing state than a clean one requiring sign-in again.
+  Re-check this reasoning (not just re-run the same conclusion) if a future
+  phase adds a fourth piece of browser-persisted state to this reset list —
+  the same "explicit user action, not an automatic side effect" test should
+  be applied fresh each time, not assumed to still hold.
+- **None of the three storage classes
+  (`IndexedDbObjectStorageBackend`/`IndexedDbSyncStateStorage`/
+  `IndexedDbSessionIdentityStorage`) expose a delete/teardown method.** The
+  reset helper duplicates their `-sync-state`/`-session-identity` suffix
+  literals rather than importing them, because there was nothing to import;
+  if one of the three ever grows a real delete method, prefer calling
+  through it over the literal list, so the suffix logic has exactly one
+  place it can drift from the other two.
+- **Reproducing the specific unrecoverable case in a real-browser test**:
+  same declared `modelVersion` as the running model, but a different
+  `modelFingerprint`. This is deliberately not Phase 83's prior-version case
+  (which a declared migration reaches and is recoverable) — same-version,
+  different-fingerprint has no migration path by design
+  (`RUNTIME_STARTUP_COMPATIBILITY_CODES.MODEL_FINGERPRINT_STALE`,
+  `startup-compatibility.ts`), so it is the one persisted-data failure this
+  fallback UI exists for. Phase 83's `downgradePersistedApplicationMetadata`
+  helper (`tests/visual/support/persisted-upgrade.ts`) is reusable for the
+  seeding half even though its usual callers write a *prior* version: writing
+  the *current* live version alongside a mismatched fingerprint reproduces
+  this phase's case using the same helper and the same real seeded dataset.
+
 ## Practical guidance
 
 - Keep UI behavior generic over `ResolvedObject` and `ResolvedView`; do not add per-object component forks.
@@ -195,3 +280,11 @@ Read this before changing browser UI components, runtime/UI policy integration, 
   renderer supports composed sections, headings, local toggles, compact feed
   rows, inline fragments, bold fragments, semantic icon names, diagnostics, and
   empty states.
+- A top-level `void somePromise();` in a browser entry point (`main.ts` or
+  anything reachable from it at module scope) needs an explicit `.catch()`
+  even when everything it calls "shouldn't" throw — Phase 84 was a single
+  unobserved `await` chain away from the entire app rendering a blank page on
+  any startup failure, not only the one that was actually hit twice in one
+  session. If a future change adds another fire-and-forget top-level call,
+  check it the same way rather than assuming the one fixed in Phase 84 was
+  the only one.

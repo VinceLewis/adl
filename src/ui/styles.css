@@ -2219,6 +2219,101 @@ textarea.adl-field-control {
   color: var(--adl-color-danger);
 }
 
+/* The startup-failure fallback (`<adl-startup-error>`, Phase 84). Rendered
+   straight into `document.body` when the app never reached a working
+   `<adl-app>`, so it gets its own full-viewport centering rather than
+   assuming any shell chrome exists around it. */
+.adl-startup-error {
+  align-items: center;
+  background: var(--adl-color-background);
+  color: var(--adl-color-text);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--adl-space-lg);
+  position: fixed;
+}
+
+.adl-startup-error-panel {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-danger);
+  border-radius: var(--adl-radius);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+  display: grid;
+  gap: var(--adl-space-md);
+  max-width: 480px;
+  padding: 28px var(--adl-space-lg);
+  width: 100%;
+}
+
+.adl-startup-error-heading {
+  color: var(--adl-color-danger);
+  font-size: 18px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.adl-startup-error-message {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.adl-startup-error-detail {
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  font-size: 13px;
+}
+
+.adl-startup-error-detail-summary {
+  color: var(--adl-color-text-muted);
+  cursor: pointer;
+  padding: var(--adl-space-sm) var(--adl-space-md);
+}
+
+.adl-startup-error-detail-body {
+  border-top: 1px solid var(--adl-color-border);
+  font-size: 12px;
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: var(--adl-space-sm) var(--adl-space-md);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.adl-startup-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+}
+
+.adl-startup-error-button {
+  border-radius: var(--adl-radius);
+  cursor: pointer;
+  font-size: 14px;
+  height: var(--adl-control-height);
+  padding: 0 var(--adl-space-md);
+}
+
+.adl-startup-error-button-primary {
+  background: var(--adl-color-primary);
+  border: 1px solid var(--adl-color-primary);
+  color: var(--adl-color-text-inverted);
+}
+
+.adl-startup-error-button-secondary {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  color: var(--adl-color-text);
+}
+
+.adl-startup-error-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .adl-state-pill {
   background: var(--adl-color-surface-alt);
   border: 1px solid var(--adl-color-border);
