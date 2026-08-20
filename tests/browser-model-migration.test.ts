@@ -161,7 +161,12 @@ describe("browser model migration over IndexedDB", () => {
       throw new Error("Giggle model is missing Band.");
     }
 
-    expect(model.modelVersion).toBe("1.3.0");
+    const event = model.objects.find((object) => object.name === "Event");
+    if (event === undefined) {
+      throw new Error("Giggle model is missing Event.");
+    }
+
+    expect(model.modelVersion).toBe("1.4.0");
     expect(model.migrations).toContainEqual({
       from: "1.0.0",
       to: "1.1.0",
@@ -177,12 +182,38 @@ describe("browser model migration over IndexedDB", () => {
       to: "1.3.0",
       objects: [],
     });
+    expect(model.migrations).toContainEqual({
+      from: "1.3.0",
+      to: "1.4.0",
+      objects: [
+        {
+          object: "Event",
+          steps: [{ kind: "dropField", field: "SetList" }],
+        },
+      ],
+    });
 
     const storage = new IndexedDbObjectStorageBackend({ databaseName });
     const persistedBand = storedRecord("Band", "band-before-explicit-nav", band.schemaVersion, {
       Name: "The Alphas",
     });
     await storage.create("Band", persistedBand);
+    // An event persisted while `Event.SetList` still existed. The `1.3.0 ->
+    // 1.4.0` hop has to drop that field, or the record keeps asserting a
+    // lookup the model no longer declares.
+    const persistedEvent = storedRecord(
+      "Event",
+      "event-before-set-list-link",
+      event.schemaVersion,
+      {
+        Band: persistedBand.meta.guid,
+        EventType: "Gig",
+        Date: "2026-08-01",
+        Title: "Canal Street headline",
+        SetList: "setlist-before-1-4-0",
+      },
+    );
+    await storage.create("Event", persistedEvent);
     await storage.writeApplicationMetadata({
       modelVersion: "1.0.0",
       // The precise old digest is immaterial once a declared migration moves
@@ -198,12 +229,16 @@ describe("browser model migration over IndexedDB", () => {
       expect.objectContaining({
         code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MIGRATION_APPLIED,
         actual: "1.0.0",
-        expected: "1.3.0",
+        expected: "1.4.0",
       }),
     );
     expect(await storage.read("Band", persistedBand.meta.guid)).toEqual(persistedBand);
+    const migratedEvent = await storage.read("Event", persistedEvent.meta.guid);
+    expect(migratedEvent?.values).not.toHaveProperty("SetList");
+    expect(migratedEvent?.values.Title).toBe("Canal Street headline");
+    expect(migratedEvent?.meta.revision).toBe(persistedEvent.meta.revision);
     expect(await storage.readApplicationMetadata()).toEqual({
-      modelVersion: "1.3.0",
+      modelVersion: "1.4.0",
       modelFingerprint: model.modelFingerprint,
     });
   });

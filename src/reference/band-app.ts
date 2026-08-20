@@ -77,6 +77,7 @@ export interface BandReferenceSeed {
   firstSetList: StoredObjectRecord;
   secondSetList: StoredObjectRecord;
   firstSetListItem: StoredObjectRecord;
+  firstEventSetList: StoredObjectRecord;
   invitation: StoredObjectRecord;
 }
 
@@ -299,14 +300,6 @@ export async function seedBandReferenceRuntime(
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
-  // The gig ↔ set-list link: `firstSetList` did not exist yet when `firstEvent`
-  // was created, so this is an update rather than a value at create time.
-  await runtime.update(
-    "Event",
-    firstEvent.meta.guid,
-    { SetList: firstSetList.meta.guid },
-    contextForBand(systemContext, firstBand.meta.guid),
-  );
   // The set-list child collection on `SetListForm` is the surface Phase 59 makes
   // declarable, so the demo has to seed enough songs for reordering to mean
   // something: one row cannot be moved anywhere.
@@ -378,6 +371,32 @@ export async function seedBandReferenceRuntime(
     },
     contextForBand(systemContext, firstBand.meta.guid),
   );
+  // The gig ↔ set-list link, seeded as the two-set night giggle-new's own data
+  // shows is the common case: an opening set and a second set, in order. Both
+  // are created after `firstEvent` because neither set list existed when the
+  // event was, and `EventSetList` is what `BandEventForm`'s `Set Lists` child
+  // collection edits.
+  const firstEventSetList = await runtime.create(
+    "EventSetList",
+    {
+      Band: firstBand.meta.guid,
+      Event: firstEvent.meta.guid,
+      SetList: firstSetList.meta.guid,
+      Position: 1,
+      Notes: "Opening set.",
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
+  await runtime.create(
+    "EventSetList",
+    {
+      Band: firstBand.meta.guid,
+      Event: firstEvent.meta.guid,
+      SetList: secondSetList.meta.guid,
+      Position: 2,
+    },
+    contextForBand(systemContext, firstBand.meta.guid),
+  );
   const invitation = await runtime.create(
     "BandInvitation",
     {
@@ -422,6 +441,7 @@ export async function seedBandReferenceRuntime(
     firstSetList,
     secondSetList,
     firstSetListItem,
+    firstEventSetList,
     invitation,
   };
 }

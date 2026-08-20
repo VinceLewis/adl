@@ -1218,6 +1218,32 @@ END.POLICY
           parentField: "SetList",
           positionField: "Position",
         }),
+        expect.objectContaining({
+          name: "uniqueSongInSetList",
+          kind: "unique",
+          fields: ["Song"],
+          scopeFields: ["SetList"],
+        }),
+      ],
+    });
+    // The gig <-> set-list link `gig_set_lists` really is: an `ORDERED`
+    // position under the event, and a `UNIQUE` guard against attaching the
+    // same set list twice.
+    expect(result.model.objects.find((object) => object.name === "EventSetList")).toMatchObject({
+      scope: { context: "Band", field: "Band" },
+      constraints: [
+        expect.objectContaining({
+          name: "orderedEventSetLists",
+          kind: "ordered",
+          parentField: "Event",
+          positionField: "Position",
+        }),
+        expect.objectContaining({
+          name: "uniqueSetListForEvent",
+          kind: "unique",
+          fields: ["SetList"],
+          scopeFields: ["Event"],
+        }),
       ],
     });
     expect(result.model.objects.find((object) => object.name === "BandMember")).toMatchObject({

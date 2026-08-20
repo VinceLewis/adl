@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.3.0",
+  "modelVersion": "1.4.0",
   "app": {
     "name": "Giggle Band ADL Example",
     "startView": "HomeDashboard",
@@ -38,6 +38,21 @@
       "from": "1.2.0",
       "to": "1.3.0",
       "objects": []
+    },
+    {
+      "from": "1.3.0",
+      "to": "1.4.0",
+      "objects": [
+        {
+          "object": "Event",
+          "steps": [
+            {
+              "kind": "dropField",
+              "field": "SetList"
+            }
+          ]
+        }
+      ]
     }
   ],
   "objects": [
@@ -696,18 +711,6 @@
           },
           "comment": "Self-referencing: naming the gig this one repeats lets a repeat booking\ncarry its history forward without duplicating the earlier record.",
           "validators": []
-        },
-        {
-          "name": "SetList",
-          "type": "text",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "SetList",
-            "displayField": "Name"
-          },
-          "validators": []
         }
       ],
       "computedFields": [],
@@ -756,6 +759,7 @@
             "mode": "required",
             "context": "Band"
           },
+          "comment": "The `SetLists` child collection replaces what was a single `SetList` lookup\non `Event`. giggle-new's own gig form carries a `Set Lists:` block -- an\nadd-from-dropdown list of *several* set lists in a dragged order, backed by\nits `gig_set_lists(gig_id, set_list_id, position)` table -- so one lookup\ncould never express a two-set night, which is the common case there (an\nopening set and a second set).\n\nNo `EDIT_CONTAINER page`, unlike `SetListForm`'s own `Songs` collection: a\ngig is edited in a modal in giggle-new with its set lists inside it, and a\ngig has a handful of them rather than a whole song library, so the room a\npage buys is room this collection does not need.",
           "fields": [
             "EventType",
             "Date",
@@ -764,7 +768,6 @@
             "Title",
             "VenueName",
             "VenueLocation",
-            "SetList",
             "ContactName",
             "ContactPhone",
             "ContactEmail",
@@ -779,6 +782,74 @@
           "actions": [
             "save",
             "delete"
+          ],
+          "editSections": [
+            {
+              "name": "Details",
+              "kind": "fields",
+              "heading": "Event",
+              "fields": [
+                "EventType",
+                "Date",
+                "StartTime",
+                "EndTime",
+                "Title",
+                "VenueName",
+                "VenueLocation",
+                "ContactName",
+                "ContactPhone",
+                "ContactEmail",
+                "Amount",
+                "PaymentMethod",
+                "Agent",
+                "PreviousGig",
+                "Notes"
+              ]
+            },
+            {
+              "name": "SetLists",
+              "kind": "childCollection",
+              "heading": "Set Lists",
+              "childObject": "EventSetList",
+              "parentField": "Event",
+              "childView": "EventSetListList",
+              "operations": [
+                "createChild",
+                "updateChild",
+                "remove",
+                "reorder"
+              ],
+              "staged": true,
+              "orderField": "Position",
+              "emptyState": {
+                "text": "No set lists attached to this event yet."
+              },
+              "picker": {
+                "name": "EventSetListPicker",
+                "sourceKind": "object",
+                "source": "SetList",
+                "candidateField": "SetList",
+                "selection": "multiple",
+                "displayFields": [
+                  "Name",
+                  "Description"
+                ],
+                "searchFields": [
+                  "Name"
+                ],
+                "sort": [
+                  {
+                    "field": "Name",
+                    "direction": "asc"
+                  }
+                ],
+                "excludeAlreadyLinked": true,
+                "emptyState": {
+                  "text": "Every set list this band has is already attached to this event."
+                },
+                "comment": "`EXCLUDE_LINKED` is the modelled form of what giggle-new's gig form does by\nhand: it rebuilds its `availableSetLists` dropdown as every set list minus\nthe ones already attached, because `gig_set_lists`' primary key forbids the\nsame set list twice on one gig. Declaring it here means the constraint is\nenforced by `uniqueSetListForEvent` on the object, not only by a picker that\ndeclines to offer the duplicate."
+              }
+            }
           ]
         }
       ],
@@ -1108,6 +1179,17 @@
           ],
           "reorder": "shift",
           "compaction": "onDelete"
+        },
+        {
+          "name": "uniqueSongInSetList",
+          "kind": "unique",
+          "comment": "giggle-new's `set_list_songs` carries `UNIQUE (set_list_id, song_id)`: the\nsame song cannot appear twice in one set list. `SongPicker`'s\n`EXCLUDE_LINKED` already hides an already-added song, but a picker that\ndeclines to offer a duplicate is a UI affordance, not enforcement -- nothing\nstopped a direct create or a replayed authority write from making one. This\nis the object constraint the real schema always had.",
+          "fields": [
+            "Song"
+          ],
+          "scopeFields": [
+            "SetList"
+          ]
         }
       ],
       "policies": [],
@@ -1265,6 +1347,136 @@
           "actions": [
             "read",
             "search"
+          ]
+        }
+      ],
+      "sync": {
+        "mode": "localFirst",
+        "scope": "currentContext"
+      }
+    },
+    {
+      "name": "EventSetList",
+      "comment": "The gig <-> set-list link, and the reason `Event` no longer carries a single\n`SetList` lookup. giggle-new's `gig_set_lists(gig_id, set_list_id, position)`\nis a genuine ordered many-to-many -- its production data has nights running\ntwo set lists in order, and its gig form lets an admin add, reorder and\ndetach them one at a time. Same shape as `SetListItem` one object up (an\n`ORDERED` position under a parent, a `UNIQUE` guard against linking the same\nchild twice), because it is the same kind of relationship: `SetListItem`\norders songs within a set list, `EventSetList` orders set lists within a\nnight.",
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "constraints": [
+        {
+          "name": "orderedEventSetLists",
+          "kind": "ordered",
+          "parentField": "Event",
+          "positionField": "Position",
+          "scopeFields": [
+            "Band"
+          ],
+          "reorder": "shift",
+          "compaction": "onDelete"
+        },
+        {
+          "name": "uniqueSetListForEvent",
+          "kind": "unique",
+          "comment": "`gig_set_lists`' own primary key is `(gig_id, set_list_id)`: one set list\ncannot be attached to the same event twice.",
+          "fields": [
+            "SetList"
+          ],
+          "scopeFields": [
+            "Event"
+          ]
+        }
+      ],
+      "policies": [],
+      "fields": [
+        {
+          "name": "Band",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Band",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "Event",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "Event",
+            "displayField": "Title"
+          },
+          "validators": []
+        },
+        {
+          "name": "SetList",
+          "type": "text",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "lookup": {
+            "targetObject": "SetList",
+            "displayField": "Name"
+          },
+          "validators": []
+        },
+        {
+          "name": "Position",
+          "type": "number",
+          "required": true,
+          "readonly": false,
+          "hidden": false,
+          "validators": [
+            {
+              "kind": "min",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "name": "Notes",
+          "type": "text",
+          "required": false,
+          "readonly": false,
+          "hidden": false,
+          "comment": "Not a `gig_set_lists` column, but the thing its users write into the gig's\nshared `notes` field instead -- which set is the acoustic one, which one\nfollows the interval. Kept on the link rather than the set list because the\nsame set list is reused across nights.",
+          "validators": []
+        }
+      ],
+      "computedFields": [],
+      "validations": [],
+      "views": [
+        {
+          "name": "EventSetListList",
+          "kind": "list",
+          "context": {
+            "mode": "required",
+            "context": "Band"
+          },
+          "fields": [
+            "Event",
+            "Position",
+            "SetList",
+            "Notes"
+          ],
+          "searchFields": [
+            "Notes"
+          ],
+          "sort": [
+            {
+              "field": "Position",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
           ]
         }
       ],
@@ -2540,6 +2752,28 @@
       ]
     },
     {
+      "name": "EventSetListSystemAdminPolicy",
+      "object": "EventSetList",
+      "rules": [
+        {
+          "name": "allowSystemAdminAllEventSetListOps",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "*",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
       "name": "StreamingLinkSystemAdminPolicy",
       "object": "StreamingLink",
       "rules": [
@@ -3416,6 +3650,93 @@
         },
         {
           "name": "allowBandAdminDeleteSetListItems",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "delete",
+          "state": [],
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "EventSetListPolicy",
+      "object": "EventSetList",
+      "comment": "Identical to `SetListItemPolicy`: every band member may read which set lists\na night runs, only a `BandAdmin` may attach, reorder or detach them. Both\nobjects are `SCOPE Band`, so the role conditions resolve against the\nselected band's membership.",
+      "rules": [
+        {
+          "name": "allowBandMemberSearchEventSetLists",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowBandMemberReadEventSetLists",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowBandAdminCreateEventSetLists",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "create",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowBandAdminUpdateEventSetLists",
+          "effect": "allow",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "update",
+          "state": [],
+          "fields": []
+        },
+        {
+          "name": "allowBandAdminDeleteEventSetLists",
           "effect": "allow",
           "principal": {
             "match": "specific",

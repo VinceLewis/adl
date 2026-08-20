@@ -25,10 +25,23 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.3.0");
+    expect(model.modelVersion).toBe("1.4.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
+    // Not an empty-object hop: `1.3.0 -> 1.4.0` replaced `Event.SetList` (a
+    // single lookup) with the `EventSetList` link object, so a persisted event
+    // carries a field the model no longer declares until this step drops it.
+    expect(model.migrations).toContainEqual({
+      from: "1.3.0",
+      to: "1.4.0",
+      objects: [
+        {
+          object: "Event",
+          steps: [{ kind: "dropField", field: "SetList" }],
+        },
+      ],
+    });
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -41,7 +54,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-2370c6239618d7c40b914dd3bb61f1ecbd652fb73298efd9c6848e49a302dc0b",
+      "sha256-e4dafa5a9dc863a3e965c66f496b14688a34df6563dea7c6c513b5a9f046d2f4",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -55,6 +68,7 @@ describe("band reference app model", () => {
         "Song",
         "SetList",
         "SetListItem",
+        "EventSetList",
         "StreamingLink",
       ]),
     );
@@ -846,13 +860,45 @@ describe("band reference app runtime", () => {
     expect(availability.map((record) => record.recordId)).toContain(seeded.availability.meta.guid);
   });
 
-  it("links a gig to a set list through Event.SetList, and enforces the rich gig field validators", async () => {
+  it("runs a gig's set lists in order through EventSetList, and enforces the rich gig field validators", async () => {
     const seeded = await createSeededBandReferenceRuntime();
     const bandContext = contextForBand(bandReferenceSystemContext, seeded.firstBand.meta.guid);
 
-    // The seed links `firstEvent` to `firstSetList` once the set list exists.
-    const linked = await seeded.runtime.read("Event", seeded.firstEvent.meta.guid, bandContext);
-    expect(linked?.values.SetList).toBe(seeded.firstSetList.meta.guid);
+    // A night runs several set lists in order -- giggle-new's own
+    // `gig_set_lists` is what this mirrors -- so the link is its own object,
+    // not a single lookup on `Event`.
+    const links = await seeded.runtime.search("EventSetList", undefined, bandContext);
+    expect(
+      links
+        .filter((link) => link.values.Event === seeded.firstEvent.meta.guid)
+        .sort((left, right) => Number(left.values.Position) - Number(right.values.Position))
+        .map((link) => [link.values.Position, link.values.SetList]),
+    ).toEqual([
+      [1, seeded.firstSetList.meta.guid],
+      [2, seeded.secondSetList.meta.guid],
+    ]);
+
+    // `(gig_id, set_list_id)` is `gig_set_lists`' primary key: the same set
+    // list cannot be attached to one event twice.
+    await expect(
+      seeded.runtime.create(
+        "EventSetList",
+        {
+          Band: seeded.firstBand.meta.guid,
+          Event: seeded.firstEvent.meta.guid,
+          SetList: seeded.firstSetList.meta.guid,
+          Position: 3,
+        },
+        bandContext,
+      ),
+    ).rejects.toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_CONSTRAINT_UNIQUE",
+          field: "SetList",
+        }),
+      ],
+    });
 
     const wellFormed = await seeded.runtime.create(
       "Event",
@@ -861,7 +907,6 @@ describe("band reference app runtime", () => {
         EventType: "Gig",
         Date: "2026-09-01",
         Title: "September support slot",
-        SetList: seeded.firstSetList.meta.guid,
         ContactName: "Sam Rivers",
         ContactPhone: "+44 161 496 0018",
         ContactEmail: "sam@venue.example.com",
@@ -872,7 +917,6 @@ describe("band reference app runtime", () => {
       bandContext,
     );
     expect(wellFormed.values).toMatchObject({
-      SetList: seeded.firstSetList.meta.guid,
       PaymentMethod: "Cash",
       Amount: 300,
     });
@@ -975,7 +1019,6 @@ describe("band reference app runtime", () => {
       Title: "Canal Street headline",
       VenueName: "Alpha Hall",
       VenueLocation: "Canal Street",
-      SetList: seeded.firstSetList.meta.guid,
       ContactName: "Jordan Blake",
       ContactPhone: "+44 20 7946 0958",
       ContactEmail: "jordan@alphahall.example.com",
@@ -1504,6 +1547,84 @@ describe("band reference app runtime", () => {
   });
 
   /*
+   * The gig form's own child collection, and the reason `Event.SetList` is gone:
+   * giggle-new's gig form runs several set lists in a dragged order out of
+   * `gig_set_lists(gig_id, set_list_id, position)`, which one lookup could never
+   * express. Same declaration shape as `SetListForm`'s `Songs` collection above.
+   */
+  it("runs a gig's set lists in order through the gig form's child collection", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const context: RuntimeContext = { ...seeded.firstBandContext, channel: "ui" };
+
+    const surface = await seeded.runtime.evaluateEditSurface("Event", "BandEventForm", context, {
+      mode: "edit",
+      recordId: seeded.firstEvent.meta.guid,
+    });
+    const setLists = surface.sections.find((section) => section.name === "SetLists");
+    if (setLists?.kind !== "childCollection") {
+      throw new Error("BandEventForm must declare a 'SetLists' child collection.");
+    }
+
+    expect(setLists.childObject).toBe("EventSetList");
+    expect(setLists.parentField).toBe("Event");
+    expect(setLists.orderField).toBe("Position");
+    expect(setLists.rows.map((row) => row.values.Position)).toEqual([1, 2]);
+
+    // The picker offers set lists, not link rows.
+    const picker = await seeded.runtime.evaluateRelationshipPicker({
+      objectName: "Event",
+      viewName: "BandEventForm",
+      sectionName: "SetLists",
+      context,
+      recordId: seeded.firstEvent.meta.guid,
+    });
+    expect(picker.picker.candidateField).toBe("SetList");
+    // Both of this band's set lists are already attached to this event, so the
+    // picker has nothing left to offer -- the modelled form of the dropdown
+    // giggle-new rebuilds by hand to respect `(gig_id, set_list_id)`.
+    expect(picker.candidates.map((candidate) => candidate.values.Name)).toEqual([]);
+    expect(picker.diagnostics).toEqual([
+      {
+        code: "ADL_RUNTIME_RELATIONSHIP_PICKER_EMPTY",
+        message: "Every set list this band has is already attached to this event.",
+        section: "SetLists",
+        severity: "warning",
+      },
+    ]);
+
+    const secondRow = setLists.rows[1];
+    expect(secondRow).toBeDefined();
+
+    await seeded.runtime.applyStagedChildChanges({
+      objectName: "Event",
+      viewName: "BandEventForm",
+      parentRecordId: seeded.firstEvent.meta.guid,
+      context,
+      stagedChanges: [
+        {
+          id: "staged-set-list-reorder-1",
+          section: "SetLists",
+          operation: "reorder",
+          childObject: "EventSetList",
+          childId: secondRow?.id ?? "",
+          position: 1,
+        },
+      ],
+    });
+
+    const reordered = await seeded.runtime.search("EventSetList", undefined, context);
+    expect(
+      reordered
+        .filter((link) => link.values.Event === seeded.firstEvent.meta.guid)
+        .sort((left, right) => Number(left.values.Position) - Number(right.values.Position))
+        .map((link) => [link.values.Position, link.values.SetList]),
+    ).toEqual([
+      [1, seeded.secondSetList.meta.guid],
+      [2, seeded.firstSetList.meta.guid],
+    ]);
+  });
+
+  /*
    * What a person actually does: open a set list, press Add, and choose songs.
    * The picker offers songs — not set-list items — and never offers one that is
    * already in this set list.
@@ -1599,6 +1720,28 @@ describe("band reference app runtime", () => {
         }),
       ],
     });
+    // giggle-new's `set_list_songs` carries `UNIQUE (set_list_id, song_id)`:
+    // the same song twice in one set list is refused by the object itself, not
+    // merely hidden by `SongPicker`'s `EXCLUDE_LINKED`.
+    await expect(
+      seeded.runtime.create(
+        "SetListItem",
+        {
+          Band: seeded.firstBand.meta.guid,
+          SetList: seeded.firstSetList.meta.guid,
+          Song: seeded.firstSong.meta.guid,
+          Position: 4,
+        },
+        seeded.firstBandContext,
+      ),
+    ).rejects.toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: "ADL_RUNTIME_CONSTRAINT_UNIQUE",
+          field: "Song",
+        }),
+      ],
+    });
     // The set list declares `REORDER shift`, so landing on an occupied position
     // is a reorder rather than an error: the new item takes position 2 and the
     // sibling that held it moves along. `strict` still refuses a duplicate —
@@ -1611,12 +1754,15 @@ describe("band reference app runtime", () => {
     const previouslySecond = displaced.find((item) => item.values.Position === 2);
     expect(previouslySecond).toBeDefined();
 
+    // A song not already in this set list -- `uniqueSongInSetList` now refuses
+    // a repeat, so the reorder-on-collision behaviour has to be shown with a
+    // genuinely new song rather than a duplicate of the one at position 1.
     const inserted = await seeded.runtime.create(
       "SetListItem",
       {
         Band: seeded.firstBand.meta.guid,
         SetList: seeded.firstSetList.meta.guid,
-        Song: seeded.firstSong.meta.guid,
+        Song: seeded.fourthSong.meta.guid,
         Position: 2,
       },
       seeded.firstBandContext,
