@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.5.0",
+  "modelVersion": "1.6.0",
   "app": {
     "name": "Giggle Band ADL Example",
     "startView": "HomeDashboard",
@@ -69,6 +69,11 @@
           ]
         }
       ]
+    },
+    {
+      "from": "1.5.0",
+      "to": "1.6.0",
+      "objects": []
     }
   ],
   "objects": [

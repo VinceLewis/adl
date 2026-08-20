@@ -56,13 +56,6 @@
           "order": 60
         },
         {
-          "view": "SetListForm",
-          "label": "Set list editor",
-          "icon": "list",
-          "group": "Library",
-          "order": 62
-        },
-        {
           "view": "BandDirectory",
           "label": "Bands",
           "icon": "users",

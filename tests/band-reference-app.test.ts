@@ -25,7 +25,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.5.0");
+    expect(model.modelVersion).toBe("1.6.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -55,6 +55,11 @@ describe("band reference app model", () => {
         },
       ],
     });
+    // `1.5.0 -> 1.6.0` is an empty-object hop: removing the redundant "Set
+    // list editor" nav item (SetListForm, rendering-identical to SetListList
+    // -- see adl-app.ts's renderCrudWorkspace) changes shell content but no
+    // object's fields.
+    expect(model.migrations).toContainEqual({ from: "1.5.0", to: "1.6.0", objects: [] });
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -67,7 +72,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-50d483a4c31be8e36c7046127c6415b6f20c5d3efd1ff92c232d221960648569",
+      "sha256-c6a3d94c6ee3fa4cad92683fc960fc8be47e24c37bd50181596e759f0eaff970",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -240,8 +245,15 @@ describe("band reference app model", () => {
       model.objects.find((object) => object.name === "SetListItem")?.views.map((view) => view.name),
     ).toContain("SetListItemList");
     expect(model.shell.nav.items.map((item) => item.view)).toEqual(
-      expect.arrayContaining(["SetListList", "SetListForm"]),
+      expect.arrayContaining(["SetListList"]),
     );
+    // "Set list editor" (SetListForm) was a second nav entry pointing at the
+    // exact same rendered screen as "Set Lists" (SetListList) -- adl-app.ts's
+    // renderCrudWorkspace resolves purely from editContainer mode and
+    // editContainerOpen state, never from which view name was navigated to,
+    // so both nav items opened an identical list-first workspace for the same
+    // SetList object. Removed as pure redundancy, not a capability loss.
+    expect(model.shell.nav.items.map((item) => item.view)).not.toContain("SetListForm");
     expect(model.shell.nav.items.map((item) => item.view)).not.toContain("SetListItemList");
     // The list that opens the surface has to agree about the container, because
     // the container is chosen by the view that is active when editing starts.
@@ -2080,7 +2092,7 @@ describe("band reference browser demo", () => {
     // The shell nav entry this phase added is how the surface is reached: it
     // lists the band's set lists, and opening one shows the set list with its
     // songs edited in place.
-    navigateWithDrawer(app, "SetListForm");
+    navigateWithDrawer(app, "SetListList");
     await flushUi();
     await waitForText(app, "August headline");
     expect(app.textContent).toContain("Rehearsal running order");
@@ -2528,7 +2540,7 @@ async function mountBandApp(
 
 /** Reaches the ADL-declared edit surface the way the shell offers it. */
 async function openSetList(app: AdlAppElement, recordId: string): Promise<void> {
-  navigateWithDrawer(app, "SetListForm");
+  navigateWithDrawer(app, "SetListList");
   await flushUi();
   await waitForText(app, "August headline");
   requireElement<HTMLTableRowElement>(app, `tr[data-record-id='${recordId}']`).click();

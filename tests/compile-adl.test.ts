@@ -1182,10 +1182,6 @@ END.POLICY
         ["BandMemberAvailabilityBoard", "Who is free", 45],
         ["SongLibrary", "Songs", 50],
         ["SetListList", "Set Lists", 60],
-        // The set list's own form, which now edits its items in place. Declared
-        // in `ui.adl` rather than left to derivation, so it gets a label a person
-        // would use and a deterministic place beside the list it belongs to.
-        ["SetListForm", "Set list editor", 62],
         ["StreamingLinkList", "Streaming", 65],
         ["BandDirectory", "Bands", 70],
         ["MyInvitationList", "Sent Invitations", 80],
