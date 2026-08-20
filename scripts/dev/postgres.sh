@@ -82,8 +82,24 @@ apply_migrations() {
 case "${1:-up}" in
   up)
     if [[ -n "$(docker ps -aq -f "name=^${container}$")" ]]; then
+      # A container's published port is fixed when it is created, so `docker
+      # start` cannot move an existing one to a different ADL_DEV_PG_PORT. Left
+      # unchecked that reports "Started existing container" and then times out
+      # waiting on a port nothing was ever bound to, which reads like a broken
+      # database rather than a stale container. Refuse instead of recreating:
+      # the container may hold a seeded admin, band and invitation, and losing
+      # those to a changed environment variable is not this script's call.
+      bound="$(docker inspect "${container}" \
+        --format '{{range $p, $c := .HostConfig.PortBindings}}{{range $c}}{{.HostPort}}{{end}}{{end}}' 2>/dev/null || true)"
+      if [[ -n "${bound}" && "${bound}" != "${port}" ]]; then
+        echo "Container ${container} already exists and publishes 127.0.0.1:${bound}, not ${port}." >&2
+        echo "A published port cannot be changed after creation. To move it (this DESTROYS its data):" >&2
+        echo "  scripts/dev/postgres.sh down && ADL_DEV_PG_PORT=${port} scripts/dev/postgres.sh up" >&2
+        echo "To keep the existing container instead, use ADL_DEV_PG_PORT=${bound}." >&2
+        exit 1
+      fi
       docker start "${container}" >/dev/null
-      echo "Started existing container ${container}."
+      echo "Started existing container ${container} on 127.0.0.1:${port}."
     else
       docker run -d --name "${container}" \
         -e "POSTGRES_PASSWORD=${password}" \
