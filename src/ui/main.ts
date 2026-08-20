@@ -84,6 +84,10 @@ async function mountReferenceDemo(
   );
 
   document.title = model.app.name;
+  const favicon = document.getElementById("adl-app-favicon");
+  if (favicon !== null) {
+    favicon.setAttribute("href", demo.iconUrl ?? "/adl-icon.svg");
+  }
   app.model = model;
   app.runtime = runtime;
   app.context = await startingContext(runtime, authority, demo.seedIfEmpty);
