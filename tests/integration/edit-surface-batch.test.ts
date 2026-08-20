@@ -228,6 +228,29 @@ async function seedItem(
   );
 }
 
+/**
+ * Another `Song` in the seeded band, beyond the two `seedBand` mints.
+ *
+ * `uniqueSongInSetList` (added when the gig <-> set-list relationship was
+ * modelled properly) means one set list names each song at most once. A batch
+ * that appends a child *and* moves an existing child onto a different song
+ * therefore needs songs the set list does not already hold; reusing one makes
+ * the batch a duplicate-song refusal rather than the inline edit under test.
+ */
+async function seedSong(
+  applicationId: string,
+  seeded: SeededBand,
+  recordId: string,
+  title: string,
+): Promise<StoredObjectRecord> {
+  return serverRuntime(applicationId).create(
+    "Song",
+    { Band: seeded.bandId, Title: title },
+    { ...systemContext, selectedContexts: { Band: seeded.bandId } },
+    { recordId },
+  );
+}
+
 /** The revision the authority currently holds, which an update must be planned against. */
 async function authorityRevision(
   applicationId: string,
@@ -353,12 +376,21 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
    * required lookup, an enum, a boolean and a date, because `false` and a date
    * string are exactly the values a projection can quietly lose.
    *
+   * Every song here is distinct, and deliberately so: `uniqueSongInSetList`
+   * allows one child per song per set list, so a batch reusing a song the list
+   * already holds is refused whole. That refusal is a real property of the
+   * model and is proven directly in the test below; what this test is about is
+   * the accepted path, so its fixture has to be a set list a batch may
+   * legitimately land on.
+   *
    * The three untouched records are asserted whole rather than by count. A
    * transaction that wrote the right rows and also shifted a sibling would
    * satisfy every assertion about the two records the batch names.
    */
   it("lands an inline child edit beside a child create as one operation", async () => {
     const seeded = await seedBand(directApp, founderId);
+    const addedSongId = await seedSong(directApp, seeded, "song-inline-added", "Harbour Lights");
+    const editedSongId = await seedSong(directApp, seeded, "song-inline-edited", "Neon Dusk");
     await seedItem(directApp, seeded, "item-inline-edited", seeded.songOneId, 1, {
       Notes: "As rehearsed",
     });
@@ -366,7 +398,9 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
     const editedBefore = await storedRecord(directApp, "SetListItem", "item-inline-edited");
     const bystanderBefore = await storedRecord(directApp, "SetListItem", "item-inline-bystander");
     const setListBefore = await storedRecord(directApp, "SetList", seeded.setListId);
-    const songBefore = await storedRecord(directApp, "Song", seeded.songTwoId);
+    // The song the patch points at: a lookup rewrites the child, never the row
+    // it names.
+    const songBefore = await storedRecord(directApp, "Song", editedSongId.meta.guid);
     const before = await projectionCounts(directApp);
 
     const outcome = await service().replay(
@@ -374,13 +408,13 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
       batchIntent("op-batch-inline", seeded.bandId, [
         // Appended past every existing child, so the ordered constraint plans no
         // sibling shift and "untouched" below means what it says.
-        createItem(seeded, "item-inline-added", seeded.songTwoId, 3),
+        createItem(seeded, "item-inline-added", addedSongId.meta.guid, 3),
         {
           operation: "update",
           objectName: "SetListItem",
           recordId: "item-inline-edited",
           patch: {
-            Song: seeded.songTwoId,
+            Song: editedSongId.meta.guid,
             Arrangement: "Acoustic",
             Encore: true,
             RehearsedOn: "2026-07-20",
@@ -398,7 +432,7 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
     // The edit is persisted, not merely reported: read back out of PostgreSQL.
     const edited = await storedRecord(directApp, "SetListItem", "item-inline-edited");
     expect(edited?.values).toMatchObject({
-      Song: seeded.songTwoId,
+      Song: editedSongId.meta.guid,
       Arrangement: "Acoustic",
       Encore: true,
       RehearsedOn: "2026-07-20",
@@ -414,14 +448,14 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
 
     expect(
       (await storedRecord(directApp, "SetListItem", "item-inline-added"))?.values,
-    ).toMatchObject({ Song: seeded.songTwoId, Position: 3, SetList: seeded.setListId });
+    ).toMatchObject({ Song: addedSongId.meta.guid, Position: 3, SetList: seeded.setListId });
 
     // Nothing the batch did not name moved at all — values or revision.
     expect(await storedRecord(directApp, "SetListItem", "item-inline-bystander")).toEqual(
       bystanderBefore,
     );
     expect(await storedRecord(directApp, "SetList", seeded.setListId)).toEqual(setListBefore);
-    expect(await storedRecord(directApp, "Song", seeded.songTwoId)).toEqual(songBefore);
+    expect(await storedRecord(directApp, "Song", editedSongId.meta.guid)).toEqual(songBefore);
 
     const after = await projectionCounts(directApp);
     // One create, so one new row; the edit changed a row rather than adding one.
@@ -430,6 +464,73 @@ describe("a staged batch replayed to a real authority over real PostgreSQL", () 
     // would mean the ordered constraint had planned a shift nobody asked for.
     expect(after.outcomes).toBe(before.outcomes + 1);
     expect(after.audit).toBe(before.audit + 2);
+  });
+
+  /**
+   * The constraint the test above has to work around, pinned deliberately
+   * rather than tripped over.
+   *
+   * `uniqueSongInSetList` is what makes a set list a set list rather than a bag
+   * of repeats. `SongPicker`'s `EXCLUDE_LINKED` hides an already-added song,
+   * but a picker is a UI affordance and a replayed batch never went near one —
+   * so the authority is where this has to hold. Both shapes a staged batch can
+   * produce are checked: a child created on a song the list already holds, and
+   * an inline edit moving a child onto a sibling's song. No UI guard covers the
+   * second at all, and it is exactly the write the accepted-path test above was
+   * unwittingly submitting before this constraint existed.
+   */
+  it("refuses a batch that would name the same song twice in one set list", async () => {
+    const seeded = await seedBand(directApp, founderId);
+    await seedItem(directApp, seeded, "item-unique-first", seeded.songOneId, 1);
+    await seedItem(directApp, seeded, "item-unique-second", seeded.songTwoId, 2);
+    const secondBefore = await storedRecord(directApp, "SetListItem", "item-unique-second");
+    const before = await projectionCounts(directApp);
+
+    // A child created on a song the set list already holds.
+    expect(
+      await service().replay(
+        founderToken,
+        batchIntent("op-batch-dup-create", seeded.bandId, [
+          createItem(seeded, "item-unique-created", seeded.songOneId, 3),
+        ]),
+      ),
+    ).toMatchObject({
+      status: "rejected",
+      operationId: "op-batch-dup-create",
+      code: "ADL_RUNTIME_VALIDATION_FAILED",
+    });
+    expect(await storedRecord(directApp, "SetListItem", "item-unique-created")).toBeNull();
+
+    // An inline edit moving an existing child onto a sibling's song.
+    expect(
+      await service().replay(
+        founderToken,
+        batchIntent("op-batch-dup-edit", seeded.bandId, [
+          {
+            operation: "update",
+            objectName: "SetListItem",
+            recordId: "item-unique-second",
+            patch: { Song: seeded.songOneId },
+            baseRevision: secondBefore?.meta.revision ?? "",
+          },
+        ]),
+      ),
+    ).toMatchObject({
+      status: "rejected",
+      operationId: "op-batch-dup-edit",
+      code: "ADL_RUNTIME_VALIDATION_FAILED",
+    });
+    // Read back out of PostgreSQL: the refused edit moved neither values nor
+    // revision, so the device's copy is still judged against the row it holds.
+    expect(await storedRecord(directApp, "SetListItem", "item-unique-second")).toEqual(
+      secondBefore,
+    );
+
+    const after = await projectionCounts(directApp);
+    expect(after.records).toBe(before.records);
+    expect(after.audit).toBe(before.audit);
+    // Two refusals, each durable under its own operation id.
+    expect(after.outcomes).toBe(before.outcomes + 2);
   });
 
   /**
