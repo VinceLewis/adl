@@ -4,6 +4,16 @@ Read this before changing resource/date matrices, availability views, matrix
 cell editing, range editing, or future calendar work that reuses matrix status
 semantics.
 
+**Where the code is (Phase 90).** Matrix evaluation is no longer in a single
+`presentation-runtime.ts`. The pure part — the date column axis, cell keys,
+cycle stepping, and what a cell edit writes — is
+`src/runtime/presentation-runtime/matrix-edit.ts`; the runtime methods
+(`evaluateMatrix`, `evaluateMatrixCell`, `planMatrixCellWrite`,
+`applyMatrixCellWrite`, …) are
+`src/runtime/presentation-runtime/matrix-runtime.ts`. Every name below still
+exists with the same name and body — see [[presentation-runtime-file-map]] for
+the full map and the chain-ordering rule you must respect when adding one.
+
 ## Decisions
 
 - Matrices live under `ResolvedView.presentation.sections[].matrices`, beside

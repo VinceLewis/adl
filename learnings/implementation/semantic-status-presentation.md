@@ -3,6 +3,15 @@
 Read this before changing status maps, status precedence, legends, or
 status-colored browser presentation.
 
+**Where the code is (Phase 90).** Status and legend evaluation
+(`evaluateStatusBinding`, `evaluateStatusCandidates`, `resolveStatus`,
+`resolveStatusMapValue`, `evaluateLegends`) is
+`src/runtime/presentation-runtime/status-runtime.ts`, and icon resolution
+(`resolveIcon`, `resolveIconMapValue`) is its lower layer
+`icon-runtime.ts` — not a single `presentation-runtime.ts` any more. Every
+name below still exists with the same name and body — see
+[[presentation-runtime-file-map]] for the full map.
+
 ## Decisions
 
 - Presentation statuses are semantic model data, not CSS classes. The status

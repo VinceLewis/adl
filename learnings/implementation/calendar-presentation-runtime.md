@@ -3,6 +3,16 @@
 Read this before changing calendar month planning views, calendar cell actions,
 or event-entry behavior.
 
+**Where the code is (Phase 90).** Calendar evaluation is no longer in a single
+`presentation-runtime.ts`. The month arithmetic — the fixed 42-cell grid,
+week start, navigation bounds, per-date row grouping, status counting and
+precedence — is `src/runtime/presentation-runtime/calendar-grid.ts`; the
+runtime methods that use it (`evaluateCalendar`, `resolveConflictOverlay`,
+`bindCalendarRows`, `evaluateCalendarCell`, `evaluateCalendarItem`) are
+`src/runtime/presentation-runtime/calendar-runtime.ts`. Every name below still
+exists with the same name and body — see [[presentation-runtime-file-map]] for
+the full map and the chain-ordering rule you must respect when adding one.
+
 ## Decisions
 
 - Calendars live under `ResolvedView.presentation.sections[].calendars`, beside
