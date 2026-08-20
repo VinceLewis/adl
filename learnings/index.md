@@ -19,8 +19,11 @@ Before tasks that design the ADL resolved model, parser, validator, lifecycle, p
 
 - `minil/repository-audit.md`
 
+Before any task that touches `src/model/resolved-model.ts`, `src/compiler/validate-model.ts`, or `src/compiler/resolve-model.ts` — or that needs to locate a specific type, validator, or resolver by domain (object/field, presentation-matrix, decision-table, sync, etc.) rather than grepping an 8,000-line file — read `implementation/compiler-model-layer-file-map.md` first. Since Phase 81, these are directories of domain files behind a barrel, not single files.
+
 Before tasks that change resolved model defaults, model validation, policy evaluation, object constraints, commands, storage metadata, or runtime record handling, also read:
 
+- `implementation/compiler-model-layer-file-map.md`
 - `architecture/resolved-model-defaults.md`
 - `implementation/model-validator.md`
 - `implementation/offline-session-lifetime.md`
