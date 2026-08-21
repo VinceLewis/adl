@@ -105,11 +105,16 @@ export class AdlAppDataElement extends AdlAppRenderElement {
     await this.runCommand(async () => {
       await this.refreshRecordSyncState();
       await this.refreshAvailableContexts();
-      if (this.activeView.presentation === undefined) {
-        await this.refreshRecords();
-      } else {
-        await this.refreshPresentationView();
-      }
+      /*
+       * Always through `refreshRecords`, which resolves the active view's
+       * context first and dispatches to the presentation branch itself.
+       * Calling `refreshPresentationView` directly skipped that resolution and
+       * went straight to `requireActiveRuntimeContext()`, so a signed-in person
+       * who is a member of no context — the exact state self-service
+       * registration creates — got `The active view does not have a runtime
+       * context.` as an error banner instead of the view's empty state.
+       */
+      await this.refreshRecords();
       await this.refreshEditSurface();
       this.render();
     });

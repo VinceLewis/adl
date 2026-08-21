@@ -11,6 +11,7 @@ import {
   OpaqueSessionAdapter,
   PasskeyIdentityService,
   resolveApplicationModel,
+  resolveSelfServiceRegistration,
   resolveSessionLifetime,
   selectUpstreamIdentityVerifier,
 } from "../../src/index.js";
@@ -35,10 +36,13 @@ import { SimpleWebAuthnLibrary } from "../../src/server/simplewebauthn-adapter.j
  *    proxy ahead of the process; here the local listener plays that part, the
  *    way `HttpAuthorityTransport`'s `forwardedProto` option does for the
  *    integration suite.
- * 3. **A seeded first administrator.** Registration is never anonymous, so
- *    somebody has to exist before anybody can be invited. This mirrors the
- *    out-of-band first-admin step the production runbook documents; it is not a
- *    capability the HTTP edge exposes.
+ * 3. **A seeded first administrator.** Somebody has to exist before anybody can
+ *    be *invited*, and the invite tests need one. The stated reason used to be
+ *    "registration is never anonymous"; since Phase 99 that is no longer true
+ *    for a model declaring `REGISTRATION SELF_SERVICE`, which Giggle Band now
+ *    does — the self-registration test below needs no seeded anybody. The
+ *    administrator stays for the invite and recovery paths, and it still
+ *    mirrors an out-of-band step rather than a capability the edge exposes.
  *
  * The WebAuthn implementation is the real `SimpleWebAuthnLibrary`: every
  * signature Chromium's virtual authenticator produces is verified for real.
@@ -101,6 +105,11 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
     },
     model,
   );
+  // Composed exactly as `createAuthorityProcess` composes it: the model
+  // declares whether strangers may register, and the deployment ceiling may
+  // only restrict that. Nothing is faked — Giggle Band's own `domain.adlj`
+  // carries the declaration.
+  const resolved = resolveSelfServiceRegistration(configuration, model);
 
   const storage = new InMemoryObjectStorageBackend();
   const sessions = new OpaqueSessionAdapter(new InMemoryAuthorityIdentitySessionStore(), {
@@ -118,7 +127,10 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
     sessions,
     new InMemoryWebAuthnCredentialStore(),
     new SimpleWebAuthnLibrary(),
-    { accessLifecycle },
+    {
+      accessLifecycle,
+      selfServiceRegistration: resolved.selfServiceRegistrationEnabled === true,
+    },
   );
 
   // The out-of-band first administrator. Their identity is linked under a
@@ -138,7 +150,7 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
   const adminSession = await sessions.issueSession(admin.userId);
 
   const handle = createAuthorityHttpHandler({
-    configuration,
+    configuration: resolved,
     authority,
     sessions,
     identityVerifier: selectUpstreamIdentityVerifier(configuration),

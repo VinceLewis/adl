@@ -213,6 +213,51 @@ describe("first-run onboarding", () => {
     expect(app.querySelector("[data-command-form]")).toBeNull();
   });
 
+  /*
+   * A composed (presentation) view scoped to a context the caller cannot reach
+   * used to go straight to `requireActiveRuntimeContext()` on any refresh
+   * driven from outside `refreshRecords` — a sign-in, a claimed invitation —
+   * and surface `The active view does not have a runtime context.` as an error
+   * banner. Nobody could reach that state before self-service registration,
+   * because every identity arrived holding a membership. Now the first thing a
+   * newly registered person would have seen is an error.
+   */
+  it("shows the empty state, not an error banner, when a presentation view has no context", async () => {
+    const presentationModel = resolveApplicationModel({
+      ...partialModel,
+      objects: (partialModel.objects as Record<string, unknown>[]).map((object) =>
+        object.name === "Thing"
+          ? {
+              ...object,
+              views: [
+                {
+                  name: "ThingList",
+                  kind: "composite",
+                  context: { mode: "required", context: "Group" },
+                  fields: ["Title"],
+                  presentation: { sections: [{ name: "Overview", heading: "Overview" }] },
+                },
+              ],
+            }
+          : object,
+      ),
+    } as unknown as PartialApplicationModel);
+    const app = document.createElement("adl-app") as AdlAppElement;
+    app.model = presentationModel;
+    app.runtime = new ApplicationRuntime(presentationModel);
+    app.context = newcomer;
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    await app.refreshFromRuntime();
+    await flushUi();
+
+    expect(app.querySelector("[data-empty-state='true']")).not.toBeNull();
+    expect(app.textContent).not.toContain("does not have a runtime context");
+    expect(app.querySelector("[data-shell-command-control='createFirstGroup']")).not.toBeNull();
+  });
+
   it("opens a form for the command's own declared inputs when the control is used", async () => {
     const app = await mountApp();
     click(app, "[data-shell-command-control='createFirstGroup']");
@@ -311,6 +356,26 @@ describe("first-run onboarding", () => {
     expect(groups.map((record) => record.values.Name)).toEqual(["Chrome Group"]);
   });
 
+  /*
+   * A command writes, and the signed-out identity is a non-empty placeholder
+   * string — so a bare `authenticated` create policy would *accept* the local
+   * write and the authority would then refuse to sync it. Offering the control
+   * to a signed-out visitor is therefore worse than useless.
+   */
+  it("offers no command action to a signed-out visitor of an authority-backed app", async () => {
+    const app = document.createElement("adl-app") as AdlAppElement;
+    app.model = model;
+    app.runtime = new ApplicationRuntime(model);
+    app.context = { ...newcomer, userId: "adl-signed-out" };
+    app.authority = signedOutBridge();
+    document.body.append(app);
+    await app.whenReady();
+    await flushUi();
+
+    expect(app.querySelector("[data-empty-state='true']")).not.toBeNull();
+    expect(app.querySelector("[data-shell-command-control='createFirstGroup']")).toBeNull();
+  });
+
   it("keeps a refusal on the form, beside the values that produced it", async () => {
     const app = await mountApp();
     click(app, "[data-shell-command-control='createFirstGroup']");
@@ -343,6 +408,33 @@ describe("first-run onboarding", () => {
     expect(app.querySelector("[data-shell-command-control='createFirstGroup']")).toBeNull();
   });
 });
+
+/** The minimum of the bridge contract the shell reads when deciding chrome. */
+function signedOutBridge(): AdlAppElement["authority"] {
+  return {
+    session: {
+      status: "signedOut",
+      developmentMode: false,
+      identityMode: "passkey",
+      passkeySupported: true,
+      selfServiceRegistration: true,
+      busy: false,
+      grace: { status: "noIdentity", offlineGraceDays: 30 },
+    },
+    invite: { status: "idle" },
+    devices: { status: "idle", devices: [] },
+    administration: {
+      status: "idle",
+      auditEvents: { entries: [] },
+      accessEvents: { entries: [] },
+      memberships: { entries: [] },
+      retentionRuns: { entries: [] },
+      report: { entries: [] },
+    },
+    recovery: [],
+    undelivered: [],
+  } as unknown as AdlAppElement["authority"];
+}
 
 async function mountApp(): Promise<AdlAppElement> {
   const app = document.createElement("adl-app") as AdlAppElement;

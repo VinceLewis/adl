@@ -70,6 +70,77 @@ test("registers a passkey from an invitation and then signs in with it", async (
   await expect(panel.locator("[data-session-identity] strong")).toHaveText(signedInUserId);
 });
 
+/*
+ * Phase 99, in a real browser: the whole first-run path with no invitation
+ * token anywhere in it. Giggle Band's own model declares `REGISTRATION
+ * SELF_SERVICE`, so nothing here is faked — the harness reads the declaration
+ * from `domain.adlj` through the same resolver the authority entrypoint uses.
+ */
+test("creates an account with no invitation, then creates a band from the empty state", async ({
+  page,
+}) => {
+  const client = await addVirtualAuthenticator(page);
+
+  await page.goto("/?demo=giggle-band");
+  const panel = page.locator("adl-session-panel");
+  await expect(panel).toHaveAttribute("data-session-status", "signedOut");
+
+  // Three routes, and the third one is new. `/readyz` is the only thing that
+  // put it there.
+  await expect(panel.locator("[data-session-passkey-sign-in='true']")).toBeVisible();
+  await expect(panel.locator("[data-session-self-register='true']")).toBeVisible();
+  await expect(panel.locator("[data-session-passkey-invite='true']")).toBeVisible();
+  await page.screenshot({
+    path: "test-results/visual/passkey-self-service-signed-out.png",
+    fullPage: true,
+  });
+
+  // Nothing typed: no invitation token, no user name, no account proof.
+  await panel.locator("[data-session-self-register='true']").click();
+  await expect(panel).toHaveAttribute("data-session-status", "signedIn", { timeout: 20_000 });
+  const signedInUserId = await panel.locator("[data-session-identity] strong").innerText();
+  expect(signedInUserId).toMatch(/^user-/u);
+  await expect(panel.locator("[data-session-notice='true']")).toContainText(
+    "Your account was created",
+  );
+
+  // The credential was produced by the authenticator and verified for real.
+  const credentials = await client.send("WebAuthn.getCredentials", {
+    authenticatorId: authenticatorId(client),
+  });
+  expect(credentials.credentials.length).toBe(1);
+  expect(credentials.credentials[0]?.rpId).toBe(PASSKEY_RELYING_PARTY_ID);
+
+  // And the room is not empty: the empty state is the entry point.
+  const emptyState = page.locator("[data-empty-state='true']");
+  await expect(emptyState).toContainText("No Band contexts are available for this view.");
+  const createBand = emptyState.locator("[data-shell-command-control='createFirstBand']");
+  await expect(createBand).toBeVisible();
+  await page.screenshot({
+    path: "test-results/visual/passkey-self-service-empty-state.png",
+    fullPage: true,
+  });
+
+  await createBand.click();
+  const form = page.locator("[data-command-form='CreateBand']");
+  await expect(form).toBeVisible();
+  await form.locator("[data-command-input='Name']").fill("The Newcomers");
+  await page.screenshot({
+    path: "test-results/visual/passkey-self-service-command-form.png",
+    fullPage: true,
+  });
+  await form.locator(".adl-command-form-submit").click();
+
+  // Landed inside the band they just made: no reload, no re-sign-in.
+  await expect(page.locator("[data-empty-state='true']")).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator("adl-app")).toContainText("The Newcomers");
+  await expect(page.locator("[data-shell-command-control='createFirstBand']")).toHaveCount(0);
+  await page.screenshot({
+    path: "test-results/visual/passkey-self-service-first-band.png",
+    fullPage: true,
+  });
+});
+
 test("refuses to sign in when the browser holds no credential, and issues no session", async ({
   page,
 }) => {

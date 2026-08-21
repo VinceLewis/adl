@@ -198,6 +198,19 @@ export class AdlAppModelLookupElement extends AdlAppStateElement {
       return false;
     }
 
+    /*
+     * A command writes. When an authority is configured, the shell knows
+     * whether anybody is signed in, and offering a write to a signed-out
+     * visitor is worse than useless: the signed-out identity is a non-empty
+     * placeholder string, so a bare `authenticated` policy would *accept* the
+     * local write and the authority would then refuse to sync it. With no
+     * authority there is no session to be signed out of and the control
+     * renders, exactly as the rest of the shell behaves locally.
+     */
+    if (control.kind === "commandAction") {
+      return this._authority === undefined || this._authority.session.status === "signedIn";
+    }
+
     if (control.kind === "contextSelector") {
       // `topBar.contextSelector` names where the selector belongs, not whether
       // the top bar shows one, so it decides both placements: a selector placed
