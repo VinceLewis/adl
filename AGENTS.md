@@ -131,6 +131,34 @@ it("compiles cleanly", () => {
 npx vitest run tests/scratch-compile-check.test.ts
 ```
 
+### Establish behavioural claims by running, not by reading
+
+The same rule as the section above, applied one level up: **a claim about what
+the running system does is only evidence once it has been run.** Reading the
+code that would do it is not evidence, and in this codebase it is actively
+misleading — ADL degrades silently by design. A denied read falls back to the
+raw record id rather than raising, so a policy that denies everything is
+indistinguishable by inspection from a missing display projection; an
+unreachable `ROLE` principal reads exactly like a working grant; an empty
+`GRANT ... ON ALL TABLES` reads exactly like a grant covering everything.
+Reading a resolver tells you what it does *when permitted*, never whether it
+is permitted.
+
+This has produced a false "Evidence and Dependency" section that a whole phase
+was then scoped against. Before asserting runtime behaviour — especially in a
+phase document, which later work builds on — execute it. A throwaway vitest
+against the seeded reference app with a real context is cheap. Mark inferred
+claims as inferred, explicitly, so a reader can tell them from measured ones.
+Prove rendering by inspecting the `verify:push` screenshots, not by reading the
+template. See `learnings/process/evidence-by-execution.md` for the four
+incidents behind this rule.
+
+Corollary: running a check and discarding its verdict is the same failure. **A
+pipeline reports its last command's exit status**, so `npm run verify:push |
+tail -40` reports `tail`'s success while Playwright reports `1 failed`, and
+`cmd; echo $?` reports `echo`'s. Redirect to a file, capture `$?` on the very
+next line, print it, and read the number.
+
 ## Implementation Boundaries
 
 - The runtime consumes the resolved model, not parser AST nodes.

@@ -73,6 +73,14 @@ work unless asked.
   should be authored as `.adlj` (`docs/spec/adlj.md`) and checked with
   `compileAdlj`; `compileAdl` remains the check for hand-authored or reviewed
   `.adl` text. See `AGENTS.md`'s Testing section for both patterns.
+- Never assert what the running system does on the strength of having read the
+  code. ADL degrades silently — a denied read falls back to the raw record id —
+  so a policy that denies everything is indistinguishable by inspection from a
+  missing display projection. Run it. This has already produced a phase document
+  whose Evidence section was false. Mark inferred claims as inferred. And note
+  that a piped command reports its last stage's exit status, so redirect to a
+  file and check `$?` on the next line. See
+  `learnings/process/evidence-by-execution.md`.
 
 ## Local Development
 

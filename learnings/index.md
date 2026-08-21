@@ -9,6 +9,7 @@ Before any phase, read:
 - `project/repository-boundaries.md`
 - `process/phase-execution.md`
 - `process/testing-expectations.md`
+- `process/evidence-by-execution.md`
 
 Before tasks that inspect or compare old MINIL, also read:
 
@@ -339,10 +340,12 @@ Before tasks that change resolved theme tokens, theme resolution, UI CSS custom 
 Before tasks that change the phase plan, also read:
 
 - `process/phase-execution.md`
+- `process/evidence-by-execution.md`
 
 Before tasks that add or modify code, also read:
 
 - `process/testing-expectations.md`
+- `process/evidence-by-execution.md`
 
 ## Where to Add New Learnings
 
@@ -361,6 +364,7 @@ When adding a new learning document, update this index with when future agents s
 - `project/repository-boundaries.md`: read before any task that touches paths, setup, repository structure, or MINIL.
 - `process/phase-execution.md`: read before executing a phase or updating phase documents.
 - `process/testing-expectations.md`: read before code implementation or verification work. Since Phase 96 it also carries the rule that changing a shipped reference app's object constraints, field requiredness or validators invalidates `tests/integration/` fixtures built from that model, which `npm test` never runs.
+- `process/evidence-by-execution.md`: read before writing a phase document's "Evidence and Dependency" section, or before asserting anywhere what the running system does. It carries why reading this codebase is unreliable evidence (ADL degrades silently — a denied read falls back to the raw record id, so a policy that denies everything is indistinguishable from a missing display projection), the four incidents that established the rule, and the corollary that a piped command reports its last stage's exit status, not the check's.
 - `process/visual-browser-verification.md`: read before changing browser UI rendering, CSS, shell chrome, reference app screens, or browser verification. Since Phase 95 it also carries the Playwright navigation-race trap (a test that `page.goto`s after an action the app answers with `location.reload()`), why one isolated run is never a reproduction, and why `reuseExistingServer` makes a warm dev-server port untrustworthy from a worktree.
 - `minil/repository-audit.md`: read before comparing ADL with MINIL, reusing MINIL concepts, or designing parser/model/validator/runtime-test behaviour informed by MINIL.
 - `architecture/resolved-model-defaults.md`: read before changing model resolution, model validation, policy evaluation, storage metadata, or runtime record handling.
