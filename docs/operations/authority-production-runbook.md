@@ -579,17 +579,75 @@ kiosk browser: see the residual risk in the
 
 ## Database roles and migrations
 
-Use a database owner only to create roles. Run
-[`roles.sql`](../../src/server/migrations/roles.sql) once, then apply ordered
-`0001_authority_projection.sql`, `0002_security_operations.sql`,
-`0003_reporting_administration.sql`,
-`0004_authority_transaction_integrity.sql`,
-`0005_authority_audit_scope_and_retention.sql`,
-`0006_passkey_identity.sql`, `0007_model_fingerprint.sql`,
-`0008_membership_projection.sql`, and `0009_retention_scheduling.sql` as
-`adl_migrator`. Run the process as
-`adl_authority`; it has DML only and cannot create schema objects or run
-migrations. Use a pinned PostgreSQL client for any multi-statement transaction.
+Three steps, and **the role each one runs as is part of the procedure**:
+
+1. **As the database owner**, once:
+   [`roles.sql`](../../src/server/migrations/roles.sql). It creates
+   `adl_migrator` and `adl_authority` and grants `connect` plus schema `usage`.
+   It grants no table privileges, because it cannot: the owner does not own the
+   tables.
+2. **As `adl_migrator`**: [`grants.sql`](../../src/server/migrations/grants.sql).
+   It sets the default privileges that give `adl_authority` DML over every table
+   `adl_migrator` creates from then on, and grants DML over any that already
+   exist.
+3. **As `adl_migrator`**, in order: `0001_authority_projection.sql`,
+   `0002_security_operations.sql`, `0003_reporting_administration.sql`,
+   `0004_authority_transaction_integrity.sql`,
+   `0005_authority_audit_scope_and_retention.sql`, `0006_passkey_identity.sql`,
+   `0007_model_fingerprint.sql`, `0008_membership_projection.sql`, and
+   `0009_retention_scheduling.sql`.
+
+```bash
+psql "$OWNER_URL"    -v authority_db=adl -f src/server/migrations/roles.sql
+psql "$MIGRATOR_URL" -f src/server/migrations/grants.sql
+for f in src/server/migrations/000*.sql; do psql "$MIGRATOR_URL" -v ON_ERROR_STOP=1 -f "$f"; done
+```
+
+Then run the process as `adl_authority`; it has DML only and cannot create
+schema objects or run migrations. Use a pinned PostgreSQL client for any
+multi-statement transaction.
+
+`grants.sql` is idempotent and may be applied before or after the ordered
+migrations — both orders end in the same place, and it is safe to re-run at any
+time. Steps 2 and 3 may be swapped without consequence, so a later migration hop
+needs no extra step: the default privileges already cover the tables it creates.
+
+### Repairing an existing deployment
+
+**Symptom.** The authority process starts, connects to PostgreSQL, and then
+fails every query with `permission denied for table adl_authority_*`. `connect`
+and schema `usage` succeeded — it is the *table* privileges that are absent.
+This is what a deployment provisioned before `grants.sql` existed looks like:
+`roles.sql` used to carry a `grant … on all tables` that ran before any table
+existed, and an `alter default privileges` that covered the owner rather than
+`adl_migrator`, so neither ever granted anything.
+
+**Fix.** One command, no downtime, no migration:
+
+```bash
+psql "$MIGRATOR_URL" -f src/server/migrations/grants.sql
+```
+
+It grants DML over the tables that already exist and installs the default
+privileges that carry it forward. Nothing else needs changing; the process picks
+the privileges up on its next query.
+
+### How the split is proven
+
+`tests/integration/authority-role-grants.test.ts` provisions this exact
+procedure — throwaway database, `roles.sql` as the owner, `grants.sql` and the
+ordered migrations as `adl_migrator` — and then drives real traffic over an
+`adl_authority` connection: DML on every projection table, a table created after
+`grants.sql` ran, a real `AuthorityService` write through the unit of work, and
+`create table` / `truncate` / `alter table` all refused. It runs under
+`npm run test:integration`.
+
+It provisions its own database and roles, so it needs `CREATE DATABASE` and
+`CREATE ROLE`. The Docker-provisioned test database has both. If
+`ADL_TEST_DATABASE_URL` points at a database whose role does not, the test
+**fails naming the missing capability rather than skipping** — grant the
+capability. A silent skip is how this gap survived nine migrations, and it is
+the only test in the repository that exercises the two-role split at all.
 
 `0006_passkey_identity.sql` is the only migration so far that changes an
 existing identity column: it moves `adl_authority_identities.subject` into
@@ -1056,7 +1114,10 @@ Quarterly restore drill:
 
 1. Restore an encrypted backup into an isolated database and apply WAL to the
    chosen recovery point.
-2. Apply migrations with `adl_migrator`; connect only with `adl_authority`.
+2. Apply `grants.sql` and then the ordered migrations with `adl_migrator`;
+   connect only with `adl_authority`. Skipping `grants.sql` here yields a
+   restored database the traffic role cannot read — see
+   [Database roles and migrations](#database-roles-and-migrations).
 3. Verify row counts for every `adl_authority_*` table and sample a record,
    membership, session verifier, invite verifier, outcome, audit, and
    access-audit event without printing protected JSON.

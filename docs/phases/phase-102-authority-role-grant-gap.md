@@ -474,3 +474,198 @@ Two candidates surfaced here and were not taken:
   CI Postgres service may not. This phase makes the test fail loudly rather than
   skip. If a real CI ever hits it, the answer is to grant the capability, not to
   soften the test.
+
+---
+
+# Execution Note (2026-08-21)
+
+## Evidence points that had drifted
+
+Two, both cosmetic, neither changing the phase's scope:
+
+- **Every runbook line number in this document is stale.** Phase 99 inserted
+  content above the section: "Database roles and migrations" is at line 580, not
+  487, and the restore drill's `adl_migrator` step is at 1059, not 966. Both
+  sections were found by content and both said what the document quoted.
+- **The integration baseline is 169, not 163.** Phases 99–101 landed between the
+  document being written and executed. The suite is now 180 (18 files) with this
+  phase's 11 new cases.
+
+Everything else held exactly. `roles.sql:18-19` were verbatim as quoted, no
+migration file contains a `grant`, no migration creates a sequence, no server
+module emits DDL or `TRUNCATE`, `0008` still drops and re-creates
+`adl_authority_context_memberships`, and `pg-harness.ts:6` still said
+"deployment-only and intentionally skipped".
+
+## The three measured facts, reproduced independently
+
+Against `postgres:16-alpine` (PostgreSQL 16.14 on x86_64-pc-linux-musl), in a
+throwaway container, with a **non-superuser `CREATEROLE` database owner** —
+which is who the runbook names, and the distinction that decides the fix.
+
+### 1. The pre-change procedure produces a broken deployment
+
+```
+$ psql "$OWNER" -v authority_db=adl_repro -f src/server/migrations/roles.sql
+DO / DO / GRANT / GRANT / GRANT / GRANT / ALTER DEFAULT PRIVILEGES / REVOKE / REVOKE
+$ for f in src/server/migrations/000*.sql; do psql "$MIGRATOR" -f "$f"; done
+$ psql "$SU" -d adl_repro -Atc "select tablename, tableowner from pg_tables where schemaname='public'"
+adl_authority_access_audit_events|adl_migrator
+…                                   (all 14 tables)
+adl_authority_models|adl_migrator
+$ psql "$AUTHORITY" -Atc "select 1 from adl_authority_models limit 1"
+ERROR:  permission denied for table adl_authority_models
+$ psql "$AUTHORITY" -Atc "insert into adl_authority_models …"
+ERROR:  permission denied for table adl_authority_models
+```
+
+Both of `roles.sql`'s grants *succeeded*. They simply covered nothing.
+
+### 2. `ALTER DEFAULT PRIVILEGES FOR ROLE` is not available to that owner
+
+```
+$ psql "$OWNER" -Atc "alter default privileges for role adl_migrator in schema public grant select, insert, update, delete on tables to adl_authority"
+ERROR:  permission denied to change default privileges
+$ psql "$OWNER" -Atc "set role adl_migrator"
+ERROR:  permission denied to set role "adl_migrator"
+$ psql "$SU" -Atc "select r.rolname as member_of, m.rolname as member, a.admin_option, a.inherit_option, a.set_option from pg_auth_members a …"
+adl_migrator|adl_owner|t|f|f
+adl_authority|adl_owner|t|f|f
+$ psql "$SU" -d adl_repro -Atc "alter default privileges for role adl_migrator …"
+ALTER DEFAULT PRIVILEGES
+```
+
+The rejected alternative works only for a superuser. `inherit_option = f` and
+`set_option = f` are why, and they are PostgreSQL 16's default for a
+`CREATEROLE` creator's auto-granted membership.
+
+### 3. The fixed procedure works and stays least-privilege
+
+`roles.sql` as owner → `grants.sql` as `adl_migrator` → `0001…0009` as
+`adl_migrator`:
+
+```
+insert/select/update/delete on adl_authority_models   INSERT 0 1 / 1 / UPDATE 1 / DELETE 1
+select on adl_authority_context_memberships (0008)    0
+table created by adl_migrator AFTER grants.sql        INSERT 0 1 / 1
+create table  as adl_authority   ERROR:  permission denied for schema public
+truncate      as adl_authority   ERROR:  permission denied for table adl_authority_records
+alter table   as adl_authority   ERROR:  must be owner of table adl_authority_records
+re-running grants.sql            ALTER DEFAULT PRIVILEGES / GRANT   (clean no-op)
+```
+
+## The test was seen red first
+
+`tests/integration/authority-role-grants.test.ts` was written and run against
+the pre-change `roles.sql` (restored from `HEAD`) with `grants.sql` reduced to a
+comment. **7 failed | 4 passed (11).** The recorded messages:
+
+```
+× round-trips real rows, including the table 0008 drops and re-creates
+  error: permission denied for table adl_authority_models
+× covers a table adl_migrator creates after grants.sql ran
+  error: permission denied for table adl_role_grants_later
+× accepts a real AuthorityService write over the adl_authority connection
+  error: permission denied for table adl_authority_models
+```
+
+The four that passed are the two ownership assertions and the two refusal
+assertions — correctly, since an ungranted role is refused DDL too. That is the
+right shape: the refusals must not be the thing that turns red.
+
+**One defect in the test itself was found by the red run and fixed.** The
+"every projection table" case first failed with
+`adl_authority_retention_runs should exist with at least one column: expected
+undefined to be type of 'string'` rather than `permission denied`, because
+`information_schema.columns` hides columns the *querying* role holds no
+privilege on. Reading the table shapes over the admin connection instead makes
+the DML statement the thing that fails, with the message an operator would
+actually see. A test whose red message misnames the defect is a worse test.
+
+## Mutation check: the two statements are distinguishable
+
+| `grants.sql` with | Result |
+|---|---|
+| both statements | 11 passed |
+| `alter default privileges` removed | **5 failed**: the whole "before" block, plus the "after" block's created-afterwards case |
+| `grant … on all tables` removed | **2 failed**: only the "after" block's whole-table DML and real round trip |
+
+Different, specific, non-overlapping failure sets. Neither statement is
+redundant with the other.
+
+## Verification
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npm run format:check` | clean |
+| `npx vitest run` | **64 files / 1,213 tests passed** (1,212 baseline + 1 hermetic guard) |
+| `npm run test:integration` | **18 files / 180 tests passed** (169 baseline + 11 new) |
+| `scripts/dev/postgres.sh up` / `migrate`, isolated container | both clean; `adl_authority` wrote immediately after `up`, and `migrate` re-ran `grants.sql` as a no-op |
+
+`npm run verify:push` was not run and is not implicated: nothing in this phase
+touches browser rendering, shell chrome, reference-app screens, presentation
+output or CSS.
+
+## One addition beyond the stated scope
+
+`tests/production-operations.test.ts` gained a second case: `roles.sql` carries
+no `grant select` and no `alter default privileges`, and `grants.sql` carries
+both. It is a three-second hermetic guard that the two files do not drift back
+together, sitting beside the existing least-privilege assertions in the same
+file. It was seen red against the pre-change `roles.sql`
+(`expected '-- Run as the database owner, with ps…' not to match
+/^\s*grant select/mu`). This is the only file touched that the phase document's
+Scope section does not name.
+
+## Deliberately not done
+
+- **No startup privilege preflight.** Named as a non-goal and left there.
+- **No `on sequences` default privilege.** No migration creates a sequence;
+  adding one speculatively would be an unverified grant.
+- **`grants.sql` was not added to `MIGRATION_FILES`.** The shared harness
+  database has no `adl_authority` role, so it would fail there. `pg-harness.ts`
+  now says which test does exercise the split instead.
+- **The `roles.sql` password lines stay commented out.** Out of scope, and the
+  new test sets both passwords explicitly, exactly as `scripts/dev/postgres.sh`
+  does.
+
+---
+
+# Planning Handoff (written after execution)
+
+**Next phase: Phase 103 — a policy operand for "this record is mine".** The
+ordering in the Planning Handoff above is recommended unchanged: 103, then 104.
+Executing 102 produced no evidence against it. 102 was the only live production
+defect of the three, and it is now closed.
+
+Repository-wide, one unplanned gap outranks Phase 104 and possibly Phase 103,
+and is recorded here rather than acted on:
+
+- **An authority-minted identity has no `User` object record.** Registration
+  creates an identity and an identity link, but nothing writes the `User` row
+  the model's own lookups read, so `LOOKUP User DISPLAY Name` degrades to a raw
+  `user-…` id for every registered person. This is user-visible on every screen
+  that names a person, in both reference apps, and it is the same *class* of
+  defect Phase 93 and Phase 101 each attacked from the policy side — those
+  phases made the label *permitted*; nothing makes the label *exist*. It is a
+  stronger candidate than Phase 104 (printer completeness for a format nobody
+  hand-authors) and arguably than Phase 103, which is enabling rather than
+  broken. It needs its own document; it is not a variation of 103 or 104.
+
+Two candidates surfaced by this execution, neither taken:
+
+- **A startup privilege preflight in the authority.** Unchanged from the
+  document's own handoff: under the advisory lock it already takes, probe the
+  DML privileges and refuse with a named `/readyz` reason rather than failing on
+  the first real query. This phase makes the *deployment* correct; the preflight
+  would make a *mis*-deployment diagnose itself. Small, self-contained, and
+  worth a phase after 104. It is now cheaper than when the document was written,
+  because `authority-role-grants.test.ts` can provision an ungranted database in
+  four lines to test the refusal against.
+- **Nothing pins `MIGRATION_FILES` to `scripts/dev/postgres.sh`'s own list.**
+  The script's comment says "keep in step with `tests/integration/pg-harness.ts`",
+  and that is the whole enforcement. A tenth migration added to one and not the
+  other is silent, and the failure surfaces only on a laptop that happens to run
+  `migrate`. A three-line hermetic test comparing the two lists would close it.
+  Too small for a phase; fold it into whichever phase next touches either file.

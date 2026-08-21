@@ -164,12 +164,14 @@ scripts/dev/postgres.sh up
 ```
 
 Starts `postgres:16-alpine` on 127.0.0.1:5432, creates the `adl_migrator` and
-`adl_authority` roles from `src/server/migrations/roles.sql`, applies
-`0001…0009` in order as `adl_migrator`, and grants the traffic role DML over
-what they created. The server never applies a migration itself — that is the
-production rule, and it holds here too, which is why a missing grant shows up on
-a laptop rather than in production. `scripts/dev/postgres.sh down` removes the
-container and its data.
+`adl_authority` roles from `src/server/migrations/roles.sql`, then runs
+`src/server/migrations/grants.sql` and `0001…0009` in order as `adl_migrator`.
+`grants.sql` is what gives the traffic role DML over the projection tables, now
+and for every table a later migration adds; the script runs the deployment's own
+file rather than a local grant of its own. The server never applies a migration
+itself — that is the production rule, and it holds here too, which is why a
+missing grant shows up on a laptop rather than in production.
+`scripts/dev/postgres.sh down` removes the container and its data.
 
 If that fails with `failed to bind host port 127.0.0.1:5432/tcp: address
 already in use`, a PostgreSQL is already running — on a Debian/Ubuntu machine

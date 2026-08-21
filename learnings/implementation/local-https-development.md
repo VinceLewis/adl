@@ -74,13 +74,16 @@ document is why it is shaped the way it is.
   `ContextMembershipProjectionWriter.rebuild` itself, exactly as
   `createAuthorityProcess` does at startup. Any future out-of-band writer of a
   membership record has the same obligation.
-- **`roles.sql`'s grants do not cover tables a *different* role then creates.**
-  It runs `grant … on all tables` before any table exists and sets default
+- **`roles.sql`'s grants did not cover tables a *different* role then creates.**
+  It ran `grant … on all tables` before any table existed and set default
   privileges for the role that ran it, but the migrations are applied as
-  `adl_migrator`. The traffic role therefore needs a
+  `adl_migrator`. Phase 97 found this and prescribed a manual
   `grant select, insert, update, delete on all tables in schema public to
-  adl_authority` after the migrations — `scripts/dev/postgres.sh` does it, and a
-  deployment needs the equivalent after any migration that adds a table. The
+  adl_authority` after every migration. **Phase 102 replaced that with
+  `src/server/migrations/grants.sql`, run once as `adl_migrator`** — see
+  `learnings/implementation/production-authority-operations.md`. There is no
+  standing per-migration obligation any more, and `scripts/dev/postgres.sh` now
+  runs the deployment's own file instead of a superuser grant of its own. The
   migrations create no sequences, so no sequence grant is needed today.
 
 ## Practical guidance

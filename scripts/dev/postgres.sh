@@ -4,11 +4,12 @@
 #
 # It reproduces the deployment's role split rather than running everything as a
 # superuser: `roles.sql` creates `adl_migrator` (owns schema changes) and
-# `adl_authority` (DML only, and what the server process connects as), the
-# ordered migrations in `src/server/migrations/` are applied as `adl_migrator`,
-# and the server never applies a migration itself. That is exactly the procedure
-# in `docs/operations/authority-production-runbook.md`, so a missing grant shows
-# up on a laptop instead of in production.
+# `adl_authority` (DML only, and what the server process connects as),
+# `grants.sql` and then the ordered migrations in `src/server/migrations/` are
+# applied as `adl_migrator`, and the server never applies a migration itself.
+# That is exactly the procedure in
+# `docs/operations/authority-production-runbook.md` — every step, in the same
+# role — so a missing grant shows up on a laptop instead of in production.
 #
 # The passwords here are the literal string `adl`. That is fine for a container
 # bound to 127.0.0.1 that holds nothing but demo data, and it is why this script
@@ -64,19 +65,17 @@ apply_migrations() {
     -c "alter role adl_migrator password '${password}'" \
     -c "alter role adl_authority password '${password}'" >/dev/null
 
+  # grants.sql, as adl_migrator — the deployment's own step, not a local
+  # improvisation. It sets the default privileges that give adl_authority DML
+  # over every table adl_migrator goes on to create, and grants DML over any
+  # that already exist. Idempotent, and deliberately re-run on every `migrate`.
+  psql "${migrator_url}" -v ON_ERROR_STOP=1 -q \
+    -f "${repo_root}/src/server/migrations/grants.sql" >/dev/null
+
   for file in "${migrations[@]}"; do
     echo "  applying ${file}"
     psql "${migrator_url}" -v ON_ERROR_STOP=1 -q -f "${repo_root}/src/server/migrations/${file}"
   done
-
-  # roles.sql's `grant ... on all tables` runs before any table exists, and its
-  # default-privilege grant only covers objects created by the role that ran it
-  # — not by adl_migrator. So the traffic role is granted DML over what the
-  # migrations just created, as the same superuser step a deployment does after
-  # a migration that adds a table.
-  psql "${superuser_url}" -v ON_ERROR_STOP=1 -q \
-    -c "grant select, insert, update, delete on all tables in schema public to adl_authority" \
-    >/dev/null
 }
 
 case "${1:-up}" in
