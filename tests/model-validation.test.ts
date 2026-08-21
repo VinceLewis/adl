@@ -1822,10 +1822,6 @@ END.OBJECT
     iconMap.field = "MissingIconField";
     toggle.state = "missingState";
     toggle.icon = { kind: "map", map: "MissingIconMap", value: "Gig" };
-    presentation.shell = {
-      regions: [{ region: "topBar", title: "Home", controls: ["missingControl"] }],
-    };
-    (presentation.shell.regions[0] as unknown as { region: string }).region = "floating";
     list.source = "MissingReadModel";
     list.fields.push("MissingListField");
     list.row.fragments.push({
@@ -1852,8 +1848,6 @@ END.OBJECT
         MODEL_VALIDATION_CODES.PRESENTATION_LIST_SOURCE_UNKNOWN,
         MODEL_VALIDATION_CODES.PRESENTATION_ROW_FIELD_UNKNOWN,
         MODEL_VALIDATION_CODES.PRESENTATION_ROW_FRAGMENT_STYLE_INVALID,
-        MODEL_VALIDATION_CODES.PRESENTATION_SHELL_CONTROL_UNKNOWN,
-        MODEL_VALIDATION_CODES.PRESENTATION_SHELL_REGION_INVALID,
         MODEL_VALIDATION_CODES.PRESENTATION_STATE_DEFAULT_INCOMPATIBLE,
         MODEL_VALIDATION_CODES.PRESENTATION_STATE_TYPE_INVALID,
       ]),
@@ -2878,9 +2872,6 @@ function createPresentationPartialModel(): PartialApplicationModel {
                   ],
                 },
               ],
-              shell: {
-                regions: [{ region: "topBar", title: "Home", controls: ["showGigsToggle"] }],
-              },
             },
           },
         ],

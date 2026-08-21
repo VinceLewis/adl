@@ -731,7 +731,7 @@ function printView(view: PartialViewModel): string {
 
   const presentation = view.presentation;
   if (presentation !== undefined) {
-    lines.push(...printViewPresentationDirectives(view.name, presentation));
+    lines.push(...printViewPresentationDirectives(presentation));
   }
 
   for (const section of view.editSections ?? []) {
@@ -742,10 +742,7 @@ function printView(view: PartialViewModel): string {
   return printLeadingComment(view.comment) + lines.join("\n");
 }
 
-function printViewPresentationDirectives(
-  viewName: string,
-  presentation: PartialViewPresentationModel,
-): string[] {
+function printViewPresentationDirectives(presentation: PartialViewPresentationModel): string[] {
   const lines: string[] = [];
   if (presentation.layout !== undefined) {
     lines.push(`  LAYOUT ${camelToUpperSnake(presentation.layout)}`);
@@ -767,18 +764,6 @@ function printViewPresentationDirectives(
   }
   for (const legend of presentation.legends ?? []) {
     lines.push(`  ${printPresentationLegend(legend)}`);
-  }
-  // NO TEXT SYNTAX: per-view shell regions (`presentation.shell.regions`) are
-  // a JSON/TypeScript-only construct — `docs/spec/ui-language-addendum.md`
-  // ("Per-view `presentation.shell.regions` remains available in
-  // JSON/TypeScript partial models... but source syntax for view-declared
-  // shell regions is not implemented") — and the parser has no ADL directive
-  // that ever populates it. Global `SHELL ... END.SHELL` (printed above, at
-  // the top level) is the only shell surface ADL text can author.
-  if (presentation.shell !== undefined && (presentation.shell.regions?.length ?? 0) > 0) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: view '${viewName}' declares per-view presentation.shell.regions, which has no ADL text syntax (only the global SHELL block can be authored). See docs/spec/adlj.md.`,
-    );
   }
   for (const section of presentation.sections ?? []) {
     lines.push(indentBlock(printPresentationSection(section), "  "));

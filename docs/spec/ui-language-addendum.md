@@ -437,11 +437,9 @@ unanswered.
 A model that declares no shell gets both by default, in the order
 `contextSelector`, `connectivity`, `syncStatus`.
 
-Per-view `presentation.shell.regions` has **no** source syntax and will not be
-given one. Phase 100 deferred it as an open question; that question is now
-answered under Decisions below — the shell stays global, and a screen needing a
-control puts it in the screen's own content. The remaining JSON/TypeScript
-capability is dead rather than pending, and is due for removal.
+There is no per-view shell. The shell is global, and a screen needing a control
+puts it in the screen's own content — see Decisions below. The `presentation.shell.regions`
+JSON/TypeScript shape that once existed alongside it has been removed.
 
 ## Giggle Dashboard Example
 
@@ -608,7 +606,6 @@ The implemented presentation model resolves to structured data for:
 - semantic statuses, status maps, status precedence, and legends
 - format declarations
 - empty states
-- per-view shell regions in JSON/TypeScript partial models only
 
 Runtime services should still consume the resolved model, not ADL syntax or raw
 parser AST nodes.
@@ -645,7 +642,7 @@ Implemented validation reports structured diagnostics for invalid references to
 read models, objects, fields, local state, icon maps, known fragment styles,
 formats, commands, command action inputs, action visibility predicates, target
 views, create targets, contexts, status maps, status names, status map fields,
-legends, shell regions, and shell controls.
+and legends.
 
 Conformance cases under `conformance/presentation/` cover resolution defaults,
 validation diagnostics, local state defaults, toggle-controlled filters,
@@ -864,10 +861,18 @@ was decided and what follows from it.
 
 - **View-scoped shell regions: no.** The shell stays global. A screen that
   needs a control puts it in the screen's own content, not in the top bar.
-  Consequence: `presentation.shell.regions` is now dead capability rather than
-  unimplemented syntax, and should be **removed** from the resolved model
-  rather than given `.adl` text syntax. Neither reference app declares one.
-  This closes the gap Phase 100 deferred.
+  Consequence: `presentation.shell.regions` was dead capability rather than
+  unimplemented syntax, and has been **removed** from the resolved model rather
+  than given `.adl` text syntax. Neither reference app declared one.
+  **Implemented:** the `ResolvedPresentationShell` /
+  `PartialPresentationShellModel` types and the `PresentationShellRegion` union
+  are gone from `src/model/resolved-model/presentation-core.ts`, with the
+  matching resolver (`src/compiler/resolve-model/presentation-core.ts`),
+  validator and `ADL_PRESENTATION_SHELL_REGION_INVALID` /
+  `ADL_PRESENTATION_SHELL_CONTROL_UNKNOWN` diagnostics
+  (`src/compiler/validate-model/`), the `print-adl.ts` refusal branch and the
+  regenerated `src/model/adlj-schema.json` definitions. This closes the gap
+  Phase 100 deferred.
 - **Conditional logic in row templates: no.** A row template renders fields;
   it does not ask questions. Anything conditional belongs in a computed field
   or a read model, where it can be tested without rendering. The common

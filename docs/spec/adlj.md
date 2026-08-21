@@ -669,11 +669,6 @@ at invented syntax or silently dropping content:
   templates before it becomes a computed/read-model concern?" is an **open
   language question** in `ui-language-addendum.md`, and inventing a `WHEN`
   block would settle it by fiat rather than by decision.
-- Per-view `presentation.shell.regions` — only the global `SHELL` block has
-  ADL source syntax. Deferred for the same reason: "should view-scoped shell
-  regions get source syntax, or should shell stay global with view-local
-  controls referenced through presentation?" is the other open question that
-  document lists.
 
 Everything else that used to be on this list is gone. **Phase 100** gave text
 syntax to the nine constructs that had none and could be settled without

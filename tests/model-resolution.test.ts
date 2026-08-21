@@ -680,9 +680,6 @@ describe("resolveApplicationModel", () => {
           ],
         },
       ],
-      shell: {
-        regions: [{ region: "topBar", title: "Home", controls: ["showGigsToggle"] }],
-      },
     });
   });
 
@@ -844,9 +841,6 @@ function createPresentationPartialModel(): PartialApplicationModel {
                   ],
                 },
               ],
-              shell: {
-                regions: [{ region: "topBar", title: "Home", controls: ["showGigsToggle"] }],
-              },
             },
           },
         ],

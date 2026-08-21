@@ -2,7 +2,6 @@ import type {
   PresentationCalendarSourceKind,
   PresentationLegendInclude,
   PresentationMatrixSourceKind,
-  PresentationShellRegion,
   PresentationStatePersistence,
   PresentationStateType,
   PresentationStatusThemeToken,
@@ -62,11 +61,6 @@ const PRESENTATION_MATRIX_SOURCE_KINDS = new Set<PresentationMatrixSourceKind>([
   "readModel",
   "object",
 ]);
-const PRESENTATION_SHELL_REGIONS = new Set<PresentationShellRegion>([
-  "topBar",
-  "bottomBar",
-  "sidebar",
-]);
 const PRESENTATION_STATUS_THEME_TOKENS = new Set<PresentationStatusThemeToken>([
   "colorStatusEvent",
   "colorStatusAlternate",
@@ -91,7 +85,6 @@ export function validateViewPresentation(
   const iconMapByName = indexByName(presentation.iconMaps);
   const statusByName = indexByName(presentation.statuses);
   const statusMapByName = indexByName(presentation.statusMaps);
-  const controlsByName = indexPresentationControls(presentation.sections);
   const viewFieldRefs = getViewFieldReferences(view, targetObject, indexes);
   const statusMapFieldRefs = mergeFieldReferences(
     mergeFieldReferences(
@@ -232,38 +225,6 @@ export function validateViewPresentation(
       indexes,
       diagnostics,
     );
-  }
-
-  if (presentation.shell !== undefined) {
-    for (let regionIndex = 0; regionIndex < presentation.shell.regions.length; regionIndex += 1) {
-      const region = presentation.shell.regions[regionIndex];
-      if (region === undefined) {
-        continue;
-      }
-      const regionPath = `${presentationPath}.shell.regions[${regionIndex}]`;
-      if (!PRESENTATION_SHELL_REGIONS.has(region.region)) {
-        diagnostics.push(
-          diagnostic(
-            MODEL_VALIDATION_CODES.PRESENTATION_SHELL_REGION_INVALID,
-            `Presentation shell region '${String(region.region)}' is not supported.`,
-            `${regionPath}.region`,
-          ),
-        );
-      }
-      for (let controlIndex = 0; controlIndex < region.controls.length; controlIndex += 1) {
-        const controlName = region.controls[controlIndex];
-        if (controlName === undefined || controlsByName.has(controlName)) {
-          continue;
-        }
-        diagnostics.push(
-          diagnostic(
-            MODEL_VALIDATION_CODES.PRESENTATION_SHELL_CONTROL_UNKNOWN,
-            `Presentation shell references unknown control '${controlName}' in view '${view.name}'.`,
-            `${regionPath}.controls[${controlIndex}]`,
-          ),
-        );
-      }
-    }
   }
 }
 function validatePresentationState(
@@ -948,20 +909,4 @@ export function isValidIsoMonthOrDate(value: string): boolean {
     return isValidIsoDate(`${value}-01`);
   }
   return isValidIsoDate(value);
-}
-function indexPresentationControls(
-  sections: ResolvedPresentationSection[],
-): Map<string, NamedReference<ResolvedPresentationControl>> {
-  const controlsByName = new Map<string, NamedReference<ResolvedPresentationControl>>();
-  let controlCount = 0;
-  for (const section of sections) {
-    for (const control of section.controls) {
-      controlsByName.set(control.name, {
-        item: control,
-        index: controlCount,
-      });
-      controlCount += 1;
-    }
-  }
-  return controlsByName;
 }

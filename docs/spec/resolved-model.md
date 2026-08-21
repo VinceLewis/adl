@@ -503,8 +503,6 @@ Implemented presentation declarations include:
 - row templates with literal text, field text, icon, and conditional fragments
 - fragment styles limited to `plain`, `bold`, `muted`, and `caption`
 - display-only format declarations for text, number, date, datetime, and time
-- optional shell regions such as top bar, bottom bar, and sidebar in resolved
-  JSON/TypeScript partial models
 
 Presentation references are validated against the resolved model. Lists,
 matrices, and calendars must reference known read models or objects. Row
@@ -512,8 +510,7 @@ fragments, list fields, matrix row and cell fields, matrix edit targets,
 calendar date/title/summary fields, sort fields, filters, icon maps, controls,
 local state, commands, command action inputs, action visibility predicates,
 target views, create targets, contexts, status maps, status names, status map
-fields, legends, and shell controls produce structured diagnostics when
-invalid.
+fields, and legends produce structured diagnostics when invalid.
 
 ## Shell
 
@@ -563,10 +560,8 @@ names/kinds/placements, top-bar control references, and context references in
 shell visibility or controls. Invalid shell metadata produces `ADL_SHELL_*`
 diagnostics.
 
-Per-view `presentation.shell.regions` remains a JSON/TypeScript partial-model
-shape for placing view-local presentation controls. It is distinct from the
-top-level application shell and is not emitted by presentation runtime
-evaluation.
+The shell is global. There is no per-view shell: a view that needs a control
+declares it as a presentation control in the view's own content.
 
 Presentation does not replace read models, validation, policy enforcement,
 lifecycle enforcement, or sync policy. It only describes how already-authorized

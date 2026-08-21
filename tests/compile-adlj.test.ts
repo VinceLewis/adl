@@ -721,11 +721,5 @@ describe("printPartialApplicationModelAsAdl", () => {
         }),
       ).toThrow(/conditional row fragment/);
     });
-
-    it("refuses per-view shell regions by name", () => {
-      expect(refusalFor({}, { shell: { regions: [{ region: "topBar", controls: [] }] } })).toThrow(
-        /shell\.regions/,
-      );
-    });
   });
 });

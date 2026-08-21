@@ -1211,9 +1211,6 @@
           },
           "type": "array"
         },
-        "shell": {
-          "$ref": "#/definitions/PartialPresentationShellModel"
-        },
         "state": {
           "items": {
             "$ref": "#/definitions/PartialPresentationStateModel"
@@ -2213,37 +2210,6 @@
       "required": ["value", "label"],
       "type": "object"
     },
-    "PartialPresentationShellModel": {
-      "additionalProperties": false,
-      "properties": {
-        "regions": {
-          "items": {
-            "$ref": "#/definitions/PartialPresentationShellRegionModel"
-          },
-          "type": "array"
-        }
-      },
-      "type": "object"
-    },
-    "PartialPresentationShellRegionModel": {
-      "additionalProperties": false,
-      "properties": {
-        "controls": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "region": {
-          "$ref": "#/definitions/PresentationShellRegion"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": ["region"],
-      "type": "object"
-    },
     "PartialPresentationStateModel": {
       "additionalProperties": false,
       "properties": {
@@ -2985,10 +2951,6 @@
     },
     "PresentationRowLayout": {
       "enum": ["inline", "stack"],
-      "type": "string"
-    },
-    "PresentationShellRegion": {
-      "enum": ["topBar", "bottomBar", "sidebar"],
       "type": "string"
     },
     "PresentationStatePersistence": {

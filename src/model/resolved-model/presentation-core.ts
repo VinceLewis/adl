@@ -24,7 +24,6 @@ export type PresentationStateType = Exclude<FieldType, "attachment">;
 export type PresentationStatePersistence = "memory" | "session" | "local";
 export type PresentationControlKind = "toggle" | "select" | "action" | "contextSelector";
 export type PresentationActionPlacement = "primary" | "secondary" | "row";
-export type PresentationShellRegion = "topBar" | "bottomBar" | "sidebar";
 export type PresentationStatusThemeToken =
   | "colorStatusEvent"
   | "colorStatusAlternate"
@@ -44,7 +43,6 @@ export interface ResolvedViewPresentation {
   statusMaps: ResolvedPresentationStatusMap[];
   legends: ResolvedPresentationLegend[];
   sections: ResolvedPresentationSection[];
-  shell?: ResolvedPresentationShell;
 }
 export interface ResolvedPresentationState {
   name: string;
@@ -149,14 +147,6 @@ export interface ResolvedPresentationEmptyState {
   text: string;
   icon?: ResolvedPresentationIconRef;
 }
-export interface ResolvedPresentationShell {
-  regions: ResolvedPresentationShellRegion[];
-}
-export interface ResolvedPresentationShellRegion {
-  region: PresentationShellRegion;
-  title?: string;
-  controls: string[];
-}
 export interface PartialViewPresentationModel {
   layout?: PresentationLayout;
   density?: PresentationDensity;
@@ -166,7 +156,6 @@ export interface PartialViewPresentationModel {
   statusMaps?: PartialPresentationStatusMapModel[];
   legends?: PartialPresentationLegendModel[];
   sections?: PartialPresentationSectionModel[];
-  shell?: PartialPresentationShellModel;
 }
 export interface PartialPresentationStateModel {
   name: string;
@@ -274,12 +263,4 @@ export type PartialPresentationStatusCandidateModel =
 export interface PartialPresentationEmptyStateModel {
   text?: string;
   icon?: PartialPresentationIconRefModel;
-}
-export interface PartialPresentationShellModel {
-  regions?: PartialPresentationShellRegionModel[];
-}
-export interface PartialPresentationShellRegionModel {
-  region: PresentationShellRegion;
-  title?: string;
-  controls?: string[];
 }

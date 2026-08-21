@@ -4,8 +4,6 @@ import type {
   PartialPresentationIconMapModel,
   PartialPresentationLegendModel,
   PartialPresentationSectionModel,
-  PartialPresentationShellModel,
-  PartialPresentationShellRegionModel,
   PartialPresentationStateModel,
   PartialPresentationStatusMapModel,
   PartialPresentationStatusModel,
@@ -17,8 +15,6 @@ import type {
   ResolvedPresentationIconMap,
   ResolvedPresentationLegend,
   ResolvedPresentationSection,
-  ResolvedPresentationShell,
-  ResolvedPresentationShellRegion,
   ResolvedPresentationState,
   ResolvedPresentationStatus,
   ResolvedPresentationStatusCandidate,
@@ -44,7 +40,6 @@ export function resolveViewPresentation(
     statusMaps: (input.statusMaps ?? []).map(resolvePresentationStatusMap),
     legends: (input.legends ?? []).map(resolvePresentationLegend),
     sections: (input.sections ?? []).map(resolvePresentationSection),
-    ...(input.shell === undefined ? {} : { shell: resolvePresentationShell(input.shell) }),
   };
 }
 function resolvePresentationState(input: PartialPresentationStateModel): ResolvedPresentationState {
@@ -259,19 +254,5 @@ export function resolvePresentationEmptyState(
   return {
     text: input?.text ?? "",
     ...(input?.icon === undefined ? {} : { icon: resolvePresentationIconRef(input.icon) }),
-  };
-}
-function resolvePresentationShell(input: PartialPresentationShellModel): ResolvedPresentationShell {
-  return {
-    regions: (input.regions ?? []).map(resolvePresentationShellRegion),
-  };
-}
-function resolvePresentationShellRegion(
-  input: PartialPresentationShellRegionModel,
-): ResolvedPresentationShellRegion {
-  return {
-    region: input.region,
-    ...(input.title === undefined ? {} : { title: input.title }),
-    controls: [...(input.controls ?? [])],
   };
 }
