@@ -61,7 +61,8 @@ work unless asked.
 **Read `AGENTS.md`'s Testing section before writing or running tests.** It
 carries the rules whose trigger is visible from the task itself — real
 PostgreSQL for authority, projection, migration, unit-of-work and HTTP edge
-behaviour; `verify:push` and screenshot inspection for anything that renders;
+behaviour; `verify:push`, then its evidence index and screenshots, for anything that
+renders;
 compile-checking every `.adl`/`.adlj` draft before relying on it.
 
 These four are stated here rather than referenced, because each fires when you

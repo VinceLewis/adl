@@ -1,9 +1,12 @@
 import type {
+  JsonPrimitive,
   PresentationDensity,
   PresentationCalendarSourceKind,
   PresentationCalendarWeekStart,
   PresentationListRenderStyle,
   PresentationListSourceKind,
+  PresentationMatrixBulkBehavior,
+  PresentationMatrixSourceKind,
   ResolvedExpression,
 } from "../../model/resolved-model.js";
 import type {
@@ -13,14 +16,22 @@ import type {
   PresentationFormatDeclarationAst,
   PresentationIconRefDeclarationAst,
   PresentationListDeclarationAst,
+  PresentationMatrixAxisSourceDeclarationAst,
+  PresentationMatrixCellDeclarationAst,
+  PresentationMatrixCellSourceDeclarationAst,
+  PresentationMatrixDateColumnAxisDeclarationAst,
+  PresentationMatrixDeclarationAst,
+  PresentationMatrixEditDeclarationAst,
   PresentationRowTemplateDeclarationAst,
   PresentationStatusCandidateDeclarationAst,
   SortDeclarationAst,
 } from "../ast.js";
+import { normaliseKeyword } from "./text.js";
 import { PresentationActionParser } from "./presentation-action.js";
 
 /**
- * Presentation data sources: `LIST`, `CALENDAR` and their status candidates.
+ * Presentation data sources: `LIST`, `CALENDAR`, `MATRIX` and their status
+ * candidates.
  */
 export class PresentationSourceParser extends PresentationActionParser {
   protected parsePresentationList(): PresentationListDeclarationAst {
@@ -353,12 +364,421 @@ export class PresentationSourceParser extends PresentationActionParser {
     }
   }
 
-  private parsePresentationStatusCandidate(): PresentationStatusCandidateDeclarationAst {
-    const startToken = this.expectWord("STATUS", "LIST STATUS directive");
+  /**
+   * ```adl
+   * MATRIX AvailabilityMatrix
+   *   DENSITY COMPACT
+   *   ROWS FROM OBJECT Member
+   *     KEY MemberKey
+   *     LABEL MemberName
+   *   END.ROWS
+   *   COLUMNS DATE_RANGE '2026-03-02' TO '2026-03-06' STEP_DAYS 3
+   *   CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day
+   *     STATUS StateStatus(FIELD State)
+   *   END.CELLS
+   *   CELL
+   *     UNSET_STATUS unset
+   *   END.CELL
+   *   EDIT Availability ROW MemberKey COLUMN Day VALUE State
+   *     CYCLE 'available' 'unavailable'
+   *     UNSET_AS_ABSENCE
+   *   END.EDIT
+   * END.MATRIX
+   * ```
+   *
+   * `ROWS`, `CELLS`, `CELL` and `EDIT` are blocks by the rule Phase 100 set —
+   * a multi-clause construct gets an `END.X` terminator, a simple record stays
+   * on one line — which is also the only way to keep `rowSource.fields` and
+   * `cellSource.fields` apart: they are different lists, and a flat `MATRIX`
+   * body could not distinguish them without a prefix on roughly a dozen
+   * directives. `COLUMNS` stays a single line for the converse reason.
+   *
+   * Phase 104. `docs/spec/ui-language-addendum.md` sketched a syntax for this
+   * from Phase 29 onward that was never compilable; see
+   * `docs/phases/phase-104-matrix-text-syntax.md` for the clause-by-clause
+   * amendments and why each was needed.
+   */
+  protected parsePresentationMatrix(): PresentationMatrixDeclarationAst {
+    const startToken = this.expectWord("MATRIX", "MATRIX declaration");
+    const name = this.consumeName("matrix name");
+    let density: PresentationDensity | undefined;
+    let rowSource: PresentationMatrixAxisSourceDeclarationAst | undefined;
+    let columnAxis: PresentationMatrixDateColumnAxisDeclarationAst | undefined;
+    let cellSource: PresentationMatrixCellSourceDeclarationAst | undefined;
+    let cell: PresentationMatrixCellDeclarationAst | undefined;
+    let edit: PresentationMatrixEditDeclarationAst | undefined;
+    this.consumeLineEnd("MATRIX declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.MATRIX", this.current());
+      }
+
+      if (this.checkEnd("MATRIX")) {
+        const end = this.parseEnd("MATRIX");
+
+        // `rowSource`, `columnAxis` and `cellSource` are all non-optional in
+        // `PartialPresentationMatrixModel`; refuse here rather than hand the
+        // resolver a shape it cannot complete.
+        if (rowSource === undefined) {
+          this.failExpected("MATRIX ROWS block", this.previous());
+        }
+        if (columnAxis === undefined) {
+          this.failExpected("MATRIX COLUMNS directive", this.previous());
+        }
+        if (cellSource === undefined) {
+          this.failExpected("MATRIX CELLS block", this.previous());
+        }
+
+        return {
+          kind: "PresentationMatrixDeclaration",
+          name,
+          ...(density === undefined ? {} : { density }),
+          rowSource,
+          columnAxis,
+          cellSource,
+          ...(cell === undefined ? {} : { cell }),
+          ...(edit === undefined ? {} : { edit }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("DENSITY")) {
+        density = this.parsePresentationDensity();
+        this.consumeLineEnd("MATRIX DENSITY directive");
+      } else if (this.checkWord("ROWS")) {
+        rowSource = this.parsePresentationMatrixAxisSource();
+      } else if (this.matchWord("COLUMNS")) {
+        columnAxis = this.parsePresentationMatrixDateColumnAxis();
+      } else if (this.checkWord("CELLS")) {
+        cellSource = this.parsePresentationMatrixCellSource();
+      } else if (this.checkWord("CELL")) {
+        cell = this.parsePresentationMatrixCell();
+      } else if (this.checkWord("EDIT")) {
+        edit = this.parsePresentationMatrixEdit();
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.MATRIX", this.current());
+      } else {
+        this.failUnexpected(
+          "MATRIX directive DENSITY, ROWS, COLUMNS, CELLS, CELL, EDIT, or END.MATRIX",
+        );
+      }
+    }
+  }
+
+  private parsePresentationMatrixAxisSource(): PresentationMatrixAxisSourceDeclarationAst {
+    const startToken = this.expectWord("ROWS", "MATRIX ROWS block");
+    this.expectWord("FROM", "ROWS FROM clause");
+    const sourceKind = this.parsePresentationMatrixSourceKind("ROWS FROM clause");
+    const source = this.consumeName("matrix row source");
+    let keyField: string | undefined;
+    let labelField: string | undefined;
+    const fields: string[] = [];
+    const sort: SortDeclarationAst[] = [];
+    this.consumeLineEnd("ROWS declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.ROWS", this.current());
+      }
+
+      if (this.checkEnd("ROWS")) {
+        const end = this.parseEnd("ROWS");
+
+        // `labelField` is the one non-optional part of
+        // `ResolvedPresentationMatrixAxisSource` beyond the source itself.
+        if (labelField === undefined) {
+          this.failExpected("ROWS LABEL directive", this.previous());
+        }
+
+        return {
+          kind: "PresentationMatrixAxisSourceDeclaration",
+          ...(sourceKind === undefined ? {} : { sourceKind }),
+          source,
+          ...(keyField === undefined ? {} : { keyField }),
+          labelField,
+          fields,
+          sort,
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("KEY")) {
+        keyField = this.consumeName("ROWS KEY value");
+        this.consumeLineEnd("ROWS KEY directive");
+      } else if (this.matchWord("LABEL")) {
+        labelField = this.consumeName("ROWS LABEL value");
+        this.consumeLineEnd("ROWS LABEL directive");
+      } else if (this.matchWord("FIELDS")) {
+        fields.push(...this.consumeNameListUntilLine("matrix row fields"));
+        this.consumeLineEnd("ROWS FIELDS directive");
+      } else if (this.matchWord("ORDER")) {
+        this.expectWord("BY", "ROWS ORDER BY clause");
+        sort.push(...this.parseSortList());
+        this.consumeLineEnd("ROWS ORDER BY directive");
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.ROWS", this.current());
+      } else {
+        this.failUnexpected("ROWS directive KEY, LABEL, FIELDS, ORDER BY, or END.ROWS");
+      }
+    }
+  }
+
+  private parsePresentationMatrixDateColumnAxis(): PresentationMatrixDateColumnAxisDeclarationAst {
+    const startToken = this.previous();
+    const kindToken = this.consumeWordToken("COLUMNS axis kind");
+
+    if (normaliseKeyword(kindToken.lexeme) !== "daterange") {
+      this.failExpected("COLUMNS axis kind DATE_RANGE", kindToken);
+    }
+
+    const start = String(this.consumeLiteral("COLUMNS DATE_RANGE start"));
+    this.expectWord("TO", "COLUMNS DATE_RANGE TO clause");
+    const end = String(this.consumeLiteral("COLUMNS DATE_RANGE end"));
+    let stepDays: number | undefined;
+    let labelFormat: PresentationFormatDeclarationAst | undefined;
+
+    while (!this.isLineEnd()) {
+      if (this.matchWord("STEP_DAYS")) {
+        stepDays = this.consumeNumber("COLUMNS STEP_DAYS value");
+      } else if (this.matchWord("LABEL_FORMAT")) {
+        labelFormat = this.parsePresentationFormat();
+      } else {
+        this.failUnexpected("COLUMNS option STEP_DAYS, LABEL_FORMAT, or end of line");
+      }
+    }
+
+    this.consumeLineEnd("MATRIX COLUMNS directive");
+
+    return {
+      kind: "PresentationMatrixDateColumnAxisDeclaration",
+      columnKind: "dateRange",
+      start,
+      end,
+      ...(stepDays === undefined ? {} : { stepDays }),
+      ...(labelFormat === undefined ? {} : { labelFormat }),
+      range: { start: startToken.range.start, end: this.previous().range.end },
+    };
+  }
+
+  private parsePresentationMatrixCellSource(): PresentationMatrixCellSourceDeclarationAst {
+    const startToken = this.expectWord("CELLS", "MATRIX CELLS block");
+    this.expectWord("FROM", "CELLS FROM clause");
+    const sourceKind = this.parsePresentationMatrixSourceKind("CELLS FROM clause");
+    const source = this.consumeName("matrix cell source");
+    this.expectWord("ROW", "CELLS ROW clause");
+    const rowField = this.consumeName("CELLS ROW value");
+    this.expectWord("COLUMN", "CELLS COLUMN clause");
+    const columnField = this.consumeName("CELLS COLUMN value");
+    const fields: string[] = [];
+    const statusCandidates: PresentationStatusCandidateDeclarationAst[] = [];
+    let recordSource: string | undefined;
+    this.consumeLineEnd("CELLS declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.CELLS", this.current());
+      }
+
+      if (this.checkEnd("CELLS")) {
+        const end = this.parseEnd("CELLS");
+        return {
+          kind: "PresentationMatrixCellSourceDeclaration",
+          ...(sourceKind === undefined ? {} : { sourceKind }),
+          source,
+          rowField,
+          columnField,
+          fields,
+          statusCandidates,
+          ...(recordSource === undefined ? {} : { recordSource }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("FIELDS")) {
+        fields.push(...this.consumeNameListUntilLine("matrix cell fields"));
+        this.consumeLineEnd("CELLS FIELDS directive");
+      } else if (this.matchWord("RECORD_SOURCE")) {
+        recordSource = this.consumeName("CELLS RECORD_SOURCE value");
+        this.consumeLineEnd("CELLS RECORD_SOURCE directive");
+      } else if (this.checkWord("STATUS")) {
+        statusCandidates.push(this.parsePresentationStatusCandidate("CELLS"));
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.CELLS", this.current());
+      } else {
+        this.failUnexpected("CELLS directive FIELDS, RECORD_SOURCE, STATUS, or END.CELLS");
+      }
+    }
+  }
+
+  private parsePresentationMatrixCell(): PresentationMatrixCellDeclarationAst {
+    const startToken = this.expectWord("CELL", "MATRIX CELL block");
+    const statusCandidates: PresentationStatusCandidateDeclarationAst[] = [];
+    let unsetStatus: string | undefined;
+    let accessibleLabel: string | undefined;
+    this.consumeLineEnd("CELL declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.CELL", this.current());
+      }
+
+      if (this.checkEnd("CELL")) {
+        const end = this.parseEnd("CELL");
+        return {
+          kind: "PresentationMatrixCellDeclaration",
+          statusCandidates,
+          ...(unsetStatus === undefined ? {} : { unsetStatus }),
+          ...(accessibleLabel === undefined ? {} : { accessibleLabel }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("UNSET_STATUS")) {
+        unsetStatus = this.consumeName("CELL UNSET_STATUS value");
+        this.consumeLineEnd("CELL UNSET_STATUS directive");
+      } else if (this.matchWord("ACCESSIBLE_LABEL")) {
+        accessibleLabel = String(this.consumeLiteral("CELL ACCESSIBLE_LABEL value"));
+        this.consumeLineEnd("CELL ACCESSIBLE_LABEL directive");
+      } else if (this.checkWord("STATUS")) {
+        statusCandidates.push(this.parsePresentationStatusCandidate("CELL"));
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.CELL", this.current());
+      } else {
+        this.failUnexpected("CELL directive STATUS, UNSET_STATUS, ACCESSIBLE_LABEL, or END.CELL");
+      }
+    }
+  }
+
+  private parsePresentationMatrixEdit(): PresentationMatrixEditDeclarationAst {
+    const startToken = this.expectWord("EDIT", "MATRIX EDIT block");
+    const object = this.consumeName("matrix edit object");
+    this.expectWord("ROW", "EDIT ROW clause");
+    const rowField = this.consumeName("EDIT ROW value");
+    this.expectWord("COLUMN", "EDIT COLUMN clause");
+    const columnField = this.consumeName("EDIT COLUMN value");
+    this.expectWord("VALUE", "EDIT VALUE clause");
+    const valueField = this.consumeName("EDIT VALUE value");
+    const cycle: JsonPrimitive[] = [];
+    // `undefined` means the directive was absent; `null` means `UNSET_VALUE
+    // null` was written. `resolvePresentationMatrixEdit` keeps the two apart,
+    // so the parser must too.
+    let unsetValue: JsonPrimitive | undefined;
+    let unsetAsAbsence: boolean | undefined;
+    let bulkBehavior: PresentationMatrixBulkBehavior | undefined;
+    this.consumeLineEnd("EDIT declaration");
+
+    while (true) {
+      this.skipNewlines();
+
+      if (this.isAtEnd()) {
+        this.failExpected("END.EDIT", this.current());
+      }
+
+      if (this.checkEnd("EDIT")) {
+        const end = this.parseEnd("EDIT");
+        return {
+          kind: "PresentationMatrixEditDeclaration",
+          object,
+          rowField,
+          columnField,
+          valueField,
+          cycle,
+          ...(unsetValue === undefined ? {} : { unsetValue }),
+          ...(unsetAsAbsence === undefined ? {} : { unsetAsAbsence }),
+          ...(bulkBehavior === undefined ? {} : { bulkBehavior }),
+          end,
+          range: { start: startToken.range.start, end: end.range.end },
+        };
+      }
+
+      if (this.matchWord("CYCLE")) {
+        while (!this.isLineEnd()) {
+          this.skipComma();
+          if (this.isLineEnd()) {
+            break;
+          }
+          cycle.push(this.consumePrimitiveLiteral("EDIT CYCLE value"));
+          this.skipComma();
+        }
+        this.consumeLineEnd("EDIT CYCLE directive");
+      } else if (this.matchWord("UNSET_VALUE")) {
+        unsetValue = this.consumePrimitiveLiteral("EDIT UNSET_VALUE value");
+        this.consumeLineEnd("EDIT UNSET_VALUE directive");
+      } else if (this.matchWord("UNSET_AS_ABSENCE")) {
+        unsetAsAbsence = this.parseOptionalBoolean();
+        this.consumeLineEnd("EDIT UNSET_AS_ABSENCE directive");
+      } else if (this.matchWord("BULK_BEHAVIOR")) {
+        const behaviorToken = this.consumeWordToken("EDIT BULK_BEHAVIOR value");
+        if (normaliseKeyword(behaviorToken.lexeme) !== "sequentialvalidatedwrites") {
+          this.failExpected("EDIT BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES", behaviorToken);
+        }
+        bulkBehavior = "sequentialValidatedWrites";
+        this.consumeLineEnd("EDIT BULK_BEHAVIOR directive");
+      } else if (this.checkWord("END")) {
+        this.failExpected("END.EDIT", this.current());
+      } else {
+        this.failUnexpected(
+          "EDIT directive CYCLE, UNSET_VALUE, UNSET_AS_ABSENCE, BULK_BEHAVIOR, or END.EDIT",
+        );
+      }
+    }
+  }
+
+  /**
+   * `OBJECT X` / `READ_MODEL X` after a `FROM`, mirroring `LIST`'s and
+   * `CALENDAR`'s own headers. A bare `FROM X` leaves `sourceKind` undefined and
+   * resolves to `readModel`, which is what the model's own default already
+   * says — so the two spellings are not the same fact written twice.
+   */
+  private parsePresentationMatrixSourceKind(
+    context: string,
+  ): PresentationMatrixSourceKind | undefined {
+    if (this.matchWord("OBJECT")) {
+      return "object";
+    }
+    if (this.matchUnderscoreOrDottedWord(context, "READ_MODEL", "READ", "MODEL")) {
+      return "readModel";
+    }
+    return undefined;
+  }
+
+  /**
+   * `STATUS <status>`, `STATUS <map>(FIELD <field>)`, `STATUS <map>(VALUE <literal>)`
+   * or `STATUS <map>()`.
+   *
+   * The empty-parenthesis form is a *map* candidate carrying neither a field
+   * nor a value, which means "use the status map's own declared field" — a
+   * shape `PartialPresentationStatusCandidateModel` has always allowed and the
+   * validator explicitly handles, but which had no text spelling before
+   * Phase 104 and therefore no way back out of the printer. Dropping the
+   * parentheses is not available as a spelling: a bare name is a *direct*
+   * status reference, and the two resolve to different models.
+   *
+   * `context` names the enclosing directive in the failure messages only.
+   * `LIST` is the default because `LIST` and `CALENDAR` have both reported it
+   * that way since Phase 25; changing what they say is not this method's job.
+   */
+  private parsePresentationStatusCandidate(
+    context = "LIST",
+  ): PresentationStatusCandidateDeclarationAst {
+    const startToken = this.expectWord("STATUS", `${context} STATUS directive`);
     const name = this.consumeName("presentation status name or map");
 
     if (!this.matchSymbol("(")) {
-      this.consumeLineEnd("LIST STATUS directive");
+      this.consumeLineEnd(`${context} STATUS directive`);
       return {
         kind: "direct",
         status: name,
@@ -366,10 +786,19 @@ export class PresentationSourceParser extends PresentationActionParser {
       };
     }
 
+    if (this.matchSymbol(")")) {
+      this.consumeLineEnd(`${context} STATUS directive`);
+      return {
+        kind: "map",
+        map: name,
+        range: this.rangeFrom(startToken),
+      };
+    }
+
     if (this.matchWord("FIELD")) {
       const field = this.consumeName("presentation status map field");
       this.expectSymbol(")", "presentation status map reference");
-      this.consumeLineEnd("LIST STATUS directive");
+      this.consumeLineEnd(`${context} STATUS directive`);
       return {
         kind: "map",
         map: name,
@@ -381,7 +810,7 @@ export class PresentationSourceParser extends PresentationActionParser {
     if (this.matchWord("VALUE")) {
       const value = this.consumePrimitiveLiteral("presentation status map value");
       this.expectSymbol(")", "presentation status map reference");
-      this.consumeLineEnd("LIST STATUS directive");
+      this.consumeLineEnd(`${context} STATUS directive`);
       return {
         kind: "map",
         map: name,
@@ -394,7 +823,7 @@ export class PresentationSourceParser extends PresentationActionParser {
     if (token.kind === "identifier") {
       const field = this.consumeName("presentation status map field");
       this.expectSymbol(")", "presentation status map reference");
-      this.consumeLineEnd("LIST STATUS directive");
+      this.consumeLineEnd(`${context} STATUS directive`);
       return {
         kind: "map",
         map: name,
@@ -405,7 +834,7 @@ export class PresentationSourceParser extends PresentationActionParser {
 
     const value = this.consumePrimitiveLiteral("presentation status map value");
     this.expectSymbol(")", "presentation status map reference");
-    this.consumeLineEnd("LIST STATUS directive");
+    this.consumeLineEnd(`${context} STATUS directive`);
     return {
       kind: "map",
       map: name,

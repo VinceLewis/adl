@@ -18,6 +18,7 @@ import type {
   PresentationLegendDeclarationAst,
   PresentationCalendarDeclarationAst,
   PresentationListDeclarationAst,
+  PresentationMatrixDeclarationAst,
   PresentationSectionDeclarationAst,
   PresentationStatusDeclarationAst,
   PresentationStatusMapDeclarationAst,
@@ -282,6 +283,7 @@ export class PresentationCoreParser extends PresentationSourceParser {
     let density: PresentationDensity | undefined;
     const controls: PresentationControlDeclarationAst[] = [];
     const lists: PresentationListDeclarationAst[] = [];
+    const matrices: PresentationMatrixDeclarationAst[] = [];
     const calendars: PresentationCalendarDeclarationAst[] = [];
     this.consumeLineEnd("SECTION declaration");
 
@@ -302,6 +304,7 @@ export class PresentationCoreParser extends PresentationSourceParser {
           ...(density === undefined ? {} : { density }),
           controls,
           lists,
+          matrices,
           calendars,
           ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
@@ -330,9 +333,11 @@ export class PresentationCoreParser extends PresentationSourceParser {
         lists.push(this.parsePresentationList());
       } else if (this.checkWord("CALENDAR")) {
         calendars.push(this.parsePresentationCalendar());
+      } else if (this.checkWord("MATRIX")) {
+        matrices.push(this.parsePresentationMatrix());
       } else {
         this.failUnexpected(
-          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, SELECT, CONTEXT_SELECTOR, ACTION, LIST, CALENDAR, or END.SECTION",
+          "SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, SELECT, CONTEXT_SELECTOR, ACTION, LIST, CALENDAR, MATRIX, or END.SECTION",
         );
       }
     }

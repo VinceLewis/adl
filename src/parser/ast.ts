@@ -17,6 +17,9 @@ import type {
   PresentationActionPlacement,
   PresentationListRenderStyle,
   PresentationListSourceKind,
+  PresentationMatrixBulkBehavior,
+  PresentationMatrixColumnKind,
+  PresentationMatrixSourceKind,
   PresentationRowLayout,
   PresentationStatusThemeToken,
   PresentationStatePersistence,
@@ -84,6 +87,11 @@ export type BlockName =
   | "LIST"
   | "CALENDAR"
   | "CONFLICT_OVERLAY"
+  | "MATRIX"
+  | "ROWS"
+  | "CELLS"
+  | "CELL"
+  | "EDIT"
   | "ROW"
   | "ICON_MAP"
   | "STATUS_MAP"
@@ -683,6 +691,7 @@ export interface PresentationSectionDeclarationAst {
   density?: PresentationDensity;
   controls: PresentationControlDeclarationAst[];
   lists: PresentationListDeclarationAst[];
+  matrices: PresentationMatrixDeclarationAst[];
   calendars: PresentationCalendarDeclarationAst[];
   /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
   leadingComment?: string;
@@ -817,6 +826,117 @@ export interface PresentationCalendarConflictOverlayDeclarationAst {
   dateField: string;
   flagField: string;
   status: string;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+/**
+ * `MATRIX <name> ... END.MATRIX`: a resource/date grid, sitting beside `LIST`
+ * and `CALENDAR` inside a `SECTION`. The three required sub-structures
+ * (`ROWS`, `COLUMNS`, `CELLS`) are non-optional in
+ * `PartialPresentationMatrixModel`, so the grammar refuses a matrix missing
+ * any of them rather than emitting a partial model no resolver can complete.
+ * Phase 104.
+ */
+export interface PresentationMatrixDeclarationAst {
+  kind: "PresentationMatrixDeclaration";
+  name: string;
+  density?: PresentationDensity;
+  rowSource: PresentationMatrixAxisSourceDeclarationAst;
+  columnAxis: PresentationMatrixDateColumnAxisDeclarationAst;
+  cellSource: PresentationMatrixCellSourceDeclarationAst;
+  cell?: PresentationMatrixCellDeclarationAst;
+  edit?: PresentationMatrixEditDeclarationAst;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+/** `ROWS FROM <OBJECT|READ_MODEL> <name> ... END.ROWS`. */
+export interface PresentationMatrixAxisSourceDeclarationAst {
+  kind: "PresentationMatrixAxisSourceDeclaration";
+  sourceKind?: PresentationMatrixSourceKind;
+  source: string;
+  keyField?: string;
+  labelField: string;
+  fields: string[];
+  sort: SortDeclarationAst[];
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+/**
+ * `COLUMNS DATE_RANGE '<start>' TO '<end>' [STEP_DAYS <n>] [LABEL_FORMAT ...]`.
+ *
+ * One physical line rather than a block: a kind word, two dates and two
+ * optional trailing options is a simple record, and `END.COLUMNS` around it
+ * would be ceremony. `DATE_RANGE` is spelled out even though it is the only
+ * `PresentationMatrixColumnKind`, so a second kind is later a new word rather
+ * than a reinterpretation of an unmarked line.
+ *
+ * `columnKind` rather than `kind` because `kind` is this node's own AST
+ * discriminant, and `end` here is the axis end *date*, not a block terminator
+ * — the axis is not a block.
+ */
+export interface PresentationMatrixDateColumnAxisDeclarationAst {
+  kind: "PresentationMatrixDateColumnAxisDeclaration";
+  columnKind: PresentationMatrixColumnKind;
+  start: string;
+  end: string;
+  stepDays?: number;
+  labelFormat?: PresentationFormatDeclarationAst;
+  range: SourceRange;
+}
+
+/** `CELLS FROM <OBJECT|READ_MODEL> <name> ROW <field> COLUMN <field> ... END.CELLS`. */
+export interface PresentationMatrixCellSourceDeclarationAst {
+  kind: "PresentationMatrixCellSourceDeclaration";
+  sourceKind?: PresentationMatrixSourceKind;
+  source: string;
+  rowField: string;
+  columnField: string;
+  fields: string[];
+  statusCandidates: PresentationStatusCandidateDeclarationAst[];
+  recordSource?: string;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+/**
+ * `CELL ... END.CELL`: the cell's own status binding, distinct from the cell
+ * *source's*. The runtime prefers this one
+ * (`matrix.cell.status ?? matrix.cellSource.status`), so the two cannot share
+ * one flat `STATUS` directive without the source text becoming ambiguous about
+ * which of them it means.
+ */
+export interface PresentationMatrixCellDeclarationAst {
+  kind: "PresentationMatrixCellDeclaration";
+  statusCandidates: PresentationStatusCandidateDeclarationAst[];
+  unsetStatus?: string;
+  accessibleLabel?: string;
+  end: EndMarkerNode;
+  range: SourceRange;
+}
+
+/**
+ * `EDIT <object> ROW <field> COLUMN <field> VALUE <field> ... END.EDIT`.
+ *
+ * The object name is bare rather than `OBJECT <name>`: an edit always writes an
+ * object, so there is no source kind to disambiguate.
+ *
+ * `unsetValue` is `JsonPrimitive`, which includes `null`, and the resolver
+ * distinguishes an absent key from an explicit `null`. `undefined` here means
+ * the directive was never written; `null` means `UNSET_VALUE null` was.
+ */
+export interface PresentationMatrixEditDeclarationAst {
+  kind: "PresentationMatrixEditDeclaration";
+  object: string;
+  rowField: string;
+  columnField: string;
+  valueField: string;
+  cycle: JsonPrimitive[];
+  unsetValue?: JsonPrimitive;
+  unsetAsAbsence?: boolean;
+  bulkBehavior?: PresentationMatrixBulkBehavior;
   end: EndMarkerNode;
   range: SourceRange;
 }

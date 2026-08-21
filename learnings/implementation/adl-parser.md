@@ -203,6 +203,39 @@ the matching `comment?: string` field on its `Partial*Model` interface in
 thread it for free via their existing destructure-then-spread mapper idiom
 (see `learnings/implementation/adlj-json-authoring-surface.md`).
 
+## Key decisions from Phase 104: `MATRIX` text syntax
+
+- `MATRIX` is a block inside a `SECTION`, beside `LIST` and `CALENDAR`, with
+  five sub-structures: `ROWS`, `COLUMNS`, `CELLS`, `CELL` and `EDIT`. Four of
+  them are blocks; `COLUMNS` is one line, because a kind word plus two dates
+  plus two optional options is a simple record and `END.COLUMNS` around it would
+  be ceremony. "Block when multi-clause, one line when it is a simple record"
+  is the rule Phase 100 set and this follows it.
+- **Three of the five are required and the grammar says so at `END.MATRIX`.**
+  `rowSource`, `columnAxis` and `cellSource` are non-optional in
+  `PartialPresentationMatrixModel`, so a matrix missing one fails with
+  `Expected MATRIX ROWS block` rather than producing a partial model the
+  resolver cannot complete. Same treatment `CONFLICT_OVERLAY` got in Phase 100,
+  and the same reason.
+- `DATE_RANGE` is written out even though `dateRange` is the only
+  `PresentationMatrixColumnKind`, and `BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES`
+  likewise. A second value later is then a new word rather than a
+  reinterpretation of an unmarked line.
+- **The parser produces syntax; the validator decides meaning** (the Phase 62
+  rule, applied again). Nothing in `resolve-model` or `validate-model` changed:
+  all eleven `ADL_PRESENTATION_MATRIX_*` codes already existed and the new
+  grammar reaches them. If a grammar addition needs a validator change, the
+  grammar is producing the wrong shape.
+- **A status candidate's parentheses are load-bearing.** `STATUS <map>()` — a
+  map candidate with neither `FIELD` nor `VALUE`, meaning "use the map's own
+  declared field" — was added because the shape existed in the model and the
+  printer had no way to emit it. `STATUS <map>` without the parentheses is a
+  *direct* status reference named after the map. Both parse; only one is the
+  model that was authored. See [[presentation-matrix-runtime]].
+- `UNSET_VALUE` reads a primitive literal, and `null` is one. `undefined` means
+  the directive was absent. Anywhere a parser local can legitimately hold
+  `null`, `x !== undefined` is the test and `??`/truthiness is not.
+
 ## Practical guidance
 
 - Keep parser syntax declarative. Unsupported procedural keywords such as `FETCH`, `STORE`, `LOOP`, `SET`, `DART.INLINE`, and `SQL.INTO` should remain rejected.

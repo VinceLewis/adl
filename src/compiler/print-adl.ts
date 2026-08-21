@@ -50,6 +50,12 @@ import type {
   PartialPresentationActionControlModel,
   PartialEditChildCollectionSummaryModel,
   PartialPresentationCalendarModel,
+  PartialPresentationMatrixAxisSourceModel,
+  PartialPresentationMatrixCellModel,
+  PartialPresentationMatrixCellSourceModel,
+  PartialPresentationMatrixDateColumnAxisModel,
+  PartialPresentationMatrixEditModel,
+  PartialPresentationMatrixModel,
   PartialPresentationContextSelectorControlModel,
   PartialPresentationSelectControlModel,
   PartialPresentationFormatModel,
@@ -896,15 +902,8 @@ function printPresentationSection(section: PartialPresentationSectionModel): str
   for (const list of section.lists ?? []) {
     lines.push(indentBlock(printPresentationList(list), "  "));
   }
-  // NO TEXT SYNTAX: MATRIX has a full resolved-model/JSON shape
-  // (`PartialPresentationMatrixModel`) but the parser has no `MATRIX`
-  // construct at all — `docs/spec/ui-language-addendum.md` documents it as
-  // "intended language direction" only ("parser support remains future
-  // work"). Author it as a PartialApplicationModel/.adlj document instead.
-  if (section.matrices !== undefined && section.matrices.length > 0) {
-    throw new Error(
-      `printPartialApplicationModelAsAdl: section '${section.name}' declares a MATRIX, which has no ADL text syntax yet. See docs/spec/adlj.md.`,
-    );
+  for (const matrix of section.matrices ?? []) {
+    lines.push(indentBlock(printPresentationMatrix(matrix), "  "));
   }
   for (const calendar of section.calendars ?? []) {
     lines.push(indentBlock(printPresentationCalendar(calendar), "  "));
@@ -1059,6 +1058,154 @@ function printPresentationList(list: PartialPresentationListModel): string {
   return lines.join("\n");
 }
 
+/**
+ * `MATRIX <name> ... END.MATRIX` (Phase 104).
+ *
+ * Three parts of this are printed defensively because each can vanish without
+ * a resolved-model comparison noticing:
+ *
+ * - `cellSource.recordSource` is read by nothing in the runtime today, so a
+ *   dropped `RECORD_SOURCE` would show up in no behaviour at all.
+ * - `cell.status` and `cellSource.status` are distinct bindings the runtime
+ *   resolves as `cell.status ?? cellSource.status`, so printing the first as
+ *   if it were the second changes which one wins without changing the text
+ *   much.
+ * - `edit.unsetValue` may legitimately be `null`, and a `!value` test would
+ *   print nothing for it — which resolves as *absent*, a different model.
+ */
+function printPresentationMatrix(matrix: PartialPresentationMatrixModel): string {
+  const lines = [`MATRIX ${matrix.name}`];
+  if (matrix.density !== undefined) {
+    lines.push(`  DENSITY ${camelToUpperSnake(matrix.density)}`);
+  }
+  lines.push(indentBlock(printPresentationMatrixAxisSource(matrix.rowSource), "  "));
+  lines.push(`  ${printPresentationMatrixColumnAxis(matrix.columnAxis)}`);
+  lines.push(indentBlock(printPresentationMatrixCellSource(matrix.cellSource), "  "));
+  const cell = printPresentationMatrixCell(matrix.cell);
+  if (cell !== undefined) {
+    lines.push(indentBlock(cell, "  "));
+  }
+  if (matrix.edit !== undefined) {
+    lines.push(indentBlock(printPresentationMatrixEdit(matrix.edit), "  "));
+  }
+  lines.push("END.MATRIX");
+  return lines.join("\n");
+}
+
+function printPresentationMatrixAxisSource(
+  rowSource: PartialPresentationMatrixAxisSourceModel,
+): string {
+  const lines = [`ROWS FROM ${printPresentationSourceRef(rowSource.sourceKind, rowSource.source)}`];
+  if (rowSource.keyField !== undefined) {
+    lines.push(`  KEY ${rowSource.keyField}`);
+  }
+  lines.push(`  LABEL ${rowSource.labelField}`);
+  if (rowSource.fields !== undefined && rowSource.fields.length > 0) {
+    lines.push(`  FIELDS ${rowSource.fields.join(" ")}`);
+  }
+  if (rowSource.sort !== undefined && rowSource.sort.length > 0) {
+    lines.push(`  ORDER BY ${printSortList(rowSource.sort)}`);
+  }
+  lines.push("END.ROWS");
+  return lines.join("\n");
+}
+
+/**
+ * `DATE_RANGE` is always written even though `kind` is optional in the partial
+ * model and `dateRange` is its only value: an unmarked line would have to be
+ * reinterpreted the day a second axis kind exists, whereas an unmarked *word*
+ * can simply be joined by a new one.
+ */
+function printPresentationMatrixColumnAxis(
+  columnAxis: PartialPresentationMatrixDateColumnAxisModel,
+): string {
+  let line = `COLUMNS DATE_RANGE ${printStringLiteral(columnAxis.start)} TO ${printStringLiteral(
+    columnAxis.end,
+  )}`;
+  if (columnAxis.stepDays !== undefined) {
+    line += ` STEP_DAYS ${columnAxis.stepDays}`;
+  }
+  // `LABEL_FORMAT` last: a pattern-less format reads the following token to
+  // decide whether it is a pattern, so any option printed after it would have
+  // to be re-checked against that reader.
+  if (columnAxis.labelFormat !== undefined) {
+    line += ` LABEL_FORMAT ${printPresentationFormat(columnAxis.labelFormat)}`;
+  }
+  return line;
+}
+
+function printPresentationMatrixCellSource(
+  cellSource: PartialPresentationMatrixCellSourceModel,
+): string {
+  const lines = [
+    `CELLS FROM ${printPresentationSourceRef(cellSource.sourceKind, cellSource.source)} ROW ${
+      cellSource.rowField
+    } COLUMN ${cellSource.columnField}`,
+  ];
+  if (cellSource.fields !== undefined && cellSource.fields.length > 0) {
+    lines.push(`  FIELDS ${cellSource.fields.join(" ")}`);
+  }
+  if (cellSource.recordSource !== undefined) {
+    lines.push(`  RECORD_SOURCE ${cellSource.recordSource}`);
+  }
+  for (const candidate of cellSource.status?.candidates ?? []) {
+    lines.push(`  ${printPresentationStatusCandidate(candidate)}`);
+  }
+  lines.push("END.CELLS");
+  return lines.join("\n");
+}
+
+/**
+ * Returns `undefined` — no `CELL` block at all — when the cell declares
+ * nothing. `resolvePresentationMatrixCell` produces `{}` from both an absent
+ * `cell` and an empty one, so an always-printed `CELL`/`END.CELL` pair would
+ * round-trip; it would also assert a binding the source never wrote, on every
+ * matrix in the language.
+ */
+function printPresentationMatrixCell(
+  cell: PartialPresentationMatrixCellModel | undefined,
+): string | undefined {
+  if (cell === undefined) {
+    return undefined;
+  }
+  const lines: string[] = [];
+  for (const candidate of cell.status?.candidates ?? []) {
+    lines.push(`  ${printPresentationStatusCandidate(candidate)}`);
+  }
+  if (cell.unsetStatus !== undefined) {
+    lines.push(`  UNSET_STATUS ${cell.unsetStatus}`);
+  }
+  if (cell.accessibleLabel !== undefined) {
+    lines.push(`  ACCESSIBLE_LABEL ${printStringLiteral(cell.accessibleLabel)}`);
+  }
+  if (lines.length === 0) {
+    return undefined;
+  }
+  return ["CELL", ...lines, "END.CELL"].join("\n");
+}
+
+function printPresentationMatrixEdit(edit: PartialPresentationMatrixEditModel): string {
+  const lines = [
+    `EDIT ${edit.object} ROW ${edit.rowField} COLUMN ${edit.columnField} VALUE ${edit.valueField}`,
+  ];
+  if (edit.cycle !== undefined && edit.cycle.length > 0) {
+    lines.push(`  CYCLE ${edit.cycle.map(printLiteralValue).join(" ")}`);
+  }
+  // `null` is a value here, not an absence: `UNSET_VALUE NULL` and an omitted
+  // directive resolve to different models.
+  if (edit.unsetValue !== undefined) {
+    lines.push(`  UNSET_VALUE ${printLiteralValue(edit.unsetValue)}`);
+  }
+  if (edit.unsetAsAbsence !== undefined) {
+    lines.push(edit.unsetAsAbsence ? "  UNSET_AS_ABSENCE" : "  UNSET_AS_ABSENCE FALSE");
+  }
+  if (edit.bulkBehavior !== undefined) {
+    lines.push(`  BULK_BEHAVIOR ${camelToUpperSnake(edit.bulkBehavior)}`);
+  }
+  lines.push("END.EDIT");
+  return lines.join("\n");
+}
+
 function printPresentationCalendar(calendar: PartialPresentationCalendarModel): string {
   const lines = [
     `CALENDAR ${calendar.name} FROM ${printPresentationSourceRef(calendar.sourceKind, calendar.source)}`,
@@ -1152,9 +1299,14 @@ function printPresentationStatusCandidate(
   if (candidate.value !== undefined) {
     return `STATUS ${candidate.map}(VALUE ${printLiteralValue(candidate.value)})`;
   }
-  throw new Error(
-    `printPartialApplicationModelAsAdl: STATUS map reference '${candidate.map}' must declare field or value.`,
-  );
+  // A map candidate carrying neither a field nor a value defers to the status
+  // map's own declared field — a legal shape the validator handles explicitly
+  // (`validatePresentationMatrixStatusBinding`), and the one the presentation
+  // conformance corpus actually uses. The parentheses are load-bearing:
+  // without them this reparses as a *direct* status reference named after the
+  // map, which is a different resolved model, so this used to throw rather
+  // than print something that widened on the way back in. Phase 104.
+  return `STATUS ${candidate.map}()`;
 }
 
 function printPresentationRowTemplate(row: PartialPresentationRowTemplateModel): string {

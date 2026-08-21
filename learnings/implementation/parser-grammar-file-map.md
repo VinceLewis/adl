@@ -100,6 +100,27 @@ all, because everything they call — `parsePresentationFormat`,
 `parsePresentationIconRef`, `consumeNameListUntilLine` — already lives below
 them in the chain.
 
+Phase 104 added five more (`MATRIX`, `ROWS`, `CELLS`, `CELL`, `EDIT`) for
+`MATRIX`, and measured the same result: the whole construct went into
+`presentation-source.ts` beside `LIST` and `CALENDAR`, called from `SECTION` in
+`presentation-core.ts` directly above it, and every helper it needed
+(`parseSortList`, `parsePresentationFormat`, `parsePresentationDensity`,
+`consumeNameListUntilLine`, `consumePrimitiveLiteral`, `parseOptionalBoolean`)
+was already below. No file moved and no new grammar-area file was needed.
+`EDIT` does not collide with `EDIT_CONTAINER` or `EDIT_SECTION`: those are
+single underscore-form keywords, so `checkEnd` compares one whole identifier
+and `END.EDIT` and `END.EDIT_SECTION` are unambiguous.
+
+**A `tsc`-clean build is not evidence that you found every consumer of a widened
+type.** `BlockName` is the case where the compiler does help. Adding a *field*
+to an AST node is the case where it does not help evenly: `matrices` became a
+required field on `PresentationSectionDeclarationAst`, and `tsc` named the two
+sites that construct or destructure it — but nothing named `print-adl.ts`, whose
+gap was a `throw` that had to be replaced by hand, or `adl-to-adlj.ts`, which
+passes the field through a `...rest` spread and would have carried a *wrong*
+shape just as silently as a right one. Enumerate consumers by search
+(`grep -rn "\.calendars"` finds the whole family), then check each.
+
 ## Verifying a parser change
 
 `npm test` and `tests/parser.test.ts` prove a lot, but a parser defect is a

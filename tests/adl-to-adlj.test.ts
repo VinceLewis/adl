@@ -186,6 +186,47 @@ END.OBJECT
     expect(recompiled.model).toEqual(original.model);
   });
 
+  it("carries a MATRIX all the way round: .adlj -> print -> import -> .adlj -> identical model", () => {
+    // Same argument as the Giggle Band circle above, for Phase 104's addition:
+    // `adl-to-adlj.ts` destructures a section into `{ controls, lists,
+    // calendars, ...rest }`, so `matrices` reaches the importer through `rest`
+    // with no code of its own — which is precisely the case that breaks
+    // silently if the shape ever stops passing through untouched. Neither
+    // reference app declares a matrix, so this fixture is the only thing that
+    // would notice.
+    const corpus = JSON.parse(
+      readFileSync(
+        new URL("../conformance/presentation/status-matrix-calendar.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { models: Record<string, Record<string, unknown>> };
+    const original = compileAdlj(
+      JSON.stringify({ contexts: [], readModels: [], ...corpus.models.resourceMatrix }),
+    );
+    expect(original.diagnostics).toEqual([]);
+
+    const imported = importAdlAsAdlj(printPartialApplicationModelAsAdl(original.partialModel));
+    expect(imported.diagnostics).toEqual([]);
+    expect(imported.document).toBeDefined();
+
+    // The importer must carry the matrices, not merely produce a document that
+    // happens to resolve: an importer that dropped them would leave a document
+    // whose sections have no `matrices` key at all, and the resolved-model
+    // comparison below would then be comparing two matrix-less models.
+    const section = (
+      imported.document as unknown as {
+        objects: {
+          views?: { presentation?: { sections?: { matrices?: unknown[] }[] } }[];
+        }[];
+      }
+    ).objects[0]?.views?.[0]?.presentation?.sections?.[0];
+    expect(section?.matrices).toHaveLength(1);
+
+    const recompiled = compileAdlj(JSON.stringify(imported.document));
+    expect(recompiled.diagnostics).toEqual([]);
+    expect(recompiled.model).toEqual(original.model);
+  });
+
   it("round-trips task-tracker.adl through .adlj to an identical resolved model", () => {
     const adlResult = compileAdl(readExample("task-tracker.adl"));
     expect(adlResult.diagnostics).toEqual([]);

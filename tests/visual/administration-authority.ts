@@ -16,6 +16,11 @@ import {
 } from "../../src/index.js";
 import type { AuthorityConfiguration, RuntimeContext } from "../../src/index.js";
 import { createAuthorityHttpHandler } from "../../src/server/authority-http.js";
+import {
+  RecordingSecurityLogger,
+  clearActiveAuthorityRecorder,
+  setActiveAuthorityRecorder,
+} from "./support/authority-log.js";
 import { loadAuthorityModel } from "../../src/server/authority-entrypoint.js";
 
 /**
@@ -60,6 +65,8 @@ export const ADMINISTRATION_ACCOUNT_PROOF = "visual-band-administrator";
 
 export interface AdministrationAuthorityHarness {
   server: Server;
+  /** The authority's own security log, captured per test by the evidence fixture. */
+  recorder: RecordingSecurityLogger;
   port: number;
   /** The band the seeded administrator manages, for assertions in the spec. */
   bandId: string;
@@ -184,7 +191,13 @@ export async function startAdministrationAuthority(): Promise<AdministrationAuth
     }),
   );
 
+  // Captured rather than printed. Without this the authority's structured log
+  // goes to `console.info` in the Playwright worker, interleaved with the
+  // reporter and attributed to no test (see security-operations.ts).
+  const recorder = new RecordingSecurityLogger();
+
   const handle = createAuthorityHttpHandler({
+    logger: recorder,
     configuration,
     authority,
     sessions,
@@ -202,8 +215,18 @@ export async function startAdministrationAuthority(): Promise<AdministrationAuth
       ...(incoming.method === "GET" || incoming.method === "HEAD" ? {} : { body: incoming }),
       duplex: "half",
     } as unknown as RequestInit);
+    const startedAt = Date.now();
     try {
       const result = await handle(request);
+      recorder.writeHarnessEvent({
+        event: "http_request",
+        outcome: result.status >= 500 ? "failed" : "allowed",
+        endpoint: new URL(request.url).pathname,
+        status: result.status,
+        method: incoming.method ?? "",
+        durationMs: Date.now() - startedAt,
+        occurredAt: new Date().toISOString(),
+      });
       const headers: Record<string, string | string[]> = Object.fromEntries(
         result.headers.entries(),
       );
@@ -213,7 +236,20 @@ export async function startAdministrationAuthority(): Promise<AdministrationAuth
       if (setCookies !== undefined) headers["set-cookie"] = setCookies;
       outgoing.writeHead(result.status, headers);
       outgoing.end(Buffer.from(await result.arrayBuffer()));
-    } catch {
+    } catch (error) {
+      // Never swallowed. Before this, a genuine unhandled exception in the
+      // authority became an opaque 500 with the stack trace destroyed, and no
+      // browser test looked at the status. It is now a recorded `failed`
+      // outcome, which the evidence gate fails the test on.
+      recorder.writeHarnessEvent({
+        event: "http_request_unhandled_error",
+        outcome: "failed",
+        endpoint: new URL(request.url).pathname,
+        status: 500,
+        reason: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? (error.stack ?? "") : "",
+        occurredAt: new Date().toISOString(),
+      });
       outgoing.writeHead(500, { "content-type": "application/json" });
       outgoing.end('{"error":"internal_error"}');
     }
@@ -226,14 +262,21 @@ export async function startAdministrationAuthority(): Promise<AdministrationAuth
     server.listen(ADMINISTRATION_AUTHORITY_PORT, "localhost", () => settle());
   });
 
+  setActiveAuthorityRecorder(recorder, `http://localhost:${ADMINISTRATION_AUTHORITY_PORT}`);
+
   return {
     server,
+    recorder,
     port: (server.address() as AddressInfo).port,
     bandId,
     bandName,
     adminUserId: admin.userId,
     memberUserId: member.userId,
-    close: () => new Promise<void>((settle) => server.close(() => settle())),
+    close: () =>
+      new Promise<void>((settle) => {
+        clearActiveAuthorityRecorder();
+        server.close(() => settle());
+      }),
   };
 }
 

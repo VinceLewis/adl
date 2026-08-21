@@ -592,3 +592,250 @@ template, and whether view-scoped shell regions get source syntax — are
 deliberately **not** proposed. Both need an owner decision first, and a phase that
 invents one would be making a language decision under cover of a printer task:
 the move Phase 100 declined and this phase declines again.
+
+---
+
+# Execution Note (2026-08-21)
+
+Executed on a branch off `c552cfc` (Phases 102 and 103 merged). Everything below
+was measured on that tree, not read off this document.
+
+## Evidence that had drifted, and what still held
+
+**Every substantive claim in "Evidence and Dependency" held.** Two things in the
+rest of the document did not:
+
+- **There is no "per-view shell regions" refusal test, and never was one on this
+  branch.** Scope (line 431) and Testing (line 485) both say the `MATRIX`
+  refusal test has "two siblings (conditional row fragment, per-view shell
+  regions)" that stay green. `tests/compile-adlj.test.ts` has exactly **one**
+  sibling, the conditional row fragment, and `print-adl.ts` has exactly two
+  `NO TEXT SYNTAX` refusals, not three. `docs/spec/adlj.md` carried the same
+  error in prose — "Three constructs still have … no ADL text syntax" above a
+  list of two — which is where it probably came from. Per-view
+  `presentation.shell.regions` was **removed as a construct** by Phase 99, as
+  `learnings/implementation/adlj-json-authoring-surface.md` records; there is
+  nothing left to refuse. `docs/spec/adlj.md` is corrected here; it now says
+  "One".
+- **`learnings/implementation/reference-app-drift.md` does not record `MATRIX`
+  as unprintable.** Scope names it as one of four learning documents to update.
+  `grep -n MATRIX` over it returns nothing. Not updated; the four documents
+  actually carrying the claim are `presentation-matrix-runtime.md`,
+  `adlj-json-authoring-surface.md`, `ui-presentation-model.md` and
+  `calendar-presentation-runtime.md`, and all four are updated.
+
+Line numbers that were checked and still resolve: `print-adl.ts:899-908` (the
+throw), `presentation-matrix.ts` (all six structure declarations and the three
+enums), `resolve-model/presentation-matrix.ts:19-103` (every default),
+`validate-model/codes.ts:271-281` (eleven codes — they are at `286-296` now,
+same eleven), `tests/compile-adlj.test.ts:612-630` (the refusal test, now at
+`840`), `ui-language-addendum.md:344-357` (the sketch).
+
+Measured afresh: `conformance/presentation/status-matrix-calendar.json`'s
+`resourceMatrix` still compiles through `compileAdlj` with **zero
+diagnostics** and still declares exactly two matrices; neither reference app
+declares one.
+
+## The document's surface syntax was right in every clause but one
+
+The `## Decision` block compiles as written, with a single spelling change:
+`STATUS <map>(FIELD <field>)` and `STATUS <map>(VALUE <literal>)` were both
+already correct, but the document had no spelling at all for a **third** map
+form the corpus actually uses. See below.
+
+## The defect the document did not predict: a status candidate with no field
+
+Deleting the `MATRIX` refusal was **not** enough to print the conformance
+corpus. `printPresentationStatusCandidate` (`print-adl.ts`) throws for a
+candidate of kind `map` carrying neither `field` nor `value`:
+
+```
+printPartialApplicationModelAsAdl: STATUS map reference 'StateStatus' must declare field or value.
+```
+
+That shape means "use the status map's own declared field". It is legal in
+`PartialPresentationStatusCandidateModel`, `validatePresentationMatrixStatusBinding`
+handles it explicitly (`candidate.field === undefined` → check the *map's*
+field), and **both** of `resourceMatrix`'s matrices use it. It affects `LIST`
+and `CALENDAR` identically; nothing had it on any list, because it is not a
+construct with no syntax, it is one branch of a construct that has syntax.
+
+Spelling it as a bare `STATUS StateStatus` was not available: that reparses as a
+**direct status reference** named after the map — a different resolved model,
+with a clean typecheck and a green suite. Exactly the silent widening Phase 103
+measured for policy principals. The form added is `STATUS <map>()`, symmetric
+with the other two, and both halves are pinned:
+`expect(printed).not.toMatch(/^\s*STATUS SlotStatus$/m)` beside the positive
+pin, and a conformance expectation asserting the candidate's `kind` is `map`
+rather than `status`.
+
+## Red-first evidence
+
+Every new grammar rule was written as a test first and run against the
+pre-change grammar. All twenty-one malformed-matrix probes plus the positive
+parse failed with the same single message, because the whole construct was new:
+
+```
+FAIL  tests/parser.test.ts > ADL parser > parses a complete MATRIX into a section's matrices
+ParseError: Expected SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, SELECT,
+CONTEXT_SELECTOR, ACTION, LIST, CALENDAR, or END.SECTION, but found 'MATRIX'. at 10:7
+```
+
+```
+FAIL  tests/parser.test.ts > ADL parser > reports malformed MATRIX declarations with the options they accept
+AssertionError: expected 'Expected SECTION directive HEADING, L…' to contain 'Expected END.MATRIX, but found \'END\…'
+Expected: "Expected END.MATRIX, but found 'END'."
+Received: "Expected SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, SELECT, CONTEXT_SELECTOR, ACTION, LIST, CALENDAR, or END.SECTION, but found 'MATRIX'."
+```
+
+```
+FAIL  tests/parser.test.ts > ADL parser > names MATRIX among the directives a SECTION accepts
+Expected: "…ACTION, LIST, CALENDAR, MATRIX, or END.SECTION, but found 'WHERE'."
+Received: "…ACTION, LIST, CALENDAR, or END.SECTION, but found 'WHERE'."
+```
+
+`Test Files 1 failed (1) | Tests 3 failed | 47 passed (50)` before the grammar
+existed; `50 passed (50)` after.
+
+## `tsc` found two consumers of the widened AST node, and missed the two that mattered
+
+Adding a required `matrices` field to `PresentationSectionDeclarationAst` made
+`npx tsc --noEmit` name the grammar and the AST-to-partial conversion. It said
+nothing about `print-adl.ts` — whose gap was a `throw` to be replaced by hand —
+and nothing about `adl-to-adlj.ts`, which carries the field through a
+`{ controls, lists, calendars, ...rest }` spread and would have carried a wrong
+shape exactly as silently as a right one. Both were found by
+`grep -rn "\.calendars"`, and `adl-to-adlj.ts` now has its own full-circle test.
+
+`src/model/adlj-schema.json` needed no regeneration: no resolved-model or
+`.adlj` source type changed. `PartialPresentationMatrixModel` has been in the
+schema since Phase 37.
+
+## Mutation checks
+
+Seven, each reverted immediately. Every one was caught.
+
+| Mutation | Caught by |
+|---|---|
+| `STATUS <map>()` printed as bare `STATUS <map>` | 3 tests: the printed-text pin, the conformance corpus round-trip, and the corpus's own validation |
+| `RECORD_SOURCE` never printed | the coverage fixture's printed-text pin |
+| `UNSET_VALUE null` treated as absent by the printer | the coverage fixture's printed-text pin |
+| `CELL` block never printed | 3 tests, including a resolved-model `toEqual` |
+| `COLUMNS STEP_DAYS` parsed and discarded | 4 tests across parser, printer round-trips and conformance |
+| `STATUS <map>()` parsed as a *direct* status | 4 tests |
+| `UNSET_AS_ABSENCE` forced to `true` | 2 tests |
+| conformance: `edit.unsetValue` expected `$absent` instead of `null` | the corpus |
+| conformance: field-less map candidate expected as `kind: "status"` | the corpus |
+
+## Positive/negative pairs
+
+| Positive | Negative |
+|---|---|
+| `parses a complete MATRIX into a section's matrices` (`tests/parser.test.ts`) | `reports malformed MATRIX declarations with the options they accept` — 20 sources, each asserting an exact named message |
+| — | `names MATRIX among the directives a SECTION accepts` |
+| `round-trips the constructs neither reference app reaches` (matrix pins) | five `not.toMatch` assertions in the same test, one per spelling the construct must **not** print as |
+| `round-trips the presentation conformance corpus's two matrices` | `not.toContain("STEP_DAYS 1")`, `not.toContain("DENSITY COMFORTABLE")`, and an assertion that the second matrix prints no empty `EDIT` — resolver defaults must not become authored values |
+| `carries a MATRIX all the way round` (`tests/adl-to-adlj.test.ts`) | asserts the imported document's section actually holds one matrix, so a dropped `matrices` key cannot pass as "two matrix-less models are equal" |
+| `presentation.matrix.adl-source.001` / `.002` | `presentation.matrix.adl-source.003` — an ADL-source matrix naming an unknown `CELL` status and unset status, asserting both diagnostics by code and path |
+| — | the sketch's own `STATUS Map(F), Map(F)` line is refused: `Expected end of line after CELLS STATUS directive, but found ','.` |
+
+## A pre-existing validator defect, reproduced and deliberately not fixed
+
+When a matrix declares a `cellSource.status` and no `cell.status`, that binding
+is validated **twice** — once inside `validatePresentationMatrixCellSource` and
+again by `validatePresentationMatrix` via
+`matrix.cell.status ?? matrix.cellSource.status` — so every diagnostic it
+produces is emitted twice at the identical path. Reproduced from a
+**JSON-authored** model, so it predates the text syntax and is independent of
+it. Not fixed: this phase's Non-goals exclude `validate-model`. Not pinned
+either — the conformance negative was rewritten to put its `STATUS` in the
+`CELL` block, which is validated once, rather than encoding a duplicate as
+correct. Recorded in `learnings/implementation/presentation-matrix-runtime.md`
+and in the handoff below.
+
+## Fingerprints, measured
+
+Unchanged, before and after, by compiling both apps through
+`compileAdlProjectV2`:
+
+- Giggle Band `1.12.0` /
+  `sha256-8249bac35b2fa5282fd764db729ed3ed2b98121cab95b21c0bee47eb8f9de11c`
+- Jointly Care `1.7.0` /
+  `sha256-171158c70c06bfa0f975dd8fb92ae91ab58124e3d14210db026fb250813b8bef`
+
+No reference-app content changed, so no `modelVersion` bump, no migration hop
+and no persisted-state upgrade test is implicated.
+
+## Verification
+
+- `npx tsc --noEmit` — clean.
+- `npm run format:check` — clean.
+- `npx vitest run` — **65 files / 1,244 tests passed** (baseline 65 / 1,240;
+  +3 parser, +1 `adl-to-adlj`, and `compile-adlj` net 0 — one refusal test
+  removed, one round-trip added; the three new conformance cases run inside an
+  existing `it`).
+- `npm run test:integration` — **19 files / 186 tests passed**, exactly the
+  baseline.
+- **Not run:** `npm run verify:push`, `npm run test:visual`, Playwright. Another
+  agent held the fixed-port Playwright lock. Nothing here touches browser
+  rendering, shell chrome, a reference-app screen, presentation-runtime output
+  or CSS, and both fingerprints are unchanged, so no screenshot delta is
+  possible — but that is an argument, not a measurement, and the run is
+  outstanding.
+
+## Deliberately not done
+
+- **No reference-app `MATRIX`.** Recommended below, as the document argued.
+- **`printPresentationIconRef` has the same gap** the status candidate had: a
+  `PartialPresentationIconRefModel` of kind `map` with neither `field` nor
+  `value` throws. Nothing in the repository produces one, and no `ICON` syntax
+  change is in scope here, so it is left alone and recorded.
+- **`src/inspect.ts` walks a section's `lists` and `calendars` but not its
+  `matrices`**, so `explainResolvedModel` reports no origin entries for any
+  matrix. Pre-existing, unrelated to text syntax, and out of scope.
+- **The duplicate matrix status diagnostic**, above.
+- **`compileAdlj`'s omission of `contexts`/`readModels`** still means the
+  conformance corpus's `resourceMatrix` must be compiled with both keys
+  supplied for the round-trip to compare equal. Measured: those two keys and
+  the resulting fingerprint are the *only* difference. Carried forward.
+
+## Planning Handoff, revised
+
+The document ranked "convert Giggle Band's `TeamAvailabilityList` to a `MATRIX`"
+first. **That is not the highest-value remaining gap repository-wide**, and the
+queue that has formed since this document was written says so plainly.
+
+Recommended next: **Phase 105** — the invited person in Jointly Care who sees an
+enabled Accept button whose click is silently refused. It is a measured live
+defect in a shipped application, reachable by a real user on a real screen,
+fixed by one branch of `resolveActiveViewContext`; it needs no language change,
+no `modelVersion` bump and no migration. Phase 106 (an authority-minted identity
+has no `User` record, so every person renders as a raw id, including to
+themselves) is the broader of the two and Phase 103's executor recommended it on
+that ground — but breadth is the argument for doing it *well*, not for doing it
+first, and 105 is the one where the product currently lies to a user about what
+a button will do. Ship the lie-fix, then the breadth.
+
+After those, in order:
+
+- **Convert Giggle Band's availability board to a `MATRIX`.** Now unblocked and
+  worth doing: it gives the language its first matrix in a shipped application
+  and is the only thing that would prove this syntax end to end in a way no
+  fixture can. Cost is a content change's cost — `modelVersion` bump, migration
+  hop, persisted-state upgrade test, `verify:push` with the board inspected on
+  both viewports, an `/impeccable` pass — and it carries a product judgement
+  (is a grid a better board than a list?) that should be made deliberately.
+- **The duplicate matrix status diagnostic**, above. A four-line fix in
+  `validate-model/presentation-matrix.ts` plus a conformance case that would
+  currently have to assert the duplicate. Small, and it makes a negative case
+  writable without encoding a defect.
+- **Delete `cellSource.recordSource`, or give it a meaning.** Unchanged from the
+  document's own handoff, and slightly stronger now: it has grammar, a printer
+  branch, a schema entry, a resolver line and a conformance assertion, and still
+  nothing reads it at runtime.
+- **`normalisePresentationFormatKind`'s silent fallback** — carried forward from
+  Phase 100 and now reachable from one more place, `COLUMNS LABEL_FORMAT`. An
+  unrecognised kind word still falls back to `"text"`, so
+  `LABEL_FORMAT duraton 'm:ss'` parses clean and means something else.
+- **`compileAdlj` omitting `contexts`/`readModels`.** Carried forward again, and
+  it now costs a paragraph of explanation in two tests rather than one.
