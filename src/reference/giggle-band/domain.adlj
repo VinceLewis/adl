@@ -1,10 +1,12 @@
 {
-  "modelVersion": "1.10.0",
+  "modelVersion": "1.11.0",
   "app": {
     "name": "Giggle Band ADL Example",
     "startView": "HomeDashboard",
     "theme": "CorporateLight",
-    "offlineGraceDays": 30
+    "offlineGraceDays": 30,
+    "registration": "selfService",
+    "comment": "Giggle Band is a self-service product: `allowAuthenticatedCreateOwnBand`\nand `CreateBand` already say any signed-in person may create their own band\nand becomes its `BandAdmin`. Until this declaration existed the identity\nlayer contradicted that -- registration was invite-gated, so nobody could\never be the first `authenticated` caller. See\n`docs/phases/phase-99-self-service-registration.md`."
   },
   "roles": [
     {
@@ -93,6 +95,11 @@
     {
       "from": "1.9.0",
       "to": "1.10.0",
+      "objects": []
+    },
+    {
+      "from": "1.10.0",
+      "to": "1.11.0",
       "objects": []
     }
   ],

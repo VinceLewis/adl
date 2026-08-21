@@ -26,7 +26,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.10.0");
+    expect(model.modelVersion).toBe("1.11.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -93,6 +93,15 @@ describe("band reference app model", () => {
     // content -- they change the fingerprint -- but no object gains, loses or
     // renames a stored field.
     expect(model.migrations).toContainEqual({ from: "1.9.0", to: "1.10.0", objects: [] });
+    // `1.10.0 -> 1.11.0` is an empty-object hop: the `APP` block declares
+    // `REGISTRATION SELF_SERVICE` (Phase 99), so `app.registration` enters the
+    // resolved model and moves the fingerprint. Nothing an object stores
+    // changes -- this says who the application is *for*, not what it holds.
+    expect(model.migrations).toContainEqual({ from: "1.10.0", to: "1.11.0", objects: [] });
+    // The declaration is the primary control on anonymous registration: an
+    // application that does not carry it cannot be self-registered into in any
+    // deployment, under any configuration.
+    expect(model.app.registration).toBe("selfService");
     // A tripwire, not a meaningful value: this fingerprint is a pure function of
     // resolved-model content, so ANY content change -- domain or UI, intentional
     // or not -- flips it and fails this assertion in the fast suite, before a
@@ -105,7 +114,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-bcab87d091293ffd6c0554614b54b08fc91995ce4a0c341c441e1831ab0fd252",
+      "sha256-18f3bc2918c302b77fec2ae050b260508acd2bb238769c35585a6a5bb4919b5c",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(

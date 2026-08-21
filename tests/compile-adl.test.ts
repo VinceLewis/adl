@@ -1171,6 +1171,10 @@ END.POLICY
       theme: "CorporateLight",
       startView: "HomeDashboard",
       offlineGraceDays: 30,
+      // The model, not the deployment, says this application admits people
+      // nobody invited (Phase 99). `toEqual` rather than `toMatchObject`, so
+      // this stays an exhaustive statement of the resolved `app` block.
+      registration: "selfService",
     });
     expect(result.model.shell.nav.mode).toBe("explicitOnly");
     expect(result.model.shell.nav.items.map((item) => [item.view, item.label, item.order])).toEqual(
@@ -1403,6 +1407,10 @@ END.POLICY
       theme: "MinimalLight",
       startView: "HomeDashboard",
       offlineGraceDays: 30,
+      // The model, not the deployment, says this application admits people
+      // nobody invited (Phase 99). `toEqual` rather than `toMatchObject`, so
+      // this stays an exhaustive statement of the resolved `app` block.
+      registration: "selfService",
     });
     expect(result.model.contexts).toEqual(
       expect.arrayContaining([
