@@ -54,38 +54,30 @@ work unless asked.
 
 ## Testing
 
-- `npm test` is the fast hermetic suite and excludes `tests/integration/**`.
-- Authority server, PostgreSQL projection, migration, unit-of-work and HTTP edge
-  behaviour MUST be proven against real PostgreSQL under `tests/integration/`
-  via `npm run test:integration`. A fake that pattern-matches SQL is never an
-  acceptable correctness proof. Docker must be running, or set
-  `ADL_TEST_DATABASE_URL`.
-- `npm run verify:push` before pushing anything that affects browser rendering,
-  shell chrome, reference app screens, presentation output, or CSS. Inspect the
-  generated Playwright screenshots before committing.
-- Never weaken a constraint, loosen a test, or adjust a conformance case to match
-  current behaviour in order to make verification pass. If a case reveals a real
-  defect, fix the defect and record it.
-- Any ADL source drafted or edited must be run through the compiler and its
-  `diagnostics` checked before it is presented, committed, or relied on. Unlike
-  Go or TypeScript, ADL has no pretrained prior behind it, so a spec-plausible
-  draft is a guess until the compiler has actually run over it. New content
-  should be authored as `.adlj` (`docs/spec/adlj.md`) and checked with
-  `compileAdlj`; `compileAdl` remains the check for hand-authored or reviewed
-  `.adl` text. See `AGENTS.md`'s Testing section for both patterns.
-- Every positive test needs at least one matching negative test — a case proving
-  the thing is correctly refused, absent, or fails in the declared way. If the
-  tests you find are positive-only, write the missing negative ones first, before
-  the change you came to make, and watch them fail. A positive-only suite cannot
-  tell "works" from "always allows"; both failure modes have shipped here.
+`npm test` is the fast hermetic suite and excludes `tests/integration/**`;
+`npm run test:integration` needs real PostgreSQL (Docker running, or
+`ADL_TEST_DATABASE_URL`); `npm run verify:push` is the pre-push gate.
+
+**Read `AGENTS.md`'s Testing section before writing or running tests.** It
+carries the rules whose trigger is visible from the task itself — real
+PostgreSQL for authority, projection, migration, unit-of-work and HTTP edge
+behaviour; `verify:push` and screenshot inspection for anything that renders;
+compile-checking every `.adl`/`.adlj` draft before relying on it.
+
+These four are stated here rather than referenced, because each fires when you
+have no reason to go looking. See `learnings/process/instruction-placement.md`
+for the test that decides what belongs in this file, and its cap of five.
+
+- Never weaken a constraint, loosen a test, or adjust a conformance case to make
+  verification pass. Fix the defect and record it.
 - Never assert what the running system does on the strength of having read the
-  code. ADL degrades silently — a denied read falls back to the raw record id —
-  so a policy that denies everything is indistinguishable by inspection from a
-  missing display projection. Run it. This has already produced a phase document
-  whose Evidence section was false. Mark inferred claims as inferred. And note
-  that a piped command reports its last stage's exit status, so redirect to a
-  file and check `$?` on the next line. See
-  `learnings/process/evidence-by-execution.md`.
+  code — run it. ADL degrades silently, so reading cannot tell a denied read
+  from a missing projection. Mark inferred claims as inferred.
+- Every positive test needs at least one matching negative test. If the tests
+  you find are positive-only, write the missing negative ones first, and watch
+  them fail before your change makes them pass.
+- A piped command reports its last stage's exit status. Redirect to a file,
+  capture `$?` on the very next line, and read the number.
 
 ## Local Development
 

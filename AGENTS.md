@@ -34,6 +34,45 @@ generated, human-reviewable view produced from `.adlj` via
 also `docs/spec/language.md` for grammar/semantics (still authoritative for
 what a construct means; `.adlj` resolves to the same semantics, JSON-shaped).
 
+## What Belongs In This File And In `CLAUDE.md`
+
+This repository's rules are read in three places: `AGENTS.md` and `CLAUDE.md`
+arrive in every session; `learnings/` arrives only when the index routes you to
+it. Placing every rule inline destroys both files — a file of thirty rules has
+none, because everything in it reads as background — while placing every rule
+behind a pointer means some never arrive at all. The test that decides is:
+
+> **Does the reader know they are in the situation the rule covers?**
+
+If yes, reference it. The task announces itself, the reader follows the index,
+the rule arrives on time. Real PostgreSQL for server work, `verify:push` for
+anything that renders, compile-checking an `.adl` draft: you know when each
+applies.
+
+If no, state it inline. A rule that fires against your own confidence, or that
+applies to everything so no moment stands out, is invisible exactly when it
+matters — you feel no gap, so you never go looking. "Don't assert runtime
+behaviour from having read the code", "every positive test needs a negative
+one", "never weaken a test to make verification pass" and "a pipe masks the
+exit code" are all in this class, and each has gone wrong here *with* the rule
+written down and the instruction to read it already in context.
+
+Importance is not the criterion and neither is length. Two disciplines keep the
+inline set small: state the instruction and not the argument — the evidence
+belongs in `learnings/` — and cap it. **`CLAUDE.md`'s Testing section holds at
+most five inline rules; adding a sixth means arguing one out, in the commit
+message.**
+
+Above both tiers: **ask whether the rule can be made mechanical instead.** A
+hook, a lint, a CI check or a compile-time diagnostic needs no compliance and
+cannot drift. Phase 93 turned "watch out for an unreachable `ROLE` principal" —
+a learning that had already failed to prevent a recurrence — into a validation
+diagnostic, and it stopped needing a reader. A prose rule that keeps being
+broken is evidence that it wants to be mechanical.
+
+Full version, with the placement procedure for a newly adopted rule:
+`learnings/process/instruction-placement.md`.
+
 ## Phase Discipline
 
 Execute one phase at a time. Do not start later phases unless needed to complete the active phase safely.
