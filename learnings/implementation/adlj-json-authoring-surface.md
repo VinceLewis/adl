@@ -534,13 +534,17 @@ syntax. **Phase 100 closed nine of the twelve**: a calendar's
 `conflictOverlay` and `month.labelFormat`, a child collection's
 `projectedFields` and `summary`, a `LIST`'s `fields`, an empty state's
 `icon`, a field text fragment's `fallback`, and the `select` and
-`contextSelector` presentation controls. Three remain, each deferred for a
+`contextSelector` presentation controls. **Two** remain, each deferred for a
 stated reason rather than by omission: `MATRIX` (a whole construct with six
 nested sub-structures, whose intended syntax `ui-language-addendum.md`
-already sketches), conditional row fragments, and per-view
-`presentation.shell.regions` — the last two because
-`ui-language-addendum.md` lists both as *open language questions*, and
-inventing syntax would answer them by fiat. See `docs/spec/adlj.md`'s printer
+already sketches) and conditional row fragments, the latter because
+`ui-language-addendum.md` lists it as an *open language question* and
+inventing syntax would answer it by fiat. Per-view
+`presentation.shell.regions` was the third until Phase 99: the owner settled
+that open question the other way — the shell stays global — so the construct
+was **removed** rather than given text syntax. That is the third possible
+answer to "this has no text syntax", and worth remembering: give it syntax,
+defer it, or delete it. See `docs/spec/adlj.md`'s printer
 section for the table and `docs/spec/language.md` for the syntax. Every claim
 about what does and does not parse was confirmed against the actual grammar
 (`src/parser/grammar/`, behind the `src/parser/parser.ts` barrel since

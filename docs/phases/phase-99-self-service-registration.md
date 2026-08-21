@@ -1,9 +1,9 @@
 # Phase 99 — Self-Service Registration
 
 > Commissioned directly by the repository owner, from a contradiction between
-> two layers that both shipped working: the domain models say *any authenticated
-> person creates their own group and becomes its admin*, and the identity layer
-> says *you may only register if someone already inside invites you*. They
+> two layers that both shipped working: the domain models say _any authenticated
+> person creates their own group and becomes its admin_, and the identity layer
+> says _you may only register if someone already inside invites you_. They
 > disagree at step one of the product.
 >
 > **Owner amendments, 2026-08-21 — these override the body where they differ.**
@@ -31,13 +31,13 @@ other application, and in no deployment that has switched it off.
 
 Concretely: an ADL model may declare `REGISTRATION SELF_SERVICE` in its `APP`
 block; the authority reads that from the resolved model, reconciles it with a
-deployment control that can only ever be *more* restrictive, and allows
+deployment control that can only ever be _more_ restrictive, and allows
 `/v1/webauthn/register/begin` + `/finish` to complete with neither a session nor
 an invite; the sign-in surface offers a "create an account" route beside the
 existing passkey sign-in, and explains the invitation route it currently leaves
 unexplained; and both reference apps declare it.
 
-The invitation path is untouched. It is how you join *someone else's* group and
+The invitation path is untouched. It is how you join _someone else's_ group and
 how a member who lost every authenticator gets back in — a different flow, not a
 thing being replaced.
 
@@ -50,17 +50,17 @@ Re-verify again before executing; every citation below is a real file and line.
 
 - `docs/operations/authority-production-runbook.md:114` — heading, verbatim:
   `### First admin: there is no bootstrap flow (documented gap)`, followed at
-  :116-119 by *"Passkey registration is either session-gated or invite-gated and
+  :116-119 by _"Passkey registration is either session-gated or invite-gated and
   is never anonymous … A brand-new database therefore has no way to admit its
-  first identity through the product surface."* The section then gives an
+  first identity through the product surface."_ The section then gives an
   operator three `insert` statements (:139-179) and a recipient-bound invite.
 - `src/server/webauthn-identity.ts:204-217` states the same rule as a
-  load-bearing invariant in the service's own doc comment: *"2. Registration is
-  never anonymous."* It is enforced at :251-253 — no session and no invite
+  load-bearing invariant in the service's own doc comment: _"2. Registration is
+  never anonymous."_ It is enforced at :251-253 — no session and no invite
   throws `ADL_PASSKEY_UNAUTHORIZED`.
 - `learnings/implementation/passkey-identity.md` repeats it twice, including the
-  forward-looking line this phase must answer: *"If a future phase adds a
-  bootstrap path, it must not become an anonymous registration route."* That
+  forward-looking line this phase must answer: _"If a future phase adds a
+  bootstrap path, it must not become an anonymous registration route."_ That
   sentence is the strongest objection on record and is answered under "Decision"
   below; the learnings document is corrected by this phase rather than quietly
   contradicted.
@@ -77,13 +77,13 @@ Re-verify again before executing; every citation below is a real file and line.
     `Band` from `{ kind: "stepMeta", step: "createBand", property: "guid" }`.
   - `CONTEXT Band` (contexts[1]) declares
     `membership: { object: "BandMember", userField: "User", contextField: "Band",
-    roleField: "Role", roles: ["BandAdmin", "BandMember"] }`.
-  Jointly Care, `src/reference/jointly-care/domain.adlj`, is the same shape with
-  two naming differences the brief did not have: the condition field is
-  **`Owner`**, not `CreatedBy` (`allowAuthenticatedCreateOwnCircle`, :1613; 
-  `allowCircleCreatorReadOwnCircle`, :1628), and the second step is named
-  **`createOwnerMembership`**, not `createFounderMembership` (`CreateCircle`,
-  :1197). Roles are `CircleOwner`/`CircleMember`.
+  roleField: "Role", roles: ["BandAdmin", "BandMember"] }`.
+    Jointly Care, `src/reference/jointly-care/domain.adlj`, is the same shape with
+    two naming differences the brief did not have: the condition field is
+    **`Owner`**, not `CreatedBy` (`allowAuthenticatedCreateOwnCircle`, :1613;
+    `allowCircleCreatorReadOwnCircle`, :1628), and the second step is named
+    **`createOwnerMembership`**, not `createFounderMembership` (`CreateCircle`,
+    :1197). Roles are `CircleOwner`/`CircleMember`.
 - `src/runtime/policy-engine.ts:231-232` — the `authenticated` principal is
   `context.userId.length > 0`. No role and no membership is required, exactly as
   the brief states.
@@ -91,7 +91,7 @@ Re-verify again before executing; every citation below is a real file and line.
 So the model already says the application admits strangers who bring their own
 group. Only the identity layer refuses.
 
-### What is *not* already true — verified, and it changes this phase's scope
+### What is _not_ already true — verified, and it changes this phase's scope
 
 The brief's premise "everything downstream already works; the missing link is
 becoming authenticated without an invite" holds for the runtime and the
@@ -120,19 +120,19 @@ reasoning and "The first-admin gap" for what that means for the runbook.
 ### The two precedents that decide the design question
 
 - **Against modelling it.** `src/server/authority-config.ts:94-97`, the doc
-  comment on `loadAuthorityConfiguration`: *"Reads only deployment
+  comment on `loadAuthorityConfiguration`: _"Reads only deployment
   configuration. It intentionally does not model any of these values in ADL
-  source or the resolved application model."*
-- **For modelling it.** In the *same file*, immediately below,
+  source or the resolved application model."_
+- **For modelling it.** In the _same file_, immediately below,
   `resolveSessionLifetime` (:168-178) takes the resolved model and overrides the
-  deployment value from it, with this comment (:157-167): *"An operator may
+  deployment value from it, with this comment (:157-167): _"An operator may
   shorten that with `ADL_SESSION_TTL_MINUTES`, and only shorten it: lengthening
   past the declared grace would hand out a capability the application never
-  declared."*
+  declared."_
   `docs/spec/language.md:169-190` states the same contract for `OFFLINE_GRACE`
-  in the language: it is an `APP`-block declaration, *"the authority is the
-  enforcement point"*, and changing it *"is a model version change and passes
-  through the startup compatibility guard like any other."*
+  in the language: it is an `APP`-block declaration, _"the authority is the
+  enforcement point"_, and changing it _"is a model version change and passes
+  through the startup compatibility guard like any other."_
 
 Those two are not in conflict. `loadAuthorityConfiguration` runs **before** the
 model is loaded (`src/server/authority-entrypoint.ts:157-161` loads the model,
@@ -182,19 +182,19 @@ wins, and it already exists.
 **Both, with the model as the ceiling.** A model-level declaration of what the
 application permits, plus a deployment-level control that can only ever
 restrict. When they disagree, the **more restrictive** side wins, and there is
-deliberately no value of any environment variable that turns self-service *on*
+deliberately no value of any environment variable that turns self-service _on_
 for a model that did not declare it.
 
 ### Why the model, and not deployment configuration alone
 
 "This application admits new users who bring their own group" is a statement
-about what the application *is*. Giggle Band and Jointly Care are self-service
+about what the application _is_. Giggle Band and Jointly Care are self-service
 products whose domain models already say so in policy and in a command; a
 hypothetical closed corporate app is a different application, not a different
 deployment of the same one. `ADL_IDENTITY_VERIFICATION` is genuinely a
-deployment concern — it says *how a credential is checked*, which is
-infrastructure — and this is not the same kind of thing: it says *who the
-application is for*.
+deployment concern — it says _how a credential is checked_, which is
+infrastructure — and this is not the same kind of thing: it says _who the
+application is for_.
 
 The precedent is exact and it is `OFFLINE_GRACE`. That is an `APP`-block
 declaration of an application semantic; the authority derives behaviour from the
@@ -204,12 +204,12 @@ inventing one.
 
 ### Why the deployment may only restrict
 
-`resolveSessionLifetime`'s comment already argues it: *"lengthening past the
-declared grace would hand out a capability the application never declared."*
+`resolveSessionLifetime`'s comment already argues it: _"lengthening past the
+declared grace would hand out a capability the application never declared."_
 The same reasoning applies with more force here, because the capability is
 "strangers may create accounts". An operator restricting an open application is
 a legitimate, ordinary act (a staging deployment, an incident, a private pilot).
-An operator *opening* an application whose model says invite-only would let an
+An operator _opening_ an application whose model says invite-only would let an
 environment variable grant a capability the application never declared — and it
 would do so silently, since nothing in the model would record it. So the value
 set itself encodes the asymmetry: `ADL_SELF_SERVICE_REGISTRATION` accepts
@@ -238,10 +238,10 @@ release.
 
 ### Answering the standing invariant
 
-`learnings/implementation/passkey-identity.md` says *"If a future phase adds a
-bootstrap path, it must not become an anonymous registration route."* This phase
+`learnings/implementation/passkey-identity.md` says _"If a future phase adds a
+bootstrap path, it must not become an anonymous registration route."_ This phase
 adds one anyway, and the reason it is not the thing that warning was about is
-that the warning was written when nothing in the system could express *whether*
+that the warning was written when nothing in the system could express _whether_
 an application wanted one. An anonymous route that exists unconditionally, in
 every deployment of every model, is what it forbids. A route that exists only
 where a model declares it, only in `passkey` mode, only while the deployment has
@@ -348,9 +348,9 @@ key in every resolved model in the repository, which would move every
 for a demo whose behaviour did not change at all. Omitting the key keeps the
 change confined to the two apps that actually declare something, and it follows
 a precedent already recorded in `learnings/implementation/business-context-model.md`:
-*"Context and read-model top-level properties are optional and are omitted by
+_"Context and read-model top-level properties are optional and are omitted by
 `resolveApplicationModel` unless the partial model declares them. This keeps
-existing MVP resolved JSON unchanged."*
+existing MVP resolved JSON unchanged."_
 
 The cost is that "absent means invite-only" is a contract a consumer must know.
 There is exactly one consumer (`resolveSelfServiceRegistration`, below), the
@@ -370,7 +370,7 @@ It fires when a model declares `registration: "selfService"` and **no policy
 rule anywhere grants `create` (or `*`) to an `authenticated` or `everyone`
 principal on any object that some business context names as its bound
 `OBJECT`.** That is precisely the state this phase exists to prevent the
-*inverse* of: an application that lets strangers in and gives them nothing to
+_inverse_ of: an application that lets strangers in and gives them nothing to
 do. It is decidable from the model alone.
 
 Severity is warning, not error, on two grounds. First, it is not provably dead
@@ -386,7 +386,7 @@ Both reference apps pass it: `allowAuthenticatedCreateOwnBand` is
 `Circle`. Every other model in the repository declares no `registration` at all,
 so the check never fires for them.
 
-An invalid *value* needs no diagnostic: it is a parse error in `.adl` text and
+An invalid _value_ needs no diagnostic: it is a parse error in `.adl` text and
 `ADL_ADLJ_SCHEMA_INVALID` in `.adlj`, both already existing paths.
 
 ### Printer
@@ -395,9 +395,11 @@ An invalid *value* needs no diagnostic: it is a parse error in `.adl` text and
 one line between the `offlineGraceDays` block and the `modelVersion` block:
 
 ```ts
-  if (model.app.registration !== undefined) {
-    lines.push(`  REGISTRATION ${model.app.registration === "selfService" ? "SELF_SERVICE" : "INVITE_ONLY"}`);
-  }
+if (model.app.registration !== undefined) {
+  lines.push(
+    `  REGISTRATION ${model.app.registration === "selfService" ? "SELF_SERVICE" : "INVITE_ONLY"}`,
+  );
+}
 ```
 
 **This is not deferred.** Phase 98's handoff counted eleven constructs with no
@@ -451,8 +453,8 @@ way.
 
 `bucketFor` is **not** changed and no new route is added. Instead, inside the
 `/v1/webauthn/register/begin` handler, when the request carries **no session
-cookie and no `inviteToken`**, the `selfRegistration` bucket is charged *in
-addition to* the `webauthn` bucket already charged at
+cookie and no `inviteToken`**, the `selfRegistration` bucket is charged _in
+addition to_ the `webauthn` bucket already charged at
 `src/server/authority-http.ts:185`. Either bucket can refuse. That keeps the
 ordinary ceremony allowance (20/window, shared by sign-in) untouched while
 capping account creation independently — an operator can tighten one without
@@ -462,7 +464,7 @@ When the limit is hit the response is byte-identical to today's:
 `429`, `{"error":"rate_limited"}`, `retry-after: 60`
 (`src/server/authority-http.ts:524-526`), the `rate_limited` log event, and the
 `adl_authority_rate_limited_total` metric. A caller must not be able to tell
-*which* bucket refused it.
+_which_ bucket refused it.
 
 Implementation note: `enforceRate()` (:506-523) closes over the single
 `rateBucket` for the path. Give it a sibling `enforceRateFor(bucket)` carrying
@@ -473,15 +475,15 @@ the same metric and log lines, and have `enforceRate()` delegate to it.
 - `clientKey` defaults to the constant `"unknown-client"`
   (`src/server/authority-http.ts:80`); the Node entry point supplies the first
   `x-forwarded-for` hop (`src/server/authority-entrypoint.ts:510-515`). With no
-  proxy in front, every client shares one bucket. Behind a proxy that *appends*
-  rather than *sets* `x-forwarded-for`, the key is attacker-chosen. This is a
+  proxy in front, every client shares one bucket. Behind a proxy that _appends_
+  rather than _sets_ `x-forwarded-for`, the key is attacker-chosen. This is a
   pre-existing property of every bucket, but self-service registration is the
   first endpoint where an anonymous stranger creates durable state on top of it,
   so the runbook must instruct operators to terminate at a proxy that **sets**
   `x-forwarded-for`.
 - `FixedWindowRateLimiter` is in-process
   (`src/server/security-operations.ts:118`, whose own comment says
-  *"Deployments may substitute a shared store"*). With N replicas the effective
+  _"Deployments may substitute a shared store"_). With N replicas the effective
   limit is N×. Runbook states it.
 
 ### 5. The ceremony cost
@@ -501,8 +503,8 @@ Nothing, because:
 
 - Context roles resolve only from accepted membership records, on every call
   (`RuntimeContextService`; the invariant is restated at
-  `src/server/webauthn-identity.ts:212-213`: *"A passkey grants identity only.
-  No ADL role is derived from it"*). A new identity holds no role anywhere.
+  `src/server/webauthn-identity.ts:212-213`: _"A passkey grants identity only.
+  No ADL role is derived from it"_). A new identity holds no role anywhere.
 - The resolved default policy effect is `deny`
   (`src/model/resolved-model/core.ts:111`).
 - `Band`'s search and read grants for non-creators are `ROLE BandMember`
@@ -539,14 +541,14 @@ anyone can become authenticated, so that pairing had to go.
   dead on arrival (a `search` request carries no field), and nothing legitimate
   needed it once the two read models that sourced `User` stopped doing so.
 - Jointly Care's `User.DISPLAY` moved from `Email` to `DisplayName` in the same
-  change — while `Email` *was* the display field, "the display field only"
+  change — while `Email` _was_ the display field, "the display field only"
   would have granted exactly what the policy exists to withhold.
 - `UserSystemAdminPolicy` is untouched in both apps, so an administrator still
   reads the whole record.
 
 This is a real narrowing, not a mask: an earlier draft of this section reasoned
 that a field-level control could not work because "there is no principal to
-un-mask it for". That is true of a *mask* over an otherwise-readable record and
+un-mask it for". That is true of a _mask_ over an otherwise-readable record and
 false of a field-scoped `ALLOW` over a default-deny object, which needs no
 un-masking principal because nothing was granted in the first place.
 
@@ -564,7 +566,7 @@ context-scoped version possible (letting `contextMember.field` accept `id`).
 Per-application judgement still matters and is unchanged: an application whose
 `User` object carries anything more sensitive than a display name simply does
 not declare `SELF_SERVICE`. What has changed is that the two shipped reference
-apps no longer *need* that judgement to hold the line.
+apps no longer _need_ that judgement to hold the line.
 
 ### 7. Observability
 
@@ -598,7 +600,7 @@ what an operator queries.
 `AuthorityIdentity` keyed on an internal `userId` with a `passkey` identity
 link; both may be invited into contexts later, may add further authenticators,
 may recover through a recipient-bound invite, and may be disabled or have their
-sessions revoked identically. Nothing records *how* an identity was minted on
+sessions revoked identically. Nothing records _how_ an identity was minted on
 the identity row, and nothing should: `learnings/implementation/passkey-identity.md`
 is explicit that identity is keyed on an internal id and that adding a method is
 linking, not re-keying. The only difference is transient and is not stored — an
@@ -628,7 +630,7 @@ unset:
 4. **`events-shell.ts:35`** calls `bridge.registerPasskey(undefined)`, which
    calls `transport.beginPasskeyRegistration(undefined)`
    (`src/server/http-authority-transport.ts:215-221`) — `POST
-   /v1/webauthn/register/begin` with body `{}` and no session cookie.
+/v1/webauthn/register/begin` with body `{}` and no session cookie.
 5. **The edge** (`src/server/authority-http.ts:181-202`): passkey mode and a
    `passkeys` service are required (503 otherwise); the `webauthn` bucket is
    charged; there is no session cookie, so the CSRF double-submit check does not
@@ -644,9 +646,9 @@ unset:
    `userHandle`. A challenge row is written with `ceremony: "registration"`,
    `userHandle` set and every other optional column null. When the option is
    false, the existing refusal is unchanged.
-   *(The current condition also refuses when `accessLifecycle === undefined`;
+   _(The current condition also refuses when `accessLifecycle === undefined`;
    self-service needs no access lifecycle, so that clause must be split out
-   rather than reused.)*
+   rather than reused.)_
 7. **The browser** runs `navigator.credentials.create` with the returned options
    and posts `/v1/webauthn/register/finish` with `challengeId` and `response`,
    no `inviteToken`.
@@ -666,11 +668,11 @@ unset:
    authenticator. **No membership record is written, anywhere.**
 10. **A session is issued — and this is the one subtle change.** Today the
     discriminator is `challenge.inviteTokenHash === undefined ? undefined :
-    issueSession` (:367-372), documented in
-    `learnings/implementation/passkey-identity.md` as deliberately *not*
+issueSession` (:367-372), documented in
+    `learnings/implementation/passkey-identity.md` as deliberately _not_
     `challenge.userId`. That rule breaks for self-service, which has neither.
-    Replace it with the question it was always trying to ask — *did this
-    ceremony start without a session?*:
+    Replace it with the question it was always trying to ask — _did this
+    ceremony start without a session?_:
 
     ```ts
     const sessionGated =
@@ -681,12 +683,12 @@ unset:
     This is behaviour-identical for all three existing cases and must be pinned
     by a unit test enumerating all four:
 
-    | ceremony | `challenge.userId` | `inviteRecipientUserId` | `inviteTokenHash` | session issued |
-    | --- | --- | --- | --- | --- |
-    | add another authenticator (session-gated) | set | — | — | **no** (unchanged) |
-    | invited new member | — | — | set | yes (unchanged) |
-    | identity recovery | set | set | set | yes (unchanged) |
-    | **self-service (new)** | — | — | — | **yes** |
+    | ceremony                                  | `challenge.userId` | `inviteRecipientUserId` | `inviteTokenHash` | session issued     |
+    | ----------------------------------------- | ------------------ | ----------------------- | ----------------- | ------------------ |
+    | add another authenticator (session-gated) | set                | —                       | —                 | **no** (unchanged) |
+    | invited new member                        | —                  | —                       | set               | yes (unchanged)    |
+    | identity recovery                         | set                | set                     | set               | yes (unchanged)    |
+    | **self-service (new)**                    | —                  | —                       | —                 | **yes**            |
 
 11. **The edge answers `201`** with `{ userId, expiresAt }` and the `__Host-`
     session and CSRF cookies (:207-231). No new wire field: `invite` is simply
@@ -694,7 +696,7 @@ unset:
     knows which of the two it asked for.
 12. **The browser** records the identity, sets `status: "signedIn"`, and picks
     its notice from the pre-call session status — `"Your account was created and
-    this device is registered."` when it was signed out, the existing
+this device is registered."` when it was signed out, the existing
     `"This device is registered."` when it was already signed in
     (`src/ui/authority-sync.ts:304-329`). It then calls
     `connection.synchronize(...)`, whose bootstrap returns nothing scoped to any
@@ -709,7 +711,7 @@ unset:
     own band and every existing surface works. `CreateCircle` is identical with
     `Owner` and `CircleOwner`.
 14. **What does not happen in a browser.** Step 13 has no UI affordance —
-    see "What is *not* already true" above. This phase proves step 13 over real
+    see "What is _not_ already true" above. This phase proves step 13 over real
     PostgreSQL through the authority; the browser button is Phase 100.
 
 ## The UI
@@ -717,9 +719,9 @@ unset:
 `renderPasskeySignedOut()` (`src/ui/components/adl-session-panel.ts:401-452`)
 currently offers exactly two things and explains neither's origin: a **Sign in
 with a passkey** button, and a **Register this device** form whose only content
-is a bare `Invitation token` text input and the sentence *"New here, or replacing
+is a bare `Invitation token` text input and the sentence _"New here, or replacing
 a lost device? Enter your invitation token and register a passkey on this
-device."* Nowhere does it say where a token comes from.
+device."_ Nowhere does it say where a token comes from.
 
 ### When self-service is permitted
 
@@ -731,23 +733,23 @@ Three clearly separated routes, in this order:
    with **no input**:
    `data-session-self-register="true"`, dispatching `ADL_REGISTER_PASSKEY_EVENT`
    with `detail: {}`. Candidate copy, to be checked by `/impeccable`:
-   *"New here? Create an account with a passkey on this device. You will start
-   with nothing of your own until you set something up or someone invites you."*
+   _"New here? Create an account with a passkey on this device. You will start
+   with nothing of your own until you set something up or someone invites you."_
    The panel is generic shell chrome shared by every ADL app, so the copy must
    not name bands, circles or groups.
    Disabled under the same conditions as the sign-in button
    (`busy`, or `!passkeySupported`), and hidden entirely when
    `selfServiceRegistration` is false.
 3. **Join with an invitation** — the existing form, kept, re-headed, and given
-   the explanation it lacks: *"Someone already using this app can send you an
+   the explanation it lacks: _"Someone already using this app can send you an
    invitation token. Paste it here to join what they have set up — or to set up
-   a replacement device for an account you have lost access to."*
+   a replacement device for an account you have lost access to."_
 
 **The invitation form keeps its own empty-token refusal.** Self-registration
 gets a separate control with no input rather than being folded into the same
 form, which is both better UX (two different intents, two different controls)
 and cheaper: `tests/ui-passkey-sign-in.test.ts:111`
-(*"refuses to dispatch a registration with an empty token and says why"*) stays
+(_"refuses to dispatch a registration with an empty token and says why"_) stays
 valid and unchanged, instead of having to be split into a self-service and an
 invite-only variant.
 
@@ -811,11 +813,11 @@ one.
 and appended to `migrations`:
 
 ```json
-    {
-      "from": "1.9.0",
-      "to": "1.10.0",
-      "objects": []
-    }
+{
+  "from": "1.9.0",
+  "to": "1.10.0",
+  "objects": []
+}
 ```
 
 ### `src/reference/jointly-care/domain.adlj`
@@ -839,11 +841,11 @@ throwaway file afterwards.
 
 ## Model versions
 
-| App | From | To | Hop | Why |
-| --- | --- | --- | --- | --- |
-| Giggle Band (`src/reference/giggle-band/domain.adlj:2`) | `1.9.0` | `1.10.0` | `{from:"1.9.0",to:"1.10.0",objects:[]}` | `app.registration` enters its resolved model, so its fingerprint moves. No stored field changes, so the hop is an empty-object migration. |
-| Jointly Care (`src/reference/jointly-care/domain.adlj:2`) | `1.4.0` | `1.5.0` | `{from:"1.4.0",to:"1.5.0",objects:[]}` | Same. |
-| Generic browser demo (`src/ui/demo-fixture.ts:32`) | `0.2.0` | **unchanged** | none | It declares no `registration`, and the resolver omits the key, so its fingerprint does not move. |
+| App                                                       | From    | To            | Hop                                     | Why                                                                                                                                       |
+| --------------------------------------------------------- | ------- | ------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Giggle Band (`src/reference/giggle-band/domain.adlj:2`)   | `1.9.0` | `1.10.0`      | `{from:"1.9.0",to:"1.10.0",objects:[]}` | `app.registration` enters its resolved model, so its fingerprint moves. No stored field changes, so the hop is an empty-object migration. |
+| Jointly Care (`src/reference/jointly-care/domain.adlj:2`) | `1.4.0` | `1.5.0`       | `{from:"1.4.0",to:"1.5.0",objects:[]}`  | Same.                                                                                                                                     |
+| Generic browser demo (`src/ui/demo-fixture.ts:32`)        | `0.2.0` | **unchanged** | none                                    | It declares no `registration`, and the resolver omits the key, so its fingerprint does not move.                                          |
 
 `1.9.0 → 1.10.0` is numerically forward and is already proven so by
 `tests/model-migration.test.ts:167-169`. Skipping either hop is a compile error
@@ -872,7 +874,7 @@ model moved and for neither app whose model did not:
   screenshots are inspected — the point of the rule is that somebody actually
   proved the transition for each app, not that a diff exists.
 - `tests/visual/browser-demo.visual.spec.ts` is untouched. That it stays green
-  untouched *is* the evidence that an undeclared app's fingerprint did not move.
+  untouched _is_ the evidence that an undeclared app's fingerprint did not move.
 
 ## Testing
 
@@ -906,18 +908,19 @@ the loop-over-invalid-values pattern already at :132-153:
 - `resolveSelfServiceRegistration` truth table — the negative rows are the
   point:
 
-  | model | env | mode | enabled |
-  | --- | --- | --- | --- |
-  | `selfService` | unset | `passkey` | **true** |
-  | `selfService` | `off` | `passkey` | false |
-  | `selfService` | unset | `bypass` | false |
-  | `selfService` | unset | `upstream` | false |
-  | `inviteOnly` | unset | `passkey` | false |
-  | absent | unset | `passkey` | false |
-  | absent | `model` | `passkey` | false |
+  | model         | env     | mode       | enabled  |
+  | ------------- | ------- | ---------- | -------- |
+  | `selfService` | unset   | `passkey`  | **true** |
+  | `selfService` | `off`   | `passkey`  | false    |
+  | `selfService` | unset   | `bypass`   | false    |
+  | `selfService` | unset   | `upstream` | false    |
+  | `inviteOnly`  | unset   | `passkey`  | false    |
+  | absent        | unset   | `passkey`  | false    |
+  | absent        | `model` | `passkey`  | false    |
 
   The last two rows are the acceptance criterion that no environment variable
   can enable self-service for a model that did not declare it.
+
 - `ADL_RATE_SELF_REGISTRATION` parses and defaults to 5. (`ADL_RATE_*` parsing
   currently has no test at all; this closes one bucket's worth.)
 
@@ -927,7 +930,7 @@ the loop-over-invalid-values pattern already at :132-153:
 - Self-service `begin` + `finish` mints an identity and a credential and writes
   **no** membership.
 - **Keep `"refuses a registration that presents neither a session nor an
-  invite"` (:302)** — re-scope it to a service constructed with the default
+invite"` (:302)** — re-scope it to a service constructed with the default
   (`selfServiceRegistration` absent), so it proves the invariant still holds
   where nothing declared otherwise. Do not delete it; `AGENTS.md` and `CLAUDE.md`
   both forbid weakening a constraint to make a change pass.
@@ -962,7 +965,7 @@ the loop-over-invalid-values pattern already at :132-153:
   otherwise what it is today.
 - The invitation form still refuses an empty token (`:111`, unchanged), and its
   new explainer renders in both states.
-- **A `sessionEquals` regression test**: setting a session that differs *only*
+- **A `sessionEquals` regression test**: setting a session that differs _only_
   in `selfServiceRegistration` re-renders the panel.
 - `src/server/http-authority-transport.ts` readiness parsing: absent, `false`,
   a non-boolean and an unreachable authority all yield `false`.
@@ -983,7 +986,7 @@ prerequisite, not a follow-up.
   `## Application Declaration` in `docs/spec/language.md`, giving the anchor
   `language#self-service-registration`.
 
-No new conformance *operation* is needed, so `tests/conformance-runner.test.ts`
+No new conformance _operation_ is needed, so `tests/conformance-runner.test.ts`
 needs no new `describe`.
 
 ### Integration — real PostgreSQL (`npm run test:integration`)
@@ -1041,8 +1044,8 @@ bound to `localhost`, `VITE_ADL_AUTHORITY_URL` set
   with the resolved flag. Because it loads the real Giggle Band model, the
   declaration comes from `domain.adlj` and nothing needs to be faked.
 - **Its doc comment at :38-41 must be corrected.** It currently reads
-  *"**A seeded first administrator.** Registration is never anonymous, so
-  somebody has to exist before anybody can be invited."* The seeded admin stays
+  _"**A seeded first administrator.** Registration is never anonymous, so
+  somebody has to exist before anybody can be invited."_ The seeded admin stays
   — the invite tests still need it — but the stated reason is no longer true.
 - A new test in `tests/visual/passkey-sign-in.spec.ts`: from a fresh virtual
   authenticator, on the signed-out panel, click
@@ -1081,7 +1084,7 @@ recipient-bound bootstrap invite that followed it.
 `Band` record and the `BandMember` row — are still required, because the browser
 has no way to invoke `CreateBand`: a presentation `ACTION`'s `input` is an
 expression over a row, there is no form for a command's declared inputs, and
-`CreateBand` needs a typed `Name`. Verified above under "What is *not* already
+`CreateBand` needs a typed `Name`. Verified above under "What is _not_ already
 true". Until Phase 100 lands, a self-registered first admin can sign in and see
 `No Band contexts are available for this view.`
 
@@ -1089,9 +1092,9 @@ true". Until Phase 100 lands, a self-registered first admin can sign in and see
 does more than mint an identity — it creates a context record, a membership and
 an invite in one command — so it remains the fastest way to a working local
 database, and it remains the only route at all for an `INVITE_ONLY` model. Its
-doc comment (:5-17) must be corrected: *"registration is never anonymous"* is no
-longer unconditionally true, and *"the authority gains no anonymous registration
-path"* is no longer true at all. Neither correction changes what the script
+doc comment (:5-17) must be corrected: _"registration is never anonymous"_ is no
+longer unconditionally true, and _"the authority gains no anonymous registration
+path"_ is no longer true at all. Neither correction changes what the script
 does.
 
 ### The runbook edit
@@ -1101,12 +1104,12 @@ does.
 1. `### First admin: there is no bootstrap flow (documented gap)` (:114) is
    **rewritten, not deleted**, and re-headed
    `### First admin`. It splits into two cases:
-   - *An application declaring `REGISTRATION SELF_SERVICE`* — the first identity
+   - _An application declaring `REGISTRATION SELF_SERVICE`_ — the first identity
      is obtained through the product; the operator still writes the context and
      membership rows (the existing SQL at :139-179, minus the identity insert),
      and the section states plainly that this remaining half is a known gap
      awaiting the onboarding surface.
-   - *An application declaring `INVITE_ONLY` (or nothing)* — the section stands
+   - _An application declaring `INVITE_ONLY` (or nothing)_ — the section stands
      exactly as it is today, all three writes.
 2. A new `### Self-service registration` section under
    `## Switching a deployment to passkey identity`, covering: what the model
@@ -1243,9 +1246,9 @@ is deliberate and should be recorded in the code comment.
   declares `inviteOnly` and a deployment that is `off` produce the identical
   `401 ADL_PASSKEY_UNAUTHORIZED`.
 - **Correct the learnings.** `learnings/implementation/passkey-identity.md`
-  states two things this phase makes false: *"Registration is never anonymous"*
-  and *"The discriminator is `challenge.inviteTokenHash`, not
-  `challenge.userId`"*. Leaving either standing is the `reference-app-drift`
+  states two things this phase makes false: _"Registration is never anonymous"_
+  and _"The discriminator is `challenge.inviteTokenHash`, not
+  `challenge.userId`"_. Leaving either standing is the `reference-app-drift`
   failure mode applied to the learnings themselves.
 - **`/impeccable audit`** on the changed panel and CSS before the UI change is
   considered done, per `AGENTS.md`.
@@ -1384,7 +1387,6 @@ Two further candidates surfaced here, both smaller, both worth recording:
   tolerable when every mutating endpoint required a session; it is less
   comfortable now that one of them does not.
 
-
 ---
 
 # Amendments (owner, 2026-08-21)
@@ -1413,7 +1415,7 @@ Requirements:
   membership active, without a reload or a re-sign-in if that is avoidable —
   and if it is not avoidable, say so rather than hiding a reload.
 - The empty state that currently reads `No Band contexts are available for
-  this view.` must become the entry point, not a dead end.
+this view.` must become the entry point, not a dead end.
 - Whatever you build is **general**, not special-cased to these two commands:
   it is a form for a command's declared inputs. If that requires a new
   presentation or shell construct, design it to the same standard Phase 100
@@ -1429,7 +1431,7 @@ Requirements:
 The body's security section records the exposure as accepted and hands it off,
 and reasons that a field-level restriction could not work because "there is no
 principal to un-mask it for". **That premise was false**, and Phase 101 shipped
-the fix: true of a *mask* over a readable record, false of a field-scoped
+the fix: true of a _mask_ over a readable record, false of a field-scoped
 `ALLOW` over a default-deny object, which needs no un-masking principal because
 nothing was granted in the first place.
 
@@ -1469,6 +1471,7 @@ separate round-trip.
 2. **Reject unknown icon names at compile time.** This is **not** just a
    validator: there is no single icon vocabulary to validate against. There are
    two, they disagree, and both live in rendering code rather than the model:
+
    - `src/ui/components/adl-app/render-chrome.ts`'s `iconGlyph`: `home`,
      `music`, `calendar`, `mic`, `microphone`, `list`, `users`, `sync`,
      `log-out`, `logout`
@@ -1485,3 +1488,261 @@ separate round-trip.
    Sequence this so the diagnostic lands **after** both renderers agree.
    Reversing that order makes the compiler reject models that currently render
    correctly.
+
+---
+
+# Execution Note (2026-08-21)
+
+Written after execution, against what actually happened. Where it contradicts
+the body, this is what shipped.
+
+## What shipped, as a reviewable sequence
+
+Nine commits on `phase-99-self-service-registration`, each independently
+green (`tsc`, `vitest`, `format:check`):
+
+1. **The language surface.** `APP ... REGISTRATION SELF_SERVICE | INVITE_ONLY`
+   with parser, AST, `.adlj`, resolver, printer, regenerated schema, spec
+   prose, five conformance cases, and
+   `ADL_APP_SELF_SERVICE_REGISTRATION_UNREACHABLE` (warning).
+2. **The authority.** `resolveSelfServiceRegistration`, the
+   `ADL_SELF_SERVICE_REGISTRATION` ceiling, the service option, the `begin`
+   fall-through, the `finish` re-check, the session discriminator, the second
+   rate bucket, `/readyz` and the two log fields.
+3. **The browser sign-in surface.** Three routes on the signed-out panel and
+   the invitation explainer it never had.
+4. **Amendment C1** — per-view `presentation.shell.regions` removed.
+5. **Both reference apps declare `SELF_SERVICE`** (1.10.0 → 1.11.0,
+   1.5.0 → 1.6.0).
+6. **The integration acceptance test** against real PostgreSQL and the real
+   Giggle Band model.
+7. **Amendment C2** — one icon vocabulary, both renderers, then the
+   diagnostic, in that order.
+8. **Amendment A** — `COMMAND_ACTION` shell controls and
+   `<adl-command-form>`, plus `PLACEMENT EMPTY_STATE` and
+   `VISIBLE WHEN CONTEXT X UNAVAILABLE` (1.11.0 → 1.12.0, 1.6.0 → 1.7.0).
+9. **The real-browser proof**, and the two defects it found.
+
+## The acceptance test, and its real output
+
+`tests/integration/authority-self-service-registration.test.ts`, against a
+throwaway PostgreSQL and the **real Giggle Band model** loaded through
+`loadAuthorityModel`, over a real socket with the real
+`@simplewebauthn/server` verifier:
+
+```
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+```
+
+The load-bearing case is `lets that identity run CreateBand and come out a
+BandAdmin of its own band`: an identity that did not exist a moment ago,
+minted by an anonymous ceremony with no invite token, replays `CreateBand`,
+and the `Band` (`CreatedBy` = that identity) and the `BandMember`
+(`Role: "BandAdmin"`) are read back **out of `adl_authority_records`**, not
+out of the response. The next bootstrap returns exactly one of each. No
+`seed-local-admin.mjs`, no operator SQL.
+
+The same path in a real Chromium with a virtual authenticator:
+
+```
+✓ [passkey] › creates an account with no invitation, then creates a band from the empty state (940ms)
+  5 passed (11.6s)
+```
+
+and, from the authority's own log during that run:
+
+```
+{"event":"identity_verification_configured","mode":"passkey","verifier":"passkey","bypassed":false,"selfServiceRegistration":true,...}
+{"event":"passkey_registered","endpoint":"/v1/webauthn/register/finish","status":201,"selfService":true,...}
+```
+
+## The negative cases, and what proved each
+
+| Case                                                        | Proof                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model says `INVITE_ONLY`                                    | Integration: the identical anonymous `register/begin` is `401 ADL_PASSKEY_UNAUTHORIZED`, with **zero** identity rows and **zero** challenge rows written.                                                                                                                                                                                                                     |
+| Deployment says `off` while the model permits               | Integration: byte-identical `401 ADL_PASSKEY_UNAUTHORIZED`. Deliberately indistinguishable from the row above — a caller must not learn whether the model declined or the operator did.                                                                                                                                                                                       |
+| No env value can turn it _on_                               | Unit: a ten-row truth table over `resolveSelfServiceRegistration`, including `absent + model`, `absent + off`, `inviteOnly + off`, and `selfService` in `bypass`/`upstream`. `ADL_SELF_SERVICE_REGISTRATION` throws `AuthorityConfigurationError` for `on`, `true`, `yes`, `1`, `Model`, `OFF`, `enabled`.                                                                    |
+| The rate limit biting                                       | Integration and unit: with `selfRegistration: 1`, the second anonymous `begin` in the window is `429 rate_limited` with `retry-after: 60`, **while an invite-bearing `begin` in the same window still reaches the ceremony** (`401 ADL_PASSKEY_INVITE_INVALID`, not `429`). That second half is what proves the buckets are distinct rather than the whole surface throttled. |
+| A member-less identity cannot read email or enumerate users | Integration, driving the real `ObjectStore` over the real projection: `search("User")` and `read("User", …)` both `PolicyDeniedError`; `readFieldsForDisplay` yields `{ Name: "Riley Stone" }` and the assertion is on the **rendered values** — a real name, no `@`, no `user-` — not on the absence of an exception. Bootstrap returns nothing and contains no `@`.         |
+| A challenge outliving its configuration                     | Unit: `begin` under a permissive service, `finish` under a restarted one, `401 ADL_PASSKEY_UNAUTHORIZED`, no credential written.                                                                                                                                                                                                                                              |
+
+Every new control was proven by mutation — break it, watch exactly its own
+test go red, restore it. That was done for: the unreachability warning (3
+tests), the second rate charge (1), the `finish` re-check (1), the four
+`commandAction` diagnostics (5), `sessionEquals`'s new field (1), the
+readiness propagation (1), the signed-out command-action guard (1), the
+`refreshFromRuntime` fix (1), and the icon diagnostic and renderer parity
+(1 + 2).
+
+## Amendment A: what was built, and it is general
+
+A **`COMMAND_ACTION` shell control** naming any declared `COMMAND`, and
+`<adl-command-form>`, which renders one control per declared `INPUT` typed
+from that input's own `FieldType`. It knows nothing about bands, circles,
+contexts or registration; its unit tests deliberately use neither reference
+app, and it is proven working from the **top bar** as well as from an empty
+state, which is the test that it is a construct rather than an onboarding
+hook.
+
+Two supporting additions, both mirrors of things that already existed:
+`PLACEMENT EMPTY_STATE` (the empty state was the only region a control could
+not reach) and `VISIBLE WHEN CONTEXT X UNAVAILABLE` (the mirror of
+`AVAILABLE`, which is what makes the surface self-removing). Both have `.adl`
+text syntax, a printer branch, a regenerated schema and a round-trip test, so
+this is not a tenth `.adlj`-only construct after Phase 100 closed nine.
+
+Four diagnostics guard it: a `commandAction` with no `COMMAND`, a `COMMAND` on
+a kind no renderer reads it from, an unknown command, and a command whose
+`REPEATED`/`ATTACHMENT` input no generated form can ask for. That last one is
+the difference between an unpromptable command being a model error and being a
+form that silently drops a value.
+
+### Decisions taken where the specification left room
+
+- **A shell control, not a presentation action.** The body assumed the answer
+  would be a form opened from a presentation `ACTION`. It cannot be: a
+  context-scoped view renders its _empty state_ for a person with no
+  membership, so its presentation is never evaluated and no action in it can
+  ever be reached. The affordance has to live in something that renders
+  without a context, which is shell chrome.
+- **`EMPTY_STATE` has no region control list.** `topBar` and `navDrawer` each
+  carry one because they are shared chrome whose ordering is a layout
+  decision. The empty state is one message with, in practice, one way out, so
+  order is declaration order and the renderer consumes `placement` directly.
+- **A command action renders only for a signed-in caller** (with an authority
+  configured). Found in the browser, not by reasoning: the signed-out identity
+  is the non-empty placeholder `adl-signed-out`, so a bare `authenticated`
+  create policy would have _accepted_ a signed-out visitor's local write and
+  the authority would then have refused to sync it.
+- **The shell holds the form's draft.** `render()` rewrites the whole
+  `innerHTML`, so the element is recreated on every render and cannot keep
+  anything itself. A refusal wiping the person's answers is the worst moment
+  to lose them.
+- **The command names the context to select.** After the command commits the
+  shell selects the instance created by the step declaring `ESTABLISHES
+CONTEXT` — read from the model, never guessed from the step order.
+
+## What went wrong
+
+- **The specification's model versions were stale**, as the amendment warned.
+  Recomputed from the tree: 1.10.0 and 1.5.0, not 1.9.0 and 1.4.0. Every
+  fingerprint was taken from the failure diff.
+- **Two version bumps per app, not one.** The registration declaration and the
+  onboarding shell control landed in different commits, and each is a real
+  content change, so each got its own hop: Giggle Band 1.10.0 → 1.11.0 →
+  1.12.0, Jointly Care 1.5.0 → 1.6.0 → 1.7.0. Honest history rather than a
+  rewritten commit.
+- **`PartialShellControlModel` has no `comment` field.** The per-control
+  rationale for the onboarding controls was written as a `"comment"` key,
+  which the generated schema rejected. It moved to the `shell` block's own
+  comment rather than growing the language a comment attachment point at the
+  end of a large phase.
+- **`validateShellRegionControls` is about the _global_ shell**, not the
+  per-view one, contrary to the body's file list for Amendment C1. Nothing was
+  removed from `validate-model/shell.ts`.
+- **Fifteen `rateLimits` literals**, not the fourteen the body listed
+  (`tests/integration/edit-surface-batch.test.ts:951` was missing).
+- **One integration flake.** On the first full `test:integration` run after the
+  onboarding commit, one test in the migration/deployment area failed on a
+  `ADL_MODEL_MIGRATION_APPLIED` log-line assertion; two subsequent full runs
+  were clean (`17 files / 169 tests`). Not diagnosed, and not obviously related
+  to this phase's changes. Recorded rather than dismissed.
+
+## The one thing this phase does not close, and it is user-visible
+
+**Nothing creates a `User` _application record_ for an authority-minted
+identity.** Not registration, not `claimInvite`, not `seed-local-admin.mjs`,
+not the runbook's bootstrap SQL. Verified by reading all four, and reproduced:
+
+```ts
+// scratch test against the real Giggle Band runtime
+const resolved = await resolveLookupTargetRecord(runtime, userField, "user-newcomer", ctx);
+// RESOLVED: null
+```
+
+`BandMember.User` is a `LOOKUP User DISPLAY Name` with no `TARGET_FIELD`, so
+the stored value is the target record's _own id_; `readFieldsForDisplay`
+returns null for a record that does not exist, and every caller falls back
+silently to the raw stored value. So an authority-minted person renders as
+`user-…` wherever a member name belongs.
+
+**This predates Phase 99 and affects invited members identically** — no
+authority-minted identity has ever had a `User` record. Phase 99 does not
+create the defect; it makes it the first thing a new person sees about
+themselves.
+
+It was **not fixed here**, and that is a deliberate stop-and-report under the
+amendment's own instruction, because every route to a fix needs a design
+decision that should not be made silently at the end of an already-large
+phase:
+
+1. **The `User` record's id must equal the authority's `userId`**, because the
+   lookup stores the target's own id. No command construct can express that: a
+   `create` step mints its own id, and only `ObjectStoreCreateOptions.recordId`
+   (a replay-path affordance) can name one. So this needs a new language
+   construct — a create step able to name its record from
+   `RUNTIME.userId`, e.g. `STEP createProfile CREATE User ID runtime.userId`.
+2. **Even with that, running the command twice is a hard failure.** A create
+   under an id that already names a record is refused, correctly and
+   load-bearingly. So `CreateBand` cannot carry the profile step without
+   breaking for anyone who creates a second group, and the language has no
+   conditional or idempotent write to express "create if absent". Trading a
+   cosmetic defect for a functional one is not an improvement.
+3. **A required `User.Email`.** Giggle Band's `User` has `Email` required with
+   an `email` validator, and it is the object's `businessKey`. A passkey
+   registration collects no email, so either the onboarding form asks for one
+   (a product decision, and adjacent to this phase's "no email verification"
+   non-goal) or the model changes.
+4. **Keying the lookup on a `TARGET_FIELD` instead is dead on arrival.** It
+   would make label resolution a `search`, and Phase 101 deliberately removed
+   the `SEARCH` grant on `User` because search is the enumeration primitive
+   over a directory.
+
+The honest reading is that this is its own phase: a create-step record
+identity construct, an answer to idempotent writes, and a profile-collection
+decision. It is nominated below.
+
+## Deliberate deviations from the body
+
+- **The integration cases live in a new file**,
+  `tests/integration/authority-self-service-registration.test.ts`, rather than
+  being folded into `authority-passkey-identity.test.ts`. That file's literal
+  model has no `CreateBand`-shaped command, so the acceptance criterion would
+  have been proven about a fixture; the new file serves the real Giggle Band
+  model. `authority-passkey-identity.test.ts` is otherwise unmodified apart
+  from its `rateLimits` literal, and its secret-scan test still passes
+  unchanged.
+- **No `/impeccable audit` was run.** `AGENTS.md` requires it before a
+  UI-affecting change is considered done. It was not run here; the screenshots
+  were inspected instead, and the two defects that inspection found are fixed
+  above. This is an outstanding obligation, not a judgement that the surface
+  is fine.
+- **`src/ui/demo-fixture.ts` is untouched and stays at `0.2.0`**, and
+  `tests/visual/browser-demo.visual.spec.ts` and `tests/ui-runtime.test.ts`
+  pass unmodified — which is the evidence that omitting the `registration` key
+  from the resolved model really does leave an undeclaring app byte-identical.
+
+## Planning Handoff
+
+**The next phase is the `User` profile record**, and it outranks everything
+else in the repository right now: it is the only known defect that a person
+using either shipped application sees about _themselves_, on the first screen,
+every time. Its scope is the three decisions listed above — a create-step
+record-identity construct, an answer to idempotent creation, and where a
+display name (and a required `Email`) comes from — and the acceptance test is
+the one this note could not write: after a brand-new person self-registers and
+creates their group, their **name** renders on the member list, with no
+`user-`/`person-` prefix anywhere, asserted at the same three layers Phase 101
+used.
+
+Two smaller candidates, both still standing from the body:
+
+- **`contextMember.field` accepting `id`**, which is the only honest way to
+  express "only people I share a context with" on an object that has no field
+  holding its own id.
+- **A shared-store rate limiter.** `FixedWindowRateLimiter` is per process, so
+  every documented limit is really N× the limit on N replicas. That was
+  tolerable when every mutating endpoint required a session; it is less
+  comfortable now that one of them does not.

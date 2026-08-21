@@ -231,12 +231,22 @@ the Playwright web servers in `playwright.config.ts` keep working.
 
 ## Signing in
 
-A brand-new database has no identities, and **registration is never anonymous**:
-a passkey ceremony needs either a live session or a valid invitation. So the
-first identity is created out of band, exactly as
-`docs/operations/authority-production-runbook.md` describes for a real
-deployment. With the authority already started once (the application model row
-has to exist):
+Giggle Band declares `REGISTRATION SELF_SERVICE` (Phase 99), so the quickest
+route is no route at all: open the app and choose **Create an account** in the
+sign-in panel. Your browser prompts for a platform authenticator, and the
+empty state that follows offers **Create a band**, which creates the band and
+your founder membership in one server-side transaction. No seed script, no
+invitation, no SQL.
+
+Seed a first administrator instead when you want a database that *already* has
+a band, a membership and an invitation in it — or when you are working on the
+invite and recovery paths, which still need somebody inside to issue an
+invitation. It is also the only route for a model declaring
+`REGISTRATION INVITE_ONLY`, where a passkey ceremony needs either a live
+session or a valid invitation and the first identity has to be created out of
+band, exactly as `docs/operations/authority-production-runbook.md` describes
+for a real deployment. With the authority already started once (the application
+model row has to exist):
 
 ```bash
 set -a; . ./.env.authority.local; set +a
@@ -248,8 +258,8 @@ administrator's `BandAdmin` membership, and a 24-hour invitation, then prints
 the invitation code. It is idempotent: re-running reuses the same identity and
 band and just mints a fresh invitation.
 
-Open the app, and in the sign-in panel choose to register a device with an
-invitation, pasting that code. Your browser will prompt for a platform
+Open the app, and in the sign-in panel choose **Join with an invitation**,
+pasting that code. Your browser will prompt for a platform
 authenticator (Touch ID, Windows Hello, a security key, or Chrome's built-in
 software authenticator). After that, the sync-state chip in the top bar goes
 from `N pending` to `Synced` as the queue drains, and `Register a device` is not

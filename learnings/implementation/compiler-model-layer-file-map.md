@@ -34,7 +34,7 @@ validate/resolve counterpart).
 | `lifecycle.ts` | States, lifecycle actions/guards, hook refs, object policy/sync-policy reference validation. |
 | `policy.ts` | Policies, policy rules, policy conditions, principal selectors. |
 | `view.ts` | Views, view context, sort, edit sections, relationship pickers. |
-| `presentation-core.ts` | The presentation dispatcher (`ResolvedViewPresentation`, `resolveViewPresentation`/`validateViewPresentation`) plus everything shared across list/matrix/calendar sources: state, icon maps, status/status-map, legend, sections, controls, shell regions, and the shared field-reference helpers (`getViewFieldReferences`, `mergeFieldReferences`, `indexPresentationControls`, etc.). The single largest domain file in both `validate-model/` (967 lines) and `resolve-model/` (277 lines). |
+| `presentation-core.ts` | The presentation dispatcher (`ResolvedViewPresentation`, `resolveViewPresentation`/`validateViewPresentation`) plus everything shared across list/matrix/calendar sources: state, icon maps, status/status-map, legend, sections, controls, and the shared field-reference helpers (`getViewFieldReferences`, `mergeFieldReferences`, etc.). The single largest domain file in both `validate-model/` (967 lines) and `resolve-model/` (277 lines). |
 | `presentation-list.ts` | List-source presentation only. |
 | `presentation-matrix.ts` | Matrix-source presentation: axis/cell sources, date-column axis, matrix edit. |
 | `presentation-calendar.ts` | Calendar-source presentation: month, calendar status binding. |

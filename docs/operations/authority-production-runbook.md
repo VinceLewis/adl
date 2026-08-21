@@ -74,9 +74,10 @@ No mode runs unnoticed:
 
 - The startup security event `identity_verification_configured` states `mode`,
   `verifier` and `bypassed`. No proof value is ever logged.
-- `/readyz` returns `identityVerification: { mode, verifier, bypassed }`. A
-  passkey deployment reports
-  `{ mode: "passkey", verifier: "passkey", bypassed: false }`.
+- `/readyz` returns
+  `identityVerification: { mode, verifier, bypassed, selfServiceRegistration }`.
+  A passkey deployment that admits nobody uninvited reports
+  `{ mode: "passkey", verifier: "passkey", bypassed: false, selfServiceRegistration: false }`.
 
 Alert on `bypassed: true` in any environment that serves real users, and treat
 it as an open finding.
@@ -92,6 +93,8 @@ it as an open finding.
 | `ADL_WEBAUTHN_ORIGINS` | Comma-separated origins an assertion may come from. Defaults to `ADL_ALLOWED_ORIGINS`. |
 | `ADL_WEBAUTHN_CHALLENGE_TTL_SECONDS` | Challenge lifetime, positive integer, default 300. |
 | `ADL_RATE_WEBAUTHN` | Requests per window for `/v1/webauthn/*`, default 20. |
+| `ADL_SELF_SERVICE_REGISTRATION` | `model` (default) or `off`. See [Self-service registration](#self-service-registration). There is no value that turns it on. |
+| `ADL_RATE_SELF_REGISTRATION` | Anonymous account creations per window, default 5. Charged **in addition to** `ADL_RATE_WEBAUTHN`. |
 
 Startup refuses an origin that is not the relying party id or a subdomain of it,
 so a mismatch is a failed start rather than credentials that silently fail to
@@ -111,15 +114,105 @@ same-site hosting requirements as every other session call apply. A user agent
 with no WebAuthn support cannot sign in to a passkey deployment at all; the
 sign-in surface says so rather than failing obscurely.
 
-### First admin: there is no bootstrap flow (documented gap)
+### Self-service registration
 
-**This repository has no first-admin bootstrap flow, and that is a real gap, not
-an oversight in this runbook.** Passkey registration is either session-gated or
-invite-gated and is never anonymous; issuing an invite requires an authenticated
-caller who already passes membership-management policy in the target context. A
-brand-new database therefore has no way to admit its first identity through the
-product surface. The first identity and its membership must be established **out
-of band by an operator**, once, before anyone can sign in.
+An ADL model may declare `REGISTRATION SELF_SERVICE` in its `APP` block, which
+says the application admits people nobody invited. Both shipped reference apps
+declare it, because both already modelled it: `allowAuthenticatedCreateOwnBand`
+and `CreateBand` say any signed-in person creates their own band and becomes
+its `BandAdmin`.
+
+**The model is the ceiling and the deployment may only restrict it.**
+`ADL_SELF_SERVICE_REGISTRATION` accepts `model` (defer to the declaration) and
+`off`. There is deliberately **no** value that enables self-service for a model
+that declares `INVITE_ONLY` or declares nothing: opening an application whose
+model says invite-only would hand out a capability the application never
+declared, and would do so where nothing in the model records it. An operator
+who sets `on`, `true` or `1` gets a startup refusal, not a shrug.
+
+It is additionally inert outside `passkey` mode: `bypass` and `upstream` have
+no registration ceremony at all.
+
+The effective state is disclosed twice: on `/readyz` as
+`identityVerification.selfServiceRegistration`, and once at startup in the
+`identity_verification_configured` event. Each completed registration writes a
+`passkey_registered` event carrying `selfService: true | false` — a boolean and
+nothing else, never a user id, token or challenge.
+
+**Rate limiting, and two honest limits of it.** A `register/begin` carrying
+neither a session cookie nor an invite token is charged the
+`selfRegistration` bucket (`ADL_RATE_SELF_REGISTRATION`, default 5) *in
+addition to* the `webauthn` bucket, so the ordinary ceremony allowance shared
+with sign-in stays untouched while account creation is capped independently.
+Either bucket can refuse and the `429` is byte-identical, so a caller cannot
+tell which did. But:
+
+- **Terminate at a proxy that _sets_ `x-forwarded-for`, not one that appends
+  to it.** The rate-limit key is the first hop of that header; with no proxy in
+  front, every client shares one bucket, and behind a proxy that appends, the
+  key is attacker-chosen. This has always been true of every bucket, but
+  self-service registration is the first endpoint where an anonymous stranger
+  creates durable state on top of it.
+- **The limiter is per process.** `FixedWindowRateLimiter` holds its counters
+  in memory, so with N replicas the effective limit is N× what is configured.
+  Alarm on `adl_authority_rate_limited_total` and on
+  `adl_authority_requests_total{endpoint="/v1/webauthn/register/begin"}` rather
+  than trusting the number.
+
+Every self-registration is still a real WebAuthn ceremony with
+`residentKey: "required"` and user verification, so accounts cannot be minted
+by a script that only speaks HTTP.
+
+**What a self-registered identity may see before it creates anything.** It
+holds no membership and therefore no context role, the default policy effect is
+`deny`, and every scoped object is gated by object scope, so it can read
+nothing of anybody's. The one thing it can resolve is a display name: in both
+reference apps `UserPolicy` grants `READ ... FIELDS <display field>` to
+`AUTHENTICATED` and nothing else — no `SEARCH` rule at all, so the directory
+cannot be enumerated, and `Email` has no rule of its own and falls to default
+deny. Jointly Care's `User.DISPLAY` is `DisplayName`, not `Email`.
+
+**This remains an application-by-application judgement, and the platform does
+not check it.** An application whose `User`-shaped object exposes anything more
+than a display name to the `AUTHENTICATED` principal should not declare
+`SELF_SERVICE`: after that declaration, "authenticated" no longer implies
+"somebody already inside vouched for them".
+
+### First admin
+
+Which half of this applies depends on what the served model declares.
+
+#### An application declaring `REGISTRATION SELF_SERVICE`
+
+**No operator writes at all.** On a `passkey` deployment that has not switched
+self-service off, the first person to reach the sign-in surface chooses
+"Create an account", registers a passkey, and lands on the application's start
+view; the context-scoped view they land on offers the model's own
+`COMMAND_ACTION` control ("Create a band"), which runs `CreateBand` and writes
+the context record and the founder `BandMember` in one server-side
+transaction. From the next bootstrap they are an administrator of their own
+group.
+
+`scripts/dev/seed-local-admin.mjs` is therefore no longer required for such a
+model. It still works, and it is still the fastest way to a local database
+that already has a band, a membership and an invitation in it.
+
+**One known gap, and it is visible.** Nothing creates a `User` *application
+record* for an authority-minted identity — not registration, not `claimInvite`,
+and not this bootstrap. `BandMember.User` is a `LOOKUP User DISPLAY Name`, so
+until somebody creates that record the person renders as their raw
+`user-...` id everywhere a member name appears. This predates self-service
+registration and affects invited members identically; self-service simply makes
+it the first thing a new person sees about themselves. See the Phase 99
+execution note for the reproduction and the options.
+
+#### An application declaring `REGISTRATION INVITE_ONLY`, or declaring nothing
+
+Registration is session-gated or invite-gated, and issuing an invite requires
+an authenticated caller who already passes membership-management policy in the
+target context. A brand-new database therefore has no way to admit its first
+identity through the product surface, and the first identity and its membership
+must be established **out of band by an operator**, once.
 
 For a **local development** database, `scripts/dev/seed-local-admin.mjs`
 (`npm run dev:seed`) performs exactly this step through the repository's own
@@ -1004,6 +1097,15 @@ reset a stored signature counter as a remedy.
 **Invite misuse:** revoke the invite in its original context, inspect only its
 access-audit id and metadata, revoke the claimed membership if needed, then
 revoke that user's sessions.
+
+**Abusive account creation:** set `ADL_SELF_SERVICE_REGISTRATION=off` and
+restart. That closes the door without a model change or a release, and
+`/readyz` will report `selfServiceRegistration: false` once it is in effect. It
+does **not** disable identities already created, and it does not affect the
+invite path — invited registration and identity recovery keep working. Disable
+individual identities and revoke their sessions separately. Tightening
+`ADL_RATE_SELF_REGISTRATION` is the lesser step, but read the two limits above
+first: it is per process and keyed on `x-forwarded-for`.
 
 **Database loss/corruption:** stop writes, select a recovery point, restore to
 an isolated database, complete the drill checks above, switch traffic only once

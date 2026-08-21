@@ -3,18 +3,25 @@
  * Seeds the first administrator, a business context, and one invitation into a
  * LOCAL development database, then prints the invite token.
  *
- * Why this has to exist: registration is never anonymous. A passkey ceremony
- * needs either a live session or a valid invite, so a brand-new database has no
- * way to admit its first identity through the product surface — the runbook
- * calls this out as a documented gap and gives an operator raw SQL for it
- * (`docs/operations/authority-production-runbook.md`, "First admin: there is no
- * bootstrap flow"). This script performs that same out-of-band step through the
- * repository's own server modules instead of hand-written INSERTs, so the
- * records it writes are the shape the model actually validates.
+ * Why this exists: for a model that declares `REGISTRATION INVITE_ONLY` (or
+ * declares nothing), a passkey ceremony needs either a live session or a valid
+ * invite, so a brand-new database has no way to admit its first identity
+ * through the product surface — the runbook gives an operator raw SQL for it
+ * (`docs/operations/authority-production-runbook.md`, "First admin"). This
+ * script performs that same out-of-band step through the repository's own
+ * server modules instead of hand-written INSERTs, so the records it writes are
+ * the shape the model actually validates.
+ *
+ * Since Phase 99 that is a *conditional* need, not an absolute one. A model
+ * declaring `REGISTRATION SELF_SERVICE` — which both reference apps now do —
+ * admits its first identity through the product, and the first-run onboarding
+ * surface creates the context and the founder membership, so nothing here is
+ * required for one. This script stays because it is still the fastest route to
+ * a local database that already has a band, a membership and an invitation in
+ * it, and because it remains the only route for an invite-only model.
  *
  * It is developer tooling, and deliberately not a route: nothing here is
- * reachable over HTTP, and the authority gains no anonymous registration path.
- * Do not point it at a real deployment.
+ * reachable over HTTP. Do not point it at a real deployment.
  *
  * Run `npm run build:authority` first (`npm run dev:seed` does), start the
  * authority once so the application model row exists, then run this.

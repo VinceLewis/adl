@@ -12,9 +12,11 @@ Phase 26 added renderer-neutral runtime evaluation for composed views.
   defaults to `modal`; supported values are `modal`, `drawer`, `page`, and
   `splitPane`.
 - The presentation contract is renderer-neutral. It uses layout, density,
-  sections, controls, list bindings, row fragments, icon maps, formatting, empty
-  states, and shell regions, but no DOM tags, CSS selectors, framework
-  component names, SVG paths, or browser event handlers.
+  sections, controls, list bindings, row fragments, icon maps, formatting and
+  empty states, but no DOM tags, CSS selectors, framework component names, SVG
+  paths, or browser event handlers. (It used to include per-view shell regions
+  too; Phase 99 removed them as dead capability — the shell is global, and a
+  screen needing a control puts it in the screen's own content.)
 - Resolver defaults are explicit: `stack` layout, `comfortable` density,
   `readModel` list source kind, `table` list rendering, `inline` row layout,
   `plain` text/field fragments, memory-backed local state, and empty
@@ -262,8 +264,9 @@ reparsing to a `toEqual`-identical resolved model
 (`tests/compile-adlj.test.ts`). See
 [[adlj-json-authoring-surface]]'s "Phase 78" section for the full account,
 including the named set of constructs that had no ADL text syntax at all and
-so could not be printed — nine of which Phase 100 closed, leaving `MATRIX`,
-conditional row fragments and per-view `presentation.shell.regions` — and
+so could not be printed — nine of which Phase 100 closed, leaving `MATRIX` and
+conditional row fragments (per-view `presentation.shell.regions` was on that
+list until Phase 99 removed the construct outright) — and
 the six unrelated pre-existing printer defects the Giggle Band round-trip
 proof surfaced along the way (a policy field named `Role` colliding with the
 `ROLE` principal keyword being the one most likely to recur if this app

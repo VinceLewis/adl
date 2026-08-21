@@ -24,7 +24,8 @@ or mobile business-context selection.
   behavior defaults to `sheet`, rendering a compact selected-label trigger and
   modal sheet while preserving the desktop dropdown path.
 - Optional shell controls include `contextSelector`, `syncStatus`,
-  `themeSwitch`, `logout`, and `pwaInstall`. As of Phase 67 the current
+  `themeSwitch`, `logout`, `pwaInstall`, and — since Phase 99, see below —
+  `commandAction`. As of Phase 67 the current
   browser implements context selection, sync/online status, sign-out (Phase
   47), PWA installability (Phase 47's capture-and-prompt wiring, closed by
   Phase 66's `appinstalled` handling), and theme switching (Phase 67).
@@ -220,6 +221,63 @@ or mobile business-context selection.
   — it is the only place the shell is declared — and see
   `implementation/reference-app-drift.md` before ever keeping a second copy of
   a declaration on disk.
+
+## Decisions From Phase 99 — `COMMAND_ACTION`, `EMPTY_STATE`, `UNAVAILABLE`
+
+- **The shell gained the one control kind that is about the application.**
+  `commandAction` runs a declared `COMMAND`, prompting for that command's own
+  declared `INPUTS` through `<adl-command-form>`. Every other control kind
+  (`contextSelector`, `syncStatus`, `connectivity`, `themeSwitch`, `logout`,
+  `pwaInstall`) is about the device or the session; this one writes. That
+  difference drives three rules:
+  - It is **available**, never "unavailable" the way an unbacked host
+    capability is: the command exists in the model, and whether the caller may
+    run it is the runtime's answer, not the shell's.
+  - It renders **only when an authority says somebody is signed in**, or when
+    there is no authority at all. The signed-out identity is the non-empty
+    placeholder `adl-signed-out`, so a bare `authenticated` create policy
+    would *accept* a signed-out visitor's local write and the authority would
+    then refuse to sync it.
+  - It **decides nothing else**. `<adl-command-form>` collects values and
+    dispatches them; `executeCommand` runs the preconditions and every step's
+    policy check. UI is never the enforcement point.
+- **Why it had to exist at all.** A presentation `ACTION`'s `input` is
+  `Record<string, ResolvedExpression>` evaluated against a *row*, so it can
+  only restate values that already exist somewhere. Nothing in the language
+  could ask a person for a value, which made any command with a required
+  free-text input unreachable from a browser — and left a person holding an
+  identity and no membership with no affordance at all, because every
+  context-scoped view renders its empty state for them.
+- **`PLACEMENT EMPTY_STATE` has no region control list, and that is
+  deliberate.** `topBar` and `navDrawer` each carry an ordered `CONTROLS` list
+  because they are shared chrome whose ordering is a layout decision, and a
+  control placed there but not listed silently never renders (the defect
+  `validateShellRegionControls` exists to catch). The empty state is one
+  message with, in practice, one way out of it, so order is declaration order
+  and the renderer consumes `placement` directly.
+- **`VISIBLE WHEN CONTEXT X UNAVAILABLE` is the mirror of `AVAILABLE`**, and
+  the pair is what makes an onboarding surface self-removing: it appears for a
+  person who can reach no instance of the context and takes itself away the
+  moment they belong to one.
+- **Landing the person inside what they made is half the feature.** After the
+  command commits, `runShellCommand` re-reads `availableContexts` and selects
+  the instance created by the step that declared `ESTABLISHES CONTEXT` — named
+  by the command, never guessed. Without that they land back on the same empty
+  state that offered them the control, and the only fix a person would find is
+  a reload.
+- **The shell must hold the form's draft.** `render()` rewrites the whole
+  `innerHTML`, so `<adl-command-form>` is recreated rather than updated on
+  every render and cannot keep anything itself. A refusal re-rendering with the
+  person's answers wiped is the worst moment to lose them, so the submitted
+  values live on the shell as `commandFormValues` and are handed back — exactly
+  as record drafts already are.
+- **`refreshFromRuntime` must go through `refreshRecords`.** It used to call
+  `refreshPresentationView` directly for a composed view, skipping the context
+  resolution and going straight to `requireActiveRuntimeContext()`. A signed-in
+  person who is a member of no context therefore got `The active view does not
+  have a runtime context.` as an *error banner* instead of the view's empty
+  state. Unreachable before self-service registration, because every identity
+  used to arrive holding a membership.
 
 ## Practical Guidance
 
