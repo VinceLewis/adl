@@ -77,6 +77,24 @@ runtime entry point must call `withContextMembers` itself, or such a rule will
 deny — safe, but a false denial. `access-lifecycle.ts` and
 `authoritative-reporting.ts` do this.
 
+## `self` is a third principal, and it is not a narrower `contextMember`
+
+`SELF` (Phase 103) matches `record.meta.guid === context.userId` and nothing
+else. It is not the `contextMember.field: "id"` extension Phases 91, 99 and 101
+kept nominating, and it does not replace it: `contextMember` on `User` keyed on
+the record's own id would say "whoever this record belongs to is in a context
+with me", which on a `Band` context grants a caller read over every co-member's
+`User` record — a band-scoped directory. `SELF` grants exactly one row to
+exactly one caller. The two answer different questions and the second one is
+still unbuilt.
+
+Both share the one structural limit that matters here: **neither can gate
+`search`**, because the object-level search check is evaluated with no record.
+For `contextMember` that is a restriction to work around (grant `SEARCH` wider,
+filter per record). For `SELF` it is the safety property — it is why adding a
+row-level self-grant to a `User` object cannot reopen the directory Phase 101
+closed, whatever else the policy says.
+
 ## Bootstrap selects by read policy, not by sync scope
 
 `AuthorityService.bootstrap` filters candidates by `runtime.read` and excludes

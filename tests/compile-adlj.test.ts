@@ -134,6 +134,109 @@ describe("compileAdlj", () => {
     expect(compileAdl(printed).model.app.registration).toBe(registration);
   });
 
+  it("round-trips a SELF policy principal: .adlj JSON, printed .adl text, and .adl source all resolve identically", () => {
+    // Acceptance criterion 6 of Phase 103. The three encodings of one rule —
+    // `{"match": "self"}`, the printed `SELF` keyword, and hand-written `.adl`
+    // text — must land on the same resolved model.
+    const source = JSON.stringify({
+      app: { name: "SelfPrincipalRoundTrip", startView: "PersonList" },
+      // Declared explicitly because `compileAdl` always supplies both arrays
+      // and `compileAdlj` only supplies what the document names — a
+      // pre-existing asymmetry (see
+      // `learnings/implementation/adlj-json-authoring-surface.md`) that has
+      // nothing to do with the principal under test.
+      contexts: [],
+      readModels: [],
+      objects: [
+        {
+          name: "Person",
+          displayField: "Name",
+          fields: [
+            { name: "Name", type: "text" },
+            { name: "Email", type: "text" },
+          ],
+          views: [{ name: "PersonList", kind: "list", fields: ["Name"] }],
+        },
+      ],
+      policies: [
+        {
+          name: "PersonSelfPolicy",
+          object: "Person",
+          rules: [
+            {
+              name: "allowPersonReadSelf",
+              effect: "allow",
+              principal: { match: "self" },
+              action: "read",
+            },
+            {
+              name: "allowPersonNameToAnyone",
+              effect: "allow",
+              principal: { match: "authenticated" },
+              action: "read",
+              fields: ["Name"],
+            },
+          ],
+        },
+      ],
+    });
+
+    const compiled = compileAdlj(source);
+    expect(compiled.diagnostics).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(compiled.partialModel);
+    expect(printed).toContain("RULE allowPersonReadSelf ALLOW READ SELF");
+    // The negative half: `SELF` must not print as `OWNER`, and must not drag an
+    // OWNER clause along beside it.
+    expect(printed).not.toContain("OWNER");
+
+    const reparsed = compileAdl(printed);
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.model).toEqual(compiled.model);
+
+    const rule = reparsed.model.policies
+      .find((policy) => policy.name === "PersonSelfPolicy")
+      ?.rules.find((entry) => entry.name === "allowPersonReadSelf");
+    expect(rule?.principal).toEqual({
+      match: "self",
+      roles: [],
+      groupRoles: [],
+      users: [],
+      owner: false,
+    });
+  });
+
+  it("rejects an unknown policy principal match against the generated schema", () => {
+    // The negative half of the schema widening: `self` is now a member and
+    // near-misses still are not.
+    const source = JSON.stringify({
+      app: { name: "BadPrincipal", startView: "PersonList" },
+      objects: [
+        {
+          name: "Person",
+          fields: [{ name: "Name", type: "text" }],
+          views: [{ name: "PersonList", kind: "list", fields: ["Name"] }],
+        },
+      ],
+      policies: [
+        {
+          name: "PersonPolicy",
+          object: "Person",
+          rules: [
+            {
+              name: "allowPersonReadMyself",
+              effect: "allow",
+              principal: { match: "myself" },
+              action: "read",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(() => compileAdlj(source)).toThrow(/principal\/match/);
+  });
+
   it("omits app registration from printed .adl text when the document declares none", () => {
     const source = JSON.stringify({
       app: { name: "NoRegistration", startView: "ItemList" },

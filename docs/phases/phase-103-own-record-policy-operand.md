@@ -498,3 +498,233 @@ Candidates that surfaced here and were not taken:
 - **A `SELF`-on-the-wrong-object diagnostic.** See Non-goals. Worth revisiting
   once there is a second application with a user-context object of a different
   name, which would show whether the rule generalises.
+
+---
+
+# Execution Note (2026-08-21)
+
+## Evidence that had drifted, and what still held
+
+The document re-verified itself at `3b9f7e0`; this was executed on a branch off
+`adb8de8`. **Every substantive claim in "Evidence and Dependency" held.** Three
+pointers had moved and one named file does not exist:
+
+- `ResolvedPolicyConditionOperand` is at `src/model/resolved-model/policy.ts:63-66`,
+  not `:64-67`, and `PolicyConditionRuntimeProperty` at `:23`, not `:24`. Content
+  identical.
+- `isSelf`'s intended neighbour `isOwner` is at `policy-engine.ts:364-375` and
+  `principalMatches`' `case "owner"` at `:288-289` — both exactly as quoted.
+- `src/model/adlj-schema.json`'s `PrincipalMatch` enum is at **line 2982**, not
+  `3398-3406`. The Scope section's instruction to edit it by hand is wrong in a
+  more useful way: the file is **generated** (`npm run generate:adlj-schema`,
+  `ts-json-schema-generator` over `src/model/adlj-source.ts`). Regenerating
+  produced exactly two diff hunks — the new enum member and the doc comment added
+  to `PrincipalMatch` — and nothing else.
+- **`tests/policy-engine.test.ts` does not exist** and never has. The Testing
+  section names it four times. The nearest precedent is
+  `tests/context-member-principal.test.ts`, the file the `CONTEXT_MEMBER`
+  principal shipped with, so the new unit coverage is `tests/self-principal.test.ts`
+  modelled on it.
+- The unit baseline in the Testing section (1,128, "after Phase 101") is three
+  phases stale; the measured baseline on `adb8de8` is **1,213**. Integration
+  baseline is **180**, not "163 + Phase 102's additions".
+
+Everything else was measured true: `search` is still gated once, recordlessly, at
+`object-store.ts:563`; the `read` path still supplies a record
+(`:285-310`); `offline-dataset-service.ts:650` still reads
+`record.meta.guid === context.userId || record.meta.createdBy === context.userId`;
+`ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE` is still at
+`validate-model/policy.ts:109-124` with its comment intact; and
+`policy.field.allow-does-not-grant-row.001` is still at
+`conformance/runtime/context-policy.json:2540`.
+
+## `tsc` named exactly one exhaustiveness site, not four
+
+The Parallel Execution Plan predicted that widening `PrincipalMatch` would make
+`tsc` enumerate "parser, printer, schema, validator". It named **one**:
+`print-adl.ts(1700,74): error TS2366: Function lacks ending return statement`.
+The parser assigns `principal.match` from string literals, the validator compares
+it with `===`, and the schema is generated — none of them is a `switch`. The
+technique still paid for itself; it just pays less than the plan assumed, and a
+reader should not treat a clean `tsc` after a union widening as proof the union's
+consumers were all found.
+
+That single site was also the most dangerous one. Before the branch existed,
+`printPrincipal` fell out of its `switch` returning `undefined` and printed
+`RULE allowPersonReadSelf ALLOW READ ` — an **empty** principal, which reparses
+as the default `everyone`. A missing printer branch on a principal is a silent
+widening, not a crash.
+
+## Red-first evidence
+
+| Claim | Seen failing against unmodified code |
+|---|---|
+| `"self"` is not a `PrincipalMatch` | `tsc`: `Type '"self"' is not assignable to type 'PrincipalMatch'.` |
+| `SELF` grants nothing at runtime | `tests/self-principal.test.ts`: **3 failed / 9 passed**, each `PolicyDeniedError: Policy denied read on object 'User'.` |
+| `SELF` is not in the grammar | `tests/parser.test.ts`: **3 failed**, the first being `ParseError: Expected POLICY rule option FIELD, STATE, ACTION, CHANNELS, principal selector ROLE, GROUP_ROLE, USER, OWNER, EVERYONE, AUTHENTICATED, ANONYMOUS, CONTEXT_MEMBER, or end of line, but found 'SELF'. at 5:37` — verbatim what the document predicted |
+| the printer cannot render it | `tests/compile-adlj.test.ts`: printed `ALLOW READ ` with an empty principal |
+| the diagnostic does not exist | `tests/model-validation.test.ts`: **2 failed** |
+| the row grant is not enforced over PostgreSQL | `tests/integration/self-principal-policy.test.ts`: **3 failed / 3 passed** |
+
+## Mutation checks
+
+| Mutation | Named tests that turned red |
+|---|---|
+| `case "self"` → `return false` | `lets a caller read their own record in full…`, `lets a field-scoped HIDDEN beat the SELF allow…`, `grants the update it names and nothing it does not`, the whole `self-principal.json` corpus, and 3 of the 6 PostgreSQL cases |
+| `isSelf` compares `meta.createdBy` | the same three unit tests, plus `policy.self.does-not-match-the-records-creator.003` |
+| `isSelf` → `return userId.length > 0` (constant allow) | `refuses another user's record`, `cannot widen search even when the SELF rule names every action`, `still lets a caller resolve another user's display name…`, `matches on the record's own guid, not on who created it`, `fails closed with no record on the request`, and 4 of the 6 PostgreSQL cases |
+| the `SEARCH` diagnostic deleted | `refuses a SELF principal granted the object-level SEARCH action`, `refuses a SELF principal on SEARCH even when the same policy also grants READ`, and `policy.self.cannot-gate-the-object-level-search-action.011` |
+
+All eleven runtime conformance cases were additionally shown to discriminate by
+flipping each one's own expectation in a throwaway harness; the `validateModel`
+case was shown sensitive to the diagnostic's code, its path *and* its severity
+independently.
+
+## The search-refusal test was vacuous, and the mutation is what found it
+
+The document's acceptance criterion 3 — "the same rule grants no `search`" — was
+first written as: declare `ALLOW READ SELF` and `ALLOW UPDATE SELF`, then assert
+`runtime.search` is refused. That test **passed under the constant-allow
+mutation**, because the model declares no `search` rule at all, so its refusal
+holds for every principal and says nothing about `SELF`.
+
+The discriminating shape is `ALLOW * SELF` — which *does* name `search`, is not
+refused by the new diagnostic (which keys on `action === "search"` exactly, like
+its `CONTEXT_MEMBER` sibling), and is still denied at the object-level gate —
+paired with a positive control proving the same wildcard rule is live on a
+record. That pair exists in all three layers now: `tests/self-principal.test.ts`,
+cases `.012`/`.013` of the corpus, and the PostgreSQL test. Criterion 3 as
+originally worded is satisfiable by a test that proves nothing.
+
+## Positive/negative pairs
+
+Every new assertion is paired. The four corners the standing rule names:
+
+| Corner | Where |
+|---|---|
+| the caller **can** read the record that is them | `lets a caller read their own record in full, including ungranted fields`; `policy.self.reads-own-record-in-full.001`; PostgreSQL `gives a caller their own record in full` |
+| a different authenticated user **cannot** | `refuses another user's record`; `.002`; PostgreSQL `still refuses another user's record, their email, and the directory` |
+| the grant confers **no** enumeration | `cannot widen search even when the SELF rule names every action`; `.012` with `.013` as its control; PostgreSQL `cannot widen search…` |
+| fields outside a field-scoped grant are **absent** from the result | `expect(label?.values).toEqual({ Name: "Bob Brand" })` (an equality, so `Email` absent is asserted, not inferred from "no exception"); `.010` uses `"Email": "$absent"`; `lets a field-scoped HIDDEN beat the SELF allow for that field only` |
+
+Others: `ALLOW READ SELF` compiles clean **and** `ALLOW SEARCH SELF` names
+`ADL_POLICY_SELF_SEARCH_UNREACHABLE` by identity and path; `SELF` parses **and**
+an unrecognised option lists `SELF` in its refusal; `{"match":"self"}` compiles
+**and** `{"match":"myself"}` is refused by the generated schema at
+`principal/match`; `SELF` prints as `SELF` **and** never as `OWNER`; the
+`FIELDS` list stops at `SELF` **and** a quoted `'Self'` is still a field name.
+
+**Backfilled positive-only coverage in the code touched.** `isOwner` had no test
+saying what it does *not* match. The new `the gap SELF closes` describe block is
+that negative: with `ALLOW READ OWNER` declared on `User`, and
+`expect(seeded.alice.meta.createdBy).toBe("system-admin")` stated inline, a
+caller is still refused their own record — and the same caller gets exactly
+`{ Name: … }` from the field-scoped path. It passes before and after this phase,
+which is the point: it is the `SELF`-less control the document asked to keep.
+
+**One case with no meaningful negative counterpart**, disclosed rather than
+manufactured: the `.adl`/`.adlj`/printed-text round-trip equality
+(`reparsed.model` deep-equals `compiled.model`). Its negative is the schema
+refusal above; a "these two do not resolve identically" assertion would be
+asserting a defect.
+
+## Fingerprints, measured
+
+| App | `modelVersion` | `modelFingerprint` |
+|---|---|---|
+| Giggle Band | `1.12.0` | `sha256-8249bac35b2fa5282fd764db729ed3ed2b98121cab95b21c0bee47eb8f9de11c` |
+| Jointly Care | `1.7.0` | `sha256-171158c70c06bfa0f975dd8fb92ae91ab58124e3d14210db026fb250813b8bef` |
+
+Read out of the real compiled models, not asserted from "no `.adlj` was edited",
+and byte-identical to the tripwires in `tests/band-reference-app.test.ts` and
+`tests/jointly-reference-app.test.ts`, which pass unchanged. Widening a union
+changes no application's content, as the document predicted.
+
+## Verification
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npm run format:check` | clean |
+| `npx vitest run` | **65 files / 1,240 tests passed** (baseline 64 / 1,213; +1 file, +27) |
+| `npm run test:integration` | **19 files / 186 tests passed** (baseline 18 / 180; +1 file, +6) |
+
+`npm run verify:push`, `npm run test:visual` and `npm run build` were not run.
+Nothing here touches browser rendering, shell chrome, a reference-app screen,
+presentation output or CSS, and no reference app's model content changed.
+
+## Deliberately not done
+
+- **No reference app declares a `SELF` rule.** Honoured exactly. Both
+  `UserPolicy` declarations are untouched, including Giggle Band's long comment,
+  whose closing paragraph — *"'My own record in full' needs the same thing…"* —
+  is now stale prose. Correcting it would be a `.adlj` edit and a fingerprint
+  move, which this phase's non-goals forbid. Whichever phase first adds a `SELF`
+  rule should rewrite that paragraph in the same commit.
+- **No `ADL_POLICY_SELF_CREATE_UNREACHABLE`.** `ObjectStore.create` supplies a
+  `patch` and no `record` (`object-store.ts:224-234`), so `ALLOW CREATE SELF` is
+  dead for exactly the reason `ALLOW SEARCH SELF` is. The document names only the
+  `SEARCH` refusal and scope discipline kept it there. The general behaviour is
+  pinned instead by `policy.self.fails-closed-with-no-record.005`, a
+  `policyDecision` against a recordless request. `OWNER` has the identical gap on
+  both actions and has since it shipped. Nominated below.
+- **No `contextMember.field: "id"`, no profile screen, no `isOwner` change, no
+  new expression kind, no "wrong object" diagnostic.** All as the document's
+  Non-goals section states.
+- **The throwaway discrimination and compile-check harnesses were deleted**, per
+  `AGENTS.md`. Their results are recorded above.
+
+---
+
+# Planning Handoff (written after execution)
+
+**Next phase: Phase 106 — an authority-minted identity has no `User` object
+record.** Not Phase 104, and this reverses the document's own recommendation on
+repository-wide grounds.
+
+Phase 102's handoff already put this gap above both 103 and 104 and declined to
+act on it because it needed its own document; that document is being written now.
+Executing 103 sharpened the case rather than weakening it. This phase and Phases
+93 and 101 have now each spent themselves on the *policy* half of "why does this
+screen say `user-c52bac75-…`" — 93 made a dead grant a compile error, 101 made
+the label a permitted field read, 103 makes a person's own row reachable at all.
+All three made the label **permitted**. None of them makes the label **exist**.
+A registered person still has no `User` record for any of that permission to
+resolve against, on every screen that names a person, in both reference apps.
+Three consecutive phases attacking one visible defect from the side it is not on
+is the same signal that justified 103 — and 103 removed the last policy-side
+excuse for not fixing it directly.
+
+Phase 104 (`MATRIX` text syntax) stays queued behind it, unchanged in merit:
+printer completeness for a view of a format nobody hand-authors, real and the
+least urgent thing on the list. Phase 105 (an invitee cannot accept a band
+invitation) is a genuine user-facing dead end and a defensible alternative to
+106; 106 wins on breadth, because it is wrong on every screen rather than in one
+flow, and because Phase 105's scope-gate diagnosis is already recorded in
+`learnings/implementation/context-grants-and-relationship-access.md` and will not
+go stale. Phase 107 (per-test browser evidence capture) is process work that pays
+off across every later phase and should be scheduled when it does not displace a
+user-visible defect.
+
+Candidates this execution surfaced, none taken:
+
+- **A profile screen for Giggle Band**, the natural consumer of this phase, and
+  now blocked on nothing but the view-binding question the document sets out.
+  Worth taking **after** 106: a profile screen for a person with no `User` record
+  would render a blank page, so 106 is its real precondition, not this phase.
+- **`ADL_POLICY_SELF_CREATE_UNREACHABLE` and `ADL_POLICY_OWNER_SEARCH_UNREACHABLE`
+  / `_CREATE_UNREACHABLE`.** Four dead shapes, one diagnostic pattern, one small
+  phase: any record-matching principal (`self`, `owner`, `contextMember`) on any
+  gate evaluated without a record (`search`, `create`). Doing them together is
+  cheaper than four visits and forces the general rule to be stated once. The
+  `OWNER` half needs an audit of existing content for rules it would newly refuse
+  — the same audit Phase 93 did over 352 principals — which is most of the cost.
+- **`ALLOW * <record-matching principal>` is partly dead and nothing says so.**
+  Not a bug, and not obviously fixable: a wildcard rule is live on five actions
+  and dead on two. A warning naming the dead half would be honest; an error would
+  be wrong. Below the bar on its own, worth folding into the phase above.
+- **A union widening is not exhaustiveness-checked across this codebase.** One
+  `switch` fired; the parser, validator and merge paths did not. If more principals
+  are coming, a `satisfies Record<PrincipalMatch, …>` table or an exhaustive
+  `default: assertNever` in the parser would make the next one mechanical. Too
+  small for a phase; fold into whichever phase adds the next principal.

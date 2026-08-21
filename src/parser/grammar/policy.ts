@@ -36,6 +36,7 @@ const FIELD_LIST_STOP_WORDS = new Set([
   "USER",
   "USERS",
   "OWNER",
+  "SELF",
   "EVERYONE",
   "AUTHENTICATED",
   "ANONYMOUS",
@@ -150,6 +151,12 @@ export class PolicyParser extends SyncParser {
       } else if (this.matchWord("OWNER")) {
         principal.match = "owner";
         principal.owner = true;
+      } else if (this.matchWord("SELF")) {
+        // Deliberately does not set `principal.owner`: `OWNER` and `SELF` are
+        // different claims ("I created this" versus "this is me"), and setting
+        // the flag would make `printPrincipal` print a `specific` OWNER clause
+        // back for a rule that never named one.
+        principal.match = "self";
       } else if (this.matchWord("EVERYONE")) {
         principal.match = "everyone";
       } else if (this.matchWord("AUTHENTICATED")) {
@@ -174,7 +181,7 @@ export class PolicyParser extends SyncParser {
         principal.contextMember = { context, field };
       } else {
         this.failUnexpected(
-          "POLICY rule option FIELD, STATE, ACTION, CHANNELS, principal selector ROLE, GROUP_ROLE, USER, OWNER, EVERYONE, AUTHENTICATED, ANONYMOUS, CONTEXT_MEMBER, or end of line",
+          "POLICY rule option FIELD, STATE, ACTION, CHANNELS, principal selector ROLE, GROUP_ROLE, USER, OWNER, SELF, EVERYONE, AUTHENTICATED, ANONYMOUS, CONTEXT_MEMBER, or end of line",
         );
       }
     }

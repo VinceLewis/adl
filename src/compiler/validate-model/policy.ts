@@ -122,6 +122,24 @@ function validatePolicyRule(
     );
   }
 
+  // A `self` principal is matched against a record (`isSelf`, comparing
+  // `record.meta.guid` to the caller), and `search` is an object-level check
+  // evaluated with no record. The rule is therefore dead in exactly the way the
+  // CONTEXT_MEMBER case above is dead, and it is the most natural misuse of the
+  // principal: "let people find themselves" reads as a search grant. Shipping
+  // it clean would repeat the defect that produced
+  // ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE. Note the recordless search gate is
+  // also what guarantees a `self` rule can never widen a user directory.
+  if (rule.principal.match === "self" && rule.action === "search") {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.POLICY_SELF_SEARCH_UNREACHABLE,
+        `Policy rule '${rule.name}' grants SEARCH to a SELF principal, which can never match: the object-level search check has no record for the principal to compare the caller against. SELF grants one row to one caller; grant SEARCH to a wider principal and let per-record read policy restrict rows instead.`,
+        `${rulePath}.principal`,
+      ),
+    );
+  }
+
   // Generalizes the CONTEXT_MEMBER case above to any principal: a `WHEN`
   // condition evaluates against `getCandidateValues(request)` (the record's
   // values overlaid with any patch), and the coarse "may this principal

@@ -13,11 +13,24 @@ export type PolicyAction =
   | "transition"
   | "export"
   | "import";
+/**
+ * What the caller's relationship to the record must be for a rule to match.
+ *
+ * `self` is "this record *is* the caller": it matches when the record's own id
+ * equals `RuntimeContext.userId`, and nothing else. It is distinct from `owner`
+ * ("I created this", or a declared owner field names me) and from
+ * `authenticated` ("I am somebody"), and it is the only principal that grants a
+ * whole row to exactly one caller. Because the object-level `search` check is
+ * evaluated with no record at all, a `self` rule can never widen enumeration —
+ * which is why `ADL_POLICY_SELF_SEARCH_UNREACHABLE` refuses that combination at
+ * compile time rather than shipping a grant that looks live and is dead.
+ */
 export type PrincipalMatch =
   | "everyone"
   | "authenticated"
   | "anonymous"
   | "owner"
+  | "self"
   | "specific"
   | "contextMember";
 export type PolicyConditionKind = "equals" | "all" | "any" | "not";
