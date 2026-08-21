@@ -71,6 +71,23 @@ carry out, and nothing in the text says so.
 - **Delete the throwaway probe** once its result is in the document, or say you
   kept it and why.
 
+## Corollary: a green check proves only what that check covers
+
+The other way a check misleads is by being read as broader than it is.
+
+**A clean `tsc` after widening a union is not proof you found every consumer.**
+Phase 103's document predicted four exhaustiveness sites would fail to compile
+when `PrincipalMatch` gained a member. Exactly one did. The parser assigns from
+string literals, the validator compares with `===`, and `adlj-schema.json` is
+generated — none of which the type checker can object to. The single site it
+named was the printer, and the *unnamed* consumers were where the silent
+widening lived. Enumerate consumers by search, not by compiler error.
+
+The same caution applies to a fast suite that excludes integration tests, a unit
+run that never renders a page, and a screenshot pass that captures but does not
+compare. Each is a real check. None of them covers what a reader in a hurry
+assumes it covers. When reporting, say what was run — not "verified".
+
 ## Corollary: running it is not enough if you do not read the result
 
 Executing the check and then discarding its verdict is the same failure wearing
