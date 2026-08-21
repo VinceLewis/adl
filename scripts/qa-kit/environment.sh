@@ -30,6 +30,36 @@ write_descriptor() {
   mv -f -- "$temporary" "$descriptor"
 }
 
+listener_pid() {
+  local port=$1
+  ss -ltnp "sport = :${port}" 2>/dev/null |
+    sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' |
+    head -n 1
+}
+
+await_owned_listener() {
+  local server_pid=$1 port=$2 listener process_root process_group
+  for _ in {1..100}; do
+    if ! kill -0 "$server_pid" 2>/dev/null; then
+      printf 'Vite production preview exited before listening on port %s.\n' "$port" >&2
+      return 1
+    fi
+    listener=$(listener_pid "$port")
+    if [[ -n "$listener" ]]; then
+      process_root=$(readlink "/proc/${listener}/cwd" 2>/dev/null || true)
+      process_group=$(ps -o pgid= -p "$listener" 2>/dev/null | tr -d '[:space:]')
+      if [[ "$process_root" != "$ROOT_DIR" || "$process_group" != "$server_pid" ]]; then
+        printf 'Port %s is served by another process or working tree (pid %s, cwd %s); refusing to adopt it.\n' "$port" "$listener" "${process_root:-unknown}" >&2
+        return 1
+      fi
+      return 0
+    fi
+    sleep 0.1
+  done
+  printf 'Vite production preview did not listen on port %s within 10 seconds.\n' "$port" >&2
+  return 1
+}
+
 up() {
   local requested_capability=$1 descriptor=$2 port host server_pid state_file
   local -a build_environment
@@ -49,6 +79,12 @@ up() {
   # A new session lets cleanup terminate this exact preview process group.
   setsid npx vite preview --host "$host" --port "$port" --strictPort >"${descriptor}.server.log" 2>&1 &
   server_pid=$!
+  if ! await_owned_listener "$server_pid" "$port"; then
+    kill -- "-$server_pid" 2>/dev/null || kill "$server_pid" 2>/dev/null || true
+    wait "$server_pid" 2>/dev/null || true
+    sed -n '1,120p' "${descriptor}.server.log" >&2
+    return 1
+  fi
   node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({pid:Number(process.argv[2]),root:process.argv[3],capability:process.argv[4]}));' "$state_file" "$server_pid" "$ROOT_DIR" "$requested_capability"
   write_descriptor "$descriptor" "$port" "$host"
   printf 'Started Vite production preview for %s (pid %s) at http://%s:%s/; qa-kit will health-check the descriptor.\n' "$requested_capability" "$server_pid" "$host" "$port"
@@ -76,8 +112,8 @@ down() {
 reset() {
   # Intentionally narrower than a database reset: browser runs have isolated
   # contexts, and this only clears qa-kit-owned Playwright artefacts/state.
-  rm -rf -- "$ROOT_DIR/test-results/qa-kit"
-  printf '%s\n' '{"reset":["qa-kit Playwright output and persistent login storage under test-results/qa-kit"],"survives":["ADL source and dependencies","Vite dist output","PostgreSQL databases and roles","external authority deployments","browser profiles outside qa-kit storage"]}'
+  rm -rf -- "$ROOT_DIR/test-results/visual"
+  printf '%s\n' '{"reset":["qa-kit Playwright output and persistent login storage under test-results/visual"],"survives":["ADL source and dependencies","Vite dist output","PostgreSQL databases and roles","external authority deployments","browser profiles outside qa-kit storage"]}'
 }
 
 if [[ $# -eq 1 && "$1" == "env:reset" ]]; then reset; exit 0; fi

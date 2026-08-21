@@ -18,12 +18,17 @@ const UI_SPECS = [
 
 export default defineConfig({
   testDir: "./tests",
-  outputDir: "test-results/qa-kit",
+  outputDir: "test-results/visual",
   timeout: 120_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
-  reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
+  globalSetup: "./tests/visual/support/evidence-globals.ts",
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["./tests/visual/support/evidence-reporter.ts"],
+  ],
   use: { trace: "retain-on-failure" },
   projects: [
     {
