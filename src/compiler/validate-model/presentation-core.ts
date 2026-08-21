@@ -29,6 +29,7 @@ import {
 } from "./shared.js";
 import type { ExpressionFieldReference, ModelIndexes, NamedReference } from "./shared.js";
 import { isValueCompatibleWithExpressionType } from "./expression.js";
+import { validateIconName } from "./icon.js";
 import { validatePresentationList } from "./presentation-list.js";
 import { validatePresentationMatrix } from "./presentation-matrix.js";
 import { validatePresentationCalendar } from "./presentation-calendar.js";
@@ -159,6 +160,29 @@ export function validateViewPresentation(
           `Presentation icon map '${iconMap.name}' references unknown field '${iconMap.field}' in view '${view.name}'.`,
           `${presentationPath}.iconMaps[${iconMapIndex}].field`,
         ),
+      );
+    }
+
+    // An icon map names icons directly rather than through a
+    // `ResolvedPresentationIconRef`, so it needs its own vocabulary check: this
+    // is where most of an app's icon names actually live.
+    for (let valueIndex = 0; valueIndex < iconMap.values.length; valueIndex += 1) {
+      const mappedValue = iconMap.values[valueIndex];
+      if (mappedValue === undefined) {
+        continue;
+      }
+      validateIconName(
+        mappedValue.icon,
+        `${presentationPath}.iconMaps[${iconMapIndex}].values[${valueIndex}].icon`,
+        diagnostics,
+      );
+    }
+
+    if (iconMap.defaultIcon !== undefined) {
+      validateIconName(
+        iconMap.defaultIcon,
+        `${presentationPath}.iconMaps[${iconMapIndex}].defaultIcon`,
+        diagnostics,
       );
     }
   }

@@ -260,6 +260,15 @@ export const MODEL_VALIDATION_CODES = {
   PRESENTATION_FILTER_RUNTIME_PROPERTY_INVALID: "ADL_PRESENTATION_FILTER_RUNTIME_PROPERTY_INVALID",
   PRESENTATION_FILTER_TYPE: "ADL_PRESENTATION_FILTER_TYPE",
   PRESENTATION_FORMAT_INVALID: "ADL_PRESENTATION_FORMAT_INVALID",
+  /**
+   * An icon name outside `ICON_NAMES`
+   * (`src/model/resolved-model/icon-vocabulary.ts`). Cross-cutting rather than
+   * shell- or presentation-specific: every place a model names an icon reports
+   * this same code, because there is one vocabulary and one renderer contract
+   * behind it. Before Phase 99 an unknown name was not a diagnostic at all — it
+   * was a blank space you found by looking at the screen.
+   */
+  ICON_NAME_UNKNOWN: "ADL_ICON_NAME_UNKNOWN",
   PRESENTATION_ICON_MAP_DUPLICATE: "ADL_PRESENTATION_ICON_MAP_DUPLICATE",
   PRESENTATION_ICON_MAP_FIELD_UNKNOWN: "ADL_PRESENTATION_ICON_MAP_FIELD_UNKNOWN",
   PRESENTATION_ICON_MAP_UNKNOWN: "ADL_PRESENTATION_ICON_MAP_UNKNOWN",

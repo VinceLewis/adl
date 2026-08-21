@@ -12,6 +12,7 @@ export * from "./presentation-list.js";
 export * from "./presentation-matrix.js";
 export * from "./presentation-calendar.js";
 export * from "./presentation-row-format.js";
+export * from "./icon-vocabulary.js";
 export * from "./read-model.js";
 export * from "./decision-table.js";
 export * from "./command.js";

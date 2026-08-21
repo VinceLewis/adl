@@ -13,6 +13,8 @@ import type {
   RuntimePresentationStatus,
   RuntimePresentationView,
 } from "../../runtime/presentation-runtime.js";
+import { isIconName } from "../../model/resolved-model.js";
+import type { IconName } from "../../model/resolved-model.js";
 import { escapeHtml, titleCaseIdentifier } from "./html.js";
 
 export interface PresentationStateChangeDetail {
@@ -874,30 +876,52 @@ export function defineAdlComposedView(): void {
   }
 }
 
+/**
+ * Presentation's rendering of the icon vocabulary: one 24x24 stroke path per
+ * name in {@link ICON_NAMES}.
+ *
+ * `Record<IconName, string>` is the point of this shape. Adding a name to the
+ * vocabulary without drawing it here stops compiling, which is what keeps this
+ * renderer and the shell's `iconGlyph` from drifting apart again — before Phase
+ * 99 each knew names the other did not, and rendered a blank space for the
+ * rest.
+ */
+const PRESENTATION_ICON_PATHS: Record<IconName, string> = {
+  calendar:
+    "M7 2v4m10-4v4M4 9h16M5 4h14a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z",
+  check: "M4.5 12.5 9.5 17.5 19.5 6.5",
+  close: "M18 6 6 18M6 6l12 12",
+  // Radius 1.5 under the sheet's 2px round stroke leaves a 0.5px hole, so this
+  // reads as a solid bullet even though `.adl-presentation-icon svg` sets
+  // `fill: none` for every icon.
+  dot: "M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z",
+  home: "M3 11 12 3l9 8M6 9.5V20a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.5M10 21v-6h4v6",
+  list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
+  "log-out": "M15 17l5-5-5-5M20 12H9M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h7",
+  logout: "M15 17l5-5-5-5M20 12H9M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h7",
+  menu: "M4 6h16M4 12h16M4 18h16",
+  mic: "M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Zm7-3a7 7 0 0 1-14 0m7 7v4m-4 0h8",
+  microphone:
+    "M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Zm7-3a7 7 0 0 1-14 0m7 7v4m-4 0h8",
+  music:
+    "M9 18V5l10-2v13M9 9l10-2M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm10-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+  sync: "M20.5 9A8.5 8.5 0 0 0 6 5.5L3 8.5M3.5 15A8.5 8.5 0 0 0 18 18.5l3-3M3 3.5v5h5M21 20.5v-5h-5",
+  users:
+    "M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87M16 2.13a4 4 0 0 1 0 7.75",
+  x: "M18 6 6 18M6 6l12 12",
+};
+
 function iconSvg(name: string): string {
-  switch (name) {
-    case "music":
-      return svgPath(
-        "M9 18V5l10-2v13M9 9l10-2M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm10-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
-      );
-    case "microphone":
-      return svgPath(
-        "M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Zm7-3a7 7 0 0 1-14 0m7 7v4m-4 0h8",
-      );
-    case "calendar":
-      return svgPath(
-        "M7 2v4m10-4v4M4 9h16M5 4h14a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z",
-      );
-    case "x":
-    case "close":
-      return svgPath("M18 6 6 18M6 6l12 12");
-    case "menu":
-      return svgPath("M4 6h16M4 12h16M4 18h16");
-    default:
-      return `<span class="adl-presentation-icon-fallback">${escapeHtml(
-        titleCaseIdentifier(name).slice(0, 1) || "?",
-      )}</span>`;
+  if (isIconName(name)) {
+    return svgPath(PRESENTATION_ICON_PATHS[name]);
   }
+
+  // Unreachable through a compiled model: `ADL_ICON_NAME_UNKNOWN` rejects any
+  // name outside `ICON_NAMES` before it can reach a renderer. Kept so a
+  // hand-built runtime view still shows something rather than nothing.
+  return `<span class="adl-presentation-icon-fallback">${escapeHtml(
+    titleCaseIdentifier(name).slice(0, 1) || "?",
+  )}</span>`;
 }
 
 function svgPath(path: string): string {

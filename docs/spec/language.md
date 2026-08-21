@@ -948,7 +948,8 @@ Implemented view-level declarations:
 - local `STATE Name Type DEFAULT(Literal)`
 - `ICON_MAP Name FOR Field ... END.ICON_MAP`
 - `STATUS name LABEL 'Label' ARIA_LABEL 'Accessible label' ICON iconRef
-THEME colorStatusEvent PRECEDENCE 10`
+THEME colorStatusEvent PRECEDENCE 10` (`iconRef` is either a name from the
+[icon vocabulary](#icon-vocabulary) or an `ICON_MAP` reference)
 - `STATUS_MAP Name FOR Field ... END.STATUS_MAP`
 - `LEGEND Name TITLE 'Title' STATUSES statusName ...`
 - `SECTION Name ... END.SECTION`
@@ -957,7 +958,8 @@ Sections may declare `HEADING`, local layout/density hints, controls
 (`TOGGLE`, `SELECT`, `CONTEXT_SELECTOR`, `ACTION`), `LIST` blocks and
 `CALENDAR` blocks. Lists bind to an object or read model and support `FIELDS`,
 `ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, `EMPTY_ICON`,
-repeatable `STATUS` candidates, and a `ROW` template.
+repeatable `STATUS` candidates, and a `ROW` template. Every icon named here
+comes from the closed [icon vocabulary](#icon-vocabulary).
 
 A `ROW`'s `TEXT <field>` fragment accepts `FORMAT`, `FALLBACK 'text'` — what to
 render when the field is null — and `STYLE`. `FALLBACK` is refused on a literal
@@ -1140,6 +1142,31 @@ trimmed of its `DENSITY` and its cell `ACTION`; the full calendar is the
 
 Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
 framework component names, procedural render loops, or host functions.
+
+### Icon vocabulary
+
+Every icon name -- a control's or status's `ICON`, an `EMPTY_ICON`, an
+`ICON_MAP` target, an `ICON_MAP`'s `DEFAULT`, a `ROW`'s `ICON` fragment, an
+`OPTION`'s `ICON`, and `SHELL`'s `NAV`/`CONTROL` icons -- is drawn from one
+closed, renderer-neutral vocabulary. The legal names are:
+
+`calendar`, `check`, `close`, `dot`, `home`, `list`, `log-out`, `logout`,
+`menu`, `mic`, `microphone`, `music`, `sync`, `users`, `x`
+
+`mic`/`microphone`, `log-out`/`logout` and `x`/`close` are aliases: both
+spellings of a pair name the same icon.
+
+An icon name outside this list is a compile error, `ADL_ICON_NAME_UNKNOWN`,
+reported at the exact model path that names it. The set is closed on purpose:
+an unrecognised name used to render as a blank space, discoverable only by
+looking at a screen.
+
+The vocabulary is declared once, in the model layer
+(`src/model/resolved-model/icon-vocabulary.ts`), and the compiler and every
+renderer consume that one declaration. A renderer chooses its own *form* -- the
+shell's text chrome draws a single glyph, a composed view draws an inline SVG --
+but never its own *set*; every name must render something real in every
+renderer. Adding a name is therefore a language change, not a rendering change.
 
 ## Edit Surfaces
 
@@ -1448,7 +1475,7 @@ app's own `syncStatus` control does not declare. The complete, working block
 is the `shell` declaration in `src/reference/giggle-band/ui.adlj`.
 
 `NAV` entries target resolved views. Supported nav metadata includes `LABEL`,
-semantic `ICON`, `GROUP`, numeric `ORDER`, optional `ACTIVE_WHEN` view names,
+a semantic `ICON` from the [icon vocabulary](#icon-vocabulary), `GROUP`, numeric `ORDER`, optional `ACTIVE_WHEN` view names,
 and `VISIBLE` conditions. Implemented visibility conditions are `ALWAYS`,
 `ONLINE`, `OFFLINE`, `WHEN CONTEXT Name AVAILABLE`, and `WHEN CONTEXT Name
 SELECTED`.
@@ -1481,8 +1508,8 @@ resolved view that has no `NAV` entry. With no `NAV` lines it generates entries
 for every view. `NAV_MODE EXPLICIT_ONLY` is also accepted for round-trip
 completeness, but is redundant because it is the default.
 
-`CONTROL` entries support optional `LABEL`, semantic `ICON`, `PLACEMENT`, and
-`VISIBLE` metadata. Implemented control kinds are `contextSelector`,
+`CONTROL` entries support optional `LABEL`, a semantic `ICON` from the
+[icon vocabulary](#icon-vocabulary), `PLACEMENT`, and `VISIBLE` metadata. Implemented control kinds are `contextSelector`,
 `syncStatus`, `connectivity`, `themeSwitch`, `logout`, and `pwaInstall`;
 unsupported runtime capabilities degrade as unavailable controls. `SYNC_STATUS`
 and `CONNECTIVITY` answer different questions and are separate controls:

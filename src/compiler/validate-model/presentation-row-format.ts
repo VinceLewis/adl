@@ -14,6 +14,7 @@ import type {
 } from "../../model/resolved-model.js";
 import { MODEL_VALIDATION_CODES } from "./codes.js";
 import type { Diagnostic, ModelValidationCode } from "./codes.js";
+import { validateIconName } from "./icon.js";
 import { diagnostic } from "./shared.js";
 import type { ExpressionFieldReference, ModelIndexes, NamedReference } from "./shared.js";
 import { validateExpression } from "./expression.js";
@@ -260,7 +261,12 @@ export function validatePresentationIconRef(
   diagnostics: Diagnostic[],
   unknownIconMapCode: ModelValidationCode = MODEL_VALIDATION_CODES.PRESENTATION_ICON_MAP_UNKNOWN,
 ): void {
-  if (icon === undefined || icon.kind === "named") {
+  if (icon === undefined) {
+    return;
+  }
+
+  if (icon.kind === "named") {
+    validateIconName(icon.name, `${iconPath}.name`, diagnostics);
     return;
   }
 

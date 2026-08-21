@@ -883,8 +883,22 @@ was decided and what follows from it.
   Phase 100 deferred.
 - **Icon names restricted at compile time: yes.** An unknown icon name should
   be a compile-time diagnostic, not a blank space discovered by looking at the
-  screen. Consequence: needs a known-icon set and a validator diagnostic; not
-  yet implemented.
+  screen. **Implemented:** the known-icon set is `ICON_NAMES` in
+  `src/model/resolved-model/icon-vocabulary.ts` -- one vocabulary in the model
+  layer, replacing the two disagreeing `switch` statements that used to live in
+  `iconGlyph` (`src/ui/components/adl-app/render-chrome.ts`) and `iconSvg`
+  (`src/ui/components/adl-composed-view.ts`). Both renderers now switch over
+  that list as a `Record<IconName, string>`, so a name they cannot both draw
+  does not compile, and every name renders something real in both. The
+  diagnostic is `ADL_ICON_NAME_UNKNOWN` (`validateIconName` in
+  `src/compiler/validate-model/icon.ts`), reported for shell navigation items
+  and controls, icon-map values and defaults, presentation statuses, controls,
+  select options, list and calendar empty states and actions, and `ROW` icon
+  fragments including nested conditional ones. The vocabulary is the union of
+  what the two renderers already supported, plus `check` and `dot`, which the
+  conformance corpus already named; no name was dropped. See
+  `docs/spec/language.md` ("Icon vocabulary") and
+  `tests/icon-vocabulary.test.ts`.
 - **One date/time pattern language across runtimes: yes.** ADL defines the
   pattern language and every runtime implements the same one, rather than
   deferring to a host platform's formatter. Consequence: mostly a commitment

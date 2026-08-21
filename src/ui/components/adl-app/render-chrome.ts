@@ -1,4 +1,6 @@
+import { isIconName } from "../../../model/resolved-model.js";
 import type {
+  IconName,
   ResolvedShellControl,
   ResolvedShellNavItem,
   ResolvedView,
@@ -307,29 +309,44 @@ export class AdlAppChromeElement extends AdlAppModelLookupElement {
   }
 }
 
+/**
+ * The shell's rendering of the icon vocabulary: one glyph per name in
+ * {@link ICON_NAMES}.
+ *
+ * Text chrome, so a single character rather than presentation's inline SVG.
+ * That difference is fine; the *set* must not differ, which is why this is a
+ * `Record<IconName, string>` — a name added to the vocabulary and not given a
+ * glyph here stops compiling. Before Phase 99 this switch and
+ * `adl-composed-view`'s `iconSvg` each knew names the other did not, and each
+ * rendered a blank space for the rest.
+ *
+ * Initial letters where one is free; `menu`, `check` and `dot` take a
+ * pictographic character instead, because `M` is already `music` and neither
+ * `check` nor `dot` reads as a letter at all.
+ */
+const SHELL_ICON_GLYPHS: Record<IconName, string> = {
+  calendar: "C",
+  check: "\u2713",
+  close: "X",
+  dot: "\u2022",
+  home: "H",
+  list: "L",
+  "log-out": "O",
+  logout: "O",
+  menu: "\u2261",
+  mic: "R",
+  microphone: "R",
+  music: "M",
+  sync: "S",
+  users: "U",
+  x: "X",
+};
+
 function iconGlyph(icon: string): string {
-  switch (icon) {
-    case "home":
-      return "H";
-    case "music":
-      return "M";
-    case "calendar":
-      return "C";
-    case "mic":
-    case "microphone":
-      return "R";
-    case "list":
-      return "L";
-    case "users":
-      return "U";
-    case "sync":
-      return "S";
-    case "log-out":
-    case "logout":
-      return "O";
-    default:
-      return "";
-  }
+  // Unreachable through a compiled model: `ADL_ICON_NAME_UNKNOWN` rejects any
+  // name outside `ICON_NAMES` before it can reach a renderer. Kept so a
+  // hand-built shell model degrades to no glyph rather than throwing.
+  return isIconName(icon) ? SHELL_ICON_GLYPHS[icon] : "";
 }
 
 function groupNavItems(
