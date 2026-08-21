@@ -229,6 +229,106 @@ describe("offline session identity", () => {
   });
 });
 
+/*
+ * The browser half of self-service registration. `/readyz` is the only thing
+ * that tells the browser whether this deployment admits strangers, and the
+ * notice a completed ceremony produces is the only place the person is told
+ * which of the two things just happened to them.
+ */
+describe("self-service registration in the browser", () => {
+  function selfServiceFetch(options: { selfService: boolean }): typeof globalThis.fetch {
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(typeof input === "string" ? input : input.toString()).pathname;
+      if (path === "/readyz")
+        return json({
+          status: "ready",
+          identityVerification: {
+            mode: "passkey",
+            verifier: "passkey",
+            bypassed: false,
+            selfServiceRegistration: options.selfService,
+          },
+        });
+      if (path === "/v1/session/current") return json({ error: "unauthenticated" }, 401);
+      if (path === "/v1/webauthn/register/begin")
+        return json({ challengeId: "challenge-1", options: { challenge: "c" } });
+      if (path === "/v1/webauthn/register/finish") {
+        // The wire carries no `invite` discriminator for a self-registration,
+        // exactly as it carries none for the add-a-device path.
+        expect(JSON.parse(String(init?.body ?? "{}"))).not.toHaveProperty("inviteToken");
+        return json({ userId: "user-newcomer", expiresAt: "2026-09-01T09:00:00.000Z" }, 201);
+      }
+      if (path === "/v1/sync/bootstrap") return json({ records: [] });
+      return json({ error: "not_found" }, 404);
+    }) as typeof globalThis.fetch;
+  }
+
+  const webauthn = {
+    available: () => true,
+    create: async () => ({ id: "credential-1" }),
+    get: async () => ({ id: "credential-1" }),
+  };
+
+  it.each([
+    ["a self-service deployment", true],
+    ["an invite-only deployment", false],
+  ])("carries %s's disclosure from /readyz onto the session state", async (_label, selfService) => {
+    const host = startupHost();
+    const connection = await connectAuthority(host, newRuntime(), {
+      baseUrl: "https://authority.example",
+      transport: { fetch: selfServiceFetch({ selfService }), origin: "https://app.example" },
+      identityStorage: new InMemorySessionIdentityStorage(),
+      webauthn,
+    });
+
+    expect(connection?.session.selfServiceRegistration).toBe(selfService);
+    expect(connection?.session.status).toBe("signedOut");
+  });
+
+  it("tells a person their account was created, not merely that a device was registered", async () => {
+    const host = startupHost();
+    const connection = await connectAuthority(host, newRuntime(), {
+      baseUrl: "https://authority.example",
+      transport: { fetch: selfServiceFetch({ selfService: true }), origin: "https://app.example" },
+      identityStorage: new InMemorySessionIdentityStorage(),
+      webauthn,
+    });
+
+    await connection?.registerPasskey(undefined);
+
+    expect(connection?.session.status).toBe("signedIn");
+    expect(connection?.session.userId).toBe("user-newcomer");
+    // The discriminator is the pre-call session status: signed out means an
+    // account was created; signed in means a device joined one that existed.
+    expect(connection?.session.notice).toBe(
+      "Your account was created and this device is registered.",
+    );
+  });
+
+  it("still says only that a device was registered when the ceremony started signed in", async () => {
+    const host = startupHost();
+    const connection = await connectAuthority(host, newRuntime(), {
+      baseUrl: "https://authority.example",
+      transport: {
+        fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+          const path = new URL(typeof input === "string" ? input : input.toString()).pathname;
+          if (path === "/v1/session/current") return json({ userId: SIGNED_IN_USER });
+          if (path === "/v1/session/rotate") return json({ expiresAt: "2026-09-01T09:00:00.000Z" });
+          return selfServiceFetch({ selfService: true })(input, init);
+        }) as typeof globalThis.fetch,
+        origin: "https://app.example",
+      },
+      identityStorage: new InMemorySessionIdentityStorage(),
+      webauthn,
+    });
+    expect(connection?.session.status).toBe("signedIn");
+
+    await connection?.registerPasskey(undefined);
+
+    expect(connection?.session.notice).toBe("This device is registered.");
+  });
+});
+
 describe("offline grace evaluation", () => {
   const identity = { userId: SIGNED_IN_USER, lastVerifiedAt: SIGNED_IN_AT.toISOString() };
 

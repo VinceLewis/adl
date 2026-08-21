@@ -146,6 +146,9 @@ export async function connectBrowserAuthority(
     developmentMode: true,
     identityMode: "unknown",
     passkeySupported: webauthn.available(),
+    // Fail closed: until `/readyz` says otherwise there is no create-an-account
+    // route, and an authority that never answers never grows one.
+    selfServiceRegistration: false,
     busy: false,
     // The cached identity stands in while the authority is unreachable, so the
     // person keeps reading their own data. It is never sent as proof.
@@ -174,6 +177,7 @@ export async function connectBrowserAuthority(
       ...session,
       developmentMode: readiness.bypassed,
       identityMode: readiness.mode,
+      selfServiceRegistration: readiness.selfServiceRegistration,
     };
     const identity = await transport.currentSession();
     if (identity !== null) {
@@ -303,6 +307,7 @@ export async function connectBrowserAuthority(
      */
     async registerPasskey(inviteToken?: string): Promise<void> {
       await withBusy(async () => {
+        const wasSignedIn = session.status === "signedIn";
         const start = await transport.beginPasskeyRegistration(inviteToken);
         const response = await webauthn.create(start.options);
         const outcome = await transport.finishPasskeyRegistration({
@@ -322,7 +327,14 @@ export async function connectBrowserAuthority(
               ? "This device is registered and your existing access was restored."
               : outcome.invite === "membershipGranted"
                 ? "This device is registered and the invitation was accepted."
-                : "This device is registered.",
+                : // A ceremony that started signed out and claimed no invite
+                  // created an account; one that started signed in added a
+                  // device to the account that was already there. The
+                  // pre-call status is what tells them apart, so it is read
+                  // before the assignment below replaces it.
+                  wasSignedIn
+                  ? "This device is registered."
+                  : "Your account was created and this device is registered.",
         };
         await connection.synchronize(options.getContext());
       });

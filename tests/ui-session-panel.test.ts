@@ -29,6 +29,7 @@ const signedOut: AdlSessionState = {
   developmentMode: false,
   identityMode: "bypass",
   passkeySupported: true,
+  selfServiceRegistration: false,
   busy: false,
   grace: NO_GRACE,
 };
@@ -39,6 +40,7 @@ const signedIn: AdlSessionState = {
   developmentMode: false,
   identityMode: "bypass",
   passkeySupported: true,
+  selfServiceRegistration: false,
   busy: false,
   grace: NO_GRACE,
 };
@@ -81,6 +83,7 @@ describe("adl-session-panel", () => {
         developmentMode: false,
         identityMode: "bypass",
         passkeySupported: true,
+        selfServiceRegistration: false,
         busy: false,
         grace: NO_GRACE,
       },
@@ -391,6 +394,7 @@ describe("adl-session-panel", () => {
         developmentMode: false,
         identityMode: "bypass",
         passkeySupported: true,
+        selfServiceRegistration: false,
         busy: false,
         grace: NO_GRACE,
         error: "<script>alert(2)</script>",

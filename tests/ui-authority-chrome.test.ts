@@ -88,6 +88,7 @@ function signedOutState(): AdlSessionState {
     developmentMode: true,
     identityMode: "bypass",
     passkeySupported: true,
+    selfServiceRegistration: false,
     busy: false,
     grace: NO_GRACE,
   };
@@ -100,6 +101,7 @@ function signedInState(): AdlSessionState {
     developmentMode: false,
     identityMode: "bypass",
     passkeySupported: true,
+    selfServiceRegistration: false,
     busy: false,
     grace: NO_GRACE,
   };
@@ -302,6 +304,7 @@ describe("browser authority chrome", () => {
       developmentMode: false,
       identityMode: "passkey",
       passkeySupported: true,
+      selfServiceRegistration: false,
       busy: false,
       grace: { status: "withinGrace", offlineGraceDays: 30, expiresAt: "2026-08-19T09:00:00.000Z" },
     };

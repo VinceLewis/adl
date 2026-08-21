@@ -22,6 +22,12 @@ export interface AuthorityIdentityReadiness {
   mode: string;
   verifier: string;
   bypassed: boolean;
+  /**
+   * Whether this deployment admits people nobody invited. Parsed fail-closed:
+   * absent, non-boolean, or an unreachable authority all mean `false`. A
+   * missing flag must never be read as permission.
+   */
+  selfServiceRegistration: boolean;
 }
 
 /**
@@ -369,6 +375,10 @@ export class HttpAuthorityTransport implements AuthorityTransport {
       // Unknown means "assume this needs the development warning": a missing
       // flag must not be read as a verified deployment.
       bypassed: verification.bypassed !== false,
+      // The mirror image of `bypassed` above, and deliberately so: that one
+      // fails closed towards *warning*, this one fails closed towards
+      // *refusing*, so both defaults are the safe answer for what they gate.
+      selfServiceRegistration: verification.selfServiceRegistration === true,
     };
   }
 

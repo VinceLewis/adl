@@ -2074,6 +2074,11 @@ textarea.adl-field-control {
    Stacked rather than reusing `.adl-session-form`: that class is a single
    wrapping row, which suits a field beside its button but puts an explanation
    beside the thing it is explaining. */
+/* The signed-out passkey surface is now three separated routes rather than
+   two run together: sign in, create an account, join with an invitation. Each
+   non-first route is set off by the same rule, so a person scanning the panel
+   on a phone can tell where one way in ends and the next begins. */
+.adl-session-route,
 .adl-session-passkey-form,
 .adl-session-add-passkey {
   border-top: 1px solid var(--adl-color-border);

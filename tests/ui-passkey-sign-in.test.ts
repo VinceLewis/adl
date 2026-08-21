@@ -42,6 +42,7 @@ const passkeySignedOut: AdlSessionState = {
   developmentMode: false,
   identityMode: PASSKEY_IDENTITY_MODE,
   passkeySupported: true,
+  selfServiceRegistration: false,
   busy: false,
   /** No prior authentication here, so there is no grace to be inside. */
   grace: { status: "noIdentity", offlineGraceDays: 30 },
@@ -153,6 +154,72 @@ describe("adl-session-panel passkey surface", () => {
     expect(
       requireElement<HTMLButtonElement>(panel, "[data-session-register-passkey='true']").disabled,
     ).toBe(true);
+  });
+
+  it("offers a create-an-account route only where the authority permits self-service", () => {
+    const permitted = mountPanel({ ...passkeySignedOut, selfServiceRegistration: true });
+    expect(permitted.querySelector("[data-session-self-register='true']")).not.toBeNull();
+    // The invitation route stays exactly where it was: joining somebody else's
+    // group and recovering a lost device are different intents and are not
+    // replaced by this.
+    expect(permitted.querySelector("[data-session-passkey-form='true']")).not.toBeNull();
+    expect(permitted.querySelector("[data-session-passkey-invite='true']")).not.toBeNull();
+
+    const refused = mountPanel(passkeySignedOut);
+    expect(refused.querySelector("[data-session-self-register='true']")).toBeNull();
+    expect(refused.querySelector("[data-session-passkey-sign-in='true']")).not.toBeNull();
+    expect(refused.querySelector("[data-session-passkey-form='true']")).not.toBeNull();
+  });
+
+  it("dispatches a self-registration with no invite token key at all", () => {
+    const events = captureEvents<RegisterPasskeyDetail>(ADL_REGISTER_PASSKEY_EVENT);
+    const panel = mountPanel({ ...passkeySignedOut, selfServiceRegistration: true });
+
+    requireElement<HTMLButtonElement>(panel, "[data-session-self-register='true']").click();
+
+    expect(events).toHaveLength(1);
+    // Not merely `undefined`: the detail must carry no `inviteToken` key, so
+    // nothing downstream can serialise one as `null`.
+    expect(events[0]?.detail).toEqual({});
+    expect(Object.keys(events[0]?.detail ?? {})).toEqual([]);
+  });
+
+  it("disables the create-an-account control on the same terms as sign-in", () => {
+    for (const session of [
+      { ...passkeySignedOut, selfServiceRegistration: true, busy: true },
+      { ...passkeySignedOut, selfServiceRegistration: true, passkeySupported: false },
+    ]) {
+      const panel = mountPanel(session);
+      expect(
+        requireElement<HTMLButtonElement>(panel, "[data-session-self-register='true']").disabled,
+      ).toBe(true);
+    }
+  });
+
+  /*
+   * The single most likely defect in this surface. `sessionEquals` is a pure
+   * short circuit ahead of `render()`, and the readiness probe answers after
+   * the panel has already rendered once from the fail-closed default. Omit the
+   * field from that comparison and the control never appears at all, with
+   * nothing thrown and nothing logged.
+   */
+  it("re-renders when a session differs only in whether self-service is permitted", () => {
+    const panel = mountPanel(passkeySignedOut);
+    expect(panel.querySelector("[data-session-self-register='true']")).toBeNull();
+
+    panel.session = { ...passkeySignedOut, selfServiceRegistration: true };
+
+    expect(panel.querySelector("[data-session-self-register='true']")).not.toBeNull();
+  });
+
+  it("explains where an invitation token comes from, in both states", () => {
+    for (const selfServiceRegistration of [true, false]) {
+      const panel = mountPanel({ ...passkeySignedOut, selfServiceRegistration });
+      // The old copy named no source for a token at all, which left the only
+      // way in undocumented on the surface that exists to explain it.
+      expect(panel.textContent).toContain("Someone already using this app can send you");
+      expect(panel.textContent).toContain("Join with an invitation");
+    }
   });
 
   it("shows the confirmation a completed ceremony produced", () => {

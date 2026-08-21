@@ -65,9 +65,21 @@ const PASSKEY_SIGN_IN_TEXT =
   "Sign in with the passkey on this device. Your device proves who you are to the " +
   "server; nothing you type is used as a credential.";
 
+/*
+ * Three routes, and each one now says where it comes from. The old copy
+ * offered an "Invitation token" field and nowhere explained where a token
+ * comes from, which left the only way in undocumented on the surface that is
+ * meant to explain it. This panel is generic shell chrome shared by every ADL
+ * app, so none of this copy may name bands, circles or groups.
+ */
 const PASSKEY_REGISTER_TEXT =
-  "New here, or replacing a lost device? Enter your invitation token and register " +
-  "a passkey on this device.";
+  "Someone already using this app can send you an invitation token. Paste it here " +
+  "to join what they have set up — or to set up a replacement device for an " +
+  "account you have lost access to.";
+
+const PASSKEY_SELF_REGISTER_TEXT =
+  "New here? Create an account with a passkey on this device. You will start with " +
+  "nothing of your own until you set something up or someone invites you.";
 
 const PASSKEY_ADD_DEVICE_TEXT =
   "Register another passkey so you can sign in from a second device. This adds to " +
@@ -91,6 +103,8 @@ const DEFAULT_SESSION: AdlSessionState = {
   developmentMode: false,
   identityMode: "unknown",
   passkeySupported: false,
+  // Fail closed. The control appears only once the authority has said it may.
+  selfServiceRegistration: false,
   busy: false,
   grace: { status: "noIdentity", offlineGraceDays: DEFAULT_OFFLINE_GRACE_DAYS },
 };
@@ -143,6 +157,26 @@ export class AdlSessionPanelElement extends HTMLElement {
     if (target.closest("[data-session-passkey-sign-in='true']") !== null) {
       this.dispatchEvent(
         new CustomEvent(ADL_PASSKEY_SIGN_IN_EVENT, { bubbles: true, composed: true }),
+      );
+      return;
+    }
+
+    if (target.closest("[data-session-self-register='true']") !== null) {
+      /*
+       * The same event, with the same empty detail, that the signed-in
+       * "Register another passkey" control dispatches. There is deliberately
+       * no new event and no new bridge method: the browser sends no invite
+       * token and no session cookie, and the *authority* decides what that
+       * means. A separate control rather than an empty-token submission of the
+       * invitation form, because they are two different intents — and because
+       * it leaves that form's own empty-token refusal intact.
+       */
+      this.dispatchEvent(
+        new CustomEvent<RegisterPasskeyDetail>(ADL_REGISTER_PASSKEY_EVENT, {
+          bubbles: true,
+          composed: true,
+          detail: {},
+        }),
       );
       return;
     }
@@ -421,8 +455,26 @@ export class AdlSessionPanelElement extends HTMLElement {
       >
         Sign in with a passkey
       </button>
+      ${
+        this._session.selfServiceRegistration
+          ? `<section class="adl-session-route" data-session-self-register-route="true">
+              <h2 class="adl-session-heading">Create an account</h2>
+              <p class="adl-session-hint adl-session-passkey-explainer">${escapeHtml(
+                PASSKEY_SELF_REGISTER_TEXT,
+              )}</p>
+              <button
+                class="adl-session-submit"
+                type="button"
+                data-session-self-register="true"
+                ${disabled}
+              >
+                Create an account
+              </button>
+            </section>`
+          : ""
+      }
       <form class="adl-session-passkey-form" data-session-passkey-form="true">
-        <h2 class="adl-session-heading">Register this device</h2>
+        <h2 class="adl-session-heading">Join with an invitation</h2>
         <p class="adl-session-hint adl-session-passkey-explainer">${escapeHtml(
           PASSKEY_REGISTER_TEXT,
         )}</p>
@@ -693,6 +745,14 @@ function sessionEquals(left: AdlSessionState, right: AdlSessionState): boolean {
     left.developmentMode === right.developmentMode &&
     left.identityMode === right.identityMode &&
     left.passkeySupported === right.passkeySupported &&
+    /*
+     * Load-bearing. This is a pure-equality short circuit ahead of `render()`,
+     * and the readiness probe answers *after* the panel has already rendered
+     * once from the fail-closed default — so omitting this field means the
+     * panel never re-renders when the answer arrives and the create-an-account
+     * control never appears at all.
+     */
+    left.selfServiceRegistration === right.selfServiceRegistration &&
     left.busy === right.busy &&
     left.error === right.error &&
     left.notice === right.notice &&

@@ -161,6 +161,14 @@ export interface AdlSessionState {
   identityMode: string;
   /** False when the platform has no WebAuthn support, so the surface can say so. */
   passkeySupported: boolean;
+  /**
+   * Whether this deployment admits people nobody invited, read from `/readyz`.
+   * The sign-in surface uses it to offer a "create an account" route beside
+   * the passkey sign-in; the authority remains the enforcement point and the
+   * browser gains nothing by lying about it. Initial value is `false`, and an
+   * unreachable or silent authority leaves it there.
+   */
+  selfServiceRegistration: boolean;
   /** In flight, so the surface can disable its controls. */
   busy: boolean;
   /** Credential-free failure text for the last attempt. */

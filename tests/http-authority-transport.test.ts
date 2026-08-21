@@ -419,3 +419,73 @@ describe("HttpAuthorityTransport failure handling", () => {
     });
   });
 });
+
+describe("HttpAuthorityTransport readiness", () => {
+  function readinessTransport(responder: Responder): HttpAuthorityTransport {
+    return new HttpAuthorityTransport({
+      baseUrl: "https://authority.test",
+      credentials: new InMemoryAuthorityCredentialStore(),
+      fetch: recordingFetch(responder).fetchImpl,
+    });
+  }
+
+  it("reads a self-service deployment's disclosure off /readyz", async () => {
+    const transport = readinessTransport(() =>
+      jsonResponse({
+        status: "ready",
+        identityVerification: {
+          mode: "passkey",
+          verifier: "passkey",
+          bypassed: false,
+          selfServiceRegistration: true,
+        },
+      }),
+    );
+
+    await expect(transport.readiness()).resolves.toMatchObject({
+      ready: true,
+      mode: "passkey",
+      selfServiceRegistration: true,
+    });
+  });
+
+  /*
+   * Fail closed, four ways. A missing flag must never be read as permission,
+   * and neither must a truthy non-boolean an unrelated authority happened to
+   * put there.
+   */
+  it.each([
+    ["absent", { mode: "passkey", verifier: "passkey", bypassed: false }],
+    [
+      "false",
+      { mode: "passkey", verifier: "passkey", bypassed: false, selfServiceRegistration: false },
+    ],
+    [
+      "a truthy non-boolean",
+      { mode: "passkey", verifier: "passkey", bypassed: false, selfServiceRegistration: "yes" },
+    ],
+    ["a missing verification object", undefined],
+  ])("reads %s as no self-service", async (_label, identityVerification) => {
+    const transport = readinessTransport(() =>
+      jsonResponse({
+        status: "ready",
+        ...(identityVerification === undefined ? {} : { identityVerification }),
+      }),
+    );
+
+    await expect(transport.readiness()).resolves.toMatchObject({
+      selfServiceRegistration: false,
+    });
+  });
+
+  it("surfaces an unreachable authority as an error rather than a permissive default", async () => {
+    const transport = readinessTransport(() => {
+      throw new TypeError("network down");
+    });
+
+    // The caller (`createAuthoritySync`) leaves the fail-closed initial state
+    // in place when this throws, so an authority nobody can reach never grows
+    // a create-an-account route.
+    await expect(transport.readiness()).rejects.toBeInstanceOf(AuthorityTransportError);
+  });
+});
