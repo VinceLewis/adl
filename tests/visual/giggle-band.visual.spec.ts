@@ -1,4 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "./support/evidence.js";
+import { type Page } from "@playwright/test";
+import { expectAbsentWithin } from "./support/expect-absence.js";
 import {
   readMountedModelVersion,
   readPersistedApplicationMetadata,
@@ -473,7 +475,17 @@ test("captures the navigation drawer and its declared chrome", async ({ page }, 
   await expect(drawer.locator("[data-shell-drawer-tools]")).toBeVisible();
   // Declared in `ui.adlj` with `PLACEMENT navDrawer`, so it belongs here and
   // nowhere else.
-  await expect(page.locator(".adl-topbar-tools")).not.toContainText("Sign out");
+  //
+  // Anchored deliberately. `expect(page.locator(".adl-topbar-tools")).not
+  // .toContainText("Sign out")` — what this line used to be — is satisfied when
+  // `.adl-topbar-tools` does not exist at all, so it would have survived the
+  // whole top bar disappearing. `expectAbsentWithin` requires the anchor.
+  await expectAbsentWithin({
+    within: page.locator(".adl-topbar"),
+    present: page.locator(".adl-topbar-tools"),
+    absent: page.locator(".adl-topbar-tools").getByText("Sign out"),
+    because: "sign-out is declared PLACEMENT navDrawer, so it must not appear in the top bar",
+  });
   await expect(drawer.locator("[data-nav-item='BandMemberAvailabilityBoard']")).toBeVisible();
 
   // Icons are optional shell metadata. Exercise the generic no-icon branch

@@ -29,6 +29,7 @@ const STARTUP_FAILURE_RECOVERY_SPEC = /startup-failure-recovery\.visual\.spec\.t
 const OFFLINE_SHELL_SPEC = /offline-shell\.spec\.ts$/;
 const PASSKEY_SPEC = /passkey-sign-in\.spec\.ts$/;
 const ADMINISTRATION_SPEC = /administration\.spec\.ts$/;
+const EVIDENCE_SELF_CHECK_SPEC = /evidence-self-check\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "./tests/visual",
@@ -38,7 +39,12 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: false,
-  reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
+  globalSetup: "./tests/visual/support/evidence-globals.ts",
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["./tests/visual/support/evidence-reporter.ts"],
+  ],
   use: {
     baseURL: "http://127.0.0.1:5173",
     trace: "retain-on-failure",
@@ -51,6 +57,7 @@ export default defineConfig({
         JOINTLY_CARE_VISUAL_SPEC,
         BROWSER_DEMO_VISUAL_SPEC,
         STARTUP_FAILURE_RECOVERY_SPEC,
+        EVIDENCE_SELF_CHECK_SPEC,
       ],
       use: {
         ...devices["Desktop Chrome"],

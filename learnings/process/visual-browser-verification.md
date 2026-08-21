@@ -86,3 +86,159 @@ Two process points that generalise:
   effect — or worse, appear verified when nothing was tested. Confirm the owner
   of the port (`ss -ltnp`, then `/proc/<pid>/cwd`) before trusting a screenshot
   taken from a worktree.
+
+## Per-Test Evidence, And What Is Checked Automatically
+
+Phase 107. Every Playwright test now leaves a folder — Playwright's own
+`testInfo.outputDir` under `test-results/visual/` — containing:
+
+| File | What is in it |
+|---|---|
+| `console.jsonl` | every console message at every level, plus uncaught page errors, with source locations |
+| `network.jsonl` | every request, response and failure |
+| `authority.jsonl` | the authority's own security log for exactly this test (`passkey` and `administration` only) |
+| `verdict.json` | the gate review: failures, allowed entries with their reasons, unused allowances, counts |
+| `*.png` | the screenshots the spec took, also attached so the HTML report links them |
+
+The run ends by writing `test-results/visual/EVIDENCE.md`, which opens with a
+**Review** section and then lists every test. That page is the entry point;
+`test-results/` is gitignored, as it was before.
+
+### The six gates
+
+Five fail on an observation, one fails on the absence of observations:
+
+1. any uncaught page error;
+2. any console message of type `error`;
+3. any failed request;
+4. any response with status ≥ 400;
+5. any authority security-log event with `outcome: "failed"`;
+6. **empty recorder** — the page navigated somewhere real and the network stream
+   is nonetheless empty, or authority requests were made and no authority events
+   were recorded.
+
+Gate 6 is the one that is normally skipped and the one most worth having. A
+recorder that silently stops recording — a listener attached to the wrong page, a
+fixture ordering change, a Playwright event rename — makes all five other gates
+pass forever and invisibly. It is the negative half of the capture itself.
+
+### What is deliberately *not* gated, and why
+
+- **`console.warn`.** Measured: there is no `console.error` anywhere in `src/`,
+  and the seven `console.warn` sites (`session-startup.ts`, `authority-sync.ts`)
+  are the application announcing *survivable degradation* — "authority sync is
+  unavailable; continuing with local data". Gating on `warn` would gate on the
+  design, and every offline test would need an allowance for warnings it is
+  supposed to produce. Warnings are counted instead, and an **undeclared** one is
+  listed for review.
+- **`outcome: "denied"`.** A denial is the policy engine working.
+  `administration.spec.ts` exists partly to prove denial and absence stay
+  indistinguishable to the user, so a gate on denial would fight its subject.
+
+### Allowances are annotations, not silencers
+
+`AllowRule.reason` is non-optional, so `tsc` refuses an unexplained allowance,
+and a rule with no matcher is rejected at construction. Prefer
+`evidence.during([...], async () => { ... })` over `evidence.allow(...)`: it
+scopes the permission to the window in which the test provokes the failure, so
+noise before or after still fails. The reason is written into `verdict.json` and
+the index beside every entry it permits, so a reader sees "12 failed requests,
+all allowed: *the network is disabled on purpose*" rather than a silence.
+
+An allowance that matched nothing is reported in the Review section. It usually
+means the deliberate failure stopped happening, so the test no longer proves what
+its comment claims. It does not fail the test.
+
+**An allowance is never how a genuine finding is made to go away.** That is the
+existing "never weaken a test to make verification pass" rule, in this costume.
+
+### The authority is in-process, so its log is injected, not tailed
+
+The most likely thing to be re-derived the hard way: the `passkey` and
+`administration` projects do **not** spawn an authority process. Both harnesses
+`createServer` from `node:http` inside the Playwright worker. There is no stdout
+to tail and no log file to slice.
+
+`createAuthorityHttpHandler` accepts `logger?: SecurityLogger`
+(`src/server/authority-http.ts`). Passing a `RecordingSecurityLogger`
+(`tests/visual/support/authority-log.ts`) gives an exact per-test slice, taken by
+buffer index rather than timestamp, already redacted by the authority's own
+`redactSecurityData`. Both harnesses also stopped swallowing handler exceptions:
+the empty `catch {}` used to turn a real crash into an opaque 500 with the stack
+trace destroyed.
+
+The slice is materialised **on demand**, not at teardown, so a test body can
+assert on what the server recorded while it is still running. Materialising only
+at teardown made every such assertion see an empty list, which is how it was
+found.
+
+### The negative half of a browser assertion
+
+`tests/visual/support/expect-absence.ts`:
+
+- `expectAbsentWithin({ within, absent, present, because })` — the anchor is
+  **required**. `expect(x).toHaveCount(0)` is satisfied equally by "the control is
+  correctly not offered", "the page never mounted" and "somebody renamed the
+  selector". `giggle-band.visual.spec.ts` carried exactly that vacuity: a
+  `not.toContainText("Sign out")` on `.adl-topbar-tools` that would have survived
+  the whole top bar disappearing.
+- `expectRequestRefused(evidence, { url, status, reason })` — distinguishes the
+  two failures a bare absence assertion conflates: a request never made, and one
+  answered 2xx. Also declares its own allowance, so an asserted refusal is not
+  additionally reported as an unexplained 4xx.
+- `expectNoRequestTo(evidence, url)` — the affordance did not fire.
+- `expectAuthorityDenied(evidence, { event, endpoint, reason })` — the **server**
+  recorded the refusal. A control hidden by the UI is not the same fact as an
+  action the server refuses: Phase 99 shipped a button the server would have
+  refused, Phase 105 measured an enabled Accept button that is silently refused,
+  and in both only the server-side record disambiguates. Pair it with
+  `expectAbsentWithin`.
+
+`page.request` shares the page context's cookie jar (measured), so driving the
+endpoint a hidden control would have hit reaches the server as the *same*
+principal, not a fresh anonymous one.
+
+### Gates prove they can fail, permanently
+
+`tests/visual/evidence-self-check.spec.ts` gives each gate a `test.fail()` case
+that provokes its signal unallowed, plus a counterpart proving the same signal
+passes when declared. `test.fail()` **does** cover a failure raised in fixture
+teardown, which is where the review happens (measured before it was relied on).
+Delete or weaken a gate and its case becomes an *unexpected pass*, which turns the
+suite red.
+
+Run the mutation check when changing gate logic: remove each gate in turn and
+confirm it breaks a **distinct** case. This is not ceremony — it caught two of
+this suite's own `test.fail()` cases being vacuous. Aborting a request and
+fetching a 404 both *also* log a console error, so the request-failed and
+http-error cases still failed with their own gate deleted, satisfied by the
+console gate instead. Each now allows the console error so the gate under test is
+the only unallowed signal left. This is the same shape as Phase 103's vacuous
+`SELF` negative: ask what constant would satisfy the assertion, and make sure the
+mutation would catch it.
+
+### No pixel baselines, and why
+
+Measured against, not assumed. In favour: seed data is date-pinned
+(`src/reference/band-app.ts` pins `now`, every date is a literal, the calendar's
+month is a `defaultValue` in `ui.adlj`), the render path has no live clock
+(`new Date()` appears twice in all of `src/ui`, neither rendered), and only five
+CSS transitions exist. Against, decisively: `src/ui/styles.css` sets
+`--adl-font-family: system-ui`, which fontconfig resolves differently per host,
+and there is no CI — every run is somebody's laptop or a worktree on it. Churn
+compounds it: of the last 100 commits, 52 touched `src/reference/**` and 63
+touched `src/ui/**`, so baselines would need regenerating on three commits in
+five, reviewed by the same human eyeball they were meant to replace.
+
+The cheap prerequisite is already taken: the fixture injects a test-only
+`--adl-font-family` override, so the largest flake source is gone before anyone
+adds baselines. No production CSS changed.
+
+### Server ownership is now checked, not remembered
+
+The warm-port hazard above is enforced rather than documented. `globalSetup`
+(`tests/visual/support/evidence-globals.ts`) reads `ss -ltnp` and
+`/proc/<pid>/cwd` for all four ports and **fails the run** if one is served from
+another working tree, recording the result in `test-results/visual/servers.json`.
+A rule that can be mechanical should not be prose
+(`learnings/process/instruction-placement.md`).

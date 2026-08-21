@@ -125,7 +125,9 @@ Tests that exercise the authority server, PostgreSQL projections, migrations, th
 - The fast hermetic suite (`npm test`) excludes `tests/integration/**` so it needs no Docker; do not add backend behaviour that is only covered there.
 - When adding or changing authority/server behaviour, add or update the matching real integration test and run `npm run test:integration`. In-memory stores remain acceptable only as test wiring for non-backend units, never as the backend under test.
 
-Before pushing any change that affects browser UI rendering, shell chrome, reference app screens, presentation runtime output, or CSS, run `npm run verify:push`. This includes Playwright desktop and mobile screenshots for every Giggle Band app page through `npm run test:visual`; inspect the generated screenshots before committing.
+Before pushing any change that affects browser UI rendering, shell chrome, reference app screens, presentation runtime output, or CSS, run `npm run verify:push`. This includes Playwright desktop and mobile screenshots for every Giggle Band app page through `npm run test:visual`.
+
+Since Phase 107 every Playwright test also produces a folder of evidence — its console at every level, its uncaught page errors, its full network activity, and, where an authority is running, that authority's own security log for exactly that test — and six gates review it at the end of the test. An unexplained console error, uncaught exception, failed request, 4xx/5xx, server-side `failed` outcome, or silently-empty recorder fails the test that produced it. A failure a test provokes on purpose is declared where it happens with a written reason, which is recorded beside every entry it permits; **an allowance is never a way to make a genuine finding go away** (the same prohibition as "never weaken a test to make verification pass", above). Read `test-results/visual/EVIDENCE.md` after a run — it opens with what needs review — and inspect the screenshots it links before committing. Details, including why `console.warn` and a policy `denied` outcome are deliberately not gated, are in `learnings/process/visual-browser-verification.md`.
 
 For documentation-only phases, no automated tests are expected, but verify the requested files exist and that instructions do not contradict the repository boundary.
 
@@ -216,8 +218,8 @@ was then scoped against. Before asserting runtime behaviour — especially in a
 phase document, which later work builds on — execute it. A throwaway vitest
 against the seeded reference app with a real context is cheap. Mark inferred
 claims as inferred, explicitly, so a reader can tell them from measured ones.
-Prove rendering by inspecting the `verify:push` screenshots, not by reading the
-template. See `learnings/process/evidence-by-execution.md` for the four
+Prove rendering by inspecting the `verify:push` screenshots and the evidence
+index they are listed in, not by reading the template. See `learnings/process/evidence-by-execution.md` for the four
 incidents behind this rule.
 
 Corollary: running a check and discarding its verdict is the same failure. **A

@@ -1,4 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "./support/evidence.js";
+import { type Page } from "@playwright/test";
+import { allowSignedOutStartup } from "./support/authority-allowances.js";
 import {
   ADMINISTRATION_ACCOUNT_PROOF,
   startAdministrationAuthority,
@@ -36,7 +38,8 @@ test.afterAll(async () => {
   await authority?.close();
 });
 
-test("reviews audit, access and reports from the browser", async ({ page }, testInfo) => {
+test("reviews audit, access and reports from the browser", async ({ page, evidence }, testInfo) => {
+  allowSignedOutStartup(evidence);
   await signIn(page);
 
   const chrome = page.locator("[data-administration-chrome]");
@@ -89,7 +92,8 @@ test("reviews audit, access and reports from the browser", async ({ page }, test
   await expectNoDocumentHorizontalOverflow(page);
 });
 
-test("runs a report and offers it as a CSV export", async ({ page }, testInfo) => {
+test("runs a report and offers it as a CSV export", async ({ page, evidence }, testInfo) => {
+  allowSignedOutStartup(evidence);
   await signIn(page);
   await selectBandContext(page, authority.bandName);
 
@@ -116,7 +120,8 @@ test("runs a report and offers it as a CSV export", async ({ page }, testInfo) =
   await expectNoDocumentHorizontalOverflow(page);
 });
 
-test("ends a member's sessions from the membership review", async ({ page }) => {
+test("ends a member's sessions from the membership review", async ({ page, evidence }) => {
+  allowSignedOutStartup(evidence);
   await signIn(page);
   await selectBandContext(page, authority.bandName);
 
