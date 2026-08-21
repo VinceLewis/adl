@@ -36,6 +36,16 @@ Code phases should add or update tests that prove the behavior introduced by the
 - Phase 28: Giggle dashboard reference implementation, ADL-driven rendering path, representative seed data, and browser build verification
 - Phase 29: UI presentation conformance cases, inspect/explain output, spec consistency, and regression tests for any defects fixed
 
+## Scope of this document
+
+Two kinds of content live here. **The doctrine sections** — every positive test
+needs a matching negative one, proving a test can fail, absence assertions,
+declaring expected failures — are project-agnostic and are written so they can
+be lifted into a shared testing kit without edit. Their ADL incidents stay with
+them: a rule without its scar tissue gets argued away in the next codebase.
+**The ADL-specific sections** — the per-phase list, the real-PostgreSQL rule,
+the reference-app fixture rule — are about this repository and do not travel.
+
 ## Every positive test needs a matching negative test
 
 **Rule: no functionality and no defect fix is complete with positive tests
@@ -114,6 +124,121 @@ printer round-trip. Do not manufacture a hollow one to satisfy the rule. Say in
 the phase report which cases have no negative half and why. That is a
 disclosure, not an exemption: it is reviewable, whereas a silently positive-only
 suite is not.
+
+## Prove the test can fail: the mutation check
+
+**A test you have not seen fail is a claim, not a check.** Writing it before the
+change and watching it go red is the cheap version. The reliable version is the
+mutation check: **break the implementation on purpose and confirm the test goes
+red.**
+
+The question to ask of every assertion is: *what would satisfy this that
+shouldn't?* Then create exactly that condition and run it.
+
+### Two ways a test proves nothing, and both look identical from the outside
+
+**1. Nothing exercises the behaviour.** The test asserts a refusal that would
+hold for any input, because the case it names is never reached.
+
+Phase 103 shipped this and caught it by mutation. Its "a `SELF` grant confers no
+search" test declared `ALLOW READ SELF` and `ALLOW UPDATE SELF`, then asserted
+`search` was refused. It passed — and it **still passed with the policy engine
+mutated to allow everything**, because the model named no `search` rule at all,
+so the refusal held for every principal and said nothing whatever about `SELF`.
+The discriminating shape was `ALLOW * SELF`, which does name `search`. The
+executor's own words: *the mutation found this, not review.*
+
+**2. A different mechanism is satisfying it.** The test passes, the behaviour it
+names is broken, and some other check is quietly doing the work.
+
+Phase 107 shipped two of these and caught both by mutation. Its `request-failed`
+and `http-error` gates each had a `test.fail()` case to prove the gate could
+fail — and both cases **still failed with the gate under test deleted**, because
+aborting a request and fetching a 404 each *also* log a console error, and the
+console gate was catching them. The fix was to allow the console error inside
+each case, leaving the gate under test as the only unallowed signal. Its own
+words: *without the mutation check I would have shipped two gates whose
+self-checks proved nothing.*
+
+The second mode is the more dangerous, because the test is exercising real
+behaviour and failing for a real reason — just not the reason it claims.
+
+### The discipline
+
+- **Mutate per moving part, not per fix.** Phase 102 removed each half of its
+  two-part fix separately and confirmed each broke a **distinct, non-overlapping**
+  set of assertions (five failures and two). Overlapping sets mean one of the
+  halves is not actually covered.
+- **Mutate toward the permissive answer.** Replace the check with "always
+  allow", "always true", "always found". That is the constant a hollow test
+  cannot distinguish.
+- **Delete the branch, not just the value.** Phase 104's nine mutations included
+  removing a printer branch entirely, which is how it learned that a missing
+  branch emits an *empty* clause that reparses as the permissive default —
+  silent widening, not a crash.
+- **Restore the file.** A mutation left in place is a defect.
+
+Four consecutive phases used this and it found something in three of them. It is
+the highest-yield verification practice this repository has, and it is the one a
+test's own author is least likely to perform unprompted — which is an argument
+for a reviewer who is not the author.
+
+## An absence assertion needs a present-anchor
+
+**"X is not there" is satisfied by nothing being there at all.** Every assertion
+of absence must be paired, in the same assertion, with something whose
+*presence* proves the subject was actually rendered, returned or evaluated.
+
+Measured in this repository: `giggle-band.visual.spec.ts:476` asserted that the
+top bar did not contain "Sign out". It passes when the top bar disappears
+entirely. Phase 107 replaced the pattern with `expectAbsentWithin`, whose
+present-anchor argument is **required** so a blank page cannot satisfy it.
+
+The rule is not browser-specific. It applies to a field absent from a policy
+result (assert the whole result by equality, so absence is asserted rather than
+inferred), a row missing from a query (assert the rows that should be there), a
+diagnostic not emitted (assert the diagnostics that should be), and a request
+never made (distinguish "never happened" from "was permitted" — a bare
+count-of-zero conflates the two).
+
+Related and equally load-bearing: **never assert on the absence of an
+exception.** In a system that degrades silently, "no error was raised" is
+compatible with everything being wrong. Assert rendered values, and assert
+diagnostics by code and path rather than by `diagnostics` being non-empty.
+
+## Declare expected failures from measurement, never from prediction
+
+A suite that deliberately provokes failures needs a way to say "this one is
+meant to happen". That list must be built from **a report-only run that records
+what actually occurs**, never from reasoning about what the code should emit.
+
+Phase 107 predicted four things about its own suite and was wrong about all
+four. Its offline test would produce a storm of failed requests: it produced
+**zero**, because the service worker serves everything from cache. Its
+startup-failure test would produce a page error "by construction": the app
+catches it and nothing escapes. A deliberate abort would produce "many"
+failures: it produced three. And the **dominant signal in the whole suite was
+not a deliberate provocation at all** — it was ordinary signed-out startup,
+which no test provokes and which would have failed eight honestly-passing tests
+on the first day the rule was switched on.
+
+Three rules follow, and they generalise to any allowlist, any expected-failure
+list, and any "known issues" file:
+
+- **Inventory first, declare second.** Report-only pass, then write the list
+  against what it recorded.
+- **Every entry carries a written reason, and the reason is printed wherever the
+  entry applies.** An allowance should annotate the output, not silence it — the
+  report should say "12 failures, all allowed: *the network is disabled on
+  purpose*", never "0 failures".
+- **Scope each entry to the window that provokes it**, not to the whole test,
+  and pair it with a positive control proving the allowed path still works —
+  otherwise an allowance is satisfiable by a run in which the behaviour never
+  happens at all.
+
+An entry that matched nothing should be **reported**, not failed: it usually
+means the deliberate failure stopped happening, which is worth a human look but
+is not itself an error.
 
 ## Backend/authority integration testing (real, not mocked)
 
