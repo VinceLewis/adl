@@ -82,7 +82,7 @@ describe("LOOKUP ... TARGET_FIELD runtime resolution", () => {
     });
   });
 
-  it("resolves an implicit read-model lookup join by the named field, not by identity", async () => {
+  it("PHASE-68 resolves an implicit read-model lookup join by the named field, not by identity", async () => {
     const runtime = new ApplicationRuntime(compile());
 
     const author = await runtime.create(
@@ -121,7 +121,7 @@ describe("LOOKUP ... TARGET_FIELD runtime resolution", () => {
     expect(result.rows.some((row) => row.values.Title === "Unmatched Post")).toBe(false);
   });
 
-  it("requires the search action on the target object, same as a declared join", async () => {
+  it("PHASE-68 requires the search action on the target object, same as a declared join", async () => {
     const restricted = compileAdl(
       source.replace(
         "ALLOW SEARCH ROLE Reader\n  ALLOW READ ROLE Reader\nEND.POLICY\n\nPOLICY PostPolicy",
