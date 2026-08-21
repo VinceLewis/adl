@@ -859,7 +859,7 @@
                       }
                     ],
                     "emptyState": {
-                      "text": "No invitations"
+                      "text": "No invitations yet. When a band invites you, it appears here."
                     },
                     "filter": "Status == 'Pending'",
                     "actions": [

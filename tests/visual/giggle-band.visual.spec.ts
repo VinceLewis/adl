@@ -838,7 +838,9 @@ test("offers no Accept on the invitations screen to a caller who is nobody's inv
   await expect(workspace).toContainText("Your invitations");
   // The list's own declared empty state, so the screen is genuinely working
   // rather than silently degraded into a diagnostic.
-  await expect(workspace).toContainText("No invitations");
+  await expect(workspace).toContainText(
+    "No invitations yet. When a band invites you, it appears here.",
+  );
   await expect(page.locator("button[data-presentation-action='true']")).toHaveCount(0);
   await expect(workspace).not.toContainText("Policy denied");
   await expect(workspace).not.toContainText("could not bind source");

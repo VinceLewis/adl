@@ -198,6 +198,44 @@ found.
 endpoint a hidden control would have hit reaches the server as the *same*
 principal, not a fresh anonymous one.
 
+### `expectAuthorityDenied` cannot see a rejected *replay*
+
+Found by the first spec to ask (Phase 105's `invitation` project, the first to
+drive Jointly Care against an authority). A replay whose **outcome** is
+`rejected` is recorded as `http_request` / `allowed` / `200` and nothing else:
+the security log's `denied` events cover transport-level rejections —
+`authority_request_rejected` for unauthenticated, bad origin, rate limited — and
+not a policy verdict reached *inside* an accepted request.
+
+So the one helper built for exactly this shape cannot see this shape. Measured
+response, verbatim:
+
+```
+200 {"status":"rejected","operationId":"…","code":"ADL_POLICY_DENIED",
+     "message":"Policy denied update on object 'CircleInvite' outside its runtime context scope."}
+```
+
+Transport succeeded; the write did not happen. Until the authority emits a
+security event for a rejected outcome, the strongest available statements are the
+outcome body (asserted on its `message`, not only its `code` — a bad CSRF token
+is `403` and an expired session `401`, and neither must pass as the verdict under
+test) and a read-back of the records the server did not write. Both are in
+`tests/visual/invitation-accept.spec.ts`, with a comment saying why
+`expectAuthorityDenied` is absent, so the next person does not rediscover it.
+
+### An authority project needs a caller who is a member of nothing
+
+The `passkey` and `administration` harnesses both seed a member or an
+administrator, which is the caller whose path already worked.
+`invitation-authority.ts` seeds an identity holding one `pending` invite and no
+membership anywhere, and that difference immediately produced a finding no
+hermetic test had: `AuthorityService.bootstrap` selects by read policy, no policy
+lets a pending invitee read the context's own root record, and
+`RuntimeContextService.mergeGrantedContexts` will not report an instance as
+available without that record. The invitation reaches the device; the circle does
+not; the screen has no context to render in. Neither reference app's invitation
+flow works against a real deployment because of it.
+
 ### Gates prove they can fail, permanently
 
 `tests/visual/evidence-self-check.spec.ts` gives each gate a `test.fail()` case

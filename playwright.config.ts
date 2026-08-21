@@ -30,6 +30,7 @@ const OFFLINE_SHELL_SPEC = /offline-shell\.spec\.ts$/;
 const PASSKEY_SPEC = /passkey-sign-in\.spec\.ts$/;
 const ADMINISTRATION_SPEC = /administration\.spec\.ts$/;
 const EVIDENCE_SELF_CHECK_SPEC = /evidence-self-check\.spec\.ts$/;
+const INVITATION_SPEC = /invitation-accept\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "./tests/visual",
@@ -107,6 +108,21 @@ export default defineConfig({
         viewport: { width: 1440, height: 1000 },
       },
     },
+    {
+      // Phase 105. The only project that drives **Jointly Care** against an
+      // authority, and the only one whose signed-in identity is a member of
+      // nothing. Both are the point: an invitee's `Accept` is refused by the
+      // server while the browser reports success, and neither half of that is
+      // observable from a project with no authority behind it.
+      name: "invitation",
+      testMatch: INVITATION_SPEC,
+      timeout: 120_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://localhost:5473",
+        viewport: { width: 1440, height: 1000 },
+      },
+    },
   ],
   webServer: [
     {
@@ -127,6 +143,16 @@ export default defineConfig({
       // The only server built with an authority configured, so the session
       // chrome the passkey spec drives actually renders.
       env: { VITE_ADL_AUTHORITY_URL: "http://localhost:8788" },
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
+      command: "npm run dev -- --host localhost --port 5473",
+      url: "http://localhost:5473/?demo=jointly-care",
+      // Its own server and its own throwaway authority, for the same reason the
+      // administration project has one: two deployments cannot share a process,
+      // and this one serves Jointly Care rather than Giggle Band.
+      env: { VITE_ADL_AUTHORITY_URL: "http://localhost:8790" },
       reuseExistingServer: true,
       timeout: 60_000,
     },

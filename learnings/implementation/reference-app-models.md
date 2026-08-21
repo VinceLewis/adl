@@ -379,6 +379,51 @@ covered by its own Playwright visual spec
   reach for a system/admin context to verify write outcomes, which is what
   `jointly-reference-app.test.ts` does).
 
+## Giggle Band's invitee surface, and the two policy rules it needed
+
+Phase 105. Giggle Band had `AcceptBandInvitation`, a `pendingBandInvitation`
+`CONTEXT_GRANT` and no screen anywhere that an invited musician could reach.
+`PendingInvitations` and `SentBandInvitations` are both `CONTEXT REQUIRED Band`,
+so using them means first selecting a band you have not joined, in a picker you
+have no reason to open. `MyBandInvitations` / `MyBandInvitationList` are the
+`CONTEXT ALL Band` counterpart, mirroring Jointly Care's
+`MyPendingCircleInvites` / `MyPendingInvites`.
+
+Two policy rules were load-bearing, and neither is obvious from the read model:
+
+- **`BandInvitationPolicy.allowAuthenticatedSearchInvitations`**, unconditioned.
+  `ReadModelService.searchAuthorisedSourceRecords` checks the `search` action
+  *first*, before any scope narrowing or per-record filtering, so
+  `allowBandAdminSearchInvitations` alone made an invitee's own invitation
+  unreachable through **every** read model over the object —
+  `Policy denied search on object 'BandInvitation'`, rendered to the person as
+  `List 'PendingInvitations' could not bind source 'PendingInvitations'.` A
+  `WHEN`-conditioned `SEARCH` rule cannot substitute: the object-level check has
+  no record for the condition to read. Measured not to enumerate: the invitee
+  gets exactly their own invitation, a `BandAdmin` gets exactly their own band's,
+  and a caller who can reach no context is refused at the object-scope gate
+  before any record is considered.
+- **`BandPolicy.allowAuthenticatedReadBandName`**, Phase 101's field-scoped
+  shape. A `CONTEXT_GRANT` reaches the *granted* object and never the context's
+  own root object, so without this the row reads `band-b4b935e2-…` instead of
+  `The Betas`. Jointly Care's `MyPendingCircleInvites` records the same finding
+  and routes around it by not naming the circle; the mechanism that makes naming
+  it safe landed after that comment was written. `FIELDS Name` grants the field
+  and never the record: `runtime.read("Band", …)` stays denied and `Description`
+  and `Biography` keep their own default deny, which is pinned by
+  `expectInvitationRowLeaksNoBandRecord` and mutation-checked by widening the
+  rule and watching only that case go red.
+
+Two behaviours worth knowing before designing a screen like this:
+
+- The `FILTER Status == 'Pending'` lives on the **list**, not on the read model,
+  so the read model stays reusable for a history surface without loosening a
+  policy to get it. Removing the filter turns three named negative cases red and
+  leaves the positive one green, which is the shape a filter's tests should have.
+- Its `SHELL NAV` item carries **no** visibility predicate, unlike every other
+  `Main` item in the app. `CONTEXT SELECTED Band` would hide the screen from the
+  only person who needs it.
+
 ## Practical guidance
 
 - Avoid app-specific runtime hooks in reference apps unless a phase explicitly asks for them. If a workflow needs hooks or commands, document the gap and promote it to a generic platform phase.

@@ -24,7 +24,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const PORTS = [5173, 4173, 5273, 5373];
+const PORTS = [5173, 4173, 5273, 5373, 5473];
 
 interface PortOwner {
   port: number;

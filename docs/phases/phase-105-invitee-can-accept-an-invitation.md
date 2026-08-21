@@ -900,6 +900,168 @@ scope.` Record the message verbatim.
 13. `tsc`, `prettier --check`, unit, conformance, integration, `/impeccable
 audit`, `npm run verify:push` with screenshots inspected. Commit; push.
 
+## Execution Note
+
+Executed on `phase-105-invitee-accept`, on top of `c552cfc` and then merged with
+`f38d7cc` (Phases 104 and 107).
+
+### Seen red first, verbatim
+
+- **A+ `expectContextAllViewContextCarriesGrants`** —
+  `AssertionError: expected undefined to deeply equal [ { context: 'Band', …(3) } ]`.
+  The shell's `CONTEXT ALL` context carried no `contextGrants` key at all.
+- **A− `expectContextAllViewContextCarriesNoRoles`** —
+  `Expected: "Policy denied update on object 'BandInvitation'."` /
+  `Received: "Policy denied update on object 'BandInvitation' outside its runtime context scope."`
+  (this half was subsequently rewritten not to pin the refusal *layer*, so that
+  the "remove the grant resolution" mutation leaves it green — see below).
+- **B+ `expectInviteeAcceptCommitsFromTheBrowser`** — the rendered app contained
+  `Policy denied update on object 'CircleInvite' outside its runtime context
+scope. ADL_POLICY_DENIED` where `Accept invite completed.` was expected. The
+  document's Evidence 7, reproduced exactly, four commits later.
+- **B−** and the two `pendingBandInvitation` grant cases passed against the
+  unmodified tree, as the document predicted for **F−
+  `expectPendingGrantLapsesOnceAnswered`**. Both are mutation-checked instead.
+
+### Mutation checks, each turning a different named case red
+
+| Mutation | Red | Green |
+|---|---|---|
+| remove the `resolveContextGrants` call from `data.ts` | **A+**, **B+**, **E+**, **E−** | **A−**, **B−**, and — notably — **C+**, **D+**, **F+**, because `ReadModelService` re-resolves grants itself: the list still renders and only the command fails, which is the defect's exact signature |
+| a grant additionally confers a `contextRole` | **A−** | **A+** |
+| remove `allowAuthenticatedSearchInvitations` | **C+** (and every case that reads the invitee's screen) | **I−** |
+| widen `allowAuthenticatedReadBandName` to a whole-record rule | **D−** | **D+** |
+| remove the list's `FILTER Status == 'Pending'` | **F−** (both) and **E−** | **F+** |
+| remove `pendingBandInvitation`'s `WHEN Status == 'Pending'` | **F− `expectPendingGrantLapsesOnceAnswered`** and its positive half | — |
+| flip each new conformance case's expectation | exactly that case | the other ten |
+
+**A−** was rewritten after the first mutation run. As originally written it
+pinned the refusal *layer* (`BandInvitationDefaultDeny` rather than
+`BandInvitationContextScope`), which made it red under the grant-removal
+mutation — where the phase document requires it to stay green, and rightly: the
+fact it exists to hold is that a grant confers no role, and removing grants
+confers none either. The "grant is effective" assertion moved to **A+**. Both
+halves of the rewritten **A−** were then checked to discriminate independently.
+
+### Premises that did not hold
+
+1. **G+ is not what a stranger sees.** The document expected the list's declared
+   `No invitations` empty state. Measured: `resolveActiveViewContext`'s
+   `mode === "all"` branch returns the shell's own
+   `No Band contexts are available for this view.` when the caller can reach no
+   instance, so a `CONTEXT ALL` view never reaches its list at all. The test
+   asserts what happens, and the finding is in
+   `learnings/implementation/context-ui-navigation.md`.
+2. **B− is stopped by read shaping, not by the row action's `WHEN`.** The
+   co-carer does not see the invite row *at all* — `allowInviteeReadOwnInvite`
+   does not match them and they are not a `CircleOwner`. The row-action gate is
+   exercised against the **circle owner**, who legitimately reads every invite
+   their circle sent and still gets no button. The test covers both.
+3. **The runtime does not name which precondition failed.** A step-guard refusal
+   carries `ruleName: "<step>Precondition"` and
+   `Command '<X>' step '<step>' precondition failed.`, not the failing clause.
+   The cases assert the named reason and are constructed so only one clause can
+   be the failing one.
+4. **J− is refused with `ADL_RUNTIME_CONTEXT_ERROR`, not `ADL_POLICY_DENIED`**,
+   for a stranger: they cannot select the band at all, so `withSelectedContext`
+   fails before the command is considered. A `BandAdmin` replaying the same
+   intent *does* get `ADL_POLICY_DENIED` from the step guard. Both are asserted.
+5. **J±'s "contains no `@`" is the wrong claim on this path.** An invitation
+   names the address it was sent to and its invitee is entitled to their own.
+   The claim asserted instead is that nobody *else's* address travels, with a
+   second seeded invitation to make that mean something.
+6. **Evidence 13's inferred authority claim is false for the shell's own path.**
+   See below; this is the significant one.
+
+### And a third layer, deeper than either: the context never reaches the device
+
+Measured in a real browser against a real authority, in the new `invitation`
+Playwright project.
+
+An invited person's device receives exactly one record — their own `pending`
+`CircleInvite` — and **no `Circle`**. `AuthorityService.bootstrap` selects
+candidates by read policy, and no policy in either application lets a pending
+invitee read the context's own root record: Jointly Care has none at all, and
+Giggle Band's `allowAuthenticatedReadBandName` is field-scoped by design, which a
+whole-record bootstrap read cannot match.
+
+`RuntimeContextService.mergeGrantedContexts` then reads that root record before it
+will report the instance as available, and skips it when absent. So
+`listAvailableContexts("Circle", …)` returns `[]`, and the `CONTEXT ALL` view
+falls to `No Circle contexts are available for this view.` — with Phase 99's
+"Create a circle" button under it — before it reaches its list. There is no row
+and no button.
+
+Fixing the shell (Part 1) and fixing the replay would both still leave this. The
+construct that closes it is the one this phase's own handoff already names as
+unbuilt: a read principal meaning "a grant admits me to this context". That is
+now the largest remaining gap in the invitation flow, and it is a platform
+capability, not content.
+
+### Design review
+
+`/impeccable audit` over `ui.adlj`'s new view, the changed shell path and the
+desktop/mobile screenshots, in the **product** register (design serves the task).
+The screen introduces no CSS: it composes the same `.adl-presentation-list`,
+`.adl-presentation-action`, `.adl-empty-state` and `<h2 class="adl-composed-
+heading">` the app's other dashboards already use, so the review is mostly about
+what the content declares.
+
+**Acted on.** The declared empty state read `No invitations`. The product
+register's rule is "empty states that teach the interface, not 'nothing here'",
+and this screen is unusual in that *empty is its most-seen state* — its whole
+audience arrives with nothing. It now reads `No invitations yet. When a band
+invites you, it appears here.` Giggle Band's `modelFingerprint` moved again for
+this, within the same unreleased `1.13.0` hop; the pinned value was re-measured
+rather than adjusted by hand.
+
+**Recorded, and deliberately not acted on — all pre-existing and app-wide, none
+introduced here.**
+
+- `--adl-control-height: 34px` gives every button in the application a 34px
+  target. That clears WCAG 2.2 AA (2.5.8, 24×24 CSS px) and misses the 44px AAA
+  / platform guidance. Systemic; changing it is a shell-wide change.
+- `.adl-presentation-row[data-status]` draws a 3px `border-left` accent — the
+  side-stripe pattern the design guidance bans outright. The new list declares no
+  `STATUS`/`STATUS_MAP`, so its rows carry no `data-status` and no stripe, but the
+  rule is there for the app's other boards.
+- The row renders the raw role identifier (`BandMember`) as the invited role,
+  matching `MyInvitationList` and `BandInvitationList`, which do the same. A
+  user-facing label for a role enum is an application-wide gap, not this
+  screen's.
+- The mobile top bar stacks into three rows before any content, consuming ~330px
+  of an 852px viewport. Visible in the mobile screenshot for every page, not only
+  this one.
+
+Focus indicators, heading hierarchy and text contrast were checked and are fine:
+`.adl-scroll-region :is(button, …):focus` covers the row action, the app title is
+the only `h1` with the section heading as `h2`, and `--adl-color-text-muted`
+(`#667085`) on `--adl-color-surface` (`#ffffff`) is ≈4.95:1.
+
+### The authority replay path is not fixed by this phase
+
+Measured, not reasoned, and in two places.
+
+`operation-log.ts` records the context's `selectedContexts` at write time. A
+`CONTEXT ALL` screen holds none, so a command run from it queues with
+`selectedContexts: {}` — confirmed by reading
+`runtime.syncQueue.getReplayable()` after a real `<adl-app>` click.
+`toIntent` (`src/server/sync-client.ts`) forwards exactly that, and
+`AuthorityService.resolveContext` deliberately keeps a narrow resolution for a
+replay: it iterates `intent.selectedContexts` and nothing else. Against real
+PostgreSQL the replay is rejected
+`ADL_POLICY_DENIED / Policy denied update on object 'BandInvitation' outside its
+runtime context scope.` with nothing written, while the identical intent from the
+identical identity **with the band named** commits.
+
+So an invitee's `Accept` commits locally and is refused on delivery in any
+deployment that has an authority, in **both** applications — `BandInvitation`
+and `CircleInvite` are both `SYNC onlineRequired`. The phase's own Decision
+rejected widening replay resolution, correctly, so this was not closed here. It
+is pinned by `expectContextAllIntentWithNoSelectionIsRejectedByTheAuthority`
+(`tests/integration/authority-invitation-accept.test.ts`) so that the gap is
+asserted rather than invisible, and it is the first handoff candidate below.
+
 ## Planning Handoff
 
 **Next phase: Phase 106 — a registered person has a `User` record, so their name
@@ -910,7 +1072,33 @@ the case stronger rather than weaker: after it, a newly-registered person can
 actually get into a band, at which point the member list they land on shows them
 a raw `user-…` id where their own name belongs.
 
-Candidates that surfaced here and were not taken:
+That case is unchanged by executing this one, and its evidence is untouched:
+Phase 105 adds no `User` record, changes no `User` policy, and the raw `user-…`
+id Phase 106 exists to fix is now reachable one screen earlier — an invitee who
+accepts lands on a member list showing their own id where their name belongs.
+
+Candidates that surfaced here and were not taken, **the first of which is new
+and is the largest**:
+
+- **A `CONTEXT ALL` row action must carry its row's own context to the
+  authority.** Measured above: the browser half of this phase works and the
+  delivery half does not. The shape that is probably right is the one this phase
+  did not consider — the row is only visible because the caller can reach that
+  instance, so the operation could legitimately record *that* instance as its
+  selection, leaving `AuthorityService`'s narrow replay resolution exactly as it
+  is. It touches `operation-log.ts`, the presentation action handler and
+  `sync-client.ts`, it is testable end to end against real PostgreSQL today, and
+  until it lands neither shipped application's invitation flow works against a
+  real deployment. This is a stronger candidate than Phase 106.
+- **Neither demo can be driven as an invitee.** Both reference demos seed
+  themselves and sign in as a founder/carer, so the one screen this phase adds
+  shows its empty state in `npm run test:visual`, and the Playwright proof of the
+  `Accept` click needs its own authority project with its own seeded identity
+  (`tests/visual/invitation-authority.ts`). A demo seed that includes a band the
+  demo user has been *invited* to, rather than joined, would make the feature
+  visible in the shipped demo and in every screenshot. Small, and it changes
+  `band-app.ts` rather than any `.adlj`.
+
 
 - **`DeclineBandInvitation`.** Giggle Band has no way to say no. The object
   already models `Status: 'Declined'` and its
@@ -944,5 +1132,12 @@ UNAVAILABLE` cannot express "available, but only because somebody invited me",
   `MyPendingCircleInvites` comment states it plainly: no policy vocabulary
   expresses "may read because a grant admits me here", so a pending invitee
   cannot read the context's own root object. This phase routes around it with
-  Phase 101's field-scoped grant, which is honest and narrow. The general
-  construct remains unbuilt and remains a real gap.
+  Phase 101's field-scoped grant, which is honest and narrow **inside the
+  browser runtime** — and executing the phase showed that is not enough. A
+  field-scoped rule cannot match the whole-record read `bootstrap` performs, so
+  the context record never travels, so `mergeGrantedContexts` reports no
+  available instance, so a real device shows the invitee nothing at all. This is
+  no longer a nice-to-have construct: it is the gate on the invitation flow
+  working in any deployment, and it should be weighed against Phase 106 and
+  against the row-action-carries-its-context candidate above rather than left in
+  a list.

@@ -142,7 +142,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-1031d0abf2df798823f081c9e9fc96696d8c91814a5207f9d6a83b16f3b67b36",
+      "sha256-8be34b74be75e03cdce0e5836c23362d3b83134fbe273808dd15d80124f36c87",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(

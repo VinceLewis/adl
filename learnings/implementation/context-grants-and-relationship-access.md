@@ -95,6 +95,100 @@ filter per record). For `SELF` it is the safety property — it is why adding a
 row-level self-grant to a `User` object cannot reopen the directory Phase 101
 closed, whatever else the policy says.
 
+## Every consumer that de-selects a context must re-resolve *both*
+
+A `CONTEXT ALL` consumer drops the selected instance for that business context —
+that is what makes it cross-context — and in doing so drops everything derived
+from the selection. Re-resolving only the **roles** is the bug that keeps
+getting written, because roles are the obvious half.
+
+`ReadModelService.resolveExecutionContext` resolved roles and grants.
+`resolveActiveViewContext` in the browser shell (`adl-app/data.ts`) resolved
+roles only. Two code paths, one question, two answers, for four phases. The
+visible consequence was a shipped reference application rendering an enabled
+`Accept` button on a row it had correctly fetched and then refusing every click:
+the read path could see the invitation, the command path could not act on it.
+
+The failure is *silent in both directions*, which is why it lasted. The list
+renders, so the screen looks right. The click is refused with
+`Policy denied update on object 'X' outside its runtime context scope.` — a
+scope-gate message, not a policy-rule one, which reads like a missing selection
+rather than like a missing resolution.
+
+Three things follow:
+
+- **Resolve both from the same de-selected base context**, so the two cannot
+  disagree about which selection was dropped.
+- **Keep them in separate fields.** `withContextGrants` is a separate method from
+  `withContextRoles` on purpose. Merging grant entries into `contextRoles` would
+  turn "may be considered" into "may act", which is the one separation this whole
+  document exists to preserve. There is a test for it
+  (`expectContextAllViewContextCarriesNoRoles`) precisely because the merged
+  version *looks* like it works.
+- **A branch that can be rewritten without a single assertion moving is
+  untested.** Adding grant resolution to that branch changed nothing across 64
+  files and 1,212 tests. That silence was the defect's whole life support.
+
+## A grant reaches the *record*, and the authority still wants the context named
+
+Phase 105's remaining gap, measured against real PostgreSQL rather than reasoned:
+fixing the shell does **not** fix the same command replayed through the
+authority.
+
+`AuthorityService.resolveContext` deliberately keeps a narrow resolution for a
+replay — it iterates `intent.selectedContexts` and nothing else, on the stated
+grounds that "a write must land in a context the client actually named". A
+`CONTEXT ALL` screen names none, so `operation-log.ts` records
+`selectedContexts: {}`, `toIntent` (`src/server/sync-client.ts`) sends `{}`, and
+the object-scope gate refuses. Measured: the queued entry really does carry `{}`,
+and the replay really is rejected `ADL_POLICY_DENIED`.
+
+So an invitee's `Accept` commits locally and is refused on delivery in any
+deployment that has an authority, in **both** shipped applications
+(`BandInvitation` and `CircleInvite` are both `SYNC onlineRequired`).
+`tests/integration/authority-invitation-accept.test.ts` pins that, with a
+control proving the same identity and the same intent commit when the band *is*
+named — so it is a statement about the selection and not about the caller.
+
+The tempting fix is to widen replay resolution. Do not: it would authorise every
+command against a context different from the one its own view was rendered with,
+on every channel including `sync`. The shape that is probably right is the
+opposite one — a row action on a cross-context view carrying *its own row's*
+context instance into the operation, since the row is only visible because the
+caller can reach that instance. Unbuilt.
+
+## A granted context needs the context's own root record on the device
+
+`mergeGrantedContexts` (`context-service.ts`) will not report an instance as
+available unless it can read the *context object's* record:
+
+```ts
+const contextRecord = await this.storage.read(businessContext.object, contextId);
+if (contextRecord === null || contextRecord.meta.deletedAt !== undefined) continue;
+```
+
+Reasonable — the picker needs a label, and a deleted context is not available.
+But combine it with the section above and the two rules collide. `bootstrap`
+selects by **read policy**; no policy in either reference application lets a
+pending invitee read the `Circle`/`Band` record itself, and Giggle Band's own
+`allowAuthenticatedReadBandName` is deliberately *field-scoped*, which a
+whole-record bootstrap read cannot match. So the invitation arrives on the device
+and the context it is an invitation *to* does not.
+
+Measured in a real browser against a real authority (Phase 105,
+`tests/visual/invitation-accept.spec.ts`): the invitee's device holds exactly one
+record, their own `pending` `CircleInvite`, `listAvailableContexts("Circle", …)`
+returns `[]`, and the `CONTEXT ALL` view falls to
+`No Circle contexts are available for this view.` before it ever reaches its
+list. There is no row and no button to click.
+
+This is the third layer of the same defect and the deepest: fixing the shell's
+resolution (above) and the authority's replay (also above) would still leave it.
+The general construct that closes it is the one Jointly Care's
+`MyPendingCircleInvites` comment has been asking for since Phase 79 — a read
+principal meaning "a grant admits me to this context" — because that, and only
+that, would put the context record on the device without opening a directory.
+
 ## Bootstrap selects by read policy, not by sync scope
 
 `AuthorityService.bootstrap` filters candidates by `runtime.read` and excludes
