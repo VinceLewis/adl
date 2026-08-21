@@ -6,11 +6,22 @@
 > says *you may only register if someone already inside invites you*. They
 > disagree at step one of the product.
 >
-> **Numbering note.** Phase 98's Planning Handoff proposed a different Phase 99
-> (completing `print-adl.ts`). The owner has chosen this work instead. The
-> printer work is not cancelled — it moves to Phase 101, behind the first-run
-> onboarding surface this phase's own handoff nominates as Phase 100. See
-> "Planning Handoff" for why the ordering changed.
+> **Owner amendments, 2026-08-21 — these override the body where they differ.**
+>
+> 1. **The onboarding form ships in this phase, not a later one.** The owner's
+>    instruction was "both together": shipping registration without a way to
+>    create a group leaves a user-visible dead end, which is not acceptable
+>    even for one phase. The Non-goal excluding it is **withdrawn**; see
+>    "Amendment A" at the end of this document.
+> 2. **The user-directory exposure is closed.** Phase 101 shipped it, and the
+>    premise this document used to defer it was false. See "Amendment B".
+> 3. **Two settled decisions ride along.** See "Amendment C".
+>
+> **Numbering.** Phase 98's proposed printer work became Phase 100 and is
+> already merged; Phase 101 closed the directory exposure. This phase executes
+> after both, so phase numbers do not run in execution order here — the owner
+> reprioritised mid-flight and renumbering a document of this size was judged
+> the worse trade.
 
 ## Objective
 
@@ -1180,12 +1191,12 @@ is deliberate and should be recorded in the code comment.
 
 ## Non-goals
 
-- **No first-run onboarding UI.** No command-input form, no new presentation
-  construct, no way to run `CreateBand` from a browser. It is the largest single
-  thing this phase leaves undone, it is specified as far as evidence goes under
-  "What is *not* already true", and it is Phase 100. Bundling it here would add
-  a new UI-runtime construct on top of a language change, an authority change,
-  a browser change and two model-version hops, in one un-reviewable commit.
+- ~~**No first-run onboarding UI.**~~ **WITHDRAWN by owner amendment 1.** The
+  first-run onboarding surface is now **in scope for this phase** — see
+  "Amendment A". The concern that motivated this Non-goal is real and still
+  stands: this is a large phase, and it must be committed as a reviewable
+  sequence rather than one commit. That is now a Constraint, not a reason to
+  split the deliverable.
 - **No new HTTP route.** `/v1/webauthn/register/begin` and `/finish` already
   accept the exact request shape; `bucketFor` is unchanged.
 - **No SQL migration, table or column**, and therefore no change to
@@ -1372,3 +1383,105 @@ Two further candidates surfaced here, both smaller, both worth recording:
   every documented limit is really N× the limit on N replicas. That was
   tolerable when every mutating endpoint required a session; it is less
   comfortable now that one of them does not.
+
+
+---
+
+# Amendments (owner, 2026-08-21)
+
+These were added after the body was written. Where they differ from the body,
+**they win**.
+
+## Amendment A — the first-run onboarding surface is in scope
+
+The body specified registration and deferred the means to use it. The owner's
+instruction is that both ship together: a person who signs up must be able to
+create their group without leaving the app.
+
+The body's own analysis of the gap stands and is the starting point — a
+presentation `ACTION`'s inputs are expressions over a row, and nothing renders
+a form for a `COMMAND`'s declared inputs, so `CreateBand`/`CreateCircle` cannot
+be run from a browser today. Re-verify that before designing anything; it was
+established by reading, not by running.
+
+Requirements:
+
+- A person with a valid session and **no** context membership must be able to
+  supply a `COMMAND`'s declared inputs and run it. For these two apps that is
+  `CreateBand` (`Name` required, `Description` optional) and `CreateCircle`.
+- After it succeeds they must land in their new group with their founder
+  membership active, without a reload or a re-sign-in if that is avoidable —
+  and if it is not avoidable, say so rather than hiding a reload.
+- The empty state that currently reads `No Band contexts are available for
+  this view.` must become the entry point, not a dead end.
+- Whatever you build is **general**, not special-cased to these two commands:
+  it is a form for a command's declared inputs. If that requires a new
+  presentation or shell construct, design it to the same standard Phase 100
+  held for surface syntax — match existing conventions, document it in
+  `docs/spec/language.md`, and give it `.adl` text syntax and a printer branch
+  so it does not become the twelfth unprintable construct.
+- If you conclude the general form is too large to do well alongside the rest
+  of this phase, **stop and report that** rather than shipping a special case
+  quietly. Splitting is the owner's call, not yours.
+
+## Amendment B — the user-directory exposure is closed
+
+The body's security section records the exposure as accepted and hands it off,
+and reasons that a field-level restriction could not work because "there is no
+principal to un-mask it for". **That premise was false**, and Phase 101 shipped
+the fix: true of a *mask* over a readable record, false of a field-scoped
+`ALLOW` over a default-deny object, which needs no un-masking principal because
+nothing was granted in the first place.
+
+As merged: `UserPolicy` in each app is a single `ALLOW READ AUTHENTICATED
+FIELDS Name` (Giggle Band) / `FIELDS DisplayName` (Jointly Care), with **no**
+`SEARCH` rule. Jointly Care additionally moved `User.DISPLAY` off `Email` and
+stopped projecting `user.Email` through `CircleMemberRoster`.
+
+Consequences for this phase:
+
+- The "accepted exposure" reasoning in the security section is **obsolete**.
+  Do not re-derive it, and do not reintroduce a `SEARCH` rule on `User`.
+- Model versions have already moved: Giggle Band is now **1.10.0**, Jointly
+  Care **1.5.0**. The body's stated hops are stale — recompute from the tree.
+- A self-registered identity with no membership can resolve display names and
+  nothing else. That is the property this phase depends on; assert it rather
+  than assuming it survived.
+- Note the known limitation Phase 101 recorded: a user cannot read their **own**
+  record in full, because no policy operand matches a record's own id. If the
+  onboarding surface needs the signed-in person's own details, you will meet
+  this. Report it; do not invent a policy operand.
+
+## Amendment C — two settled decisions ride along
+
+Both follow from owner decisions recorded in `docs/spec/ui-language-addendum.md`
+("Decisions (settled 2026-08-21)"). Neither is large; both are here to avoid a
+separate round-trip.
+
+1. **Remove per-view `presentation.shell.regions`.** The shell stays global; a
+   screen needing a control puts it in the screen's own content. This is now
+   dead capability, not pending syntax. It touches
+   `src/model/resolved-model/presentation-core.ts`, `resolve-model/`,
+   `validate-model/shell.ts`, `validate-model/presentation-core.ts`,
+   `print-adl.ts` and three test files. Neither reference app declares one, so
+   nothing real is removed — confirm that before deleting.
+
+2. **Reject unknown icon names at compile time.** This is **not** just a
+   validator: there is no single icon vocabulary to validate against. There are
+   two, they disagree, and both live in rendering code rather than the model:
+   - `src/ui/components/adl-app/render-chrome.ts`'s `iconGlyph`: `home`,
+     `music`, `calendar`, `mic`, `microphone`, `list`, `users`, `sync`,
+     `log-out`, `logout`
+   - `src/ui/components/adl-composed-view.ts`'s `iconSvg`: `music`,
+     `microphone`, `calendar`, `x`, `close`, `menu`
+
+   Both silently render nothing for an unrecognised name, which is exactly the
+   blank-space failure the decision is meant to prevent. So: establish one
+   vocabulary in the model layer, make both renderers use it, **then** add the
+   diagnostic. Take the union of what is supported today so nothing that works
+   now breaks — `x` is used by Giggle Band and `home` by the shell — and report
+   any name either renderer supports that you chose to drop, with the reason.
+
+   Sequence this so the diagnostic lands **after** both renderers agree.
+   Reversing that order makes the compiler reject models that currently render
+   correctly.
