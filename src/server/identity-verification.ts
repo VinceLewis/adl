@@ -19,6 +19,13 @@ export interface AuthorityIdentityVerificationStatus {
   mode: AuthorityConfiguration["identityVerification"]["mode"];
   verifier: string;
   bypassed: boolean;
+  /**
+   * Whether a person nobody invited may register through this deployment. It
+   * is the reconciliation of the model's declaration with the deployment
+   * ceiling, so an operator can read the effective state off `/readyz` rather
+   * than inferring it from two places.
+   */
+  selfServiceRegistration: boolean;
 }
 
 /**
@@ -90,5 +97,11 @@ export function describeIdentityVerification(
   verifier: UpstreamIdentityVerifier,
 ): AuthorityIdentityVerificationStatus {
   const mode = configuration.identityVerification.mode;
-  return { mode, verifier: verifier.name, bypassed: mode === "bypass" };
+  return {
+    mode,
+    verifier: verifier.name,
+    bypassed: mode === "bypass",
+    // Absent means false. A missing flag is never permission.
+    selfServiceRegistration: configuration.selfServiceRegistrationEnabled === true,
+  };
 }

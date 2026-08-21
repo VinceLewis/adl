@@ -23,6 +23,7 @@ import {
   AuthorityConfigurationError,
   loadAuthorityConfiguration,
   resolveSessionLifetime,
+  resolveSelfServiceRegistration,
   type AuthorityConfiguration,
 } from "./authority-config.js";
 import {
@@ -158,7 +159,13 @@ export async function createAuthorityProcess(
   // The session must be able to span the grace the model declares, so the
   // deployment configuration is reconciled with the model before anything that
   // issues or reads a session is composed.
-  const configuration = resolveSessionLifetime(loadAuthorityConfiguration(environment), model);
+  // Two model reconciliations, composed in one place: the session must be able
+  // to span the grace the model declares, and whether a stranger may register
+  // at all is the model's to declare and the deployment's only to restrict.
+  const configuration = resolveSelfServiceRegistration(
+    resolveSessionLifetime(loadAuthorityConfiguration(environment), model),
+    model,
+  );
 
   const pool = new Pool({ connectionString: configuration.databaseUrl });
   // A real `pg.Pool` structurally satisfies the ADL pool/queryable contracts;
@@ -257,7 +264,10 @@ export async function createAuthorityProcess(
           sessions,
           new PostgresWebAuthnCredentialStore(database, applicationId),
           new SimpleWebAuthnLibrary(),
-          { accessLifecycle },
+          {
+            accessLifecycle,
+            selfServiceRegistration: configuration.selfServiceRegistrationEnabled === true,
+          },
         );
 
   try {

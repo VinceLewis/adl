@@ -55,6 +55,7 @@ const passkeyConfiguration: AuthorityConfiguration = {
   rateLimits: {
     accountProof: 10,
     webauthn: 10,
+    selfRegistration: 10,
     session: 10,
     invite: 10,
     bootstrap: 10,
@@ -76,9 +77,12 @@ const model = resolveApplicationModel({
 });
 
 /**
- * Deterministic stand-in for `@simplewebauthn/server`. These tests never reach
- * a verification, so it only has to hand back a challenge the edge can return.
+ * Deterministic stand-in for `@simplewebauthn/server`. Most of these tests
+ * never reach a verification, so it mostly only has to hand back a challenge
+ * the edge can return; the two that do finish a ceremony rotate the credential
+ * id, since a repeated one is legitimately refused as already in use.
  */
+let nextCredentialId = "credential-1";
 const library: WebAuthnLibrary = {
   createRegistrationOptions: async () => ({
     challenge: CHALLENGE,
@@ -86,7 +90,7 @@ const library: WebAuthnLibrary = {
   }),
   verifyRegistration: async () => ({
     verified: true,
-    credentialId: "credential-1",
+    credentialId: nextCredentialId,
     publicKey: "public-key-1",
     counter: 0,
   }),
@@ -107,7 +111,7 @@ function request(path: string, body: unknown, headers: Record<string, string> = 
 
 async function fixture(
   configuration: AuthorityConfiguration = passkeyConfiguration,
-  options: { withPasskeys?: boolean } = {},
+  options: { withPasskeys?: boolean; selfServiceRegistration?: boolean } = {},
 ) {
   const storage = new InMemoryObjectStorageBackend();
   const sessions = new OpaqueSessionAdapter(new InMemoryAuthorityIdentitySessionStore(), {
@@ -151,7 +155,12 @@ async function fixture(
     sessions,
     new InMemoryWebAuthnCredentialStore(),
     library,
-    { accessLifecycle: access },
+    {
+      accessLifecycle: access,
+      ...(options.selfServiceRegistration === undefined
+        ? {}
+        : { selfServiceRegistration: options.selfServiceRegistration }),
+    },
   );
   const entries: SecurityLogEvent[] = [];
   const logger: SecurityLogger = { write: (event) => entries.push(event) };
@@ -219,7 +228,12 @@ describe("passkey ceremony availability", () => {
     expect(ready.status).toBe(200);
     expect(await ready.json()).toEqual({
       status: "ready",
-      identityVerification: { mode: "passkey", verifier: "passkey", bypassed: false },
+      identityVerification: {
+        mode: "passkey",
+        verifier: "passkey",
+        bypassed: false,
+        selfServiceRegistration: false,
+      },
     });
   });
 });
@@ -341,6 +355,134 @@ describe("passkey transport controls", () => {
       "an-assertion-blob",
       "public-key-1",
     ])
+      expect(written).not.toContain(secret);
+  });
+});
+
+describe("self-service registration at the edge", () => {
+  it("answers an anonymous register/begin with a ceremony when the deployment permits it", async () => {
+    const { handle } = await fixture(passkeyConfiguration, { selfServiceRegistration: true });
+    const started = await handle(request("/v1/webauthn/register/begin", {}));
+
+    expect(started.status).toBe(200);
+    expect(await started.json()).toMatchObject({ options: { challenge: CHALLENGE } });
+  });
+
+  it("refuses the identical anonymous call with 401 ADL_PASSKEY_UNAUTHORIZED when it does not", async () => {
+    const { handle } = await fixture(passkeyConfiguration, { selfServiceRegistration: false });
+    const refused = await handle(request("/v1/webauthn/register/begin", {}));
+
+    expect(refused.status).toBe(401);
+    expect(await refused.json()).toEqual({ error: "ADL_PASSKEY_UNAUTHORIZED" });
+    expect(refused.headers.get("set-cookie")).toBeNull();
+  });
+
+  /*
+   * The second half is what proves the buckets are distinct rather than the
+   * whole ceremony surface being throttled: an invite-backed begin in the same
+   * window still succeeds while anonymous account creation is already capped.
+   */
+  it("charges anonymous account creation its own bucket without spending the ceremony allowance", async () => {
+    const { handle } = await fixture(
+      {
+        ...passkeyConfiguration,
+        rateLimits: { ...passkeyConfiguration.rateLimits, selfRegistration: 1 },
+      },
+      { selfServiceRegistration: true },
+    );
+
+    expect((await handle(request("/v1/webauthn/register/begin", {}))).status).toBe(200);
+    const limited = await handle(request("/v1/webauthn/register/begin", {}));
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toEqual({ error: "rate_limited" });
+    expect(limited.headers.get("retry-after")).toBe("60");
+
+    const invited = await handle(request("/v1/webauthn/register/begin", { inviteToken }));
+    expect(invited.status).toBe(200);
+  });
+
+  it("discloses self-service on /readyz and in the startup event when it is on", async () => {
+    const { handle, entries } = await fixture(
+      { ...passkeyConfiguration, selfServiceRegistrationEnabled: true },
+      { selfServiceRegistration: true },
+    );
+
+    expect(await (await handle(new Request("https://app.test/readyz"))).json()).toEqual({
+      status: "ready",
+      identityVerification: {
+        mode: "passkey",
+        verifier: "passkey",
+        bypassed: false,
+        selfServiceRegistration: true,
+      },
+    });
+    expect(entries[0]).toMatchObject({
+      event: "identity_verification_configured",
+      selfServiceRegistration: true,
+    });
+  });
+
+  it("discriminates passkey_registered by self-service without naming anything else", async () => {
+    const { handle, entries, sessions } = await fixture(passkeyConfiguration, {
+      selfServiceRegistration: true,
+    });
+    nextCredentialId = "credential-1";
+
+    const anonymousStart = (await (
+      await handle(request("/v1/webauthn/register/begin", {}))
+    ).json()) as { challengeId: string };
+    const created = await handle(
+      request("/v1/webauthn/register/finish", {
+        challengeId: anonymousStart.challengeId,
+        response: { id: "credential-1" },
+      }),
+    );
+    expect(created.status).toBe(201);
+    // A session is issued for a ceremony that started without one, so the edge
+    // writes the cookies.
+    expect(created.headers.get("set-cookie")).toContain("__Host-adl_session=");
+
+    /*
+     * The `false` half is proven with the session-gated "add another
+     * authenticator" ceremony rather than an invited one: this fixture's model
+     * declares no `Band` context, so claiming its seeded invite cannot
+     * complete, and what is under test is the edge's discriminator rather than
+     * the claim. Both non-anonymous shapes reach it identically — the edge asks
+     * only whether the request carried a session or an invite token.
+     */
+    const caller = await signedIn(sessions);
+    const gatedStart = (await (
+      await handle(
+        request(
+          "/v1/webauthn/register/begin",
+          {},
+          { cookie: caller.cookie, "x-adl-csrf-token": csrfToken },
+        ),
+      )
+    ).json()) as { challengeId: string };
+    // The shared fake reports one fixed credential id, which a second
+    // registration would refuse as already in use; the log discriminator is
+    // what is under test, so the id is rotated for this one call.
+    nextCredentialId = "credential-2";
+    const gated = await handle(
+      request(
+        "/v1/webauthn/register/finish",
+        { challengeId: gatedStart.challengeId, response: { id: "credential-2" } },
+        { cookie: caller.cookie, "x-adl-csrf-token": csrfToken },
+      ),
+    );
+    expect(gated.status).toBe(201);
+    // Session-gated, so no cookie is rewritten and the caller keeps the
+    // session they already had.
+    expect(gated.headers.get("set-cookie")).toBeNull();
+
+    const registrations = entries.filter((entry) => entry.event === "passkey_registered");
+    expect(registrations.map((entry) => (entry as { selfService?: boolean }).selfService)).toEqual([
+      true,
+      false,
+    ]);
+    const written = JSON.stringify(registrations);
+    for (const secret of [CHALLENGE, inviteToken, "credential-1", "user-"])
       expect(written).not.toContain(secret);
   });
 });

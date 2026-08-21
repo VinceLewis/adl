@@ -295,7 +295,12 @@ function authorityFetch(options: { signedIn: boolean; calls?: string[] }): typeo
     if (path === "/readyz")
       return json({
         status: "ready",
-        identityVerification: { mode: "passkey", verifier: "passkey", bypassed: false },
+        identityVerification: {
+          mode: "passkey",
+          verifier: "passkey",
+          bypassed: false,
+          selfServiceRegistration: false,
+        },
       });
     if (path === "/v1/session/current")
       return options.signedIn

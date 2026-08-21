@@ -198,6 +198,15 @@ export interface PasskeyIdentityServiceOptions {
   newId?: () => string;
   newUserHandle?: () => string;
   accessLifecycle?: AuthorityAccessLifecycleService;
+  /**
+   * Whether a caller presenting neither a session nor an invite may mint an
+   * identity. Defaults to **false**: the option exists so a deployment whose
+   * model declares `REGISTRATION SELF_SERVICE` can turn it on, never so a
+   * caller can. See `resolveSelfServiceRegistration`
+   * (`src/server/authority-config.ts`), which is the only thing that should
+   * ever compute this value.
+   */
+  selfServiceRegistration?: boolean;
 }
 
 /**
@@ -207,11 +216,18 @@ export interface PasskeyIdentityServiceOptions {
  *
  * 1. The browser never asserts its own identity. An assertion is evidence this
  *    service verifies against a stored public key and a challenge it issued.
- * 2. Registration is never anonymous. A caller either already holds a session
- *    (adding an authenticator to their own identity) or presents a valid
- *    invite. Nothing else can mint an identity.
+ * 2. Registration is anonymous only where the application asked for it. A
+ *    caller either already holds a session (adding an authenticator to their
+ *    own identity), or presents a valid invite, or the service was constructed
+ *    with `selfServiceRegistration: true` — which happens only when the served
+ *    model declares `REGISTRATION SELF_SERVICE`, the deployment has not
+ *    switched it off, and the identity mode is `passkey`. Nothing else can mint
+ *    an identity, and the anonymous case is re-checked at finish so a challenge
+ *    cannot outlive the configuration that allowed it.
  * 3. A passkey grants identity only. No ADL role is derived from it; context
- *    roles keep resolving from accepted membership records on every call.
+ *    roles keep resolving from accepted membership records on every call. A
+ *    self-registered identity is therefore a member of nothing, and no
+ *    membership row is written anywhere by this path.
  * 4. Recovery re-links. A recipient-bound invite attaches the new credential to
  *    the identity the invite names, so memberships and history stay intact, and
  *    it grants no membership of its own.
@@ -221,6 +237,7 @@ export class PasskeyIdentityService {
   private readonly newId: () => string;
   private readonly newUserHandle: () => string;
   private readonly accessLifecycle: AuthorityAccessLifecycleService | undefined;
+  private readonly selfServiceRegistration: boolean;
 
   constructor(
     private readonly configuration: AuthorityWebAuthnConfiguration,
@@ -233,6 +250,7 @@ export class PasskeyIdentityService {
     this.newId = options.newId ?? secureToken;
     this.newUserHandle = options.newUserHandle ?? secureToken;
     this.accessLifecycle = options.accessLifecycle;
+    this.selfServiceRegistration = options.selfServiceRegistration ?? false;
   }
 
   async beginRegistration(input: PasskeyBeginRegistrationInput): Promise<PasskeyCeremonyStart> {
@@ -248,8 +266,12 @@ export class PasskeyIdentityService {
     if (session !== null) {
       userId = session.userId;
       userName = session.userId;
+    } else if (input.inviteToken === undefined) {
+      // No session and no invite. Self-service is the only thing that permits
+      // this, and it needs no access lifecycle: nothing is being claimed.
+      if (!this.selfServiceRegistration) throw new PasskeyCeremonyError("ADL_PASSKEY_UNAUTHORIZED");
     } else {
-      if (input.inviteToken === undefined || this.accessLifecycle === undefined)
+      if (this.accessLifecycle === undefined)
         throw new PasskeyCeremonyError("ADL_PASSKEY_UNAUTHORIZED");
       const invite = await this.accessLifecycle.peekInvite(input.inviteToken, now);
       if (invite === null) throw new PasskeyCeremonyError("ADL_PASSKEY_INVITE_INVALID");
@@ -308,6 +330,16 @@ export class PasskeyIdentityService {
     if (challenge === null || challenge.userHandle === undefined)
       throw new PasskeyCeremonyError("ADL_PASSKEY_CHALLENGE_INVALID");
 
+    /*
+     * Defence in depth, and it is re-checked rather than trusted from `begin`:
+     * a challenge that started while self-service was on must not still be
+     * finishable after the process restarted with it off, and a forged
+     * challenge row must not be a way past the check either.
+     */
+    const anonymous = challenge.userId === undefined && challenge.inviteTokenHash === undefined;
+    if (anonymous && !this.selfServiceRegistration)
+      throw new PasskeyCeremonyError("ADL_PASSKEY_UNAUTHORIZED");
+
     // The invite presented now must be the one the ceremony was started with.
     if (challenge.inviteTokenHash !== undefined) {
       if (input.inviteToken === undefined)
@@ -361,14 +393,27 @@ export class PasskeyIdentityService {
       createdAt: now,
     });
 
-    // A ceremony started from an invite had no session to begin with, so one is
-    // issued. A session-gated ceremony already had one and keeps it: replacing
-    // the cookie there would silently swap the caller's session and leave the
-    // previous one live, so adding an authenticator deliberately issues nothing.
-    const session =
-      challenge.inviteTokenHash === undefined
-        ? undefined
-        : await this.sessions.issueSession(userId);
+    /*
+     * A ceremony that started *without* a session gets one; a session-gated one
+     * keeps the session it already had, because replacing the cookie there
+     * would silently swap the caller's session and leave the previous one live,
+     * so adding an authenticator deliberately issues nothing.
+     *
+     * The discriminator used to be `challenge.inviteTokenHash`, which asked the
+     * question indirectly and breaks for self-service, which has neither an
+     * invite nor a session. This asks it directly, and is behaviour-identical
+     * for all three pre-existing cases:
+     *
+     * | ceremony                     | userId | inviteRecipientUserId | session |
+     * | ---------------------------- | ------ | --------------------- | ------- |
+     * | add another authenticator    | set    | --                    | no      |
+     * | invited new member           | --     | --                    | yes     |
+     * | identity recovery            | set    | set                   | yes     |
+     * | self-service                 | --     | --                    | yes     |
+     */
+    const sessionGated =
+      challenge.userId !== undefined && challenge.inviteRecipientUserId === undefined;
+    const session = sessionGated ? undefined : await this.sessions.issueSession(userId);
     let invite: PasskeyRegistrationResult["invite"];
     if (recovering) invite = "identityRecovered";
     else if (session !== undefined && input.inviteToken !== undefined) {

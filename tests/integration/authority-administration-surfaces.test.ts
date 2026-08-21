@@ -194,6 +194,7 @@ const configuration: AuthorityConfiguration = {
   rateLimits: {
     accountProof: 2_000,
     webauthn: 2_000,
+    selfRegistration: 2_000,
     session: 2_000,
     invite: 2_000,
     bootstrap: 2_000,

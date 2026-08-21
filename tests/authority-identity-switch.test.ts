@@ -11,6 +11,7 @@ import {
   describeIdentityVerification,
   loadAuthorityConfiguration,
   resolveApplicationModel,
+  resolveSelfServiceRegistration,
   selectUpstreamIdentityVerifier,
 } from "../src/index.js";
 import type {
@@ -60,6 +61,7 @@ const configuration: AuthorityConfiguration = {
   rateLimits: {
     accountProof: 10,
     webauthn: 10,
+    selfRegistration: 10,
     session: 10,
     invite: 10,
     bootstrap: 10,
@@ -152,6 +154,92 @@ describe("authority identity verification configuration", () => {
     }
   });
 
+  /*
+   * The deployment control may only ever *restrict*. The negative rows below
+   * are the point of the whole design: no accepted value of any environment
+   * variable makes self-service effective for a model that did not declare it.
+   */
+  it("defaults the self-service ceiling to 'model' and accepts only 'model' or 'off'", () => {
+    expect(loadAuthorityConfiguration(baseEnvironment).selfServiceRegistration).toBe("model");
+    expect(
+      loadAuthorityConfiguration({ ...baseEnvironment, ADL_SELF_SERVICE_REGISTRATION: "" })
+        .selfServiceRegistration,
+    ).toBe("model");
+    expect(
+      loadAuthorityConfiguration({ ...baseEnvironment, ADL_SELF_SERVICE_REGISTRATION: "  off  " })
+        .selfServiceRegistration,
+    ).toBe("off");
+    // Deliberately including `on`, `true`, `yes` and `1`: there is no value
+    // that turns self-service on against the model's wishes, and an operator
+    // who tries must be told so rather than silently ignored.
+    for (const invalid of ["on", "true", "yes", "1", "Model", "OFF", "enabled"]) {
+      expect(() =>
+        loadAuthorityConfiguration({
+          ...baseEnvironment,
+          ADL_SELF_SERVICE_REGISTRATION: invalid,
+        }),
+      ).toThrow(AuthorityConfigurationError);
+    }
+  });
+
+  it("parses ADL_RATE_SELF_REGISTRATION and defaults it to 5", () => {
+    expect(loadAuthorityConfiguration(baseEnvironment).rateLimits.selfRegistration).toBe(5);
+    expect(
+      loadAuthorityConfiguration({ ...baseEnvironment, ADL_RATE_SELF_REGISTRATION: "2" }).rateLimits
+        .selfRegistration,
+    ).toBe(2);
+    expect(() =>
+      loadAuthorityConfiguration({ ...baseEnvironment, ADL_RATE_SELF_REGISTRATION: "0" }),
+    ).toThrow(AuthorityConfigurationError);
+  });
+
+  it.each([
+    ["selfService", undefined, "passkey", true],
+    ["selfService", "off", "passkey", false],
+    ["selfService", "model", "passkey", true],
+    ["selfService", undefined, "bypass", false],
+    ["selfService", undefined, "upstream", false],
+    ["inviteOnly", undefined, "passkey", false],
+    ["inviteOnly", "off", "passkey", false],
+    [undefined, undefined, "passkey", false],
+    [undefined, "model", "passkey", false],
+    [undefined, "off", "passkey", false],
+  ])(
+    "resolves model=%s env=%s mode=%s to selfServiceRegistration=%s",
+    (registration, ceiling, mode, expected) => {
+      const declared = resolveApplicationModel({
+        app: {
+          name: "Registration fixture",
+          startView: "DocumentList",
+          ...(registration === undefined
+            ? {}
+            : { registration: registration as "selfService" | "inviteOnly" }),
+        },
+        objects: [
+          {
+            name: "Document",
+            fields: [{ name: "Title", type: "text" }],
+            views: [{ name: "DocumentList", kind: "list", fields: ["Title"] }],
+          },
+        ],
+      });
+      const resolved = resolveSelfServiceRegistration(
+        {
+          ...configuration,
+          identityVerification: { mode: mode as AuthorityIdentityVerificationMode },
+          ...(ceiling === undefined ? {} : { selfServiceRegistration: ceiling as "model" | "off" }),
+        },
+        declared,
+      );
+
+      expect(resolved.selfServiceRegistrationEnabled).toBe(expected);
+      expect(
+        describeIdentityVerification(resolved, new BypassIdentityVerifier())
+          .selfServiceRegistration,
+      ).toBe(expected);
+    },
+  );
+
   it("makes the bypass unreachable in production, with no acknowledgement escape hatch", () => {
     expect(() => loadAuthorityConfiguration(productionEnvironment)).toThrow(
       AuthorityConfigurationError,
@@ -196,6 +284,7 @@ describe("upstream identity verifier selection", () => {
       mode: "bypass",
       verifier: "bypass",
       bypassed: true,
+      selfServiceRegistration: false,
     });
   });
 
@@ -210,6 +299,7 @@ describe("upstream identity verifier selection", () => {
       mode: "upstream",
       verifier: "provider",
       bypassed: false,
+      selfServiceRegistration: false,
     });
   });
 
@@ -223,6 +313,7 @@ describe("upstream identity verifier selection", () => {
       mode: "upstream",
       verifier: "upstream-unconfigured",
       bypassed: false,
+      selfServiceRegistration: false,
     });
   });
 });
@@ -277,7 +368,12 @@ describe("identity switch over the authority HTTP edge", () => {
     expect(ready.status).toBe(200);
     expect(await ready.json()).toEqual({
       status: "ready",
-      identityVerification: { mode: "bypass", verifier: "bypass", bypassed: true },
+      identityVerification: {
+        mode: "bypass",
+        verifier: "bypass",
+        bypassed: true,
+        selfServiceRegistration: false,
+      },
     });
 
     // The startup security log states the active boundary exactly once.
@@ -307,6 +403,7 @@ describe("identity switch over the authority HTTP edge", () => {
         mode: "upstream",
         verifier: "upstream-unconfigured",
         bypassed: false,
+        selfServiceRegistration: false,
       },
     });
     expect(entries[0]).toMatchObject({
@@ -314,6 +411,7 @@ describe("identity switch over the authority HTTP edge", () => {
       mode: "upstream",
       verifier: "upstream-unconfigured",
       bypassed: false,
+      selfServiceRegistration: false,
     });
     expect(JSON.stringify(entries)).not.toContain(accountProof);
   });

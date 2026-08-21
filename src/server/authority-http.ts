@@ -88,6 +88,9 @@ export function createAuthorityHttpHandler(
     mode: identityVerification.mode,
     verifier: identityVerification.verifier,
     bypassed: identityVerification.bypassed,
+    // Anonymous registration is never silent either: the effective state is
+    // stated once at startup, exactly as the identity mode already is.
+    selfServiceRegistration: identityVerification.selfServiceRegistration,
     occurredAt: new Date().toISOString(),
   });
   // The effective session lifetime is now derived from the model's declared
@@ -188,8 +191,25 @@ export function createAuthorityHttpHandler(
           ceremonyCookie === undefined ? null : await sessions.verify(ceremonyCookie);
         if (ceremonySession !== null && !hasValidCsrf(request, configuration))
           return reject("csrf_denied", 403, pathname);
+        // "No ambient credential and nothing vouching for the caller" — the
+        // one shape that mints an identity out of nothing. Derived at the edge
+        // from the request itself, and used for the extra rate charge and for
+        // the `selfService` discriminator on the success log.
+        const isAnonymousRegistration =
+          ceremonySession === null && optionalString(body, "inviteToken") === undefined;
         try {
           if (pathname === "/v1/webauthn/register/begin") {
+            /*
+             * A registration carrying neither a session nor an invite is an
+             * anonymous account creation, and it is charged a second, much
+             * smaller bucket on top of the ceremony bucket already charged
+             * above. Either can refuse; the 429 is byte-identical, so a caller
+             * cannot tell which one did. This keeps the ordinary ceremony
+             * allowance — shared with sign-in — untouched while capping the one
+             * endpoint where a stranger creates durable state.
+             */
+            if (isAnonymousRegistration && !enforceRateFor("selfRegistration"))
+              return rateLimited();
             const start = await passkeys.beginRegistration({
               ...(ceremonySession === null || ceremonyCookie === undefined
                 ? {}
@@ -213,6 +233,10 @@ export function createAuthorityHttpHandler(
               outcome: "allowed",
               endpoint: pathname,
               status: 201,
+              // A boolean, and nothing else: no user id, no token, no
+              // challenge. Consistent with the rule that a refusal states only
+              // its stable code.
+              selfService: isAnonymousRegistration,
               occurredAt: new Date().toISOString(),
             });
             return jsonResponse(
@@ -505,11 +529,15 @@ export function createAuthorityHttpHandler(
     }
     function enforceRate(): boolean {
       if (rateBucket === undefined) return false;
-      const rate = rateLimiter.check(
-        rateBucket,
-        clientKey(request),
-        configuration.rateLimits[rateBucket],
-      );
+      return enforceRateFor(rateBucket);
+    }
+    /**
+     * The same metric and the same log line as {@link enforceRate}, for a
+     * bucket other than the one the path maps to. A caller must not be able to
+     * tell which bucket refused it.
+     */
+    function enforceRateFor(bucket: keyof AuthorityRateLimits): boolean {
+      const rate = rateLimiter.check(bucket, clientKey(request), configuration.rateLimits[bucket]);
       if (rate.allowed) return true;
       metrics.incrementRateLimited(pathname);
       logger.write({

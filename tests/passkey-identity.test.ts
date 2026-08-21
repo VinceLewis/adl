@@ -219,7 +219,7 @@ function tokenSequence(prefix: string): () => string {
   return () => next().padEnd(48, "x");
 }
 
-function createFixture() {
+function createFixture(options: { selfServiceRegistration?: boolean } = {}) {
   const clock = { value: new Date("2026-07-30T12:00:00.000Z") };
   const now = () => clock.value;
   const storage = new InMemoryObjectStorageBackend();
@@ -242,6 +242,9 @@ function createFixture() {
     newId: sequence("ceremony"),
     newUserHandle: sequence("handle"),
     accessLifecycle: access,
+    ...(options.selfServiceRegistration === undefined
+      ? {}
+      : { selfServiceRegistration: options.selfServiceRegistration }),
   });
   return { clock, storage, store, sessions, accessStore, access, credentials, library, passkeys };
 }
@@ -300,9 +303,11 @@ async function registerFirstCredential(fixture: Fixture) {
 
 describe("passkey registration authorisation", () => {
   it("refuses a registration that presents neither a session nor an invite", async () => {
+    // Re-scoped by Phase 99 rather than deleted: this fixture is constructed
+    // with `selfServiceRegistration` absent — the default — so the invariant
+    // still holds wherever nothing declared otherwise, which is every model in
+    // the repository but the two reference apps.
     const fixture = createFixture();
-    // Registration is never anonymous: nothing else in the system can mint an
-    // identity, so an unauthenticated caller with no invite has no way in.
     await expect(fixture.passkeys.beginRegistration({})).rejects.toMatchObject({
       code: "ADL_PASSKEY_UNAUTHORIZED",
     });
@@ -450,6 +455,135 @@ describe("passkey registration authorisation", () => {
       }),
     ).rejects.toMatchObject({ code: "ADL_PASSKEY_CREDENTIAL_IN_USE" });
     expect(await fixture.credentials.listCredentialsForUser(result.userId)).toHaveLength(1);
+  });
+});
+
+describe("self-service passkey registration", () => {
+  it("mints an identity and a credential for a caller with neither a session nor an invite, and no membership anywhere", async () => {
+    const fixture = createFixture({ selfServiceRegistration: true });
+    const start = await fixture.passkeys.beginRegistration({});
+    const result = await fixture.passkeys.finishRegistration({
+      challengeId: start.challengeId,
+      response: { id: "credential-1" },
+    });
+
+    expect(result.userId).toMatch(/^user-/u);
+    // No invite was claimed and none was recovered, so the wire carries no
+    // `invite` discriminator at all — exactly as the add-a-device path does.
+    expect(result).not.toHaveProperty("invite");
+    expect(await fixture.credentials.findCredential("credential-1")).toMatchObject({
+      userId: result.userId,
+    });
+    expect(
+      (await fixture.sessions.listIdentityLinks(result.userId)).map((link) => link.provider),
+    ).toEqual([PASSKEY_IDENTITY_PROVIDER]);
+    // The claim the whole feature rests on: a self-registered identity holds
+    // nothing. No membership record exists anywhere in storage.
+    expect(await memberships(fixture)).toEqual([]);
+    expect(fixture.accessStore.getAuditEvents()).toEqual([]);
+  });
+
+  it("refuses an anonymous ceremony when the service was not told the model declared it", async () => {
+    const fixture = createFixture({ selfServiceRegistration: false });
+
+    await expect(fixture.passkeys.beginRegistration({})).rejects.toMatchObject({
+      code: "ADL_PASSKEY_UNAUTHORIZED",
+    });
+    expect(fixture.library.challenges).toEqual([]);
+  });
+
+  /*
+   * Defence in depth. A challenge must not outlive the configuration that
+   * allowed it: a process restarted with self-service off must refuse to
+   * finish a ceremony it began with self-service on, and a forged anonymous
+   * challenge row must be refused for the same reason.
+   */
+  it("refuses at finish when self-service was switched off after begin allowed it", async () => {
+    const permissive = createFixture({ selfServiceRegistration: true });
+    const start = await permissive.passkeys.beginRegistration({});
+
+    const restarted = new PasskeyIdentityService(
+      webauthn,
+      permissive.sessions,
+      permissive.credentials,
+      permissive.library,
+      { now: () => permissive.clock.value, selfServiceRegistration: false },
+    );
+
+    await expect(
+      restarted.finishRegistration({ challengeId: start.challengeId, response: { id: "c-1" } }),
+    ).rejects.toMatchObject({ code: "ADL_PASSKEY_UNAUTHORIZED" });
+    expect(await permissive.credentials.findCredential("c-1")).toBeNull();
+  });
+
+  /*
+   * The session discriminator, all four cases. It used to be
+   * `challenge.inviteTokenHash !== undefined`, which asked "did this ceremony
+   * start without a session?" indirectly and gives the wrong answer for
+   * self-service, which has neither a session nor an invite. Every row but the
+   * last is unchanged behaviour and is pinned here so a future edit cannot
+   * quietly move one.
+   */
+  it("issues a session exactly when the ceremony started without one", async () => {
+    const invited = createFixture();
+    const first = await registerFirstCredential(invited);
+    // Invited new member: no session to begin with, so one is issued.
+    expect(first.result.session).toBeDefined();
+
+    // Add another authenticator: session-gated, so none is issued. Replacing
+    // the cookie would swap the caller's session and leave the previous live.
+    invited.library.registration = {
+      verified: true,
+      credentialId: "credential-2",
+      publicKey: "public-key-2",
+      counter: 0,
+      backedUp: false,
+    };
+    const second = await invited.passkeys.beginRegistration({
+      sessionToken: first.result.session?.sessionToken ?? "",
+    });
+    const added = await invited.passkeys.finishRegistration({
+      challengeId: second.challengeId,
+      response: { id: "credential-2" },
+    });
+    expect(added.session).toBeUndefined();
+
+    // Identity recovery: `challenge.userId` is set, but the caller had no
+    // session, so one is issued.
+    const recovery = createFixture();
+    const admin = await seedBand(recovery);
+    const member = await recovery.sessions.provisionIdentity("upstream", "member@example.test");
+    await recovery.storage.create(
+      "BandMember",
+      record("BandMember", "membership-member", {
+        User: member.userId,
+        Band: "band-1",
+        Role: "BandMember",
+      }),
+    );
+    const recoveryInvite = await inviteFor(recovery, admin, member.userId);
+    const recoveryStart = await recovery.passkeys.beginRegistration({
+      inviteToken: recoveryInvite.inviteToken,
+    });
+    const recovered = await recovery.passkeys.finishRegistration({
+      challengeId: recoveryStart.challengeId,
+      response: { id: "credential-1" },
+      inviteToken: recoveryInvite.inviteToken,
+    });
+    expect(recovered.session).toBeDefined();
+    expect(recovered.invite).toBe("identityRecovered");
+
+    // Self-service: neither, so one is issued.
+    const anonymous = createFixture({ selfServiceRegistration: true });
+    const anonymousStart = await anonymous.passkeys.beginRegistration({});
+    const minted = await anonymous.passkeys.finishRegistration({
+      challengeId: anonymousStart.challengeId,
+      response: { id: "credential-1" },
+    });
+    expect(minted.session).toBeDefined();
+    expect(await anonymous.sessions.verify(minted.session?.sessionToken)).toMatchObject({
+      userId: minted.userId,
+    });
   });
 });
 

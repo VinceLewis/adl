@@ -38,10 +38,21 @@ export interface AuthorityWebAuthnConfiguration {
   challengeTtlSeconds: number;
 }
 
+export type AuthoritySelfServiceRegistrationCeiling = "model" | "off";
+
 export interface AuthorityRateLimits {
   accountProof: number;
   /** Registration and authentication ceremonies, most of which are pre-session. */
   webauthn: number;
+  /**
+   * Anonymous account creation only — a `register/begin` carrying neither a
+   * session cookie nor an invite token. Charged *in addition to*
+   * {@link webauthn}, so the ordinary ceremony allowance shared with sign-in
+   * stays untouched while the one endpoint where a stranger creates durable
+   * state is capped independently. Either bucket can refuse, and a caller
+   * cannot tell which did.
+   */
+  selfRegistration: number;
   session: number;
   invite: number;
   bootstrap: number;
@@ -77,6 +88,28 @@ export interface AuthorityConfiguration {
   identityVerification: AuthorityIdentityVerificationConfiguration;
   /** Present only in `passkey` mode, where it is required. */
   webauthn?: AuthorityWebAuthnConfiguration;
+  /**
+   * `ADL_SELF_SERVICE_REGISTRATION`. It may only ever *restrict* what the model
+   * declared: the accepted values are `model` (defer to the declaration) and
+   * `off`. There is deliberately no `on`, because enabling self-service for a
+   * model that declares `INVITE_ONLY` would hand out a capability the
+   * application never declared, and would do so where nothing in the model
+   * records it.
+   *
+   * Optional, unlike every key of {@link AuthorityRateLimits}, and the
+   * asymmetry is deliberate: this is read by name and never indexed, and its
+   * absent value (`"model"`) is the permissive-but-model-bounded default an
+   * operator who set nothing means. A rate limit is indexed dynamically, so an
+   * optional key there would type a missing limit as `number | undefined` at
+   * the one place a missing limit means "no limit".
+   */
+  selfServiceRegistration?: AuthoritySelfServiceRegistrationCeiling;
+  /**
+   * The reconciled answer, written by {@link resolveSelfServiceRegistration}
+   * once the model is loaded. Absent means false — a missing flag must never
+   * be read as permission.
+   */
+  selfServiceRegistrationEnabled?: boolean;
   rateLimits: AuthorityRateLimits;
 }
 
@@ -127,9 +160,13 @@ export function loadAuthorityConfiguration(
       audience: required(environment, "ADL_UPSTREAM_IDENTITY_AUDIENCE"),
     },
     identityVerification: { mode: identityVerificationMode(environment.ADL_IDENTITY_VERIFICATION) },
+    selfServiceRegistration: selfServiceRegistrationCeiling(
+      environment.ADL_SELF_SERVICE_REGISTRATION,
+    ),
     rateLimits: {
       accountProof: positiveInteger(environment.ADL_RATE_ACCOUNT_PROOF, 10),
       webauthn: positiveInteger(environment.ADL_RATE_WEBAUTHN, 20),
+      selfRegistration: positiveInteger(environment.ADL_RATE_SELF_REGISTRATION, 5),
       session: positiveInteger(environment.ADL_RATE_SESSION, 30),
       invite: positiveInteger(environment.ADL_RATE_INVITE, 20),
       bootstrap: positiveInteger(environment.ADL_RATE_BOOTSTRAP, 120),
@@ -177,6 +214,34 @@ export function resolveSessionLifetime(
   };
 }
 
+/**
+ * Reconciles the model's registration declaration with the deployment ceiling.
+ *
+ * The model is the ceiling and the deployment may only restrict: an
+ * application that does not declare `REGISTRATION SELF_SERVICE` cannot be
+ * self-registered into under any configuration, and there is no accepted value
+ * of any environment variable that changes that. `resolveSessionLifetime`
+ * argues the same asymmetry for the offline grace, and it applies with more
+ * force here, because the capability is "strangers may create accounts".
+ *
+ * It is additionally false outside `passkey` mode: `bypass` and `upstream`
+ * have no registration ceremony at all — an identity is minted from an account
+ * proof through `/v1/session/issue` — so the flag would be both meaningless and
+ * misleading there.
+ */
+export function resolveSelfServiceRegistration(
+  configuration: AuthorityConfiguration,
+  model: ResolvedApplicationModel,
+): AuthorityConfiguration {
+  const declared = model.app.registration === "selfService";
+  const ceiling = configuration.selfServiceRegistration ?? "model";
+  return {
+    ...configuration,
+    selfServiceRegistrationEnabled:
+      declared && ceiling === "model" && configuration.identityVerification.mode === "passkey",
+  };
+}
+
 /** Reject test wiring before a production HTTP process can serve traffic. */
 export function assertProductionSessionAdapter(
   configuration: AuthorityConfiguration,
@@ -206,6 +271,17 @@ function positiveInteger(value: string | undefined, fallback: number): number {
       "Authority numeric configuration must be a positive integer.",
     );
   return parsed;
+}
+function selfServiceRegistrationCeiling(
+  value: string | undefined,
+): AuthoritySelfServiceRegistrationCeiling {
+  const declared = value?.trim();
+  const ceiling = declared === undefined || declared.length === 0 ? "model" : declared;
+  if (ceiling === "model" || ceiling === "off") return ceiling;
+  // Deliberately no `on`: see AuthorityConfiguration.selfServiceRegistration.
+  throw new AuthorityConfigurationError(
+    "ADL_SELF_SERVICE_REGISTRATION must be 'model' or 'off'; there is no value that enables self-service for a model that did not declare it.",
+  );
 }
 function identityVerificationMode(value: string | undefined): AuthorityIdentityVerificationMode {
   const declared = value?.trim();
