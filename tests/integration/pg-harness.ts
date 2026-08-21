@@ -3,7 +3,16 @@ import { resolve } from "node:path";
 import type { Client, Pool } from "pg";
 import type { PostgresPool, PostgresPoolClient, PostgresQueryable } from "../../src/index.js";
 
-/** Applied in order. `roles.sql` is deployment-only and intentionally skipped. */
+/**
+ * Applied in order.
+ *
+ * `roles.sql` and `grants.sql` are deployment-only and deliberately not in this
+ * list: the shared harness database is owned by the provisioned superuser and
+ * has no `adl_authority` role, so `grants.sql` would fail on it. The two-role
+ * split those two files provision is exercised by
+ * `tests/integration/authority-role-grants.test.ts`, which brings its own
+ * throwaway database precisely so this shared one is untouched.
+ */
 export const MIGRATION_FILES = [
   "0001_authority_projection.sql",
   "0002_security_operations.sql",

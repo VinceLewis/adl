@@ -61,6 +61,15 @@ row-level locking that a fake cannot.
 - Fault injection at a specific write stage is done with a thin `faultyPool`
   decorator over the real pool (see `tests/integration/pg-harness.ts`), so real
   begin/commit/rollback still executes.
+- The shared harness database runs as **one superuser that owns every table**,
+  so no test using it can see whether the deployment's DML-only traffic role
+  actually holds its grants. `tests/integration/authority-role-grants.test.ts`
+  (Phase 102) is the only test that provisions the real `adl_migrator` /
+  `adl_authority` split, and it brings its own throwaway database to do it. It
+  needs `CREATE DATABASE` and `CREATE ROLE`; if `ADL_TEST_DATABASE_URL` names a
+  role without them the test **fails naming the missing capability rather than
+  skipping**. Grant the capability. A silent skip is exactly how the gap it
+  covers survived nine migrations and 163 green integration tests.
 
 Run the strongest relevant commands available at that point, usually some combination of tests, typecheck, lint, format check, and build. If the project does not yet have one of those commands, do not invent unrelated tooling just to satisfy the word "test"; record the gap and proceed with the best available verification.
 
