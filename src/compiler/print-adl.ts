@@ -1708,6 +1708,8 @@ function printPrincipal(principal: PartialPolicyRuleModel["principal"]): string 
       return "ANONYMOUS";
     case "owner":
       return "OWNER";
+    case "self":
+      return "SELF";
     case "contextMember": {
       if (principal.contextMember === undefined) {
         throw new Error(

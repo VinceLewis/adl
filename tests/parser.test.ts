@@ -754,6 +754,88 @@ END.POLICY
     });
   });
 
+  it("parses the SELF policy principal without turning it into an OWNER principal", () => {
+    const ast = parseAdl(`APP Phase103
+END.APP
+
+POLICY UserSelfPolicy ON User
+  RULE allowUserReadSelf ALLOW READ SELF
+  ALLOW UPDATE SELF
+  ALLOW READ OWNER
+END.POLICY
+`);
+
+    expect(ast.policies[0]?.rules[0]).toMatchObject({
+      name: "allowUserReadSelf",
+      action: "read",
+      principal: {
+        match: "self",
+        roles: [],
+        groupRoles: [],
+        users: [],
+        // `SELF` and `OWNER` are different claims. Setting this flag would make
+        // the printer emit a `specific` OWNER clause for a rule that never
+        // named one.
+        owner: false,
+      },
+    });
+    expect(ast.policies[0]?.rules[1]).toMatchObject({
+      action: "update",
+      principal: { match: "self", owner: false },
+    });
+    // The negative half: OWNER is untouched and still means what it meant.
+    expect(ast.policies[0]?.rules[2]).toMatchObject({
+      action: "read",
+      principal: { match: "owner", owner: true },
+    });
+  });
+
+  it("stops a policy FIELDS list at SELF rather than reading it as a field name", () => {
+    const ast = parseAdl(`APP Phase103
+END.APP
+
+POLICY UserSelfPolicy ON User
+  ALLOW READ FIELDS Name Email SELF
+END.POLICY
+`);
+
+    expect(ast.policies[0]?.rules[0]).toMatchObject({
+      fields: ["Name", "Email"],
+      principal: { match: "self" },
+    });
+  });
+
+  it("still accepts a quoted field literally named Self", () => {
+    // The escape hatch for a field name colliding with a policy keyword, the
+    // same one `FIELDS 'Role'` has always used: a quoted token is not an
+    // identifier, so the stop-word set never sees it.
+    const ast = parseAdl(`APP Phase103
+END.APP
+
+POLICY UserSelfPolicy ON User
+  ALLOW READ AUTHENTICATED FIELDS 'Self'
+END.POLICY
+`);
+
+    expect(ast.policies[0]?.rules[0]).toMatchObject({
+      fields: ["Self"],
+      principal: { match: "authenticated" },
+    });
+  });
+
+  it("lists SELF among the accepted POLICY rule options when one is unrecognised", () => {
+    expectParseFailure(
+      `APP Phase103
+END.APP
+
+POLICY UserSelfPolicy ON User
+  ALLOW READ MYSELF
+END.POLICY
+`,
+      "OWNER, SELF, EVERYONE",
+    );
+  });
+
   it("parses view edit sections, child collections, relationship pickers, and EDIT_CONTAINER", () => {
     const ast = parseAdl(`APP Phase59
 END.APP

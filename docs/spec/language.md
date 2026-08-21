@@ -615,8 +615,9 @@ model stores expressions as structured trees.
 
 Policy rules are declared for a single object. Rules can allow, deny, readonly,
 mask, or hide an action for principals. Principals can match everyone,
-authenticated users, anonymous users, owners, specific users, roles, group
-roles, owner-as-specific, or **context members**:
+authenticated users, anonymous users, owners, **the record that is the caller**
+(`SELF`), specific users, roles, group roles, owner-as-specific, or **context
+members**:
 
 ```adl
 RULE allowBandMemberReadSharedAvailability ALLOW READ CONTEXT_MEMBER Band FIELD User
@@ -642,6 +643,47 @@ Two properties are part of the contract:
   never match would otherwise look like a working grant. Grant `SEARCH` to a
   wider principal and let the per-record read filter do the work; that is where
   the roster is consulted.
+
+### `SELF`: the record that is the caller
+
+`SELF` matches when the target record's **own id** is the caller's user id, and
+nothing else:
+
+```adl
+POLICY UserSelfPolicy ON User
+  RULE allowUserReadSelf ALLOW READ SELF
+  RULE allowUserUpdateSelf ALLOW UPDATE SELF
+END.POLICY
+```
+
+It is deliberately narrower than `OWNER`, which matches a record the caller
+*created* (`meta.createdBy`) or that names them in a `CreatedBy`, `OwnerId` or
+`ownerId` field. Those are different claims, and an application must be able to
+grant one without the other. A `User` record carries none of `OWNER`'s four
+signals about the person it describes — its creator is whoever seeded or invited
+it — so before `SELF` existed there was no construct in the language that let a
+person read their own `User` record. `AUTHENTICATED` says "I am somebody";
+`SELF` says "this row is me".
+
+The same invariant is already how a `SYNC ... SCOPE CURRENT_USER` selection and
+a `currentUser`-scoped read-model source decide what belongs to a caller, so
+`SELF` makes policy agree with the rest of the runtime rather than adding a
+third opinion.
+
+Three properties are part of the contract:
+
+- It **fails closed.** A request that carries no record never matches, and
+  neither does an empty caller id.
+- It **grants a whole row**, which is what a profile surface needs, and which a
+  field-scoped `ALLOW ... FIELDS` rule deliberately cannot do — a rule naming
+  `FIELDS` never matches a whole-record request.
+- It **cannot widen enumeration.** The object-level search check is evaluated
+  with no record at all, so no `SELF` rule can ever admit a search, and a rule
+  granting `SEARCH` to a `SELF` principal is refused at compile time
+  (`ADL_POLICY_SELF_SEARCH_UNREACHABLE`) for the same reason its
+  `CONTEXT_MEMBER` sibling is. This is a property of the request shape rather
+  than of careful policy authoring: a `SELF` grant added to an object whose
+  directory is closed leaves it closed.
 
 That `CONTEXT_MEMBER`+`SEARCH` refusal is one instance of a broader rule: **a
 `WHEN` condition cannot gate any action whose policy check has no candidate

@@ -965,7 +965,14 @@ export interface PolicyRuleDeclarationAst {
 }
 
 export interface PrincipalSelectorAst {
-  match?: "everyone" | "authenticated" | "anonymous" | "owner" | "specific" | "contextMember";
+  match?:
+    | "everyone"
+    | "authenticated"
+    | "anonymous"
+    | "owner"
+    | "self"
+    | "specific"
+    | "contextMember";
   roles: string[];
   groupRoles: string[];
   users: string[];

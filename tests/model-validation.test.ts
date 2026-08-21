@@ -897,6 +897,127 @@ END.OBJECT
     );
   });
 
+  it("refuses a SELF principal granted the object-level SEARCH action", () => {
+    // Same shape as the CONTEXT_MEMBER case above and for the same reason: the
+    // object-level search gate is evaluated with no record, and `SELF` matches
+    // by comparing a record's own id to the caller. The rule is dead, and a
+    // dead grant reads exactly like a working one (Phase 103).
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "UserSelfSearchPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "unreachableSelfSearch",
+              effect: "allow",
+              principal: { match: "self" },
+              action: "search",
+            },
+          ],
+        },
+      ],
+    });
+
+    const rulePath = `policies[${resolved.policies.length - 1}].rules[0].principal`;
+    expect(
+      validateApplicationModel(resolved).map((diagnostic) => [diagnostic.code, diagnostic.path]),
+    ).toEqual(
+      expect.arrayContaining([[MODEL_VALIDATION_CODES.POLICY_SELF_SEARCH_UNREACHABLE, rulePath]]),
+    );
+  });
+
+  it("accepts a SELF principal on READ and UPDATE, which do carry a record", () => {
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "UserSelfPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowUserReadSelf",
+              effect: "allow",
+              principal: { match: "self" },
+              action: "read",
+            },
+            {
+              name: "allowUserUpdateSelf",
+              effect: "allow",
+              principal: { match: "self" },
+              action: "update",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
+  it("refuses a SELF principal on SEARCH even when the same policy also grants READ", () => {
+    // The diagnostic must key on the rule, not on the policy: a live sibling
+    // rule must not suppress a dead one, which is the limit
+    // ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE explicitly could not reach.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "UserSelfMixedPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowUserReadSelf",
+              effect: "allow",
+              principal: { match: "self" },
+              action: "read",
+            },
+            {
+              name: "unreachableSelfSearch",
+              effect: "allow",
+              principal: { match: "self" },
+              action: "search",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      validateApplicationModel(resolved).map((diagnostic) => [diagnostic.code, diagnostic.path]),
+    ).toEqual([
+      [
+        MODEL_VALIDATION_CODES.POLICY_SELF_SEARCH_UNREACHABLE,
+        `policies[${resolved.policies.length - 1}].rules[1].principal`,
+      ],
+    ]);
+  });
+
+  it("does not refuse the object-level SEARCH action for a principal that can match without a record", () => {
+    // The negative half of the SELF refusal: the diagnostic must be about
+    // `SELF` specifically, not about SEARCH grants in general.
+    const resolved = resolveApplicationModel({
+      ...bandContextPartialModel,
+      policies: [
+        {
+          name: "UserAuthenticatedSearchPolicy",
+          object: "User",
+          rules: [
+            {
+              name: "allowAuthenticatedSearchUser",
+              effect: "allow",
+              principal: { match: "authenticated" },
+              action: "search",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(validateApplicationModel(resolved)).toEqual([]);
+  });
+
   it("refuses a WHEN condition on the object-level SEARCH action for any principal", () => {
     // Generalizes the CONTEXT_MEMBER case above: `ALLOW SEARCH AUTHENTICATED
     // WHEN User == runtime.userId` looks like a working per-caller grant but

@@ -49,6 +49,16 @@ Read shaping applies field-level policy after row read permission is granted.
 Masked fields return the mask sentinel. Hidden and denied fields are omitted.
 Field-level allow does not grant row read permission.
 
+A `self` principal matches when the request carries a record whose own id equals
+the caller's user id, and never otherwise. It does not consult who created the
+record, nor any declared field: `owner` answers "I created this" and `self`
+answers "this is me". It fails closed on a request with no record and on an empty
+caller id, so every gate evaluated without a record — the object-level `search`
+check among them — is unreachable for it, and a `self` grant can therefore never
+widen enumeration. An explicit matching `deny`, `hidden` or `mask` rule still
+wins over a `self` allow, because deny and presentation restrictions are ordered
+ahead of allow.
+
 Policy decisions include structured reasons with policy name, rule name when
 applicable, effect, and message. `explainPolicyDecision` reports the winning
 effect and precedence category.

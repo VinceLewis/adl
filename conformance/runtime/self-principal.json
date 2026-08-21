@@ -1,0 +1,1252 @@
+{
+  "version": 1,
+  "models": {
+    "selfPrincipal": {
+      "app": {
+        "name": "SelfPrincipal"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "User",
+          "object": "User",
+          "selection": {
+            "mode": "required"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowAuthenticatedReadUserName",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "fields": [
+                "Name"
+              ]
+            },
+            {
+              "name": "allowUserReadSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowUserUpdateSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "update"
+            }
+          ]
+        },
+        {
+          "name": "UserSystemAdminPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "selfPrincipalWithDeny": {
+      "app": {
+        "name": "SelfPrincipalWithDeny"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "User",
+          "object": "User",
+          "selection": {
+            "mode": "required"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowAuthenticatedReadUserName",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "fields": [
+                "Name"
+              ]
+            },
+            {
+              "name": "allowUserReadSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowUserUpdateSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "update"
+            },
+            {
+              "name": "denyAuthenticatedReadUser",
+              "effect": "deny",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read"
+            }
+          ]
+        },
+        {
+          "name": "UserSystemAdminPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "selfPrincipalWithHiddenField": {
+      "app": {
+        "name": "SelfPrincipalWithHiddenField"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "User",
+          "object": "User",
+          "selection": {
+            "mode": "required"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowAuthenticatedReadUserName",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "fields": [
+                "Name"
+              ]
+            },
+            {
+              "name": "allowUserReadSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowUserUpdateSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "update"
+            },
+            {
+              "name": "hideUserEmail",
+              "effect": "hidden",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "fields": [
+                "Email"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "UserSystemAdminPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "selfPrincipalSearchGated": {
+      "app": {
+        "name": "SelfPrincipalSearchGated"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "User",
+          "object": "User",
+          "selection": {
+            "mode": "required"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowAuthenticatedReadUserName",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "fields": [
+                "Name"
+              ]
+            },
+            {
+              "name": "allowUserReadSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowUserUpdateSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "update"
+            },
+            {
+              "name": "unreachableSelfSearch",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "search"
+            }
+          ]
+        },
+        {
+          "name": "UserSystemAdminPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "selfPrincipalWildcard": {
+      "app": {
+        "name": "SelfPrincipalWildcard"
+      },
+      "roles": [
+        {
+          "name": "SystemAdmin"
+        }
+      ],
+      "contexts": [
+        {
+          "name": "User",
+          "object": "User",
+          "selection": {
+            "mode": "required"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "User",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Email",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "UserPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowAuthenticatedReadUserName",
+              "effect": "allow",
+              "principal": {
+                "match": "authenticated"
+              },
+              "action": "read",
+              "fields": [
+                "Name"
+              ]
+            },
+            {
+              "name": "allowUserReadSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "read"
+            },
+            {
+              "name": "allowUserUpdateSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "update"
+            },
+            {
+              "name": "allowUserAllOpsSelf",
+              "effect": "allow",
+              "principal": {
+                "match": "self"
+              },
+              "action": "*"
+            }
+          ]
+        },
+        {
+          "name": "UserSystemAdminPolicy",
+          "object": "User",
+          "rules": [
+            {
+              "name": "allowSystemAdminAllUser",
+              "effect": "allow",
+              "principal": {
+                "match": "specific",
+                "roles": [
+                  "SystemAdmin"
+                ]
+              },
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "policy.self.reads-own-record-in-full.001",
+      "title": "A SELF principal lets a caller read the record whose own id is their user id, including fields no field-scoped rule grants",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "selfPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "User",
+          "recordId": "$alice",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.self.refuses-another-users-record.002",
+      "title": "The same rule refuses another user's record outright rather than returning a shaped-empty row",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "selfPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "bob.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.self.does-not-match-the-records-creator.003",
+      "title": "SELF compares the record's own id to the caller and never who created it, so the account that created every record is still refused",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "selfPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "context": {
+          "userId": "system-admin",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.self.grants-no-object-level-search.004",
+      "title": "A SELF read grant confers no enumeration: the object-level search check is refused, so a user directory cannot be reopened by adding one",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "search",
+      "modelRef": "selfPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "query": {},
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.self.fails-closed-with-no-record.005",
+      "title": "A SELF rule cannot match a request that carries no record at all, which is what makes every recordless gate unreachable for it",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "policyDecision",
+      "modelRef": "selfPrincipal",
+      "input": {
+        "request": {
+          "objectName": "User",
+          "action": "read"
+        },
+        "context": {
+          "userId": "user-1",
+          "roles": [],
+          "channel": "api"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "precedence": "defaultDeny",
+          "decision": {
+            "effect": "deny",
+            "reasons": [
+              {
+                "policyName": "UserDefaultDeny",
+                "effect": "deny"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.self.fails-closed-for-an-unauthenticated-caller.006",
+      "title": "An empty user id never matches a SELF rule, the same fail-closed shape OWNER and CONTEXT_MEMBER have",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "selfPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "context": {
+          "userId": "",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.self.updates-own-record.007",
+      "title": "A SELF principal grants the action its rule names",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "update",
+      "modelRef": "selfPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "patch": {
+          "Name": "Alice Anderson"
+        },
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "User",
+          "recordId": "$alice",
+          "values": {
+            "Name": "Alice Anderson",
+            "Email": "alice@example.com"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.self.does-not-grant-an-action-it-does-not-name.008",
+      "title": "A SELF READ and UPDATE grant confers no DELETE on the caller's own record",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "delete",
+      "modelRef": "selfPrincipal",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.self.an-explicit-deny-still-wins.009",
+      "title": "An explicit row-level DENY that matches the same request suppresses a SELF allow, because deny is evaluated before allow",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "selfPrincipalWithDeny",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.self.a-field-restriction-still-withholds-that-field.010",
+      "title": "A HIDDEN field rule still withholds its field from the row a SELF allow granted",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "selfPrincipalWithHiddenField",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "User",
+          "recordId": "$alice",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "$absent"
+          }
+        }
+      }
+    },
+    {
+      "id": "policy.self.cannot-gate-the-object-level-search-action.011",
+      "title": "A SELF principal granting the object-level search action is refused at compile time, because the search check has no record for the principal to compare the caller against",
+      "specRef": "resolved-model#policies",
+      "operation": "validateModel",
+      "modelRef": "selfPrincipalSearchGated",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "error",
+            "code": "ADL_POLICY_SELF_SEARCH_UNREACHABLE",
+            "path": "policies[1].rules[3].principal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "policy.self.a-wildcard-self-grant-still-cannot-search.012",
+      "title": "A SELF rule naming every action still cannot pass the object-level search check, so no SELF grant can reopen enumeration",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "search",
+      "modelRef": "selfPrincipalWildcard",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "query": {},
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "policy.self.a-wildcard-self-grant-is-live-on-a-record.013",
+      "title": "The positive control for the case above: the same wildcard rule does grant the caller's own record, so its search refusal is about the request shape and not a dead rule",
+      "specRef": "runtime-semantics#policy-decisions",
+      "operation": "read",
+      "modelRef": "selfPrincipalWildcard",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alice",
+          "objectName": "User",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "bob",
+          "objectName": "User",
+          "values": {
+            "Name": "Bob Brand",
+            "Email": "bob@example.com"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-08-20T09:00:00.000Z"
+          }
+        }
+      ],
+      "input": {
+        "objectName": "User",
+        "id": {
+          "$ref": "alice.meta.guid"
+        },
+        "context": {
+          "userId": {
+            "$ref": "alice.meta.guid"
+          },
+          "roles": [],
+          "channel": "api",
+          "now": "2026-08-20T09:00:00.000Z"
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "objectName": "User",
+          "recordId": "$alice",
+          "values": {
+            "Name": "Alice Adams",
+            "Email": "alice@example.com"
+          }
+        }
+      }
+    }
+  ]
+}

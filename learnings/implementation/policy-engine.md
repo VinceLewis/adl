@@ -238,6 +238,67 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   removes both the email and the read model's dependency on a whole-record read
   grant.
 
+## Key decisions from Phase 103: `SELF`, the principal for "this record is me"
+
+- **`PrincipalMatch` gained `"self"`, spelled `SELF` in `.adl` and
+  `{ "match": "self" }` in `.adlj`.** `isSelf(record, userId)` is one line —
+  `record !== undefined && userId.length > 0 && record.meta.guid === userId` —
+  beside `isOwner` in `policy-engine.ts`, reached from `principalMatches`' new
+  `case "self"`. Everything else the phase touched is surface: the parser
+  keyword and its stop word, a printer branch, a JSON-schema enum member, one
+  validator rule, one conformance corpus file.
+- **It exists because `OWNER` cannot say it and no condition operand can
+  either.** `isOwner` looks at `meta.createdBy`, `values.CreatedBy`,
+  `values.OwnerId` and `values.ownerId`; a `User` record carries none of them
+  about the person it describes, and its `createdBy` is whoever seeded or
+  invited it. `ResolvedPolicyConditionOperand` is `field`/`runtime`/`literal`
+  and `evaluateField` reads `record.values` only, so `WHEN id == RUNTIME.userId`
+  silently evaluates `null == "user-…"` and is false. Phases 91, 99 and 101 each
+  hit this wall and each deferred it.
+- **The platform already asserted the invariant in two other services.**
+  `offline-dataset-service.ts`'s `SCOPE CURRENT_USER` selection and
+  `read-model-service.ts`'s `currentUser`-scoped source both key on
+  `record.meta.guid === context.userId`. Both reference apps declare
+  `User.sync = { mode: "localFirst", scope: "currentUser" }`, so a user's own
+  `User` record was already selected onto their device and then refused by the
+  policy engine. `SELF` makes policy agree with the runtime rather than adding a
+  third opinion — which is also why extending `isOwner` with a fifth disjunct was
+  rejected: it would silently change the meaning of a shipped construct in every
+  policy of every application at once, with nothing in any model declaring it.
+- **`ALLOW SEARCH SELF` is a compile error**
+  (`ADL_POLICY_SELF_SEARCH_UNREACHABLE`, `validatePolicyRule`), modelled
+  line-for-line on its `CONTEXT_MEMBER` sibling. Same reason: the object-level
+  search gate is evaluated with **no record**, so a record-matching principal is
+  dead there, and a dead grant reads exactly like a working one.
+- **The recordless search gate is also what makes `SELF` safe.** A `SELF` rule
+  cannot reopen the user directory Phase 101 closed, and that is a property of
+  the *request shape*, not of careful policy authoring — which is what Phase 101
+  wanted and could not get from `CONTEXT_MEMBER`.
+- **`ALLOW * SELF` compiles, and is the only test that proves any of that.** A
+  test asserting "search is refused" against a model whose only `SELF` rules name
+  `READ`/`UPDATE` is vacuous: there is no search rule, so the refusal holds for
+  every principal and would survive replacing `isSelf` with a constant. The
+  discriminating shape is a wildcard rule that *does* name search, refused
+  anyway, paired with a positive control proving the same rule is live on a
+  record. Mutating `isSelf` to `return userId.length > 0` turns the wildcard case
+  red and leaves the naive one green — that mutation is how the vacuity was
+  found, not code review.
+- **`SELF` deliberately does not set `principal.owner`.** Setting the flag would
+  make `printPrincipal` emit a `specific` `OWNER` clause for a rule that never
+  named one, and would conflate the two claims in the resolved model.
+- **The pre-change printer failed silently, not loudly.** Without the
+  `case "self"` branch, `printPrincipal` returned `undefined` and printed
+  `ALLOW READ ` with an empty principal — which reparses as the default
+  `everyone`. A missing printer branch on a principal is a *widening*, and `tsc`
+  only caught it because the switch has no `default`.
+- **`ALLOW CREATE SELF` is dead too, and has no diagnostic.** `ObjectStore.create`
+  supplies a `patch` and no `record`, so `isSelf` cannot match there either. Phase
+  103 shipped only the `SEARCH` refusal, per its own scope, and pinned the general
+  behaviour by conformance case
+  (`policy.self.fails-closed-with-no-record.005`, a `policyDecision` on a
+  recordless `read` request). `OWNER` has the identical gap on both `SEARCH` and
+  `CREATE` and has had it since it shipped. See the Phase 103 handoff.
+
 ## Practical guidance
 
 - Add policy enforcement tests against direct runtime calls, not only UI rendering.
@@ -257,6 +318,10 @@ Read this before changing policy evaluation, runtime record returns, UI policy p
   reads that object for display: a lookup label is a *field* read, and routing
   it through `applyReadPolicy`'s row gate turns the grant into a screenful of
   raw record ids, silently. See the Phase 101 section above.
+- **"My own record" is `SELF`; "a record I created" is `OWNER`.** Do not reach
+  for `OWNER` on an object that describes people — it means the creator, and on a
+  `User` record that is the administrator or inviter, not the subject. `SELF`
+  grants the whole row to exactly one caller and can gate no recordless action.
 - A `ROLE` condition on an object with no `SCOPE` only works when that object
   is itself a context's own bound object (e.g. `Band`/`Circle`). For anything
   else unscoped (e.g. `User`), reach for `AUTHENTICATED`, `OWNER`, or a

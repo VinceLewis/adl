@@ -287,6 +287,8 @@ export class PolicyEngine {
         return context.userId.length === 0;
       case "owner":
         return isOwner(record, context.userId);
+      case "self":
+        return isSelf(record, context.userId);
       case "specific":
         return (
           principal.users.includes(context.userId) ||
@@ -359,6 +361,25 @@ function getRequestRecordState(
   }
 
   return getRecordState(index.getObject(request.objectName), request.record);
+}
+
+/**
+ * "This record *is* the caller."
+ *
+ * The one invariant the rest of the runtime already asserts — a
+ * `SCOPE CURRENT_USER` sync selection (`offline-dataset-service.ts`) and a
+ * `currentUser`-scoped read-model source (`read-model-service.ts`) both key on
+ * `record.meta.guid === context.userId` — and the one thing the policy engine
+ * could not say until Phase 103. Deliberately narrower than {@link isOwner}: it
+ * never consults `meta.createdBy` or any declared field, because "whoever
+ * created this" and "whoever this is about" are different claims and an
+ * application must be able to grant one without the other.
+ *
+ * Fails closed on an absent record and on an empty `userId`, the same shape as
+ * {@link isOwner} and `recordBelongsToContextMember`.
+ */
+function isSelf(record: StoredObjectRecord | undefined, userId: string): boolean {
+  return record !== undefined && userId.length > 0 && record.meta.guid === userId;
 }
 
 function isOwner(record: StoredObjectRecord | undefined, userId: string): boolean {
