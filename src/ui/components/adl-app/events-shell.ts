@@ -1,4 +1,5 @@
 import { successMessage } from "../../runtime-error-messages.js";
+import type { CommandFormSubmitDetail } from "../adl-command-form.js";
 import type { DiscardRefusedRecordDetail } from "../adl-sync-recovery.js";
 import type {
   ClaimInviteDetail,
@@ -33,6 +34,42 @@ export class AdlAppShellEventsElement extends AdlAppDataElement {
     }
 
     void this.runAuthorityAction(() => bridge.registerPasskey(detail?.inviteToken));
+  };
+
+  /**
+   * Opens a `commandAction` control's form. Called from the delegated shell
+   * click handler, so it is a plain method rather than a listener field.
+   */
+  protected openShellCommandForm(controlName: string): void {
+    if (this.shellControlCommand(controlName) === undefined) {
+      return;
+    }
+    this.commandFormControl = controlName;
+    this.commandFormBusy = false;
+    this.commandFormError = undefined;
+    this.commandFormValues = undefined;
+    this.render();
+  }
+
+  protected readonly handleCommandFormSubmit = (event: Event): void => {
+    const detail = (event as CustomEvent<CommandFormSubmitDetail>).detail;
+    const controlName = this.commandFormControl;
+    if (detail === undefined || controlName === undefined || this.commandFormBusy) {
+      return;
+    }
+
+    this.commandFormValues = detail.input;
+    void this.runShellCommand(controlName, detail.input);
+  };
+
+  protected readonly handleCommandFormCancel = (): void => {
+    if (this.commandFormBusy) {
+      return;
+    }
+    this.commandFormControl = undefined;
+    this.commandFormError = undefined;
+    this.commandFormValues = undefined;
+    this.render();
   };
 
   protected readonly handlePasskeySignIn = (): void => {

@@ -22,7 +22,7 @@ describe("jointly care reference app model", () => {
     const model = await createJointlyReferenceModel();
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.6.0");
+    expect(model.modelVersion).toBe("1.7.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -48,6 +48,20 @@ describe("jointly care reference app model", () => {
     // object's stored fields change. This app needs its own bump because the
     // fingerprint is per app, not per repository -- see AGENTS.md.
     expect(model.migrations).toContainEqual({ from: "1.5.0", to: "1.6.0", objects: [] });
+    // `1.6.0 -> 1.7.0` is an empty-object hop, for the same reason Giggle Band
+    // gets `1.11.0 -> 1.12.0`: the shell gains the `createFirstCircle`
+    // `COMMAND_ACTION` control (Phase 99's onboarding surface). Shell content;
+    // no object's stored fields change.
+    expect(model.migrations).toContainEqual({ from: "1.6.0", to: "1.7.0", objects: [] });
+    expect(model.shell.controls).toContainEqual(
+      expect.objectContaining({
+        name: "createFirstCircle",
+        kind: "commandAction",
+        command: "CreateCircle",
+        placement: "emptyState",
+        visibility: { kind: "contextUnavailable", context: "Circle" },
+      }),
+    );
     expect(model.app.registration).toBe("selfService");
     // See the matching assertion in tests/band-reference-app.test.ts for why
     // this exists: a tripwire against content changes that skip a version
@@ -55,7 +69,7 @@ describe("jointly care reference app model", () => {
     // change, and treat that update as your reminder to also bump
     // modelVersion and add a migration step.
     expect(model.modelFingerprint).toBe(
-      "sha256-0df02ecc31fde4497b0e62227fa4c16391cded0e04de1257b603134d64231484",
+      "sha256-171158c70c06bfa0f975dd8fb92ae91ab58124e3d14210db026fb250813b8bef",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(

@@ -109,6 +109,7 @@ function resolveShellControl(input: PartialShellControlModel): ResolvedShellCont
     ...(input.icon === undefined ? {} : { icon: input.icon }),
     placement: input.placement ?? "topBar",
     visibility: resolveShellVisibility(input.visibility),
+    ...(input.command === undefined ? {} : { command: input.command }),
     ...(input.context === undefined ? {} : { context: input.context }),
   };
 }

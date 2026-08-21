@@ -1,6 +1,7 @@
 import type {
   EditContainerMode,
   ResolvedBusinessContext,
+  ResolvedCommand,
   ResolvedObject,
   ResolvedReadModel,
   ResolvedShellControl,
@@ -75,6 +76,36 @@ export class AdlAppModelLookupElement extends AdlAppStateElement {
       )
       .filter((control): control is ResolvedShellControl => control !== undefined)
       .filter((control) => control.placement === placement && this.isShellControlVisible(control));
+  }
+
+  /**
+   * The `commandAction` controls a view's own empty state offers.
+   *
+   * Ordered by declaration rather than by a region control list, because
+   * unlike the top bar and the drawer this is not shared chrome whose ordering
+   * is a layout decision — it is one message with, in practice, one way out of
+   * it. A control that names no context in its visibility renders in every
+   * empty state; one that names a context renders only in that context's.
+   */
+  protected emptyStateShellControls(contextName: string | undefined): ResolvedShellControl[] {
+    return this._model.shell.controls.filter(
+      (control) =>
+        control.placement === "emptyState" &&
+        this.isShellControlVisible(control) &&
+        (control.visibility.context === undefined || control.visibility.context === contextName),
+    );
+  }
+
+  /** The command a `commandAction` control runs, resolved from the model. */
+  protected shellControlCommand(controlName: string | undefined): ResolvedCommand | undefined {
+    if (controlName === undefined) {
+      return undefined;
+    }
+    const control = this._model.shell.controls.find((entry) => entry.name === controlName);
+    if (control?.kind !== "commandAction" || control.command === undefined) {
+      return undefined;
+    }
+    return this._model.commands?.find((command) => command.name === control.command);
   }
 
   protected applySelectedScopeToCreateValues(
@@ -162,7 +193,7 @@ export class AdlAppModelLookupElement extends AdlAppStateElement {
     );
   }
 
-  private isShellControlVisible(control: ResolvedShellControl): boolean {
+  protected isShellControlVisible(control: ResolvedShellControl): boolean {
     if (!this.isShellVisibilityVisible(control.visibility)) {
       return false;
     }
@@ -198,6 +229,13 @@ export class AdlAppModelLookupElement extends AdlAppStateElement {
 
     if (visibility.kind === "contextAvailable") {
       return (this.availableContexts.get(contextName) ?? []).length > 0;
+    }
+
+    if (visibility.kind === "contextUnavailable") {
+      // The mirror image, and the state the onboarding surface exists for: a
+      // person holding an identity and no membership can reach no instance of
+      // this context, so every view scoped to it renders its empty state.
+      return (this.availableContexts.get(contextName) ?? []).length === 0;
     }
 
     return this.selectedContextIds[contextName] !== undefined;

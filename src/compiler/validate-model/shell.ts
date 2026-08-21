@@ -12,6 +12,7 @@ import type {
 } from "../../model/resolved-model.js";
 import { MODEL_VALIDATION_CODES } from "./codes.js";
 import type { Diagnostic, ModelValidationCode } from "./codes.js";
+import { validateIconName } from "./icon.js";
 import { diagnostic, indexByName, reportDuplicateNames } from "./shared.js";
 import type { ModelIndexes, NamedReference } from "./shared.js";
 
@@ -22,8 +23,13 @@ const SHELL_CONTROL_KINDS = new Set<ShellControlKind>([
   "pwaInstall",
   "syncStatus",
   "connectivity",
+  "commandAction",
 ]);
-const SHELL_CONTROL_PLACEMENTS = new Set<ShellControlPlacement>(["topBar", "navDrawer"]);
+const SHELL_CONTROL_PLACEMENTS = new Set<ShellControlPlacement>([
+  "topBar",
+  "navDrawer",
+  "emptyState",
+]);
 const SHELL_CONTEXT_SELECTOR_PLACEMENTS = new Set<ShellContextSelectorPlacement>([
   "topBar",
   "navDrawer",
@@ -40,6 +46,7 @@ const SHELL_NAVIGATION_MODES = new Set<ShellNavigationMode>([
 const SHELL_VISIBILITY_KINDS = new Set<ShellVisibilityKind>([
   "always",
   "contextAvailable",
+  "contextUnavailable",
   "contextSelected",
   "online",
   "offline",
@@ -295,6 +302,84 @@ function validateShellControl(
       ),
     );
   }
+
+  validateShellControlCommand(control, controlPath, indexes, diagnostics);
+}
+/**
+ * `COMMAND` belongs to exactly one control kind, and both halves are checked:
+ * a `commandAction` without one has nothing to run, and any other kind with one
+ * is stating something no renderer will ever read — the silent-no-op shape this
+ * repository keeps finding and closing.
+ *
+ * The input check exists because the form is generated from the command's own
+ * declared inputs, and two shapes have no control to generate: a `repeated`
+ * input is a list of items, and an `attachment` is a file. Refusing at compile
+ * time is the difference between an unpromptable command being a model error
+ * and being a form that silently drops a value the command requires.
+ */
+function validateShellControlCommand(
+  control: ResolvedShellControl,
+  controlPath: string,
+  indexes: ModelIndexes,
+  diagnostics: Diagnostic[],
+): void {
+  if (control.kind !== "commandAction") {
+    if (control.command !== undefined) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_UNEXPECTED,
+          `Shell control '${control.name}' declares command '${control.command}', but only a 'commandAction' control runs one.`,
+          `${controlPath}.command`,
+        ),
+      );
+    }
+    return;
+  }
+
+  if (control.command === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_REQUIRED,
+        `Shell control '${control.name}' is a 'commandAction' and must declare the command it runs.`,
+        `${controlPath}.command`,
+      ),
+    );
+    return;
+  }
+
+  const command = indexes.commandsByName.get(control.command)?.item;
+  if (command === undefined) {
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_UNKNOWN,
+        `Shell control '${control.name}' references unknown command '${control.command}'.`,
+        `${controlPath}.command`,
+      ),
+    );
+    return;
+  }
+
+  for (let inputIndex = 0; inputIndex < command.inputs.length; inputIndex += 1) {
+    const input = command.inputs[inputIndex];
+    if (input === undefined) {
+      continue;
+    }
+    const unsupported = input.repeated
+      ? "repeated"
+      : input.type === "attachment"
+        ? "attachment"
+        : undefined;
+    if (unsupported === undefined) {
+      continue;
+    }
+    diagnostics.push(
+      diagnostic(
+        MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_INPUT_UNSUPPORTED,
+        `Shell control '${control.name}' runs command '${command.name}', whose input '${input.name}' is ${unsupported} and cannot be prompted for.`,
+        `${controlPath}.command`,
+      ),
+    );
+  }
 }
 function validateShellVisibility(
   visibility: ResolvedShellVisibility,
@@ -313,7 +398,9 @@ function validateShellVisibility(
   }
 
   if (
-    (visibility.kind === "contextAvailable" || visibility.kind === "contextSelected") &&
+    (visibility.kind === "contextAvailable" ||
+      visibility.kind === "contextUnavailable" ||
+      visibility.kind === "contextSelected") &&
     (visibility.context === undefined || !indexes.contextsByName.has(visibility.context))
   ) {
     diagnostics.push(
@@ -325,21 +412,33 @@ function validateShellVisibility(
     );
   }
 }
+/**
+ * Two checks, deliberately not one. `SHELL_ICON_PATTERN` is about the *shape*
+ * of the name — a shell-specific lexical rule with its own long-standing code —
+ * while {@link validateIconName} is about whether any renderer can draw it. A
+ * name that fails the shape rule reports only the shape diagnostic, because
+ * saying it is also not in the vocabulary adds nothing.
+ */
 function validateShellIcon(
   icon: string | undefined,
   iconPath: string,
   code: ModelValidationCode,
   diagnostics: Diagnostic[],
 ): void {
-  if (icon === undefined || SHELL_ICON_PATTERN.test(icon)) {
+  if (icon === undefined) {
     return;
   }
 
-  diagnostics.push(
-    diagnostic(
-      code,
-      `Shell icon reference '${icon}' is not a supported semantic icon name.`,
-      iconPath,
-    ),
-  );
+  if (!SHELL_ICON_PATTERN.test(icon)) {
+    diagnostics.push(
+      diagnostic(
+        code,
+        `Shell icon reference '${icon}' is not a supported semantic icon name.`,
+        iconPath,
+      ),
+    );
+    return;
+  }
+
+  validateIconName(icon, iconPath, diagnostics);
 }

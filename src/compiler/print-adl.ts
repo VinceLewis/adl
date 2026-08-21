@@ -429,6 +429,13 @@ function printShellVisibility(visibility: PartialShellVisibilityModel): string {
         );
       }
       return `WHEN CONTEXT ${visibility.context} AVAILABLE`;
+    case "contextUnavailable":
+      if (visibility.context === undefined) {
+        throw new Error(
+          "printPartialApplicationModelAsAdl: a 'contextUnavailable' shell visibility must declare context.",
+        );
+      }
+      return `WHEN CONTEXT ${visibility.context} UNAVAILABLE`;
     case "contextSelected":
       if (visibility.context === undefined) {
         throw new Error(
@@ -454,6 +461,9 @@ function printShellControl(control: PartialShellControlModel): string {
   }
   if (control.visibility !== undefined) {
     line += ` VISIBLE ${printShellVisibility(control.visibility)}`;
+  }
+  if (control.command !== undefined) {
+    line += ` COMMAND ${control.command}`;
   }
   if (control.context !== undefined) {
     line += ` CONTEXT ${control.context}`;

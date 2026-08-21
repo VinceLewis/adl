@@ -3,6 +3,7 @@
     "name": "Giggle Band UI Views (placeholder, discarded on merge)"
   },
   "shell": {
+    "comment": "The first-run onboarding surface is `createFirstBand` below (Phase 99).\n\nWithout it a person who has just registered an account sees only `No Band\ncontexts are available for this view.` and has no affordance at all: they are\na member of nothing, so every context-scoped view renders its empty state,\nand a presentation `ACTION`'s inputs are expressions over a row, so nothing\ncould ask them for the `Name` that `CreateBand` requires.\n\n`PLACEMENT EMPTY_STATE` puts the control inside that message, and `VISIBLE\nWHEN CONTEXT Band UNAVAILABLE` takes it away again the moment they belong to\none. `CreateBand` then does what it always could: it establishes the `Band`\ncontext transaction-locally and writes the founder `BandMember` with `Role\nBandAdmin` in the same transaction.",
     "nav": {
       "items": [
         {
@@ -144,6 +145,14 @@
         "label": "Sign out",
         "icon": "x",
         "placement": "navDrawer"
+      },
+      {
+        "name": "createFirstBand",
+        "kind": "commandAction",
+        "label": "Create a band",
+        "command": "CreateBand",
+        "placement": "emptyState",
+        "visibility": { "kind": "contextUnavailable", "context": "Band" }
       }
     ]
   },

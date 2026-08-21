@@ -367,6 +367,47 @@ END.OBJECT
     });
   });
 
+  it("parses a COMMAND_ACTION shell control, its empty-state placement and its context-unavailable visibility", () => {
+    const ast = parseAdl(`APP OnboardingSyntax
+END.APP
+
+SHELL
+  CONTROL createFirstBand KIND COMMAND_ACTION LABEL 'Create a band' PLACEMENT EMPTY_STATE VISIBLE WHEN CONTEXT Band UNAVAILABLE COMMAND CreateBand
+END.SHELL
+
+CONTEXT Band OBJECT Band
+
+OBJECT Band
+  FIELD Name TEXT
+  VIEW Home LIST
+    FIELDS Name
+  END.VIEW
+END.OBJECT
+`);
+
+    expect(ast.shell?.controls[0]).toMatchObject({
+      name: "createFirstBand",
+      controlKind: "commandAction",
+      label: "Create a band",
+      placement: "emptyState",
+      visibility: { kind: "contextUnavailable", context: "Band" },
+      command: "CreateBand",
+    });
+  });
+
+  it("names the new shell control kind, placement and visibility in its own refusals", () => {
+    const shell = (body: string) =>
+      `APP OnboardingSyntax\nEND.APP\n\nSHELL\n  ${body}\nEND.SHELL\n\nOBJECT Band\n  FIELD Name TEXT\n  VIEW Home LIST\n    FIELDS Name\n  END.VIEW\nEND.OBJECT\n`;
+
+    expect(() => parseAdl(shell("CONTROL c KIND WHATEVER"))).toThrow(/COMMAND_ACTION/u);
+    expect(() => parseAdl(shell("CONTROL c KIND COMMAND_ACTION PLACEMENT FOOTER"))).toThrow(
+      /EMPTY_STATE/u,
+    );
+    expect(() =>
+      parseAdl(shell("CONTROL c KIND COMMAND_ACTION VISIBLE WHEN CONTEXT Band SOMETIMES")),
+    ).toThrow(/UNAVAILABLE/u);
+  });
+
   it("parses shell navigation metadata", () => {
     const ast = parseAdl(`APP ShellSyntax
 END.APP

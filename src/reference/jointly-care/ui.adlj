@@ -3,6 +3,7 @@
     "name": "Jointly Care UI Views (placeholder, discarded on merge)"
   },
   "shell": {
+    "comment": "The first-run onboarding surface is `createFirstCircle` below (Phase 99).\nSame shape as Giggle Band's `createFirstBand`, and for the same reason: a\nperson who has just registered an account belongs to no circle, so every\ncontext-scoped view renders `No Circle contexts are available for this view.`\nand nothing could ask them for the `Name` that `CreateCircle` requires.\n`CreateCircle` establishes the `Circle` context transaction-locally and\nwrites the founder membership with `Role CircleOwner`.",
     "nav": {
       "items": [
         {
@@ -167,6 +168,14 @@
         "label": "Sign out",
         "icon": "x",
         "placement": "navDrawer"
+      },
+      {
+        "name": "createFirstCircle",
+        "kind": "commandAction",
+        "label": "Create a circle",
+        "command": "CreateCircle",
+        "placement": "emptyState",
+        "visibility": { "kind": "contextUnavailable", "context": "Circle" }
       }
     ]
   },

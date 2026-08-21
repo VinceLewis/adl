@@ -319,6 +319,13 @@ export class AdlAppRecordEventsElement extends AdlAppShellEventsElement {
       return;
     }
 
+    const commandControl = target.closest<HTMLButtonElement>("[data-shell-command-control]")
+      ?.dataset.shellCommandControl;
+    if (commandControl !== undefined) {
+      this.openShellCommandForm(commandControl);
+      return;
+    }
+
     const navButton = target.closest<HTMLButtonElement>("[data-view-nav]");
     const viewName = navButton?.dataset.viewNav;
     if (viewName !== undefined) {

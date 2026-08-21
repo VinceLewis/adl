@@ -26,7 +26,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.11.0");
+    expect(model.modelVersion).toBe("1.12.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -98,6 +98,21 @@ describe("band reference app model", () => {
     // resolved model and moves the fingerprint. Nothing an object stores
     // changes -- this says who the application is *for*, not what it holds.
     expect(model.migrations).toContainEqual({ from: "1.10.0", to: "1.11.0", objects: [] });
+    // `1.11.0 -> 1.12.0` is an empty-object hop: the shell gains the
+    // `createFirstBand` `COMMAND_ACTION` control, placed in the empty state and
+    // visible only while the caller can reach no `Band` (Phase 99's onboarding
+    // surface). Shell content -- it changes the fingerprint -- but no object
+    // gains, loses or renames a stored field.
+    expect(model.migrations).toContainEqual({ from: "1.11.0", to: "1.12.0", objects: [] });
+    expect(model.shell.controls).toContainEqual(
+      expect.objectContaining({
+        name: "createFirstBand",
+        kind: "commandAction",
+        command: "CreateBand",
+        placement: "emptyState",
+        visibility: { kind: "contextUnavailable", context: "Band" },
+      }),
+    );
     // The declaration is the primary control on anonymous registration: an
     // application that does not carry it cannot be self-registered into in any
     // deployment, under any configuration.
@@ -114,7 +129,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-18f3bc2918c302b77fec2ae050b260508acd2bb238769c35585a6a5bb4919b5c",
+      "sha256-8249bac35b2fa5282fd764db729ed3ed2b98121cab95b21c0bee47eb8f9de11c",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(

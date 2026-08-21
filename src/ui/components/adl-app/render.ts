@@ -2,6 +2,7 @@ import type { EditContainerMode } from "../../../model/resolved-model.js";
 import type { AdlComposedViewElement } from "../adl-composed-view.js";
 import type { AdlAccessReviewElement } from "../adl-access-review.js";
 import type { AdlAuditReviewElement } from "../adl-audit-review.js";
+import type { AdlCommandFormElement } from "../adl-command-form.js";
 import type { AdlContextSelectorElement } from "../adl-context-selector.js";
 import type { AdlReportRunnerElement } from "../adl-report-runner.js";
 import type { AdlSessionDevicesElement } from "../adl-session-devices.js";
@@ -15,6 +16,63 @@ import { escapeHtml, titleCaseIdentifier } from "../html.js";
 import { AdlAppChromeElement } from "./render-chrome.js";
 
 export class AdlAppRenderElement extends AdlAppChromeElement {
+  /**
+   * The way *out* of the empty state, not merely a statement of it.
+   *
+   * Before Phase 99 this was one sentence and nothing else, which is what a
+   * person holding an identity and no membership saw of the whole application.
+   * A `commandAction` control placed here turns it into the entry point: the
+   * shell offers the model's own command, `<adl-command-form>` asks for that
+   * command's declared inputs, and the runtime does the rest.
+   */
+  /**
+   * The open command form, when the control that opened it is *not* placed in
+   * the empty state — a `commandAction` in the top bar or the drawer has no
+   * region of its own, so its form goes at the top of the scroll region.
+   * Keeping the two placements' forms in different places is deliberate: a
+   * form that answers an empty state belongs inside it, and one that answers a
+   * chrome control belongs above the content it is about to change.
+   */
+  private renderChromeCommandForm(): string {
+    const openControl = this.commandFormControl;
+    if (openControl === undefined) {
+      return "";
+    }
+    const control = this._model.shell.controls.find((entry) => entry.name === openControl);
+    if (control === undefined || control.placement === "emptyState") {
+      return "";
+    }
+    return '<section class="adl-chrome-command-form"><adl-command-form></adl-command-form></section>';
+  }
+
+  private renderEmptyState(): string {
+    const controls = this.emptyStateShellControls(this.activeViewEmptyStateContext);
+    const openControl = this.commandFormControl;
+    const formIsHere =
+      openControl !== undefined && controls.some((control) => control.name === openControl);
+    return `
+      <section class="adl-empty-state" data-empty-state="true">
+        <p>${escapeHtml(this.activeViewEmptyState ?? "No runtime context is available for this view.")}</p>
+        ${
+          formIsHere
+            ? "<adl-command-form></adl-command-form>"
+            : controls
+                .map(
+                  (control) => `
+                  <button
+                    class="adl-empty-state-action"
+                    type="button"
+                    data-shell-control="${escapeHtml(control.name)}"
+                    data-shell-command-control="${escapeHtml(control.name)}"
+                  >${escapeHtml(control.label ?? titleCaseIdentifier(control.name))}</button>
+                `,
+                )
+                .join("")
+        }
+      </section>
+    `;
+  }
+
   protected renderLoading(): void {
     this.innerHTML = `
       <main class="adl-shell">
@@ -73,6 +131,7 @@ export class AdlAppRenderElement extends AdlAppChromeElement {
         <div class="adl-scroll-region">
           <adl-message-area></adl-message-area>
           ${this.renderAuthorityChrome()}
+          ${this.renderChromeCommandForm()}
           ${
             showWorkspace
               ? isComposedView
@@ -95,11 +154,19 @@ export class AdlAppRenderElement extends AdlAppChromeElement {
                     <adl-dashboard-view></adl-dashboard-view>
                   </div>
                 `
-              : `<section class="adl-empty-state">${escapeHtml(this.activeViewEmptyState ?? "No runtime context is available for this view.")}</section>`
+              : this.renderEmptyState()
           }
         </div>
       </main>
     `;
+
+    const commandForm = this.querySelector<AdlCommandFormElement>("adl-command-form");
+    if (commandForm !== null) {
+      commandForm.command = this.shellControlCommand(this.commandFormControl);
+      commandForm.values = this.commandFormValues;
+      commandForm.busy = this.commandFormBusy;
+      commandForm.error = this.commandFormError;
+    }
 
     const messageArea = this.querySelector<AdlMessageAreaElement>("adl-message-area");
     if (messageArea !== null) {

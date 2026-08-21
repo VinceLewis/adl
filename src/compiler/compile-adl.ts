@@ -253,6 +253,7 @@ function shellControlToPartial(control: ShellControlDeclarationAst): PartialShel
       ? {}
       : { visibility: shellVisibilityToPartial(control.visibility) }),
     ...(control.context === undefined ? {} : { context: control.context }),
+    ...(control.command === undefined ? {} : { command: control.command }),
   };
 }
 

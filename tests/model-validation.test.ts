@@ -632,6 +632,137 @@ END.OBJECT
     ).not.toContain(MODEL_VALIDATION_CODES.APP_SELF_SERVICE_REGISTRATION_UNREACHABLE);
   });
 
+  /*
+   * The `commandAction` shell control (Phase 99). Every one of these is a
+   * silent-no-op shape if it is not refused: a control with nothing to run, a
+   * control naming a command that does not exist, a `COMMAND` on a kind no
+   * renderer reads it from, and a command whose inputs no generated form can
+   * ask for.
+   */
+  const onboardingPartialModel = {
+    app: { name: "Onboarding", startView: "GroupList" },
+    shell: {
+      controls: [
+        {
+          name: "createFirstGroup",
+          kind: "commandAction",
+          command: "MakeGroup",
+          placement: "emptyState",
+          visibility: { kind: "contextUnavailable", context: "Group" },
+        },
+      ],
+    },
+    contexts: [{ name: "Group", object: "Group", selection: { mode: "optional" } }],
+    objects: [
+      {
+        name: "Group",
+        fields: [
+          { name: "Name", type: "text", required: true },
+          { name: "Photo", type: "attachment" },
+        ],
+        views: [{ name: "GroupList", kind: "list", fields: ["Name"] }],
+      },
+    ],
+    commands: [
+      {
+        name: "MakeGroup",
+        inputs: [{ name: "Name", type: "text", required: true }],
+        steps: [
+          {
+            name: "makeGroup",
+            action: "create",
+            object: "Group",
+            values: { Name: { kind: "input", name: "Name" } },
+            establishesContext: "Group",
+          },
+        ],
+      },
+    ],
+  } as unknown as PartialApplicationModel;
+
+  function onboardingModel(
+    mutate: (partial: PartialApplicationModel) => void = () => undefined,
+  ): ResolvedApplicationModel {
+    const partial = JSON.parse(JSON.stringify(onboardingPartialModel)) as PartialApplicationModel;
+    mutate(partial);
+    return resolveApplicationModel(partial);
+  }
+
+  it("accepts a well-formed commandAction shell control", () => {
+    expect(validateApplicationModel(onboardingModel())).toEqual([]);
+  });
+
+  it("refuses a commandAction control that names no command", () => {
+    expect(
+      validateApplicationModel(
+        onboardingModel((partial) => {
+          delete (partial.shell?.controls?.[0] as { command?: string }).command;
+        }),
+      ),
+    ).toContainEqual(
+      expect.objectContaining({
+        code: MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_REQUIRED,
+        path: "shell.controls[0].command",
+      }),
+    );
+  });
+
+  it("refuses a commandAction control naming a command the model does not declare", () => {
+    expect(
+      validateApplicationModel(
+        onboardingModel((partial) => {
+          (partial.shell?.controls?.[0] as { command: string }).command = "NoSuchCommand";
+        }),
+      ),
+    ).toContainEqual(
+      expect.objectContaining({ code: MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_UNKNOWN }),
+    );
+  });
+
+  it("refuses a COMMAND on any other control kind, which no renderer would read", () => {
+    expect(
+      validateApplicationModel(
+        onboardingModel((partial) => {
+          (partial.shell?.controls?.[0] as { kind: string }).kind = "logout";
+          (partial.shell?.controls?.[0] as { placement: string }).placement = "topBar";
+        }),
+      ),
+    ).toContainEqual(
+      expect.objectContaining({ code: MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_UNEXPECTED }),
+    );
+  });
+
+  it.each([
+    ["a repeated input", { name: "Members", type: "text", required: false, repeated: true }],
+    ["an attachment input", { name: "Photo", type: "attachment", required: false }],
+  ])(
+    "refuses a commandAction whose command declares %s, which no form can ask for",
+    (_label, input) => {
+      expect(
+        validateApplicationModel(
+          onboardingModel((partial) => {
+            (partial.commands?.[0] as { inputs: unknown[] }).inputs.push(input);
+          }),
+        ).map((entry) => entry.code),
+      ).toContain(MODEL_VALIDATION_CODES.SHELL_CONTROL_COMMAND_INPUT_UNSUPPORTED);
+    },
+  );
+
+  it("accepts contextUnavailable visibility and refuses one naming no declared context", () => {
+    expect(
+      validateApplicationModel(
+        onboardingModel((partial) => {
+          (partial.shell?.controls?.[0] as { visibility: { context: string } }).visibility.context =
+            "NoSuchContext";
+        }),
+      ),
+    ).toContainEqual(
+      expect.objectContaining({
+        code: MODEL_VALIDATION_CODES.SHELL_VISIBILITY_CONTEXT_UNKNOWN,
+      }),
+    );
+  });
+
   it("does not mutate the resolved model", () => {
     const resolved = resolveApplicationModel(validPartialModel);
     const before = JSON.stringify(resolved);

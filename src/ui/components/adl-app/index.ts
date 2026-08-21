@@ -18,6 +18,10 @@ import {
   ADL_SIGN_OUT_EVENT,
 } from "../../authority-bridge.js";
 import type { AdlAuthorityBridge } from "../../authority-bridge.js";
+import {
+  ADL_COMMAND_FORM_CANCEL_EVENT,
+  ADL_COMMAND_FORM_SUBMIT_EVENT,
+} from "../adl-command-form.js";
 import { AdlAppRecordEventsElement } from "./events-record.js";
 
 export class AdlAppElement extends AdlAppRecordEventsElement {
@@ -90,6 +94,8 @@ export class AdlAppElement extends AdlAppRecordEventsElement {
     this.addEventListener("adl-presentation-calendar-nav", this.handlePresentationCalendarNavigate);
     this.addEventListener("adl-presentation-record-select", this.handlePresentationRecordSelect);
     this.addEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
+    this.addEventListener(ADL_COMMAND_FORM_SUBMIT_EVENT, this.handleCommandFormSubmit);
+    this.addEventListener(ADL_COMMAND_FORM_CANCEL_EVENT, this.handleCommandFormCancel);
     this.addEventListener("change", this.handleChange);
     this.addEventListener("click", this.handleClick);
     this.addEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);
@@ -134,6 +140,8 @@ export class AdlAppElement extends AdlAppRecordEventsElement {
     );
     this.removeEventListener("adl-presentation-record-select", this.handlePresentationRecordSelect);
     this.removeEventListener("adl-presentation-matrix-cycle", this.handlePresentationMatrixCycle);
+    this.removeEventListener(ADL_COMMAND_FORM_SUBMIT_EVENT, this.handleCommandFormSubmit);
+    this.removeEventListener(ADL_COMMAND_FORM_CANCEL_EVENT, this.handleCommandFormCancel);
     this.removeEventListener("change", this.handleChange);
     this.removeEventListener("click", this.handleClick);
     this.removeEventListener(ADL_SIGN_IN_EVENT, this.handleSignIn);

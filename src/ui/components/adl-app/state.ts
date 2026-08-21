@@ -71,9 +71,27 @@ export class AdlAppStateElement extends HTMLElement {
   protected selectedContextIds: Record<string, string> = {};
   protected activeRuntimeContext: RuntimeContext | undefined;
   protected activeViewEmptyState: string | undefined;
+  /** The context an empty state is *about*, so it can offer the way into it. */
+  protected activeViewEmptyStateContext: string | undefined;
   protected editObjectName: string | undefined;
   protected editViewName: string | undefined;
   protected navDrawerOpen = false;
+  /**
+   * The `commandAction` shell control whose form is open, by control name, and
+   * the state of the attempt. Shell state rather than a component property
+   * because the form is opened from chrome and closed by a runtime outcome:
+   * `<adl-command-form>` collects values and decides nothing.
+   */
+  protected commandFormControl: string | undefined;
+  protected commandFormBusy = false;
+  protected commandFormError: string | undefined;
+  /**
+   * What was last submitted, re-seeded into the form after a refusal. The
+   * shell rewrites its whole `innerHTML` on every render, so the form element
+   * is recreated rather than updated and cannot keep anything itself — the
+   * same reason record drafts live here as `draftValues`.
+   */
+  protected commandFormValues: Record<string, JsonValue> | undefined;
   protected _authority: AdlAuthorityBridge | undefined;
   protected authorityBusy = false;
   protected deliveringWrites = false;

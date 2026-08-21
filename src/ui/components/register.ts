@@ -2,6 +2,7 @@ import { defineAdlAccessReview } from "./adl-access-review.js";
 import { defineAdlActionBar } from "./adl-action-bar.js";
 import { defineAdlApp } from "./adl-app.js";
 import { defineAdlAuditReview } from "./adl-audit-review.js";
+import { defineAdlCommandForm } from "./adl-command-form.js";
 import { defineAdlComposedView } from "./adl-composed-view.js";
 import { defineAdlContextSelector } from "./adl-context-selector.js";
 import { defineAdlDashboardView } from "./adl-dashboard-view.js";
@@ -18,6 +19,7 @@ import { defineAdlSyncRecovery } from "./adl-sync-recovery.js";
 export function defineAdlComponents(): void {
   defineAdlMessageArea();
   defineAdlActionBar();
+  defineAdlCommandForm();
   defineAdlComposedView();
   defineAdlContextSelector();
   defineAdlDashboardView();

@@ -1876,8 +1876,116 @@ button:disabled {
   border: 1px solid var(--adl-color-border);
   border-radius: var(--adl-radius);
   color: var(--adl-color-text-muted);
+  display: grid;
+  gap: var(--adl-space-md);
+  justify-items: start;
   margin: var(--adl-space-lg);
   padding: var(--adl-space-lg);
+}
+
+.adl-empty-state > p {
+  margin: 0;
+}
+
+/* The way out of an empty state, so it is the emphasised control on a screen
+   that has nothing else on it. `justify-items: start` above keeps it an action
+   rather than a full-width banner. */
+.adl-empty-state-action {
+  background: var(--adl-color-primary);
+  border: 1px solid var(--adl-color-primary);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text-inverted);
+  cursor: pointer;
+  height: var(--adl-control-height);
+  padding: 0 var(--adl-space-md);
+}
+
+/* A `commandAction` placed in chrome rather than in an empty state opens its
+   form at the top of the scroll region, above the content it is about to
+   change. */
+.adl-chrome-command-form {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  margin: var(--adl-space-lg) var(--adl-space-lg) 0;
+  padding: var(--adl-space-lg);
+}
+
+/* A form for a command's declared inputs. It renders inside whatever offered
+   it -- today the empty state -- so it carries no surface of its own, only the
+   control shapes the rest of the shell already uses. */
+.adl-command-form {
+  display: grid;
+  gap: var(--adl-space-sm);
+  justify-items: start;
+  max-width: 420px;
+  width: 100%;
+}
+
+.adl-command-form-heading {
+  color: var(--adl-color-text);
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.adl-command-form-error {
+  color: var(--adl-color-danger);
+  margin: 0;
+}
+
+.adl-command-form-label,
+.adl-command-form-check {
+  color: var(--adl-color-text);
+  display: grid;
+  gap: 4px;
+  width: 100%;
+}
+
+.adl-command-form-check {
+  align-items: center;
+  gap: var(--adl-space-sm);
+  grid-auto-flow: column;
+  justify-content: start;
+}
+
+.adl-command-form-input {
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  height: var(--adl-control-height);
+  min-width: 0;
+  padding: 0 var(--adl-space-sm);
+  width: 100%;
+}
+
+.adl-command-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adl-space-sm);
+}
+
+.adl-command-form-submit,
+.adl-command-form-cancel {
+  background: var(--adl-color-surface);
+  border: 1px solid var(--adl-color-border);
+  border-radius: var(--adl-radius);
+  color: var(--adl-color-text);
+  cursor: pointer;
+  height: var(--adl-control-height);
+  padding: 0 var(--adl-space-md);
+}
+
+.adl-command-form-submit {
+  background: var(--adl-color-primary);
+  border-color: var(--adl-color-primary);
+  color: var(--adl-color-text-inverted);
+}
+
+.adl-command-form-submit:disabled,
+.adl-command-form-cancel:disabled,
+.adl-empty-state-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .adl-form-body {

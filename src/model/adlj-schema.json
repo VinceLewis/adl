@@ -2573,6 +2573,10 @@
     "PartialShellControlModel": {
       "additionalProperties": false,
       "properties": {
+        "command": {
+          "description": "See  {@link  ResolvedShellControl.command } .",
+          "type": "string"
+        },
         "context": {
           "type": "string"
         },
@@ -3250,12 +3254,13 @@
         "logout",
         "pwaInstall",
         "syncStatus",
-        "connectivity"
+        "connectivity",
+        "commandAction"
       ],
       "type": "string"
     },
     "ShellControlPlacement": {
-      "enum": ["topBar", "navDrawer"],
+      "enum": ["topBar", "navDrawer", "emptyState"],
       "type": "string"
     },
     "ShellMobileContextSelectorMode": {
@@ -3267,7 +3272,14 @@
       "type": "string"
     },
     "ShellVisibilityKind": {
-      "enum": ["always", "contextAvailable", "contextSelected", "online", "offline"],
+      "enum": [
+        "always",
+        "contextAvailable",
+        "contextUnavailable",
+        "contextSelected",
+        "online",
+        "offline"
+      ],
       "type": "string"
     },
     "SyncMode": {

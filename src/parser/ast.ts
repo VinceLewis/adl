@@ -221,6 +221,8 @@ export interface ShellControlDeclarationAst {
   placement?: ShellControlPlacement;
   visibility?: ShellVisibilityDeclarationAst;
   context?: string;
+  /** Declared by `COMMAND <name>`; required for `KIND COMMAND_ACTION`. */
+  command?: string;
   range: SourceRange;
 }
 

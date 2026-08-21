@@ -168,6 +168,61 @@ describe("compileAdlj", () => {
     }
   });
 
+  /*
+   * Phase 100 closed nine `.adlj`-only constructs; Phase 99 must not open a
+   * tenth. The onboarding control has real `.adl` text syntax and a printer
+   * branch, and this is what proves the two agree.
+   */
+  it("round-trips a COMMAND_ACTION shell control through printed .adl text", () => {
+    const source = JSON.stringify({
+      app: { name: "Onboarding", startView: "GroupList" },
+      shell: {
+        controls: [
+          {
+            name: "createFirstGroup",
+            kind: "commandAction",
+            label: "Create a group",
+            command: "MakeGroup",
+            placement: "emptyState",
+            visibility: { kind: "contextUnavailable", context: "Group" },
+          },
+        ],
+      },
+      contexts: [{ name: "Group", object: "Group", selection: { mode: "optional" } }],
+      objects: [
+        {
+          name: "Group",
+          fields: [{ name: "Name", type: "text", required: true }],
+          views: [{ name: "GroupList", kind: "list", fields: ["Name"] }],
+        },
+      ],
+      commands: [
+        {
+          name: "MakeGroup",
+          inputs: [{ name: "Name", type: "text", required: true }],
+          steps: [
+            {
+              name: "makeGroup",
+              action: "create",
+              object: "Group",
+              values: { Name: { kind: "input", name: "Name" } },
+              establishesContext: "Group",
+            },
+          ],
+        },
+      ],
+    });
+
+    const compiled = compileAdlj(source);
+    expect(compiled.diagnostics.filter((entry) => entry.severity === "error")).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(compiled.partialModel);
+    expect(printed).toContain(
+      "CONTROL createFirstGroup KIND COMMAND_ACTION LABEL 'Create a group' PLACEMENT EMPTY_STATE VISIBLE WHEN CONTEXT Group UNAVAILABLE COMMAND MakeGroup",
+    );
+    expect(compileAdl(printed).model.shell.controls).toEqual(compiled.model.shell.controls);
+  });
+
   it("rejects an unknown .adlj shell navigation mode", () => {
     const source = JSON.stringify({
       app: { name: "BadNavigation" },

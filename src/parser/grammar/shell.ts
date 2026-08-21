@@ -134,6 +134,7 @@ export class ShellParser extends ContextParser {
     let placement: ShellControlPlacement | undefined;
     let visibility: ShellVisibilityDeclarationAst | undefined;
     let context: string | undefined;
+    let command: string | undefined;
 
     while (!this.isLineEnd()) {
       if (this.matchWord("KIND")) {
@@ -146,11 +147,13 @@ export class ShellParser extends ContextParser {
         placement = this.parseShellControlPlacement();
       } else if (this.matchWord("VISIBLE")) {
         visibility = this.parseShellVisibility();
+      } else if (this.matchWord("COMMAND")) {
+        command = this.consumeName("shell control command name");
       } else if (this.matchWord("CONTEXT")) {
         context = this.consumeName("shell control context");
       } else {
         this.failUnexpected(
-          "SHELL CONTROL option KIND, LABEL, ICON, PLACEMENT, VISIBLE, CONTEXT, or end of line",
+          "SHELL CONTROL option KIND, LABEL, ICON, PLACEMENT, VISIBLE, COMMAND, CONTEXT, or end of line",
         );
       }
     }
@@ -165,6 +168,7 @@ export class ShellParser extends ContextParser {
       ...(placement === undefined ? {} : { placement }),
       ...(visibility === undefined ? {} : { visibility }),
       ...(context === undefined ? {} : { context }),
+      ...(command === undefined ? {} : { command }),
       range: this.rangeFrom(startToken),
     };
   }
@@ -268,10 +272,13 @@ export class ShellParser extends ContextParser {
       if (this.matchWord("AVAILABLE")) {
         return { kind: "contextAvailable", context };
       }
+      if (this.matchWord("UNAVAILABLE")) {
+        return { kind: "contextUnavailable", context };
+      }
       if (this.matchWord("SELECTED")) {
         return { kind: "contextSelected", context };
       }
-      this.failUnexpected("SHELL visibility CONTEXT condition AVAILABLE or SELECTED");
+      this.failUnexpected("SHELL visibility CONTEXT condition AVAILABLE, UNAVAILABLE, or SELECTED");
     }
 
     this.failUnexpected("SHELL visibility condition CONTEXT, ONLINE, OFFLINE, or ALWAYS");
@@ -297,9 +304,12 @@ export class ShellParser extends ContextParser {
         return "syncStatus";
       case "connectivity":
         return "connectivity";
+      case "commandaction":
+      case "command_action":
+        return "commandAction";
       default:
         this.failExpected(
-          "shell control kind CONTEXT_SELECTOR, THEME_SWITCH, LOGOUT, PWA_INSTALL, SYNC_STATUS, or CONNECTIVITY",
+          "shell control kind CONTEXT_SELECTOR, THEME_SWITCH, LOGOUT, PWA_INSTALL, SYNC_STATUS, CONNECTIVITY, or COMMAND_ACTION",
           token,
         );
     }
@@ -315,8 +325,11 @@ export class ShellParser extends ContextParser {
       case "navdrawer":
       case "nav_drawer":
         return "navDrawer";
+      case "emptystate":
+      case "empty_state":
+        return "emptyState";
       default:
-        this.failExpected("shell control placement TOP_BAR or NAV_DRAWER", token);
+        this.failExpected("shell control placement TOP_BAR, NAV_DRAWER, or EMPTY_STATE", token);
     }
   }
 

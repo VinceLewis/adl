@@ -949,7 +949,7 @@ Implemented view-level declarations:
 - `ICON_MAP Name FOR Field ... END.ICON_MAP`
 - `STATUS name LABEL 'Label' ARIA_LABEL 'Accessible label' ICON iconRef
 THEME colorStatusEvent PRECEDENCE 10` (`iconRef` is either a name from the
-[icon vocabulary](#icon-vocabulary) or an `ICON_MAP` reference)
+  [icon vocabulary](#icon-vocabulary) or an `ICON_MAP` reference)
 - `STATUS_MAP Name FOR Field ... END.STATUS_MAP`
 - `LEGEND Name TITLE 'Title' STATUSES statusName ...`
 - `SECTION Name ... END.SECTION`
@@ -1163,9 +1163,9 @@ looking at a screen.
 
 The vocabulary is declared once, in the model layer
 (`src/model/resolved-model/icon-vocabulary.ts`), and the compiler and every
-renderer consume that one declaration. A renderer chooses its own *form* -- the
+renderer consume that one declaration. A renderer chooses its own _form_ -- the
 shell's text chrome draws a single glyph, a composed view draws an inline SVG --
-but never its own *set*; every name must render something real in every
+but never its own _set_; every name must render something real in every
 renderer. Adding a name is therefore a language change, not a rendering change.
 
 ## Edit Surfaces
@@ -1477,8 +1477,10 @@ is the `shell` declaration in `src/reference/giggle-band/ui.adlj`.
 `NAV` entries target resolved views. Supported nav metadata includes `LABEL`,
 a semantic `ICON` from the [icon vocabulary](#icon-vocabulary), `GROUP`, numeric `ORDER`, optional `ACTIVE_WHEN` view names,
 and `VISIBLE` conditions. Implemented visibility conditions are `ALWAYS`,
-`ONLINE`, `OFFLINE`, `WHEN CONTEXT Name AVAILABLE`, and `WHEN CONTEXT Name
-SELECTED`.
+`ONLINE`, `OFFLINE`, `WHEN CONTEXT Name AVAILABLE`, `WHEN CONTEXT Name
+UNAVAILABLE`, and `WHEN CONTEXT Name SELECTED`. `UNAVAILABLE` is the mirror of
+`AVAILABLE`: it matches when the caller can reach no instance of the named
+context, which is what a person holding an identity and no membership sees.
 
 Navigation is **explicit-only by default**. If `NAV_MODE` is omitted, the
 resolved drawer contains exactly the declared `NAV` entries; declaring a view
@@ -1510,7 +1512,8 @@ completeness, but is redundant because it is the default.
 
 `CONTROL` entries support optional `LABEL`, a semantic `ICON` from the
 [icon vocabulary](#icon-vocabulary), `PLACEMENT`, and `VISIBLE` metadata. Implemented control kinds are `contextSelector`,
-`syncStatus`, `connectivity`, `themeSwitch`, `logout`, and `pwaInstall`;
+`syncStatus`, `connectivity`, `themeSwitch`, `logout`, `pwaInstall`, and
+`commandAction` (see [Command Action Controls](#command-action-controls));
 unsupported runtime capabilities degrade as unavailable controls. `SYNC_STATUS`
 and `CONNECTIVITY` answer different questions and are separate controls:
 `SYNC_STATUS` reports the sync state of the device's own records, and
@@ -1518,6 +1521,58 @@ and `CONNECTIVITY` answer different questions and are separate controls:
 selector placement, mobile context selector behavior (`dropdown` or `sheet`),
 and the ordered top-bar control list. `NAV_DRAWER` declares the drawer's `TITLE`
 and its ordered `CONTROLS` list.
+
+`PLACEMENT` is `TOP_BAR`, `NAV_DRAWER` or `EMPTY_STATE`. The first two are
+regions with an ordered control list of their own, so a control placed there
+must also be named by that region's `CONTROLS`. `EMPTY_STATE` has no list:
+order is declaration order, because it is not shared chrome whose ordering is a
+layout decision but a single message with, in practice, one way out of it.
+
+### Command Action Controls
+
+```text
+SHELL
+  CONTROL createFirstBand KIND COMMAND_ACTION LABEL 'Create a band' PLACEMENT EMPTY_STATE VISIBLE WHEN CONTEXT Band UNAVAILABLE COMMAND CreateBand
+END.SHELL
+```
+
+A `COMMAND_ACTION` control runs a declared `COMMAND`, **prompting for that
+command's own declared `INPUTS`**. It is the only shell control that is about
+the application rather than about the device or the session, and the only one
+that opens a form.
+
+It exists because a presentation `ACTION`'s `INPUT` is a set of expressions
+evaluated against a row, so it can only restate values that already exist
+somewhere. Nothing in the language could ask a person for a value, which meant
+a command with a required free-text input could not be run from a browser at
+all — and a person holding an identity and no membership of any context saw
+only `No <Context> contexts are available for this view.`, with no affordance,
+because every context-scoped view renders its empty state for them.
+
+- `COMMAND` names a declared command and is **required** for this kind
+  (`ADL_SHELL_CONTROL_COMMAND_REQUIRED`) and refused on every other kind
+  (`ADL_SHELL_CONTROL_COMMAND_UNEXPECTED`), so a `COMMAND` no renderer would
+  read is never silently accepted. An unknown command is
+  `ADL_SHELL_CONTROL_COMMAND_UNKNOWN`.
+- The form is generated from the command's `INPUTS`: one control per input,
+  typed from the input's declared field type, required where the input is. A
+  command declaring a `REPEATED` or `ATTACHMENT` input has no control to
+  generate for it and is refused
+  (`ADL_SHELL_CONTROL_COMMAND_INPUT_UNSUPPORTED`) rather than rendering a form
+  that silently drops a value.
+- The control **decides nothing**. It collects values and hands them to the
+  runtime, which runs the command's preconditions and every step's policy
+  check exactly as any other caller would. A refusal is shown on the form,
+  beside the values that produced it.
+- When the command's step declares `ESTABLISHES CONTEXT`, the shell selects the
+  instance that step created once the command commits, so the person lands
+  inside what they just made rather than back where they started.
+
+Placed in `EMPTY_STATE` with `VISIBLE WHEN CONTEXT Name UNAVAILABLE`, this is a
+first-run onboarding surface: it turns the empty state into the entry point,
+and takes itself away the moment the person belongs to something. Both
+reference apps declare exactly one — `createFirstBand` running `CreateBand`,
+and `createFirstCircle` running `CreateCircle`.
 
 Each region's control list defaults to the declared controls whose `PLACEMENT`
 names that region, so a placement is meaningful without a second declaration

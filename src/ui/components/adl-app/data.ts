@@ -3,13 +3,19 @@ import { requiresImmediateDelivery } from "../../../runtime/sync-policy-service.
 import type { JsonValue, ResolvedViewContext } from "../../../model/resolved-model.js";
 import type { RuntimeAvailableContext, RuntimeContext } from "../../../runtime/runtime-types.js";
 import { seedBrowserDemoRuntimeIfEmpty } from "../../demo-fixture.js";
-import { infoMessage, messageFromRuntimeError } from "../../runtime-error-messages.js";
+import {
+  infoMessage,
+  messageFromRuntimeError,
+  successMessage,
+} from "../../runtime-error-messages.js";
 import { titleCaseIdentifier } from "../html.js";
 import { AdlAppRenderElement } from "./render.js";
 
 interface ActiveViewContextState {
   context?: RuntimeContext;
   emptyState?: string;
+  /** Which context the view could not reach, so the empty state can offer the way into it. */
+  emptyStateContext?: string;
 }
 
 export class AdlAppDataElement extends AdlAppRenderElement {
@@ -148,6 +154,7 @@ export class AdlAppDataElement extends AdlAppRenderElement {
     const viewContext = await this.resolveActiveViewContext(view.context ?? readModel?.context);
     this.activeRuntimeContext = viewContext.context;
     this.activeViewEmptyState = viewContext.emptyState;
+    this.activeViewEmptyStateContext = viewContext.emptyStateContext;
 
     if (viewContext.context === undefined) {
       this.records = [];
@@ -362,7 +369,83 @@ export class AdlAppDataElement extends AdlAppRenderElement {
     }
   }
 
-  private async refreshAvailableContexts(): Promise<void> {
+  /**
+   * Runs a `commandAction` shell control's command with the values a person
+   * supplied, then puts them where the command just put them.
+   *
+   * The second half is the whole point of the first. `CreateBand` establishes
+   * its context transaction-locally and writes the founder membership in the
+   * same transaction, so as soon as it commits the caller *is* a member — but
+   * the shell's `availableContexts` were read before that was true, so without
+   * re-reading them and selecting the new instance the person would land back
+   * on the same empty state that offered them the control. That is the "no
+   * reload" requirement, and it is met by re-reading rather than by reloading.
+   *
+   * Nothing here authorises anything. `executeCommand` runs the command's own
+   * preconditions and every step's policy check; a refusal surfaces as the
+   * form's error and no context is selected.
+   */
+  protected async runShellCommand(
+    controlName: string,
+    input: Record<string, JsonValue>,
+  ): Promise<void> {
+    const control = this._model.shell.controls.find((entry) => entry.name === controlName);
+    const command = this.shellControlCommand(controlName);
+    if (control === undefined || command === undefined) {
+      return;
+    }
+
+    this.commandFormBusy = true;
+    this.commandFormError = undefined;
+    this.render();
+
+    let result;
+    try {
+      result = await this.runtime.executeCommand(command.name, input, this.baseRuntimeContext());
+    } catch (error) {
+      // Stated on the form, beside the values that produced it, rather than in
+      // the shell's message area where a person who is mid-form would not look.
+      this.commandFormBusy = false;
+      const message = messageFromRuntimeError(error);
+      this.commandFormError = [message.title, ...message.details].join(" ");
+      this.render();
+      return;
+    }
+
+    this.commandFormBusy = false;
+    this.commandFormControl = undefined;
+    this.commandFormValues = undefined;
+    this.messages = [
+      successMessage(
+        `${result.command.label ?? titleCaseIdentifier(result.command.name)} completed.`,
+      ),
+    ];
+
+    /*
+     * Which record became the new context instance is stated by the command,
+     * not guessed: the step that declares `ESTABLISHES CONTEXT` is the one
+     * whose record is that context's instance.
+     */
+    const establishing = command.steps.find(
+      (step) => step.action === "create" && step.establishesContext !== undefined,
+    );
+    const establishedContext =
+      establishing?.action === "create" ? establishing.establishesContext : undefined;
+    const created = result.steps.find((step) => step.step === establishing?.name);
+
+    await this.deliverPendingWrites();
+    await this.refreshAvailableContexts();
+    if (establishedContext !== undefined && created !== undefined) {
+      const available = this.availableContexts.get(establishedContext) ?? [];
+      if (available.some((candidate) => candidate.id === created.recordId)) {
+        this.setSelectedContextId(establishedContext, created.recordId, true);
+      }
+    }
+    await this.refreshRecords();
+    this.render();
+  }
+
+  protected async refreshAvailableContexts(): Promise<void> {
     const nextAvailableContexts = new Map<string, RuntimeAvailableContext[]>();
 
     for (const contextModel of this.navigableContexts) {
@@ -413,6 +496,7 @@ export class AdlAppDataElement extends AdlAppRenderElement {
       if (available.length === 0) {
         return {
           emptyState: `No ${titleCaseIdentifier(contextName)} contexts are available for this view.`,
+          emptyStateContext: contextName,
         };
       }
 
@@ -437,6 +521,7 @@ export class AdlAppDataElement extends AdlAppRenderElement {
             available.length === 0
               ? `No ${titleCaseIdentifier(contextName)} contexts are available for this view.`
               : `Choose a ${titleCaseIdentifier(contextName)} context to open this view.`,
+          emptyStateContext: contextName,
         };
       }
 

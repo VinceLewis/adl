@@ -176,6 +176,37 @@ export class AdlAppChromeElement extends AdlAppModelLookupElement {
       `;
     }
 
+    /*
+     * A `commandAction` is the one control that is about the application
+     * rather than the device or the session, and the only one that is always
+     * available: the command it names exists in the model, and whether the
+     * caller may run it is the runtime's answer, not the shell's. It renders
+     * wherever it is placed — top bar, drawer or empty state — so the
+     * construct is general rather than an onboarding special case.
+     */
+    if (control.kind === "commandAction") {
+      const commandLabel = control.label ?? titleCaseIdentifier(control.name);
+      return `
+        <button
+          class="adl-shell-control"
+          type="button"
+          data-shell-control="${escapeHtml(control.name)}"
+          data-shell-control-kind="commandAction"
+          data-shell-command-control="${escapeHtml(control.name)}"
+          title="${escapeHtml(commandLabel)}"
+        >
+          ${
+            control.icon === undefined
+              ? ""
+              : `<span aria-hidden="true" data-shell-icon="${escapeHtml(control.icon)}">${escapeHtml(
+                  iconGlyph(control.icon),
+                )}</span>`
+          }
+          <span>${escapeHtml(commandLabel)}</span>
+        </button>
+      `;
+    }
+
     const label = control.label ?? titleCaseIdentifier(control.name);
     // `logout` needs a session to end, and `pwaInstall` needs the user agent to
     // have offered installation this session and the device not to be running
