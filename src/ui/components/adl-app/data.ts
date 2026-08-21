@@ -505,15 +505,40 @@ export class AdlAppDataElement extends AdlAppRenderElement {
         };
       }
 
+      /*
+       * One base context for both resolutions, so roles and grants cannot
+       * disagree about which selection was dropped.
+       */
+      const baseContext = this.baseRuntimeContextWithoutSelected(contextName);
       const contextRoles = await this.runtime.contextService.resolveContextRoles(
         contextName,
-        this.baseRuntimeContextWithoutSelected(contextName),
+        baseContext,
+      );
+      /*
+       * Grants are resolved alongside roles for the same reason roles are:
+       * dropping the selection also dropped everything derived from it. This is
+       * the same answer `ReadModelService.resolveExecutionContext` gives to the
+       * same question for the same `mode: "all"` — see its own comment. While
+       * the two disagreed, a `CONTEXT ALL` screen rendered rows reached through
+       * a `CONTEXT_GRANT` (the read path resolved grants) and then refused every
+       * command run against them (the shell did not), which is what made
+       * Jointly Care's shipped `Accept` button dead on arrival.
+       *
+       * This widens nothing. `resolveContextGrants` returns exactly what
+       * `listAvailableContexts` already returned to build the context selector
+       * the person is looking at, and a grant confers no role:
+       * `runtimeContextHasScopedRole` reads `contextRoles` and never
+       * `contextGrants`.
+       */
+      const contextGrants = await this.runtime.contextService.resolveContextGrants(
+        contextName,
+        baseContext,
       );
       return {
-        context: this.withContextRoles(
-          this.baseRuntimeContextWithoutSelected(contextName),
+        context: this.withContextGrants(
+          this.withContextRoles(baseContext, contextName, contextRoles),
           contextName,
-          contextRoles,
+          contextGrants,
         ),
       };
     }

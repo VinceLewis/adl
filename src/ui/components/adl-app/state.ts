@@ -11,6 +11,7 @@ import type {
 import type {
   RuntimeAvailableContext,
   RuntimeContext,
+  RuntimeContextGrant,
   RuntimeContextRole,
   RuntimeReadModelRow,
   RuntimeValidationIssue,
@@ -397,6 +398,30 @@ export class AdlAppStateElement extends HTMLElement {
       contextRoles: [
         ...(context.contextRoles ?? []).filter((role) => role.context !== contextName),
         ...contextRoles.map((role) => ({ ...role })),
+      ],
+    };
+  }
+
+  /**
+   * The grant counterpart to `withContextRoles`, filtering any prior entry for
+   * the same context exactly as that method does for roles.
+   *
+   * Kept a separate method rather than folded into `withContextRoles` because
+   * the two must stay separately observable: `RuntimeAvailableContext` reports
+   * `roleEntries` and `grantEntries` apart so "invited" and "joined" remain
+   * distinguishable, and collapsing them here would turn "may be considered"
+   * into "may act".
+   */
+  protected withContextGrants(
+    context: RuntimeContext,
+    contextName: string,
+    contextGrants: RuntimeContextGrant[],
+  ): RuntimeContext {
+    return {
+      ...context,
+      contextGrants: [
+        ...(context.contextGrants ?? []).filter((grant) => grant.context !== contextName),
+        ...contextGrants.map((grant) => ({ ...grant })),
       ],
     };
   }

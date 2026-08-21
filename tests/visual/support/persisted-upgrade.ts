@@ -257,6 +257,37 @@ export async function readAllPersistedRecords(
   );
 }
 
+/**
+ * The version a real installation of the *previous* release would carry: the
+ * `from` of the newest declared migration hop, read off the mounted model.
+ *
+ * Read rather than written down for the same reason `readMountedModelVersion`
+ * exists — a reference app's `modelVersion` moves for reasons unrelated to any
+ * one test, and a hard-coded "previous" version goes stale exactly as fast as a
+ * hard-coded current one. This keeps the seeded state one real hop behind
+ * whatever the app currently declares.
+ */
+export async function readMountedPreviousModelVersion(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const app = document.querySelector("adl-app") as unknown as {
+      model: { migrations: Array<{ from: string; to: string }>; modelVersion: string };
+    } | null;
+    if (app === null) {
+      throw new Error("Expected a mounted <adl-app> element.");
+    }
+
+    const newest = app.model.migrations.find(
+      (migration) => migration.to === app.model.modelVersion,
+    );
+    if (newest === undefined) {
+      throw new Error(
+        `No declared migration lands on '${app.model.modelVersion}', so there is no previous version to seed.`,
+      );
+    }
+    return newest.from;
+  });
+}
+
 /** Reads the `modelVersion` of the model a real mounted `<adl-app>` is running. */
 export async function readMountedModelVersion(page: Page): Promise<string> {
   return page.evaluate(() => {

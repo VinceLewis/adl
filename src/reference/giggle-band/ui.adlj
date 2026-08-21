@@ -14,6 +14,13 @@
           "order": 10
         },
         {
+          "view": "MyBandInvitationList",
+          "label": "My Invitations",
+          "icon": "list",
+          "group": "Main",
+          "order": 15
+        },
+        {
           "view": "BandEventList",
           "label": "Gigs",
           "icon": "calendar",
@@ -801,6 +808,114 @@
     {
       "name": "BandInvitation",
       "views": [
+        {
+          "name": "MyBandInvitationList",
+          "kind": "dashboard",
+          "context": {
+            "mode": "all",
+            "context": "Band"
+          },
+          "readModel": "MyBandInvitations",
+          "fields": [
+            "Band",
+            "Role",
+            "Status",
+            "SentAt"
+          ],
+          "searchFields": [],
+          "sort": [
+            {
+              "field": "SentAt",
+              "direction": "asc"
+            }
+          ],
+          "actions": [
+            "read",
+            "search"
+          ],
+          "comment": "The invitee's side of an invitation, and the only screen in this app a\nperson who belongs to no band can do anything on. `MyInvitationList`\nabove is its admin-facing mirror -- that one is `CONTEXT REQUIRED Band`\nand lists what a band has *sent*; this one is `CONTEXT ALL Band` and\nlists what the caller has *received*, across every band a\n`pendingBandInvitation` grant or a membership can reach.\n\nAccept only. Giggle Band declares no `DeclineBandInvitation`, so unlike\nJointly Care's `MyPendingInvites` there is no second row action to pair\nwith it; the object already models `Status: 'Declined'` and its\n`respondedAtRequiredAfterResponse` validation already anticipates the\ntransition, so adding one is a product decision rather than a platform\ngap.\n\nThe list carries `FILTER Status == 'Pending'` rather than the read model\ndoing it: an invitation that has been accepted, declined or revoked is\nstill the caller's to see, and keeping the filter on the surface leaves\n`MyBandInvitations` reusable for a history screen without loosening a\npolicy to get it.\n\nIts `SHELL NAV` item carries no visibility predicate, deliberately. Every\nother `Main` item is gated on `CONTEXT SELECTED Band`, which is exactly\nwrong here: the person this screen exists for has joined no band and has no\nreason to open a context picker, and `CONTEXT ALL Band` is precisely what\nmeans no selection is needed. A caller with no invitation reaches it and\nsees the declared empty state, which is a cheaper failure than a nav item\nhidden from the only person who needs it. Mirrors Jointly Care's \"My\nInvites\" -- group `Main`, order 15, unguarded.",
+          "presentation": {
+            "state": [],
+            "iconMaps": [],
+            "statuses": [],
+            "statusMaps": [],
+            "legends": [],
+            "sections": [
+              {
+                "name": "Invitations",
+                "heading": "Your invitations",
+                "controls": [],
+                "lists": [
+                  {
+                    "name": "MyInvitationsList",
+                    "sourceKind": "readModel",
+                    "source": "MyBandInvitations",
+                    "renderAs": "table",
+                    "density": "compact",
+                    "sort": [
+                      {
+                        "field": "SentAt",
+                        "direction": "asc"
+                      }
+                    ],
+                    "emptyState": {
+                      "text": "No invitations"
+                    },
+                    "filter": "Status == 'Pending'",
+                    "actions": [
+                      {
+                        "name": "accept",
+                        "kind": "action",
+                        "label": "Accept",
+                        "icon": {
+                          "kind": "named",
+                          "name": "check"
+                        },
+                        "placement": "row",
+                        "command": "AcceptBandInvitation",
+                        "comment": "`WHEN Invitee == RUNTIME.userId` keeps the button off rows the\ncaller is not the invitee of, which this list also carries: a\n`BandAdmin` sees their own band's outgoing invitations here too\n(see `MyBandInvitations` in `domain.adlj`), and\n`AcceptBandInvitation`'s own `REQUIRE Invitee == RUNTIME.userId`\nstep guard would refuse the click anyway. Same reasoning as the\n`revoke` action's `WHEN Status == 'Pending'` above. `INPUT\nInvitation FROM id` carries the row's own record identity, the\ntoken Phase 69 added for exactly this.",
+                        "input": {
+                          "Invitation": "id"
+                        },
+                        "visibleWhen": "Invitee == RUNTIME.userId"
+                      }
+                    ],
+                    "row": {
+                      "fragments": [
+                        {
+                          "kind": "field",
+                          "field": "Band",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " - invited as "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "Role"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " on "
+                        },
+                        {
+                          "kind": "field",
+                          "field": "SentAt",
+                          "format": {
+                            "kind": "date",
+                            "pattern": "EEE d MMM"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "calendars": []
+              }
+            ]
+          }
+        },
         {
           "name": "MyInvitationList",
           "kind": "dashboard",

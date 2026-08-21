@@ -2368,6 +2368,474 @@
           ]
         }
       }
+    },
+    {
+      "id": "context.grant.authorises-a-write-with-no-selected-context.012",
+      "title": "A caller whose runtime context carries a resolved grant and no selected context may still write the granted record",
+      "specRef": "runtime-semantics#business-contexts",
+      "comment": "The shape a cross-context (`CONTEXT ALL`) consumer operates in: the selection for that business context is deliberately dropped, and the grants resolved from the de-selected context are what the object-scope gate then has to work with. Case 006 proves the same write with the context explicitly selected; this one proves it without, which is the only shape a screen listing invitations across every band can offer. A consumer that resolved roles alone here would render the row and refuse every action on it.",
+      "operation": "update",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "BandInvitation",
+        "id": {
+          "$ref": "inviteeInvitation.meta.guid"
+        },
+        "patch": {
+          "Status": "Accepted"
+        },
+        "context": {
+          "userId": "user-invitee",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z",
+          "contextGrants": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alphas.meta.guid"
+              },
+              "grant": "pendingBandInvitation",
+              "grantRecordId": {
+                "$ref": "inviteeInvitation.meta.guid"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "values": {
+            "Invitee": "user-invitee",
+            "Status": "Accepted"
+          }
+        }
+      }
+    },
+    {
+      "id": "context.grant.reaching-a-context-is-not-writing-everything-in-it.013",
+      "title": "A grant-holder with no selected context may not write another record in the instance their grant reached",
+      "specRef": "runtime-semantics#business-contexts",
+      "comment": "The paired negative for 012, and the one that keeps it from meaning \"resolving grants authorises everything\". `user-other` holds their own `Pending` invitation to the same band, so their resolved grant admits them to the instance exactly as `user-invitee`'s does -- and the object's own `WHEN Invitee == runtime.userId` rule still refuses them somebody else's record. Same model, same operation, same absence of a selection; only the caller differs.",
+      "operation": "update",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "BandInvitation",
+        "id": {
+          "$ref": "inviteeInvitation.meta.guid"
+        },
+        "patch": {
+          "Status": "Accepted"
+        },
+        "context": {
+          "userId": "user-other",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z",
+          "contextGrants": [
+            {
+              "context": "Band",
+              "contextId": {
+                "$ref": "alphas.meta.guid"
+              },
+              "grant": "pendingBandInvitation",
+              "grantRecordId": {
+                "$ref": "otherInvitation.meta.guid"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
+    },
+    {
+      "id": "context.grant.a-lapsed-grant-authorises-no-write.014",
+      "title": "A caller whose grant condition is unsatisfied resolves no grant, so the same write is refused at the object-scope gate",
+      "specRef": "runtime-semantics#business-contexts",
+      "comment": "The command half of case 003, which pins the read half. `user-invitee`'s invitation is `Declined`, so `pendingBandInvitation`'s `WHEN Status == 'Pending'` matches nothing and a `CONTEXT ALL` consumer resolves an empty grant list for them -- the empty `contextGrants` below is that resolution, not a shortcut around it, and case 003 is what proves the resolution is empty. With no grant and no selection the scope gate refuses before any policy rule is consulted, even though `allowInviteeUpdateOwnBandInvitation` would have matched the record.",
+      "operation": "update",
+      "modelRef": "invitationGrant",
+      "setup": [
+        {
+          "operation": "create",
+          "alias": "alphas",
+          "objectName": "Band",
+          "values": {
+            "Name": "The Alphas"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z"
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "memberAlphas",
+          "objectName": "BandMember",
+          "values": {
+            "User": "user-member",
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Role": "BandAdmin"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "inviteeInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-invitee",
+            "Status": "Declined"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "otherInvitation",
+          "objectName": "BandInvitation",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Invitee": "user-other",
+            "Status": "Pending"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        },
+        {
+          "operation": "create",
+          "alias": "gig",
+          "objectName": "Gig",
+          "values": {
+            "Band": {
+              "$ref": "alphas.meta.guid"
+            },
+            "Venue": "The Hall"
+          },
+          "context": {
+            "userId": "system-admin",
+            "roles": [
+              "SystemAdmin"
+            ],
+            "channel": "api",
+            "now": "2026-07-31T09:00:00.000Z",
+            "selectedContexts": {
+              "Band": {
+                "$ref": "alphas.meta.guid"
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "objectName": "BandInvitation",
+        "id": {
+          "$ref": "inviteeInvitation.meta.guid"
+        },
+        "patch": {
+          "Status": "Accepted"
+        },
+        "context": {
+          "userId": "user-invitee",
+          "roles": [],
+          "channel": "api",
+          "now": "2026-07-31T09:00:00.000Z",
+          "contextGrants": []
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": {
+          "name": "PolicyDeniedError",
+          "code": "ADL_POLICY_DENIED"
+        }
+      }
     }
   ]
 }

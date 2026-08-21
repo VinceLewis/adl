@@ -110,6 +110,32 @@ describe("jointly care reference app model", () => {
     );
   });
 
+  /**
+   * L− `expectJointlyCareUnmoved` (Phase 105).
+   *
+   * The assertion that Phase 105 was a *platform* fix. Jointly Care's `Accept`
+   * button was dead — clicking it raised `Policy denied update on object
+   * 'CircleInvite' outside its runtime context scope.` and wrote nothing — and
+   * it now commits (`tests/ui-invitee-accept.test.ts`,
+   * `expectInviteeAcceptCommitsFromTheBrowser`) with no edit to this
+   * application's `.adlj` at all. If either value below had moved, something
+   * had been repaired in the model instead of in the shell, and the fix would
+   * not have generalised to Giggle Band or to anything built next.
+   *
+   * Measured rather than assumed from which files the diff touched: a
+   * fingerprint moves on resolved *content*, and "I did not edit that app" is
+   * not the same fact.
+   */
+  it("expectJointlyCareUnmoved", async () => {
+    const model = await createJointlyReferenceModel();
+
+    expect(model.modelVersion).toBe("1.7.0");
+    expect(model.modelFingerprint).toBe(
+      "sha256-171158c70c06bfa0f975dd8fb92ae91ab58124e3d14210db026fb250813b8bef",
+    );
+    expect(model.migrations.at(-1)).toEqual({ from: "1.6.0", to: "1.7.0", objects: [] });
+  });
+
   it("seeds two overlapping circles plus a not-yet-joined invitee", async () => {
     const seeded = await createSeededJointlyReferenceRuntime();
 

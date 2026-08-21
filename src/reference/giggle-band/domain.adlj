@@ -1,5 +1,5 @@
 {
-  "modelVersion": "1.12.0",
+  "modelVersion": "1.13.0",
   "app": {
     "name": "Giggle Band ADL Example",
     "startView": "HomeDashboard",
@@ -105,6 +105,11 @@
     {
       "from": "1.11.0",
       "to": "1.12.0",
+      "objects": []
+    },
+    {
+      "from": "1.12.0",
+      "to": "1.13.0",
       "objects": []
     }
   ],
@@ -2327,6 +2332,55 @@
           "expression": "Inviter == RUNTIME.userId"
         }
       ]
+    },
+    {
+      "name": "MyBandInvitations",
+      "context": {
+        "mode": "all",
+        "context": "Band"
+      },
+      "sources": [
+        {
+          "name": "invitation",
+          "object": "BandInvitation",
+          "scope": "allAvailableContexts"
+        }
+      ],
+      "sort": [
+        {
+          "field": "SentAt",
+          "direction": "asc"
+        }
+      ],
+      "comment": "The invitee-facing counterpart to `PendingInvitations` and\n`SentBandInvitations`, which are both `CONTEXT REQUIRED Band` and so can\nonly be opened by somebody who has already picked a band -- which an\ninvited musician has no reason to do, and until Phase 105 no way to\nbenefit from. `CONTEXT ALL` plus `SCOPE allAvailableContexts` reaches\nevery band the caller can get to *including* the ones only a\n`pendingBandInvitation` grant admits them to, so a person who belongs to\nnothing still has somewhere their invitation appears.\n\nUnlike Jointly Care's `MyPendingCircleInvites`, this one does name the\nband: `BandPolicy.allowAuthenticatedReadBandName` grants `Band.Name` as a\nfield and never the record, so `Band`'s own `LOOKUP Band DISPLAY Name`\nresolves to \"The Betas\" rather than degrading to the stored id.\n\nThis is deliberately not filtered to `Status == 'Pending'`. The read model\nis what a caller may *see*; which rows carry an `Accept` button is the\nview's business, and `MyBandInvitationList` states it as a list `FILTER`\nbeside the action's own `WHEN`.",
+      "fields": [
+        {
+          "name": "Band",
+          "source": "invitation",
+          "field": "Band"
+        },
+        {
+          "name": "Role",
+          "source": "invitation",
+          "field": "Role"
+        },
+        {
+          "name": "Status",
+          "source": "invitation",
+          "field": "Status"
+        },
+        {
+          "name": "SentAt",
+          "source": "invitation",
+          "field": "SentAt"
+        },
+        {
+          "name": "Invitee",
+          "source": "invitation",
+          "field": "Invitee",
+          "comment": "Projected so the view's row `ACTION` can gate itself to the row's\nactual invitee. `allowAuthenticatedSearchInvitations` is\nunconditioned and `allowBandAdminReadInvitations` legitimately lets an\nadmin read every invitation their own band sent, so this read model\nalso surfaces an admin's own outgoing invitations -- rows they are\nnever the `Invitee` of. `AcceptBandInvitation`'s own `REQUIRE Invitee\n== RUNTIME.userId` step guard makes offering the button on somebody\nelse's invitation safe either way, but a button that always fails for\nthe person looking at it is still worth not drawing."
+        }
+      ]
     }
   ],
   "decisionTables": [],
@@ -3048,6 +3102,23 @@
           "action": "delete",
           "state": [],
           "fields": []
+        },
+        {
+          "name": "allowAuthenticatedReadBandName",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "read",
+          "state": [],
+          "fields": [
+            "Name"
+          ],
+          "comment": "\"You have been invited to The Betas\" is the whole point of\n`MyBandInvitationList`, and without this rule the row reads\n`band-b4b935e2-...` instead: a `CONTEXT_GRANT` puts the *granted* object\n(`BandInvitation`) in reach of the object-scope gate and never the\ncontext's own root object, and no other `BandPolicy` rule fits a pending\ninvitee -- `allowBandMemberReadBand` wants the role they have not got and\n`allowBandCreatorReadOwnBand` wants a band they did not create. Jointly\nCare's `MyPendingCircleInvites` records the same finding and routes around\nit by not naming the circle at all; the mechanism that makes naming it\nsafe (Phase 101) landed after that comment was written.\n\n`FIELDS Name` is what makes this a field grant rather than a record grant:\na rule that names `FIELDS` cannot match a whole-record request at all\n(`ruleMatches`, `policy-engine.ts`), so `runtime.read('Band', ...)` stays\ndenied for an invitee and `Description`, `Biography` and the social links\nkeep their own default deny. Same construction as `UserPolicy.\nallowAuthenticatedReadUserName` above -- see its comment for the fuller\naccount of why the whole-object pair it replaced was wrong. There is\ndeliberately no `SEARCH` counterpart: search is the enumeration primitive\nover a band directory, and `allowBandMemberSearchBands` already says who\nmay have it."
         }
       ]
     },
@@ -3218,6 +3289,21 @@
           "action": "search",
           "state": [],
           "fields": []
+        },
+        {
+          "name": "allowAuthenticatedSearchInvitations",
+          "effect": "allow",
+          "principal": {
+            "match": "authenticated",
+            "roles": [],
+            "groupRoles": [],
+            "users": [],
+            "owner": false
+          },
+          "action": "search",
+          "state": [],
+          "fields": [],
+          "comment": "Deliberately unconditioned, mirroring Jointly Care's\n`CircleInvitePolicy.allowAuthenticatedSearchInvites` and this app's own\n`AvailabilityPolicy.allowAuthenticatedSearchAvailability`: a `SEARCH`\nrule's `WHEN` is evaluated against `request.record`, which the coarse\n\"may this principal search this object at all\" gate never has, so\n`Invitee == RUNTIME.userId` here would test a condition against no record\nand could never grant anything. The compiler names that shape\n(`ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE`) for the principal that\ncannot express it at all.\n\nThis does not open a directory, and two independent gates are why.\n`requireObjectScopeForSearch` narrows to `getAllowedContextIds` before any\nrecord is read, so an invitee reaches only the bands a `pendingBand\nInvitation` grant admits them to; then `ObjectStore.search` filters every\nsurviving result through the per-record read rules, where\n`allowInviteeReadOwnInvitation` (`WHEN Invitee == RUNTIME.userId`) is the\nonly rule a non-admin matches. A `BandAdmin` still sees their own band's\ninvitations and nobody else's, by the same two gates.\n\nWithout it, `MyBandInvitations` throws `Policy denied search on object\n'BandInvitation'` for exactly the caller it exists for: `ReadModelService.\nsearchAuthorisedSourceRecords` checks `search` first, before any scope or\nper-record filtering, so `allowBandAdminSearchInvitations` alone made an\ninvitee's own invitation unreachable through every read model over this\nobject."
         },
         {
           "name": "allowBandAdminUpdateInvitations",

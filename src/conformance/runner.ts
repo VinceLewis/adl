@@ -624,6 +624,15 @@ export interface JsonRuntimeContext {
   roles: string[];
   selectedContexts?: Record<string, string>;
   contextRoles?: RuntimeContext["contextRoles"];
+  /**
+   * Resolved context grants, for a caller whose only route to a context
+   * instance is a `CONTEXT_GRANT` rather than a membership.
+   *
+   * A case supplies these the way a `CONTEXT ALL` consumer resolves them —
+   * `listAvailableContexts` -> `grantEntries` — with no `selectedContexts` for
+   * that context, which is the shape a cross-context screen operates in.
+   */
+  contextGrants?: RuntimeContext["contextGrants"];
   groups?: Record<string, string[]>;
   now?: string;
   channel: RuntimeChannel;
@@ -2014,6 +2023,9 @@ function parseContext(context: JsonRuntimeContext): RuntimeContext {
     ...(context.contextRoles === undefined
       ? {}
       : { contextRoles: context.contextRoles.map((role) => ({ ...role })) }),
+    ...(context.contextGrants === undefined
+      ? {}
+      : { contextGrants: context.contextGrants.map((grant) => ({ ...grant })) }),
     ...(context.groups === undefined ? {} : { groups: { ...context.groups } }),
     ...(context.now === undefined ? {} : { now: new Date(context.now) }),
     ...(context.online === undefined ? {} : { online: context.online }),

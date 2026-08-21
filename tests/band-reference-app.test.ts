@@ -7,7 +7,12 @@ import {
   RuntimeValidationError,
   validateApplicationModel,
 } from "../src/index.js";
-import type { AuthorityOperationIntent, AuthorityTransport, RuntimeContext } from "../src/index.js";
+import type {
+  AuthorityOperationIntent,
+  AuthorityTransport,
+  RuntimeContext,
+  StoredObjectRecord,
+} from "../src/index.js";
 import {
   bandReferenceSystemContext,
   createBandReferenceModel,
@@ -26,7 +31,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.12.0");
+    expect(model.modelVersion).toBe("1.13.0");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -104,6 +109,14 @@ describe("band reference app model", () => {
     // surface). Shell content -- it changes the fingerprint -- but no object
     // gains, loses or renames a stored field.
     expect(model.migrations).toContainEqual({ from: "1.11.0", to: "1.12.0", objects: [] });
+    // `1.12.0 -> 1.13.0` is an empty-object hop: `BandInvitationPolicy` gains an
+    // unconditioned `ALLOW SEARCH AUTHENTICATED`, `BandPolicy` gains
+    // `ALLOW READ AUTHENTICATED FIELDS Name`, and the model gains the
+    // `MyBandInvitations` read model, the `MyBandInvitationList` view and its
+    // nav item (Phase 105's invitee surface). All of it is policy, read-model
+    // and shell content -- it moves the fingerprint -- and no object gains,
+    // loses or renames a stored field.
+    expect(model.migrations).toContainEqual({ from: "1.12.0", to: "1.13.0", objects: [] });
     expect(model.shell.controls).toContainEqual(
       expect.objectContaining({
         name: "createFirstBand",
@@ -129,7 +142,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-8249bac35b2fa5282fd764db729ed3ed2b98121cab95b21c0bee47eb8f9de11c",
+      "sha256-1031d0abf2df798823f081c9e9fc96696d8c91814a5207f9d6a83b16f3b67b36",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -1470,6 +1483,78 @@ describe("band reference app runtime", () => {
     ).rejects.toBeInstanceOf(PolicyDeniedError);
   });
 
+  /**
+   * Pair F, grant half (Phase 105 backfill).
+   *
+   * `pendingBandInvitation` was tested only as syntax before this:
+   * `tests/parser.test.ts` proves it parses and `tests/compile-adl.test.ts`
+   * proves it resolves, and nothing proved it makes a band *available* to an
+   * invitee — or, in the other direction, that answering the invitation takes
+   * that availability away again. The grant's `WHEN Status == 'Pending'` had no
+   * behavioural test in either direction.
+   */
+  it("expectPendingGrantMakesTheBandAvailable", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const pendingInvitation = await createPendingBetasInvitation(seeded);
+
+    const available = await seeded.runtime.listAvailableContexts("Band", inviteeContext(seeded));
+
+    expect(available).toEqual([
+      {
+        context: "Band",
+        id: seeded.secondBand.meta.guid,
+        label: "The Betas",
+        roles: [],
+        roleEntries: [],
+        grantEntries: [
+          {
+            context: "Band",
+            contextId: seeded.secondBand.meta.guid,
+            grant: "pendingBandInvitation",
+            grantRecordId: pendingInvitation.meta.guid,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("expectPendingGrantLapsesOnceAnswered", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+    const pendingInvitation = await createPendingBetasInvitation(seeded);
+    const invitee = inviteeContext(seeded);
+
+    // The seed already gives Riley an *Accepted* invitation to The Alphas. It
+    // is the standing counter-example: a grant conditioned on `Pending` must
+    // not admit them to a band whose invitation they already answered. The
+    // Betas being present is the anchor that keeps this from passing on an
+    // empty list.
+    expect(
+      (await seeded.runtime.listAvailableContexts("Band", invitee)).map((band) => band.id),
+    ).toEqual([seeded.secondBand.meta.guid]);
+    expect(seeded.invitation.values.Status).toBe("Accepted");
+    expect(seeded.invitation.values.Band).toBe(seeded.firstBand.meta.guid);
+
+    // Answering the outstanding one takes the last reachable band with it. A
+    // `Revoked` invitation rather than an `Accepted` one, deliberately:
+    // accepting writes a `BandMember` row, which would make the band available
+    // again through a *role* and hide whether the grant had lapsed at all.
+    await seeded.runtime.executeCommand(
+      "RevokeBandInvitation",
+      { Invitation: pendingInvitation.meta.guid },
+      contextForBand(bandReferenceSystemContext, seeded.secondBand.meta.guid),
+    );
+
+    expect(await seeded.runtime.listAvailableContexts("Band", invitee)).toEqual([]);
+
+    // And the record the lapsed grant used to reach is refused at the
+    // object-scope gate, not merely missing from a list.
+    await expect(
+      seeded.runtime.read("BandInvitation", pendingInvitation.meta.guid, invitee),
+    ).rejects.toThrow(
+      "Policy denied read on object 'BandInvitation' outside its runtime context scope.",
+    );
+  });
+
   it("accepts invitations with a generic transaction command", async () => {
     const seeded = await createSeededBandReferenceRuntime();
     const pendingInvitation = await createPendingInvitation(seeded);
@@ -2705,9 +2790,483 @@ describe("band reference browser demo", () => {
   });
 });
 
+/**
+ * Phase 105's invitee surface: `MyBandInvitations`, `MyBandInvitationList` and
+ * the `Accept` row action, driven through a real `<adl-app>` render.
+ *
+ * The screen only works because the shell resolves context *grants* for a
+ * `CONTEXT ALL` view (`resolveActiveViewContext`, `adl-app/data.ts`) — see
+ * `tests/ui-invitee-accept.test.ts` for that branch's own pair. Everything here
+ * is the content built on top of it.
+ */
+describe("Giggle Band invitee surface", () => {
+  beforeEach(() => {
+    defineAdlComponents();
+    document.body.innerHTML = "";
+    globalThis.localStorage?.clear();
+    globalThis.sessionStorage?.clear();
+    globalThis.history.replaceState({}, "", "/");
+  });
+
+  /** C+ — the row the person came for. */
+  it("expectInviteeSeesTheirOwnInvitationRow", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    const rows = presentationRowText(app);
+    expect(rows).toEqual(["The Betas - invited as BandMember on Tue 7 Jul Accept"]);
+  });
+
+  /**
+   * C− — and nobody else's.
+   *
+   * Asserted on the record ids the search returns, not on a count: a list of
+   * one is equally consistent with returning the wrong one.
+   */
+  it("expectInviteeSeesNoOtherInvitations", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    expect(presentationRowText(app)).toHaveLength(1);
+    const listText = presentationListText(app, "MyInvitationsList");
+    expect(listText).toContain("The Betas");
+    expect(listText).not.toContain("The Alphas");
+    expect(listText).not.toContain("morgan@example.com");
+    expect(listText).not.toContain("jamie@example.com");
+    expect(listText).not.toContain("riley@example.com");
+
+    const found = await scenario.seeded.runtime.search(
+      "BandInvitation",
+      {},
+      await inviteeAllContext(scenario),
+    );
+    expect(found.map((record) => record.meta.guid)).toEqual([scenario.pendingBetas.meta.guid]);
+  });
+
+  /** D+ — the band is named, through `display.Band`. */
+  it("expectInvitationRowNamesTheBand", async () => {
+    const scenario = await seedInviteeScenario();
+
+    const result = await scenario.seeded.runtime.executeReadModel(
+      "MyBandInvitations",
+      scenario.inviteeContext,
+    );
+    expect(result.rows.map((row) => row.display?.Band)).toEqual(["The Betas"]);
+
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+    expect(presentationListText(app, "MyInvitationsList")).toContain("The Betas");
+  });
+
+  /**
+   * D− — a *field*, not a record.
+   *
+   * Without this half the phase could have shipped `ALLOW READ AUTHENTICATED`
+   * with no `FIELDS`, handed a pending invitee the whole `Band` record, and
+   * every other assertion here would still be green.
+   */
+  it("expectInvitationRowLeaksNoBandRecord", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    const listText = presentationListText(app, "MyInvitationsList");
+    expect(listText).toContain("The Betas");
+    expect(listText).not.toContain("band-");
+    // The Betas' `Description` and `Biography`, verbatim from the seed. A
+    // whole-record grant would have put at least one of them within reach.
+    expect(app.textContent).not.toContain("Acoustic rehearsal project");
+    expect(app.textContent).not.toContain("A compact rehearsal group.");
+
+    const inviteeAll = await inviteeAllContext(scenario);
+    await expect(
+      scenario.seeded.runtime.read("Band", scenario.seeded.secondBand.meta.guid, inviteeAll),
+    ).rejects.toThrow("Policy denied read on object 'Band'.");
+
+    // The field-scoped path the display label itself uses: `Name` comes back
+    // and nothing beside it does.
+    const displayed = await scenario.seeded.runtime.readFieldsForDisplay(
+      "Band",
+      scenario.seeded.secondBand.meta.guid,
+      ["Name", "Description", "Biography"],
+      inviteeAll,
+    );
+    expect(displayed?.values).toEqual({ Name: "The Betas" });
+  });
+
+  /** E+ — the click writes both records. Read back out of storage. */
+  it("expectAcceptMakesTheInviteeABandMember", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    presentationAction(app, "accept").click();
+    await waitForText(app, "Accept invitation completed.");
+
+    const betasSystemContext = contextForBand(
+      bandReferenceSystemContext,
+      scenario.seeded.secondBand.meta.guid,
+    );
+    const invitation = await scenario.seeded.runtime.read(
+      "BandInvitation",
+      scenario.pendingBetas.meta.guid,
+      betasSystemContext,
+    );
+    expect(invitation?.values.Status).toBe("Accepted");
+    expect(invitation?.values.RespondedAt).toEqual(expect.any(String));
+
+    const members = await scenario.seeded.runtime.search("BandMember", {}, betasSystemContext);
+    expect(
+      members.filter((member) => member.values.User === scenario.seeded.guest.meta.guid),
+    ).toEqual([
+      expect.objectContaining({
+        values: expect.objectContaining({
+          User: scenario.seeded.guest.meta.guid,
+          Band: scenario.seeded.secondBand.meta.guid,
+          Role: "BandMember",
+        }),
+      }),
+    ]);
+  });
+
+  /**
+   * E− — joining as a `BandMember` must not quietly become joining as a
+   * `BandAdmin`.
+   */
+  it("expectAcceptConfersNoWiderInvitationAccess", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+    presentationAction(app, "accept").click();
+    await waitForText(app, "Accept invitation completed.");
+
+    // Now a real member of The Betas, looking at the same screen.
+    const memberContext: RuntimeContext = {
+      ...scenario.inviteeContext,
+      contextRoles: [],
+      contextGrants: [],
+    };
+    const asMember = await scenario.seeded.runtime.executeReadModel(
+      "MyBandInvitations",
+      memberContext,
+    );
+    // Their own, now `Accepted`. Not the other invitation The Betas has out.
+    expect(asMember.rows.map((row) => row.sources.invitation?.recordId)).toEqual([
+      scenario.pendingBetas.meta.guid,
+    ]);
+    expect(asMember.rows.map((row) => row.values.Status)).toEqual(["Accepted"]);
+
+    expect(presentationActionNames(app)).toEqual([]);
+
+    await expect(
+      scenario.seeded.runtime.executeCommand(
+        "RevokeBandInvitation",
+        { Invitation: scenario.otherBetas.meta.guid },
+        await bandMemberContext(scenario),
+      ),
+    ).rejects.toBeInstanceOf(PolicyDeniedError);
+  });
+
+  /** F+ — the affordance, with the row's own record id already in it. */
+  it("expectAcceptOfferedOnAPendingInvitation", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    const button = presentationAction(app, "accept");
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toContain("Accept");
+    expect(button.dataset.command).toBe("AcceptBandInvitation");
+    expect(JSON.parse(button.dataset.input ?? "{}")).toEqual({
+      Invitation: scenario.pendingBetas.meta.guid,
+    });
+  });
+
+  /**
+   * F− — an invitation that has already been answered offers nothing, and
+   * refuses the command if asked directly anyway.
+   */
+  it("expectAcceptAbsentOnANonPendingInvitation", async () => {
+    const scenario = await seedInviteeScenario();
+    const answered = await seedAnsweredInvitations(scenario);
+
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    // All four are the caller's own and all four are readable; the list's
+    // `FILTER Status == 'Pending'` is what leaves one on screen.
+    const readModel = await scenario.seeded.runtime.executeReadModel(
+      "MyBandInvitations",
+      scenario.inviteeContext,
+    );
+    expect(readModel.rows.map((row) => row.values.Status).sort()).toEqual([
+      "Accepted",
+      "Declined",
+      "Pending",
+      "Revoked",
+    ]);
+    expect(presentationRowText(app)).toEqual([
+      "The Betas - invited as BandMember on Tue 7 Jul Accept",
+    ]);
+    expect(presentationActionNames(app)).toEqual(["accept"]);
+
+    const inviteeAll = await inviteeAllContext(scenario);
+    for (const invitation of answered) {
+      const refusal = await expectBandPolicyDenied(
+        scenario.seeded.runtime.executeCommand(
+          "AcceptBandInvitation",
+          { Invitation: invitation.meta.guid },
+          inviteeAll,
+        ),
+      );
+      // The step guard, named. `Status == 'Pending'` is the clause that fails
+      // here — `Invitee == RUNTIME.userId` holds for all three, which is what
+      // makes this case about the status and not about the person.
+      expect(refusal.message).toBe(
+        "Command 'AcceptBandInvitation' step 'acceptInvitation' was denied.",
+      );
+      expect(refusal.decision.reasons).toEqual([
+        {
+          policyName: "Command:AcceptBandInvitation",
+          ruleName: "acceptInvitationPrecondition",
+          effect: "deny",
+          message: "Command 'AcceptBandInvitation' step 'acceptInvitation' precondition failed.",
+        },
+      ]);
+    }
+  });
+
+  /** F− — and neither does somebody else's invitation, to an admin who can see it. */
+  it("expectAcceptAbsentOnSomeoneElsesInvitation", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.seeded.musicianContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    // Casey administers The Alphas, so this row is genuinely theirs to see —
+    // the present anchor that keeps the assertion below from passing on a
+    // blank screen. They are not its `Invitee`, so it offers nothing.
+    expect(presentationRowText(app)).toEqual(["The Alphas - invited as BandMember on Mon 6 Jul"]);
+    expect(presentationActionNames(app)).toEqual([]);
+
+    const refusal = await expectBandPolicyDenied(
+      scenario.seeded.runtime.executeCommand(
+        "AcceptBandInvitation",
+        { Invitation: scenario.alphasPending.meta.guid },
+        scenario.seeded.firstBandContext,
+      ),
+    );
+    expect(refusal.message).toBe(
+      "Command 'AcceptBandInvitation' step 'acceptInvitation' was denied.",
+    );
+    expect(refusal.decision.reasons.map((reason) => reason.ruleName)).toEqual([
+      "acceptInvitationPrecondition",
+    ]);
+  });
+
+  /**
+   * G+ — the person with nothing.
+   *
+   * Note what is actually on screen. The phase document expected the list's
+   * declared `No invitations` empty state; a `CONTEXT ALL` view whose caller
+   * can reach no instance never gets as far as the list, because
+   * `resolveActiveViewContext` short-circuits with the shell's own
+   * context-level empty state first. That is the measured behaviour and it is
+   * what is asserted, alongside Phase 99's onboarding affordance which is the
+   * useful thing on that screen.
+   */
+  it("expectStrangerSeesTheInvitationsEmptyState", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.strangerContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "No Band contexts are available for this view.");
+
+    expect(controlWithText(app, "Create a band")).not.toBeUndefined();
+
+    const result = await scenario.seeded.runtime.executeReadModel(
+      "MyBandInvitations",
+      scenario.strangerContext,
+    );
+    expect(result.rows).toEqual([]);
+  });
+
+  /**
+   * G− — an exception and a silently-populated list are opposite defects, so
+   * both are named here.
+   */
+  it("expectStrangerReadModelRaisesNothingAndReturnsNoRow", async () => {
+    const scenario = await seedInviteeScenario();
+
+    // Resolves, rather than raising the `PolicyDeniedError` a
+    // `CONTEXT REQUIRED` read model would have produced for this caller.
+    // `hasNoAvailableAllContext` is what short-circuits it.
+    const result = await scenario.seeded.runtime.executeReadModel(
+      "MyBandInvitations",
+      scenario.strangerContext,
+    );
+    expect(result.readModel.name).toBe("MyBandInvitations");
+    expect(result.rows).toEqual([]);
+
+    const app = await mountBandAppAs(scenario.seeded, scenario.strangerContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "No Band contexts are available for this view.");
+    expect(presentationActionNames(app)).toEqual([]);
+    expect(app.textContent).not.toContain("The Betas");
+    expect(app.textContent).not.toContain("The Alphas");
+    expect(app.textContent).not.toContain("@example.com");
+  });
+
+  /** H+ — Phase 99's onboarding affordance, for the person it was built for. */
+  it("expectCreateBandOfferedToAPersonWithNoContext", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.strangerContext);
+    await waitForText(app, "No Band contexts are available for this view.");
+
+    expect(controlWithText(app, "Create a band")).not.toBeUndefined();
+  });
+
+  /**
+   * H− — and not for an invitee, because a grant made a `Band` context
+   * *available* and `VISIBLE WHEN CONTEXT Band UNAVAILABLE` cannot tell
+   * "available because somebody invited me" from "available because I joined".
+   *
+   * This pins today's behaviour rather than endorsing it; the Planning Handoff
+   * carries the case for a predicate that distinguishes the two. Either way it
+   * stops being an accident nobody wrote down.
+   */
+  it("expectCreateBandHiddenFromAnInvitee", async () => {
+    const scenario = await seedInviteeScenario();
+    const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
+    await navigateWithDrawer(app, "MyBandInvitationList");
+    await waitForText(app, "Your invitations");
+
+    // The present anchor: the invitee has a working screen, and it is the
+    // absence of *this one control* that is under test, not an empty render.
+    expect(presentationRowText(app)).toHaveLength(1);
+    expect(controlWithText(app, "Create a band")).toBeUndefined();
+  });
+
+  /** I+ — a `BandAdmin` still sees everything their own band sent. */
+  it("expectBandAdminSearchesTheirOwnBandsInvitations", async () => {
+    const scenario = await seedInviteeScenario();
+
+    const found = await scenario.seeded.runtime.search(
+      "BandInvitation",
+      {},
+      scenario.seeded.firstBandContext,
+    );
+    expect(new Set(found.map((record) => record.meta.guid))).toEqual(
+      new Set([scenario.seeded.invitation.meta.guid, scenario.alphasPending.meta.guid]),
+    );
+  });
+
+  /**
+   * I− — and the unconditioned `ALLOW SEARCH` does not turn that into a
+   * directory.
+   *
+   * Two independent gates produce this: `requireObjectScopeForSearch` narrows
+   * to `getAllowedContextIds` before any record is read, and `ObjectStore.
+   * search` then filters every survivor through the per-record read rules.
+   */
+  it("expectAuthenticatedSearchReturnsOnlyOwnInvitations", async () => {
+    const scenario = await seedInviteeScenario();
+
+    // Deliberately no assertion here that the *invitee* can search — that is
+    // `expectInviteeSeesNoOtherInvitations`'s job (C−). Putting it here too
+    // would make this half red under the "remove the SEARCH grant" mutation,
+    // where it must stay green: a grant that was never given cannot leak.
+
+    // The Alphas' admin, from The Alphas: nothing of The Betas'.
+    const adminFound = await scenario.seeded.runtime.search(
+      "BandInvitation",
+      {},
+      scenario.seeded.firstBandContext,
+    );
+    expect(adminFound.map((record) => record.meta.guid)).not.toContain(
+      scenario.pendingBetas.meta.guid,
+    );
+    expect(adminFound.map((record) => record.meta.guid)).not.toContain(
+      scenario.otherBetas.meta.guid,
+    );
+
+    // A signed-in caller who is neither an admin nor anybody's invitee reaches
+    // no context at all, so the object-scope gate refuses before any record is
+    // considered. Asserted on the named refusal, not on an empty array.
+    const strangerAll = await scenario.seeded.runtime.contextService.resolveContextGrants(
+      "Band",
+      scenario.strangerContext,
+    );
+    expect(strangerAll).toEqual([]);
+    await expect(
+      scenario.seeded.runtime.search(
+        "BandInvitation",
+        {},
+        {
+          ...scenario.strangerContext,
+          contextRoles: [],
+          contextGrants: strangerAll,
+        },
+      ),
+    ).rejects.toThrow(
+      "Policy denied search on object 'BandInvitation' outside its runtime context scope.",
+    );
+    expect(
+      (
+        await scenario.seeded.runtime.executeReadModel(
+          "MyBandInvitations",
+          scenario.strangerContext,
+        )
+      ).rows,
+    ).toEqual([]);
+  });
+});
+
 async function createSeededBandReferenceRuntime() {
   const runtime = await createBandReferenceRuntime();
   return seedBandReferenceRuntime(runtime);
+}
+
+/**
+ * Riley's outstanding invitation to The Betas — a band they are a member of
+ * nothing in. The seed's own `invitation` is to The Alphas and already
+ * `Accepted`, so the two together give a `Pending` grant and a lapsed one.
+ */
+async function createPendingBetasInvitation(
+  seeded: Awaited<ReturnType<typeof createSeededBandReferenceRuntime>>,
+) {
+  return seeded.runtime.create(
+    "BandInvitation",
+    {
+      Band: seeded.secondBand.meta.guid,
+      Inviter: seeded.musician.meta.guid,
+      Invitee: seeded.guest.meta.guid,
+      InviteeEmail: "riley@example.com",
+      SentAt: "2026-07-07",
+    },
+    contextForBand(bandReferenceSystemContext, seeded.secondBand.meta.guid),
+  );
+}
+
+/** Riley, holding invitations and no membership anywhere. */
+function inviteeContext(
+  seeded: Awaited<ReturnType<typeof createSeededBandReferenceRuntime>>,
+): RuntimeContext {
+  return {
+    userId: seeded.guest.meta.guid,
+    roles: [],
+    channel: "api",
+    now: new Date("2026-07-08T10:00:00.000Z"),
+  };
 }
 
 async function createPendingInvitation(
@@ -2891,4 +3450,213 @@ function requireElement<T extends Element>(root: ParentNode, selector: string): 
 function navigateWithDrawer(root: ParentNode, viewName: string): void {
   requireElement<HTMLButtonElement>(root, "button[data-shell-menu='true']").click();
   requireElement<HTMLButtonElement>(root, `button[data-view-nav='${viewName}']`).click();
+}
+
+interface InviteeScenario {
+  seeded: Awaited<ReturnType<typeof createSeededBandReferenceRuntime>>;
+  /** Riley's outstanding invitation to The Betas. */
+  pendingBetas: StoredObjectRecord;
+  /** A second Betas invitation, to somebody with no account yet. */
+  otherBetas: StoredObjectRecord;
+  /** An Alphas invitation Casey can see and is not the invitee of. */
+  alphasPending: StoredObjectRecord;
+  /** Riley: invited, joined nothing. */
+  inviteeContext: RuntimeContext;
+  /** Signed in, invited to nothing, member of nothing. */
+  strangerContext: RuntimeContext;
+}
+
+/**
+ * One seed for every invitee-surface case, so each of them is exercised against
+ * invitations it must *not* surface as well as the one it must.
+ */
+async function seedInviteeScenario(): Promise<InviteeScenario> {
+  const seeded = await createSeededBandReferenceRuntime();
+  const betasSystemContext = contextForBand(
+    bandReferenceSystemContext,
+    seeded.secondBand.meta.guid,
+  );
+  const alphasSystemContext = contextForBand(
+    bandReferenceSystemContext,
+    seeded.firstBand.meta.guid,
+  );
+
+  const pendingBetas = await seeded.runtime.create(
+    "BandInvitation",
+    {
+      Band: seeded.secondBand.meta.guid,
+      Inviter: seeded.musician.meta.guid,
+      Invitee: seeded.guest.meta.guid,
+      InviteeEmail: "riley@example.com",
+      SentAt: "2026-07-07",
+    },
+    betasSystemContext,
+  );
+  const otherBetas = await seeded.runtime.create(
+    "BandInvitation",
+    {
+      Band: seeded.secondBand.meta.guid,
+      Inviter: seeded.musician.meta.guid,
+      InviteeEmail: "morgan@example.com",
+      SentAt: "2026-07-05",
+    },
+    betasSystemContext,
+  );
+  const alphasPending = await seeded.runtime.create(
+    "BandInvitation",
+    {
+      Band: seeded.firstBand.meta.guid,
+      Inviter: seeded.musician.meta.guid,
+      InviteeEmail: "jamie@example.com",
+      SentAt: "2026-07-06",
+    },
+    alphasSystemContext,
+  );
+
+  const stranger = await seeded.runtime.create(
+    "User",
+    { Name: "Nobody Atall", Email: "nobody@example.com" },
+    bandReferenceSystemContext,
+  );
+
+  return {
+    seeded,
+    pendingBetas,
+    otherBetas,
+    alphasPending,
+    inviteeContext: inviteeContext(seeded),
+    strangerContext: {
+      userId: stranger.meta.guid,
+      roles: [],
+      channel: "api",
+      now: new Date("2026-07-08T10:00:00.000Z"),
+    },
+  };
+}
+
+/**
+ * Three invitations Riley has already answered, one per non-`Pending` status.
+ *
+ * Distinct `InviteeEmail`s because `uniqueBandInvitationEmail` is scoped to the
+ * band, and `RespondedAt` on the two that need it because
+ * `respondedAtRequiredAfterResponse` exempts only `Pending` and `Revoked`.
+ */
+async function seedAnsweredInvitations(scenario: InviteeScenario): Promise<StoredObjectRecord[]> {
+  const betasSystemContext = contextForBand(
+    bandReferenceSystemContext,
+    scenario.seeded.secondBand.meta.guid,
+  );
+
+  return Promise.all(
+    (
+      [
+        ["Accepted", "riley.accepted@example.com", "2026-07-02"],
+        ["Declined", "riley.declined@example.com", "2026-07-03"],
+        ["Revoked", "riley.revoked@example.com", undefined],
+      ] as const
+    ).map(([status, email, respondedAt]) =>
+      scenario.seeded.runtime.create(
+        "BandInvitation",
+        {
+          Band: scenario.seeded.secondBand.meta.guid,
+          Inviter: scenario.seeded.musician.meta.guid,
+          Invitee: scenario.seeded.guest.meta.guid,
+          InviteeEmail: email,
+          Status: status,
+          SentAt: "2026-07-01",
+          ...(respondedAt === undefined ? {} : { RespondedAt: respondedAt }),
+        },
+        betasSystemContext,
+      ),
+    ),
+  );
+}
+
+/**
+ * Riley's context with their `pendingBandInvitation` grant resolved onto it —
+ * the same shape the browser shell now builds for a `CONTEXT ALL` view, and
+ * the only shape in which a direct call reaches a granted record at all.
+ */
+async function inviteeAllContext(scenario: InviteeScenario): Promise<RuntimeContext> {
+  return {
+    ...scenario.inviteeContext,
+    contextRoles: [],
+    contextGrants: await scenario.seeded.runtime.contextService.resolveContextGrants(
+      "Band",
+      scenario.inviteeContext,
+    ),
+  };
+}
+
+/** Riley after accepting: a real `BandMember` of The Betas, and nothing more. */
+async function bandMemberContext(scenario: InviteeScenario): Promise<RuntimeContext> {
+  return scenario.seeded.runtime.withSelectedContext(
+    "Band",
+    scenario.seeded.secondBand.meta.guid,
+    scenario.inviteeContext,
+  );
+}
+
+async function mountBandAppAs(
+  seeded: Awaited<ReturnType<typeof createSeededBandReferenceRuntime>>,
+  context: RuntimeContext,
+): Promise<AdlAppElement> {
+  const app = document.createElement("adl-app") as AdlAppElement;
+  app.model = seeded.model;
+  app.runtime = seeded.runtime;
+  app.context = { ...context, channel: "ui" };
+  document.body.append(app);
+  await app.whenReady();
+  await flushUi();
+  return app;
+}
+
+/** Every rendered presentation row, as the text a person reads. */
+function presentationRowText(root: ParentNode): string[] {
+  return [...root.querySelectorAll("[data-presentation-row]")].map((row) =>
+    (row.textContent ?? "").replace(/\s+/gu, " ").trim(),
+  );
+}
+
+function presentationListText(root: ParentNode, listName: string): string {
+  return (
+    requireElement<HTMLElement>(root, `[data-presentation-list='${listName}']`).textContent ?? ""
+  )
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function presentationActionNames(root: ParentNode): string[] {
+  return [
+    ...root.querySelectorAll<HTMLButtonElement>("button[data-presentation-action='true']"),
+  ].map((button) => button.dataset.actionName ?? "");
+}
+
+function presentationAction(root: ParentNode, actionName: string): HTMLButtonElement {
+  return requireElement<HTMLButtonElement>(
+    root,
+    `button[data-presentation-action='true'][data-action-name='${actionName}']`,
+  );
+}
+
+/** A rendered control carrying this label, or `undefined` when none does. */
+function controlWithText(root: ParentNode, text: string): HTMLButtonElement | undefined {
+  return [...root.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+    (button.textContent ?? "").includes(text),
+  );
+}
+
+/**
+ * Asserts a refusal happened *and* hands back its named reason, so a denial for
+ * entirely the wrong reason cannot pass as the one under test.
+ */
+async function expectBandPolicyDenied(work: Promise<unknown>): Promise<PolicyDeniedError> {
+  try {
+    await work;
+  } catch (error) {
+    expect(error).toBeInstanceOf(PolicyDeniedError);
+    return error as PolicyDeniedError;
+  }
+
+  throw new Error("Expected a PolicyDeniedError, but the operation was permitted.");
 }

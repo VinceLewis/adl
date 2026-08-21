@@ -1180,6 +1180,7 @@ END.POLICY
     expect(result.model.shell.nav.items.map((item) => [item.view, item.label, item.order])).toEqual(
       [
         ["HomeDashboard", "Home", 10],
+        ["MyBandInvitationList", "My Invitations", 15],
         ["BandEventList", "Gigs", 20],
         ["BandEventCalendar", "Calendar", 30],
         ["MyAvailabilityList", "Availability", 40],
@@ -1194,6 +1195,13 @@ END.POLICY
     expect(
       result.model.shell.nav.items.find((item) => item.view === "MyAvailabilityList")?.visibility,
     ).toEqual({ kind: "contextSelected", context: "Band" });
+    // The invitee's own item is the one `Main` entry with no visibility
+    // predicate, which is the point of it: `CONTEXT SELECTED Band` would hide
+    // the screen from the only person who needs it, because they have joined no
+    // band and have no reason to open a context picker.
+    expect(
+      result.model.shell.nav.items.find((item) => item.view === "MyBandInvitationList")?.visibility,
+    ).toEqual({ kind: "always" });
     expect(result.model.contexts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
+  readAllPersistedRecords,
+  downgradePersistedApplicationMetadata,
   readMountedModelVersion,
+  readMountedPreviousModelVersion,
   readPersistedApplicationMetadata,
   seedStalePersistedInstallation,
 } from "./support/persisted-upgrade.js";
@@ -36,6 +39,14 @@ const gigglePages: VisualPage[] = [
     name: "sent-invitations",
     navItem: "MyInvitationList",
     expectedText: "riley@example.com",
+  },
+  {
+    // Phase 105's invitee surface. `CONTEXT ALL Band`, so unlike every other
+    // entry here it renders without a selected band -- which is the point of
+    // it: the person it exists for has joined nothing.
+    name: "my-invitations",
+    navItem: "MyBandInvitationList",
+    expectedText: "Your invitations",
   },
 ];
 
@@ -472,8 +483,13 @@ test("captures the navigation drawer and its declared chrome", async ({ page }, 
   await expect(drawer.locator("[data-shell-drawer-title]")).toHaveText("Giggle Band");
   await expect(drawer.locator("[data-shell-drawer-tools]")).toBeVisible();
   // Declared in `ui.adlj` with `PLACEMENT navDrawer`, so it belongs here and
-  // nowhere else.
+  // nowhere else. The two assertions have to be read together: on its own, the
+  // absence below passes just as well when the top bar failed to render at all,
+  // so the control that *is* declared for the top bar anchors it.
+  await expect(page.locator(".adl-topbar-tools")).toBeVisible();
+  await expect(page.locator(".adl-topbar-tools")).toContainText("Theme");
   await expect(page.locator(".adl-topbar-tools")).not.toContainText("Sign out");
+  await expect(drawer.locator("[data-shell-drawer-tools]")).toContainText("Sign out");
   await expect(drawer.locator("[data-nav-item='BandMemberAvailabilityBoard']")).toBeVisible();
 
   // Icons are optional shell metadata. Exercise the generic no-icon branch
@@ -735,3 +751,86 @@ async function expectAppReady(page: Page): Promise<void> {
   await expect(app).toBeVisible();
   await expect(app).not.toContainText("Loading");
 }
+
+/**
+ * Phase 105's `1.12.0 -> 1.13.0` hop, against a real browser and the real app
+ * URL, per `AGENTS.md`'s persisted-state upgrade rule.
+ *
+ * The seeded version and the expected version are both **read from the mounted
+ * model** rather than written down: the hop is `previous -> current`, and both
+ * ends move the next time this app's content changes for an unrelated reason.
+ * The hop is an empty-object migration, so the whole real dataset the app
+ * seeded for itself has to survive byte-identical -- asserted on every record,
+ * not on one hand-picked row.
+ */
+test("opens and migrates an installation persisted one declared version back", async ({
+  page,
+}, testInfo) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await openGiggleApp(page);
+  await expectAppReady(page);
+  const currentVersion = await readMountedModelVersion(page);
+  const previousVersion = await readMountedPreviousModelVersion(page);
+  expect(previousVersion).not.toBe(currentVersion);
+
+  const recordsBefore = await readAllPersistedRecords(page, "adl-giggle-band-example");
+  expect(recordsBefore.length).toBeGreaterThan(0);
+
+  await downgradePersistedApplicationMetadata(page, "adl-giggle-band-example", {
+    modelVersion: previousVersion,
+    modelFingerprint: `sha256-${"0".repeat(64)}`,
+  });
+
+  await page.reload();
+  await expectAppReady(page);
+  // The real start view, not a blank page and not a startup error: the
+  // fail-closed guard firing here would be the bug, not the fix.
+  await expect(page.getByText("Welcome Back!", { exact: true })).toBeVisible();
+  expect(pageErrors).not.toEqual(
+    expect.arrayContaining([expect.stringContaining("Persisted runtime data is incompatible")]),
+  );
+
+  const metadata = await readPersistedApplicationMetadata(page, "adl-giggle-band-example");
+  expect(metadata?.modelVersion).toBe(currentVersion);
+  expect(await readAllPersistedRecords(page, "adl-giggle-band-example")).toEqual(recordsBefore);
+
+  await page.screenshot({
+    path: testInfo.outputPath(`giggle-${testInfo.project.name}-previous-version-upgrade.png`),
+    fullPage: true,
+  });
+});
+
+/**
+ * The invitee screen, in a real browser, for a caller who is nobody's invitee.
+ *
+ * The demo signs in as Casey, who is a member of both seeded bands and the
+ * `Invitee` of no outstanding invitation -- so the honest thing for this screen
+ * to show them is its declared empty state and no action at all. That is the
+ * real-browser half of the negative the unit suite pins as
+ * `expectAcceptAbsentOnSomeoneElsesInvitation`: a row action gated on
+ * `WHEN Invitee == RUNTIME.userId` must not render for anybody else.
+ *
+ * The heading is the present anchor. Without it, "no Accept button" would pass
+ * on a screen that failed to render.
+ */
+test("offers no Accept on the invitations screen to a caller who is nobody's invitee", async ({
+  page,
+}) => {
+  await openGiggleApp(page);
+  await navigateTo(page, {
+    name: "my-invitations",
+    navItem: "MyBandInvitationList",
+    expectedText: "Your invitations",
+  });
+
+  const workspace = page.locator(".adl-workspace, .adl-composed-workspace, .adl-dashboard");
+  await expect(workspace).toContainText("Your invitations");
+  // The list's own declared empty state, so the screen is genuinely working
+  // rather than silently degraded into a diagnostic.
+  await expect(workspace).toContainText("No invitations");
+  await expect(page.locator("button[data-presentation-action='true']")).toHaveCount(0);
+  await expect(workspace).not.toContainText("Policy denied");
+  await expect(workspace).not.toContainText("could not bind source");
+});

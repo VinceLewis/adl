@@ -618,7 +618,14 @@ importing browser Web Components.
 Selected contexts narrow scoped object operations. Context-scoped roles are
 checked only for matching context instance ids and must not be merged into
 global roles. Cross-context read models remove the selected context for that
-business context and use available context roles.
+business context and use available context **roles and grants**. Both are
+re-resolved from the de-selected context, because dropping the selection also
+drops everything derived from it: omitting the grants would make a context
+reachable only through a `CONTEXT_GRANT` — a pending invitation — invisible to
+precisely the cross-context view that exists to surface it, while a context the
+caller has joined stayed visible. Any consumer that builds a runtime context for
+a `CONTEXT ALL` view must resolve both, so that a command run from such a view is
+authorised the same way the view's own data already is.
 
 Membership is resolved over **active** membership records only: deleting a
 membership record revokes the context role it granted. A context is available
