@@ -66,6 +66,25 @@ which would surface systematic gaps in a batch instead of one per phase, or a
 stated capability target to sequence phases against. That decision is the user's
 and is open.
 
+## A Phase's Acceptance Tests Must Name Their Negative Half
+
+A phase document's acceptance criteria are what the executing agent builds
+against, so a criterion written only positively produces a positive-only suite
+however conscientious the executor is. **When specifying a phase, every
+acceptance test that asserts something happens must be accompanied by a named
+acceptance test asserting the matching thing does not** — the refusal, the
+absent affordance, the named diagnostic, the denied principal.
+
+Write them as named assertions in the document, not as a general instruction to
+test negatively. Phase 102 is the model: `expectFullDmlOnEveryProjectionTable`
+paired with `expectDdlAndTruncateRefused`, each named in the plan before either
+existed.
+
+Where the phase touches code whose existing tests are positive-only, adding the
+missing negative tests is **part of that phase's scope and goes in first**, not
+a follow-up nomination. The full rule and the incidents behind it are in
+`process/testing-expectations.md`.
+
 ## Verify A Phase's Evidence Before Executing It
 
 A phase document is written before the work it describes and read after several

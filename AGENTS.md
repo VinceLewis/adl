@@ -48,6 +48,34 @@ Every phase must end with:
 
 For code phases, add or update tests that prove the behavior introduced by the phase. Run the relevant test, typecheck, lint, format, or build commands that exist in the project at that point. If a command cannot run, record why in the final summary.
 
+### Every positive test needs a matching negative test
+
+No functionality and no defect fix is complete with positive tests alone. Each
+one needs at least one **negative** test paired with it: a case asserting the
+thing correctly does *not* happen, is *not* permitted, is *not* accepted, or
+fails in the declared way. **If you arrive at code whose tests are positive-only,
+write the missing negative tests first, before the change you came to make.**
+
+Pairing is the point, not volume. A positive-only suite cannot tell "this works"
+from "this always allows"; a negative-only suite cannot tell "this correctly
+denies" from "this always denies". Both have shipped here — a policy whose rules
+could never match, where every negative test passed perfectly, and an authority
+grant gap that survived nine migrations and 163 green integration tests because
+the harness ran as a superuser owning every table.
+
+The negative half must be one that would fail if the implementation were
+replaced by a constant. Assert on rendered values and on named diagnostics, not
+on the absence of an exception — ADL degrades silently, so "no error" proves
+nothing. Write it before the change and watch it fail against unmodified code; a
+negative assertion added after the fix passes the moment it is written and
+nothing tells you whether it could ever fail.
+
+Where a behaviour genuinely has no meaningful negative counterpart, say so in
+the phase report and name the cases. That is a disclosure, not an exemption.
+
+See `learnings/process/testing-expectations.md` for the incidents behind this
+and what the negative half looks like per subsystem.
+
 ### Backend/authority integration testing
 
 Tests that exercise the authority server, PostgreSQL projections, migrations, the unit-of-work, or the HTTP edge MUST run against a real backend, not a mock or in-memory fake of PostgreSQL. Fakes that pattern-match SQL are not acceptable as the correctness proof for backend behaviour: they hide real defects (for example, a NUL byte in a text key that only real PostgreSQL rejects, or real transaction/locking semantics).

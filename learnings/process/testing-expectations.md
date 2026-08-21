@@ -36,6 +36,75 @@ Code phases should add or update tests that prove the behavior introduced by the
 - Phase 28: Giggle dashboard reference implementation, ADL-driven rendering path, representative seed data, and browser build verification
 - Phase 29: UI presentation conformance cases, inspect/explain output, spec consistency, and regression tests for any defects fixed
 
+## Every positive test needs a matching negative test
+
+**Rule: no functionality and no defect fix is complete with positive tests
+alone. Each one needs at least one negative test paired with it — a case
+asserting that the thing correctly does *not* happen, is *not* permitted, is
+*not* accepted, or fails in the declared way. If you arrive at code whose tests
+are positive-only, write the missing negative tests first, before the change
+you came to make.**
+
+### Why pairing, and not simply "more tests"
+
+A positive-only suite cannot tell "this works" apart from "this always allows".
+A negative-only suite cannot tell "this correctly denies" apart from "this
+always denies". Neither half pins the boundary; only the pair does. Both
+failure modes have shipped here:
+
+- **Always denies, and nothing failed.** `POLICY UserPolicy ON User` granted
+  `READ`/`SEARCH` to `ROLE BandMember`, but `User` is neither scoped to the
+  `Band` context nor its bound object, so every rule matched nothing and every
+  `LOOKUP ... DISPLAY` label in the app silently degraded to a raw record id.
+  Any negative test — "a stranger is denied" — passed perfectly. The missing
+  case was the positive one: *a member is permitted*. This shipped twice before
+  Phase 93 made the class a compile error.
+- **Always allows, and nothing failed.** The authority grant gap survived nine
+  migrations and 163 green integration tests, because the shared harness
+  database runs as one superuser owning every table. Every positive write
+  assertion passed and could not have done otherwise. Phase 102's fix ships
+  `expectDdlAndTruncateRefused` alongside `expectFullDmlOnEveryProjectionTable`
+  precisely so neither half can drift into vacuity.
+
+### What counts as the negative half
+
+Not "a second test". A case that would pass if the implementation were replaced
+by a constant. Concretely, in this repository:
+
+- **Policy:** for every "principal X may do Y" case, a case that principal Z may
+  not — and, where the grant is field-scoped, that the *fields outside the
+  grant* are absent from the result rather than merely that no exception was
+  raised. Assert on rendered values. ADL degrades silently, so an absence of
+  errors proves nothing (see `evidence-by-execution.md`).
+- **Validation and diagnostics:** for every source that compiles clean, a source
+  that must produce a named diagnostic — and assert the diagnostic's identity,
+  not merely that `diagnostics` is non-empty.
+- **Grants and roles:** for every "this role can", a "this role cannot".
+- **Lifecycle, preconditions, constraints:** for every accepted transition or
+  write, a refused one, asserting the refusal's reason.
+- **Commands:** for every satisfied precondition, a violated one.
+- **Browser specs:** for every rendered affordance, a case proving it is absent
+  when it should be — Phase 99 shipped a "create a band" button offered to
+  people who were not signed in, whose click the server would have refused.
+
+### The negative test goes in first, and must be seen to fail
+
+Write it before the change, watch it fail against the unmodified code, then make
+it pass. A negative assertion written after the fix is the easiest kind of test
+to write vacuously, because it passes the moment you write it and nothing tells
+you whether it *could* fail. Phase 102's report went further and removed each
+half of its fix separately to confirm each broke a distinct, non-overlapping set
+of assertions; that is the standard to aim at when the fix has more than one
+moving part.
+
+### Where the rule bends, and what to do instead
+
+Some behaviour has no meaningful negative counterpart — a pure formatter, a
+printer round-trip. Do not manufacture a hollow one to satisfy the rule. Say in
+the phase report which cases have no negative half and why. That is a
+disclosure, not an exemption: it is reviewable, whereas a silently positive-only
+suite is not.
+
 ## Backend/authority integration testing (real, not mocked)
 
 Any test that verifies authority-server behaviour, PostgreSQL projections,

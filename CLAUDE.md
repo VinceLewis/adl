@@ -73,6 +73,11 @@ work unless asked.
   should be authored as `.adlj` (`docs/spec/adlj.md`) and checked with
   `compileAdlj`; `compileAdl` remains the check for hand-authored or reviewed
   `.adl` text. See `AGENTS.md`'s Testing section for both patterns.
+- Every positive test needs at least one matching negative test — a case proving
+  the thing is correctly refused, absent, or fails in the declared way. If the
+  tests you find are positive-only, write the missing negative ones first, before
+  the change you came to make, and watch them fail. A positive-only suite cannot
+  tell "works" from "always allows"; both failure modes have shipped here.
 - Never assert what the running system does on the strength of having read the
   code. ADL degrades silently — a denied read falls back to the raw record id —
   so a policy that denies everything is indistinguishable by inspection from a
