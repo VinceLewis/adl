@@ -30,6 +30,9 @@ import type {
   PresentationListDeclarationAst,
   PresentationRowFragmentDeclarationAst,
   PresentationRowTemplateDeclarationAst,
+  PresentationMatrixCellDeclarationAst,
+  PresentationMatrixDeclarationAst,
+  PresentationMatrixEditDeclarationAst,
   PresentationSectionDeclarationAst,
   PresentationStatusCandidateDeclarationAst,
   PresentationStatusDeclarationAst,
@@ -76,6 +79,9 @@ import type {
   PartialPresentationListModel,
   PartialPresentationRowFragmentModel,
   PartialPresentationRowTemplateModel,
+  PartialPresentationMatrixCellModel,
+  PartialPresentationMatrixEditModel,
+  PartialPresentationMatrixModel,
   PartialPresentationSectionModel,
   PartialPresentationStatusCandidateModel,
   PartialPresentationStatusMapModel,
@@ -885,6 +891,7 @@ function presentationSectionToPartial(
     ...(section.density === undefined ? {} : { density: section.density }),
     controls: section.controls.map(presentationControlToPartial),
     lists: section.lists.map(presentationListToPartial),
+    matrices: section.matrices.map(presentationMatrixToPartial),
     calendars: section.calendars.map(presentationCalendarToPartial),
     ...(section.leadingComment === undefined ? {} : { comment: section.leadingComment }),
   };
@@ -1063,6 +1070,111 @@ function presentationCalendarToPartial(
             status: calendar.conflictOverlay.status,
           },
         }),
+  };
+}
+
+/**
+ * `MATRIX` (Phase 104). Every optional part is emitted only when the source
+ * declared it, so a resolver default stays a resolver default rather than
+ * becoming an authored value that a later default change could no longer move.
+ *
+ * The two traps here are both about absence:
+ *
+ * - `cell` is emitted only when the `CELL` block declared something. An empty
+ *   `{}` resolves identically today, but writing one would assert a cell
+ *   binding the source never made.
+ * - `edit.unsetValue` is `JsonPrimitive`, which *includes* `null`, and
+ *   `resolvePresentationMatrixEdit` keeps an absent key apart from an explicit
+ *   `null`. `!== undefined` is therefore the right test and `?? `/truthiness is
+ *   not.
+ */
+function presentationMatrixToPartial(
+  matrix: PresentationMatrixDeclarationAst,
+): PartialPresentationMatrixModel {
+  const cell = matrix.cell === undefined ? undefined : presentationMatrixCellToPartial(matrix.cell);
+  return {
+    name: matrix.name,
+    ...(matrix.density === undefined ? {} : { density: matrix.density }),
+    rowSource: {
+      ...(matrix.rowSource.sourceKind === undefined
+        ? {}
+        : { sourceKind: matrix.rowSource.sourceKind }),
+      source: matrix.rowSource.source,
+      ...(matrix.rowSource.keyField === undefined ? {} : { keyField: matrix.rowSource.keyField }),
+      labelField: matrix.rowSource.labelField,
+      ...(matrix.rowSource.fields.length === 0 ? {} : { fields: [...matrix.rowSource.fields] }),
+      ...(matrix.rowSource.sort.length === 0
+        ? {}
+        : {
+            sort: matrix.rowSource.sort.map((sort) => ({
+              field: sort.field,
+              direction: sort.direction,
+            })),
+          }),
+    },
+    columnAxis: {
+      kind: matrix.columnAxis.columnKind,
+      start: matrix.columnAxis.start,
+      end: matrix.columnAxis.end,
+      ...(matrix.columnAxis.stepDays === undefined ? {} : { stepDays: matrix.columnAxis.stepDays }),
+      ...(matrix.columnAxis.labelFormat === undefined
+        ? {}
+        : { labelFormat: matrix.columnAxis.labelFormat }),
+    },
+    cellSource: {
+      ...(matrix.cellSource.sourceKind === undefined
+        ? {}
+        : { sourceKind: matrix.cellSource.sourceKind }),
+      source: matrix.cellSource.source,
+      rowField: matrix.cellSource.rowField,
+      columnField: matrix.cellSource.columnField,
+      ...(matrix.cellSource.fields.length === 0 ? {} : { fields: [...matrix.cellSource.fields] }),
+      ...(matrix.cellSource.statusCandidates.length === 0
+        ? {}
+        : {
+            status: {
+              candidates: matrix.cellSource.statusCandidates.map(
+                presentationStatusCandidateToPartial,
+              ),
+            },
+          }),
+      ...(matrix.cellSource.recordSource === undefined
+        ? {}
+        : { recordSource: matrix.cellSource.recordSource }),
+    },
+    ...(cell === undefined ? {} : { cell }),
+    ...(matrix.edit === undefined ? {} : { edit: presentationMatrixEditToPartial(matrix.edit) }),
+  };
+}
+
+function presentationMatrixCellToPartial(
+  cell: PresentationMatrixCellDeclarationAst,
+): PartialPresentationMatrixCellModel {
+  return {
+    ...(cell.statusCandidates.length === 0
+      ? {}
+      : {
+          status: {
+            candidates: cell.statusCandidates.map(presentationStatusCandidateToPartial),
+          },
+        }),
+    ...(cell.unsetStatus === undefined ? {} : { unsetStatus: cell.unsetStatus }),
+    ...(cell.accessibleLabel === undefined ? {} : { accessibleLabel: cell.accessibleLabel }),
+  };
+}
+
+function presentationMatrixEditToPartial(
+  edit: PresentationMatrixEditDeclarationAst,
+): PartialPresentationMatrixEditModel {
+  return {
+    object: edit.object,
+    rowField: edit.rowField,
+    columnField: edit.columnField,
+    valueField: edit.valueField,
+    ...(edit.cycle.length === 0 ? {} : { cycle: [...edit.cycle] }),
+    ...(edit.unsetValue === undefined ? {} : { unsetValue: edit.unsetValue }),
+    ...(edit.unsetAsAbsence === undefined ? {} : { unsetAsAbsence: edit.unsetAsAbsence }),
+    ...(edit.bulkBehavior === undefined ? {} : { bulkBehavior: edit.bulkBehavior }),
   };
 }
 

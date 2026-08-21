@@ -1524,6 +1524,361 @@ END.OBJECT
     );
   });
 
+  // ---------------------------------------------------------------------
+  // Phase 104: MATRIX text syntax.
+  //
+  // Every one of these sources is malformed in exactly one way, and each
+  // asserts the *named* message the grammar must produce rather than merely
+  // that parsing threw. The positive counterpart to this block is the
+  // `MATRIX` round-trip in `tests/compile-adlj.test.ts` and the
+  // `presentation.matrix.adl-source.001` conformance case; a grammar that
+  // accepted everything would pass those and fail every case here.
+  // ---------------------------------------------------------------------
+  const wrapMatrix = (body: string): string => `APP Phase104
+END.APP
+
+OBJECT Member
+  FIELD MemberKey TEXT
+  FIELD MemberName TEXT
+
+  VIEW Grid COMPOSITE
+    SECTION Availability
+      MATRIX AvailabilityMatrix
+${body}
+      END.MATRIX
+    END.SECTION
+  END.VIEW
+END.OBJECT
+`;
+
+  const MATRIX_ROWS_BLOCK = `        ROWS FROM OBJECT Member
+          KEY MemberKey
+          LABEL MemberName
+        END.ROWS`;
+  const MATRIX_COLUMNS_LINE = `        COLUMNS DATE_RANGE '2026-03-02' TO '2026-03-06'`;
+  const MATRIX_CELLS_BLOCK = `        CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day
+        END.CELLS`;
+  const MATRIX_BODY = [MATRIX_ROWS_BLOCK, MATRIX_COLUMNS_LINE, MATRIX_CELLS_BLOCK].join("\n");
+
+  it("parses a complete MATRIX into a section's matrices", () => {
+    const document = parseAdl(
+      wrapMatrix(
+        [
+          "        DENSITY COMPACT",
+          `        ROWS FROM OBJECT Member
+          KEY MemberKey
+          LABEL MemberName
+          FIELDS MemberKey MemberName
+          ORDER BY MemberName ASC
+        END.ROWS`,
+          "        COLUMNS DATE_RANGE '2026-03-02' TO '2026-03-06' STEP_DAYS 3 LABEL_FORMAT DATE 'EEE d'",
+          `        CELLS FROM READ_MODEL AvailabilityCells ROW MemberKey COLUMN Day
+          FIELDS MemberKey Day State
+          RECORD_SOURCE AvailabilityRecords
+          STATUS StateStatus(FIELD State)
+          STATUS StateStatus()
+          STATUS busyElsewhere
+        END.CELLS`,
+          `        CELL
+          STATUS ConflictStatus(VALUE 'double-booked')
+          UNSET_STATUS unset
+          ACCESSIBLE_LABEL 'Availability cell'
+        END.CELL`,
+          `        EDIT Availability ROW MemberKey COLUMN Day VALUE State
+          CYCLE 'available' 'unavailable'
+          UNSET_VALUE null
+          UNSET_AS_ABSENCE
+          BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES
+        END.EDIT`,
+        ].join("\n"),
+      ),
+    );
+
+    const section = document.objects[0]?.views[0]?.presentation?.sections[0];
+    expect(section?.matrices).toHaveLength(1);
+    const matrix = section?.matrices[0];
+    expect(matrix).toMatchObject({
+      name: "AvailabilityMatrix",
+      density: "compact",
+      rowSource: {
+        sourceKind: "object",
+        source: "Member",
+        keyField: "MemberKey",
+        labelField: "MemberName",
+        fields: ["MemberKey", "MemberName"],
+      },
+      columnAxis: {
+        columnKind: "dateRange",
+        start: "2026-03-02",
+        end: "2026-03-06",
+        stepDays: 3,
+        labelFormat: { kind: "date", pattern: "EEE d" },
+      },
+      cellSource: {
+        sourceKind: "readModel",
+        source: "AvailabilityCells",
+        rowField: "MemberKey",
+        columnField: "Day",
+        fields: ["MemberKey", "Day", "State"],
+        recordSource: "AvailabilityRecords",
+      },
+      cell: {
+        unsetStatus: "unset",
+        accessibleLabel: "Availability cell",
+      },
+      edit: {
+        object: "Availability",
+        rowField: "MemberKey",
+        columnField: "Day",
+        valueField: "State",
+        cycle: ["available", "unavailable"],
+        unsetValue: null,
+        unsetAsAbsence: true,
+        bulkBehavior: "sequentialValidatedWrites",
+      },
+    });
+
+    // A bare `STATUS <map>()` is a *map* candidate deferring to the map's own
+    // declared field, not a direct status named after the map. Nothing else in
+    // the resolved model distinguishes the two, so assert the discriminator.
+    expect(matrix?.cellSource.statusCandidates).toEqual([
+      expect.objectContaining({ kind: "map", map: "StateStatus", field: "State" }),
+      expect.objectContaining({ kind: "map", map: "StateStatus" }),
+      expect.objectContaining({ kind: "direct", status: "busyElsewhere" }),
+    ]);
+    expect(matrix?.cellSource.statusCandidates[1]).not.toHaveProperty("field");
+    expect(matrix?.cellSource.statusCandidates[1]).not.toHaveProperty("status");
+  });
+
+  it("reports malformed MATRIX declarations with the options they accept", () => {
+    // The whole block must be terminated: a MATRIX that runs into its
+    // section's END is a missing terminator, not an empty matrix.
+    expectParseFailure(
+      `APP Phase104
+END.APP
+
+OBJECT Member
+  FIELD MemberKey TEXT
+
+  VIEW Grid COMPOSITE
+    SECTION Availability
+      MATRIX AvailabilityMatrix
+${MATRIX_BODY}
+    END.SECTION
+  END.VIEW
+END.OBJECT
+`,
+      "Expected END.MATRIX, but found 'END'.",
+    );
+
+    // `labelField` is non-optional in ResolvedPresentationMatrixAxisSource, so
+    // a ROWS block without it cannot resolve and is refused here.
+    expectParseFailure(
+      wrapMatrix(
+        [
+          `        ROWS FROM OBJECT Member
+          KEY MemberKey
+        END.ROWS`,
+          MATRIX_COLUMNS_LINE,
+          MATRIX_CELLS_BLOCK,
+        ].join("\n"),
+      ),
+      "Expected ROWS LABEL directive",
+    );
+
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          "        COLUMNS DATE_RANGE '2026-03-02' '2026-03-06'",
+          MATRIX_CELLS_BLOCK,
+        ].join("\n"),
+      ),
+      "Expected COLUMNS DATE_RANGE TO clause, but found string '2026-03-06'.",
+    );
+
+    // `dateRange` is the only PresentationMatrixColumnKind, and it is spelled
+    // out precisely so a second kind can later be a new word rather than a
+    // reinterpretation of an unmarked line.
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          "        COLUMNS RESOURCE_RANGE '2026-03-02' TO '2026-03-06'",
+          MATRIX_CELLS_BLOCK,
+        ].join("\n"),
+      ),
+      "Expected COLUMNS axis kind DATE_RANGE, but found 'RESOURCE_RANGE'.",
+    );
+
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          MATRIX_COLUMNS_LINE,
+          `        CELLS FROM OBJECT Availability COLUMN Day
+        END.CELLS`,
+        ].join("\n"),
+      ),
+      "Expected CELLS ROW clause, but found 'COLUMN'.",
+    );
+
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          MATRIX_COLUMNS_LINE,
+          `        CELLS FROM OBJECT Availability ROW MemberKey
+        END.CELLS`,
+        ].join("\n"),
+      ),
+      "Expected CELLS COLUMN clause, but found end of line.",
+    );
+
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          MATRIX_COLUMNS_LINE,
+          MATRIX_CELLS_BLOCK,
+          `        EDIT Availability ROW MemberKey COLUMN Day
+        END.EDIT`,
+        ].join("\n"),
+      ),
+      "Expected EDIT VALUE clause, but found end of line.",
+    );
+
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          MATRIX_COLUMNS_LINE,
+          MATRIX_CELLS_BLOCK,
+          `        EDIT Availability ROW MemberKey COLUMN Day VALUE State
+          BULK_BEHAVIOR ATOMIC_BATCH
+        END.EDIT`,
+        ].join("\n"),
+      ),
+      "Expected EDIT BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES, but found 'ATOMIC_BATCH'.",
+    );
+
+    // Every one of the three required sub-structures is non-optional in
+    // PartialPresentationMatrixModel.
+    expectParseFailure(
+      wrapMatrix([MATRIX_COLUMNS_LINE, MATRIX_CELLS_BLOCK].join("\n")),
+      "Expected MATRIX ROWS block",
+    );
+    expectParseFailure(
+      wrapMatrix([MATRIX_ROWS_BLOCK, MATRIX_CELLS_BLOCK].join("\n")),
+      "Expected MATRIX COLUMNS directive",
+    );
+    expectParseFailure(
+      wrapMatrix([MATRIX_ROWS_BLOCK, MATRIX_COLUMNS_LINE].join("\n")),
+      "Expected MATRIX CELLS block",
+    );
+
+    expectParseFailure(
+      wrapMatrix([MATRIX_BODY, "        WHERE MemberKey"].join("\n")),
+      "Expected MATRIX directive DENSITY, ROWS, COLUMNS, CELLS, CELL, EDIT, or END.MATRIX, but found 'WHERE'.",
+    );
+    expectParseFailure(
+      wrapMatrix(
+        [
+          `        ROWS FROM OBJECT Member
+          LABEL MemberName
+          WHERE MemberKey
+        END.ROWS`,
+          MATRIX_COLUMNS_LINE,
+          MATRIX_CELLS_BLOCK,
+        ].join("\n"),
+      ),
+      "Expected ROWS directive KEY, LABEL, FIELDS, ORDER BY, or END.ROWS, but found 'WHERE'.",
+    );
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          MATRIX_COLUMNS_LINE,
+          `        CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day
+          WHERE MemberKey
+        END.CELLS`,
+        ].join("\n"),
+      ),
+      "Expected CELLS directive FIELDS, RECORD_SOURCE, STATUS, or END.CELLS, but found 'WHERE'.",
+    );
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_BODY,
+          `        CELL
+          WHERE MemberKey
+        END.CELL`,
+        ].join("\n"),
+      ),
+      "Expected CELL directive STATUS, UNSET_STATUS, ACCESSIBLE_LABEL, or END.CELL, but found 'WHERE'.",
+    );
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_BODY,
+          `        EDIT Availability ROW MemberKey COLUMN Day VALUE State
+          WHERE MemberKey
+        END.EDIT`,
+        ].join("\n"),
+      ),
+      "Expected EDIT directive CYCLE, UNSET_VALUE, UNSET_AS_ABSENCE, BULK_BEHAVIOR, or END.EDIT, but found 'WHERE'.",
+    );
+
+    // `docs/spec/ui-language-addendum.md` sketched a comma-separated status
+    // list (`AvailabilityStatus(Status), BusyStatus(BusyElsewhere)`) from
+    // Phase 29 until Phase 104. It was never compilable and is refused: a
+    // status candidate is one STATUS directive per line, everywhere.
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          MATRIX_COLUMNS_LINE,
+          `        CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day
+          STATUS AvailabilityStatus(Status), BusyStatus(BusyElsewhere)
+        END.CELLS`,
+        ].join("\n"),
+      ),
+      "Expected end of line after CELLS STATUS directive, but found ','.",
+    );
+
+    expectParseFailure(
+      wrapMatrix(
+        [
+          MATRIX_ROWS_BLOCK,
+          MATRIX_COLUMNS_LINE,
+          `        CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day
+          STATUS StateStatus(FIELD State
+        END.CELLS`,
+        ].join("\n"),
+      ),
+      "Expected presentation status map reference, but found end of line.",
+    );
+  });
+
+  it("names MATRIX among the directives a SECTION accepts", () => {
+    expectParseFailure(
+      `APP Phase104
+END.APP
+
+OBJECT Member
+  FIELD MemberKey TEXT
+
+  VIEW Grid COMPOSITE
+    SECTION Availability
+      WHERE MemberKey
+    END.SECTION
+  END.VIEW
+END.OBJECT
+`,
+      "Expected SECTION directive HEADING, LAYOUT, DENSITY, TOGGLE, SELECT, CONTEXT_SELECTOR, ACTION, LIST, CALENDAR, MATRIX, or END.SECTION, but found 'WHERE'.",
+    );
+  });
+
   it("rejects unsupported procedural keywords", () => {
     expect(() =>
       parseAdl(`APP Bad

@@ -264,9 +264,10 @@ reparsing to a `toEqual`-identical resolved model
 (`tests/compile-adlj.test.ts`). See
 [[adlj-json-authoring-surface]]'s "Phase 78" section for the full account,
 including the named set of constructs that had no ADL text syntax at all and
-so could not be printed — nine of which Phase 100 closed, leaving `MATRIX` and
-conditional row fragments (per-view `presentation.shell.regions` was on that
-list until Phase 99 removed the construct outright) — and
+so could not be printed — nine of which Phase 100 closed and `MATRIX` of which
+Phase 104 closed, leaving only conditional row fragments (per-view
+`presentation.shell.regions` was on that list until Phase 99 removed the
+construct outright) — and
 the six unrelated pre-existing printer defects the Giggle Band round-trip
 proof surfaced along the way (a policy field named `Role` colliding with the
 `ROLE` principal keyword being the one most likely to recur if this app

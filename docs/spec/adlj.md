@@ -635,7 +635,9 @@ written"). **Composed view presentation (`PartialViewModel.presentation`) and
 edit surfaces (`editContainer`/`editSections`) are printed too (Phase 78)** —
 `LAYOUT`, `DENSITY`, local `STATE`, `ICON_MAP`, `STATUS`/`STATUS_MAP`,
 `LEGEND`, `SECTION` (toggles, selects, context selectors, actions, `LIST`,
-`CALENDAR` including `CONFLICT_OVERLAY`, `ROW` templates, status candidates),
+`CALENDAR` including `CONFLICT_OVERLAY`, `MATRIX` including its `ROWS`,
+`COLUMNS`, `CELLS`, `CELL` and `EDIT` parts, `ROW` templates, status
+candidates),
 `EDIT_CONTAINER`, `EDIT_SECTION`, `CHILD_COLLECTION` (including
 `PROJECTED_FIELD` and `SUMMARY`), and `PICKER` all round-trip.
 
@@ -653,17 +655,11 @@ a single migration. Phase 100 also added a `.adlj` fixture inside that same
 test reaching the constructs no shipped application declares, so nothing it
 gave syntax to depends on an application happening to use it.
 
-Three constructs still have a resolved-model/JSON shape but **no ADL text
-syntax at all** — the parser has no grammar that ever produces them, so the
+**One** construct still has a resolved-model/JSON shape but **no ADL text
+syntax at all** — the parser has no grammar that ever produces it, so the
 printer throws a clear, named error naming the construct rather than guessing
 at invented syntax or silently dropping content:
 
-- `MATRIX` (`PartialPresentationSectionModel.matrices`) — a whole construct
-  with six nested sub-structures (row source, date column axis, cell source,
-  cell status binding, edit behaviour) and its own resolved-model file.
-  `docs/spec/ui-language-addendum.md` already sketches an intended syntax for
-  it and records that "parser support remains future work"; implementing that
-  sketch is its own phase, not a clause on an existing block.
 - Conditional row fragments (`PartialPresentationRowFragmentModel` of kind
   `"conditional"`) — `ROW` only ever produces `TEXT`/`ICON` fragments.
   Deferred deliberately: "how much conditional logic should be allowed in row
@@ -671,9 +667,32 @@ at invented syntax or silently dropping content:
   language question** in `ui-language-addendum.md`, and inventing a `WHEN`
   block would settle it by fiat rather than by decision.
 
-Everything else that used to be on this list is gone. **Phase 100** gave text
-syntax to the nine constructs that had none and could be settled without
-answering an open language question:
+Everything else that used to be on this list is gone. **Phase 104** gave
+`MATRIX` (`PartialPresentationSectionModel.matrices`) text syntax — the last
+whole *construct* on the list, with six nested sub-structures and its own
+resolved-model file:
+
+| Construct                            | ADL text syntax                                                                     |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| A section's `matrices`               | `MATRIX <name> ... END.MATRIX`                                                       |
+| …its `rowSource`                     | `ROWS FROM OBJECT\|READ_MODEL <name> [KEY <f>] LABEL <f> [FIELDS …] [ORDER BY …] END.ROWS` |
+| …its `columnAxis`                    | `COLUMNS DATE_RANGE '<from>' TO '<to>' [STEP_DAYS <n>] [LABEL_FORMAT <kind> ['pattern']]` |
+| …its `cellSource`                    | `CELLS FROM OBJECT\|READ_MODEL <name> ROW <f> COLUMN <f> [FIELDS …] [RECORD_SOURCE <name>] [STATUS …] END.CELLS` |
+| …its `cell`                          | `CELL [STATUS …] [UNSET_STATUS <s>] [ACCESSIBLE_LABEL 'text'] END.CELL`              |
+| …its `edit`                          | `EDIT <object> ROW <f> COLUMN <f> VALUE <f> [CYCLE …] [UNSET_VALUE <literal>] [UNSET_AS_ABSENCE] [BULK_BEHAVIOR …] END.EDIT` |
+| A field-less status map candidate    | `STATUS <map>()`                                                                     |
+
+The last row is a printer gap Phase 104 found rather than a construct anyone
+had listed: a status candidate of kind `map` carrying neither a `field` nor a
+`value` — meaning "use the map's own declared field" — is a shape the model has
+always allowed, the validator explicitly handles, and the presentation
+conformance corpus actually uses, and `printPresentationStatusCandidate` threw
+on it. It affects `LIST` and `CALENDAR` too, not only `MATRIX`. Dropping the
+parentheses was not available as a spelling: a bare name reparses as a *direct*
+status reference, which is a different resolved model.
+
+**Phase 100** gave text syntax to the nine constructs that had none and could
+be settled without answering an open language question:
 
 | Construct                                   | ADL text syntax                                                    |
 | ------------------------------------------- | ------------------------------------------------------------------ |
@@ -899,9 +918,9 @@ direction makes unnecessary.
   have no ADL text syntax at all — they would need new parser grammar first,
   not a printer change.~~ **Discharged by Phase 100**, which did that grammar
   work rather than defer it again: nine of the twelve constructs on that list
-  now have text syntax and both reference applications round-trip. The three
-  that remain are named above, each with a reason that is not "it was easier
-  to leave it".
+  now have text syntax and both reference applications round-trip. Phase 104
+  then closed `MATRIX`, the last whole construct. The one that remains is named
+  above, for a reason that is not "it was easier to leave it".
 - Editor/LSP tooling for `.adlj` (the generated JSON Schema is a
   prerequisite for that, not the tooling itself).
 

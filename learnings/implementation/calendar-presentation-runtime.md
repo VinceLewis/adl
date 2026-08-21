@@ -91,7 +91,8 @@ non-interactive `<div>` rather than a clickable record button — that
 fallback already existed and needed no change either.
 
 `conflictOverlay` was `.adlj`/JSON-only when Phase 86 added it, the same
-treatment as `MATRIX`. **Phase 100 gave it text syntax**, because `.adl` text
+treatment `MATRIX` had until Phase 104 gave it text syntax too (see
+[[presentation-matrix-runtime]]). **Phase 100 gave it text syntax**, because `.adl` text
 is the printed view of `.adlj` and an unprintable construct made the flagship
 reference application unprintable in full:
 

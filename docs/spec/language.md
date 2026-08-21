@@ -997,8 +997,8 @@ THEME colorStatusEvent PRECEDENCE 10` (`iconRef` is either a name from the
 - `SECTION Name ... END.SECTION`
 
 Sections may declare `HEADING`, local layout/density hints, controls
-(`TOGGLE`, `SELECT`, `CONTEXT_SELECTOR`, `ACTION`), `LIST` blocks and
-`CALENDAR` blocks. Lists bind to an object or read model and support `FIELDS`,
+(`TOGGLE`, `SELECT`, `CONTEXT_SELECTOR`, `ACTION`), `LIST` blocks,
+`CALENDAR` blocks and `MATRIX` blocks. Lists bind to an object or read model and support `FIELDS`,
 `ORDER BY`, `WHERE`, `RENDER_AS`, `DENSITY`, `EMPTY_TEXT`, `EMPTY_ICON`,
 repeatable `STATUS` candidates, and a `ROW` template. Every icon named here
 comes from the closed [icon vocabulary](#icon-vocabulary).
@@ -1184,6 +1184,92 @@ trimmed of its `DENSITY` and its cell `ACTION`; the full calendar is the
 
 Presentation syntax remains declarative. It does not allow raw CSS, raw SVG,
 framework component names, procedural render loops, or host functions.
+
+### Matrices
+
+`MATRIX Name ... END.MATRIX` binds a resource/date grid: rows from one source,
+a regular date column axis, and cells correlated to a row and a column. It sits
+beside `LIST` and `CALENDAR` inside a `SECTION`.
+
+```adl
+MATRIX AvailabilityMatrix
+  DENSITY compact
+  ROWS FROM OBJECT Member
+    KEY MemberKey
+    LABEL MemberName
+    FIELDS MemberKey MemberName
+    ORDER BY MemberName ASC
+  END.ROWS
+  COLUMNS DATE_RANGE '2026-03-02' TO '2026-03-06' STEP_DAYS 1 LABEL_FORMAT date 'EEE d'
+  CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day
+    FIELDS MemberKey Day State
+    RECORD_SOURCE Availability
+    STATUS StateStatus(FIELD State)
+  END.CELLS
+  CELL
+    UNSET_STATUS unset
+    ACCESSIBLE_LABEL 'Availability cell'
+  END.CELL
+  EDIT Availability ROW MemberKey COLUMN Day VALUE State
+    CYCLE 'available' 'unavailable'
+    UNSET_VALUE null
+    UNSET_AS_ABSENCE
+    BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES
+  END.EDIT
+END.MATRIX
+```
+
+The block carries one optional directive of its own, `DENSITY`, and five
+sub-structures. Three of them are required — `ROWS`, `COLUMNS` and `CELLS` —
+because `ResolvedPresentationMatrix` declares them non-optional; a matrix
+missing any of the three is a parse error rather than a partial model.
+
+- **`ROWS FROM OBJECT <object>|READ_MODEL <read model> ... END.ROWS`** — the row
+  axis. `LABEL <field>` is required and names the field rendered as the row
+  header. `KEY <field>` names the field cells correlate against (defaulting to
+  the record identity when absent), `FIELDS` projects the fields the row axis
+  needs, and `ORDER BY` sorts the rows.
+- **`COLUMNS DATE_RANGE '<from>' TO '<to>' [STEP_DAYS <n>] [LABEL_FORMAT <kind> ['pattern']]`**
+  — the column axis, on one line. `DATE_RANGE` is currently the only axis kind
+  and is still written out, so a second kind can later be a new word rather
+  than a reinterpretation of an unmarked line. `STEP_DAYS` defaults to `1`, and
+  `LABEL_FORMAT` takes the same kind and pattern a row fragment's `FORMAT`
+  does.
+- **`CELLS FROM OBJECT <object>|READ_MODEL <read model> ROW <field> COLUMN <field> ... END.CELLS`**
+  — the cell source. `ROW` and `COLUMN` are the cell fields correlated against
+  the row key and the column date, both required. `FIELDS` projects what the
+  cells need, `RECORD_SOURCE` names the object cell records belong to, and
+  repeatable `STATUS` candidates bind a status to the cell's data.
+- **`CELL ... END.CELL`** — the cell's *own* presentation. Its `STATUS`
+  candidates override the cell source's; `UNSET_STATUS` names the status for a
+  cell with no matching record, without persisting a fake enum value; and
+  `ACCESSIBLE_LABEL` names the cell for assistive technology. The block is
+  omitted entirely when it would carry nothing.
+- **`EDIT <object> ROW <field> COLUMN <field> VALUE <field> ... END.EDIT`** —
+  optional cell editing. The object name is bare rather than `OBJECT <name>`:
+  an edit always writes an object, so there is no source kind to disambiguate.
+  `CYCLE` lists the values a cell steps through, as literals; `UNSET_VALUE`
+  names the value written when a cell is cleared — `UNSET_VALUE null` writes a
+  null, and omitting the directive entirely is a *different* model, not the
+  same one; `UNSET_AS_ABSENCE` deletes the record instead of writing a value
+  (bare means `true`, and `UNSET_AS_ABSENCE FALSE` turns it off); and
+  `BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES` — currently the only behaviour —
+  states that a range edit is a sequence of individually validated object
+  writes, not an atomic batch.
+
+A `STATUS` candidate is one directive per line, in either block, spelled the
+same way as everywhere else in the language: `STATUS <status>` for a status by
+name, `STATUS <map>(FIELD <field>)` for a status map read against a named
+field, `STATUS <map>(VALUE <literal>)` for a status map read against a fixed
+value, and `STATUS <map>()` for a status map read against its own declared
+field. The parentheses are what distinguish the last of those from the first:
+`STATUS StateStatus` names a *status* called `StateStatus`, while
+`STATUS StateStatus()` names the *map*.
+
+Rows and cells bind through the same runtime boundaries lists do — object
+sources call the policy-enforcing `search`, read-model sources call
+`executeReadModel` — so policy, context scope, field shaping and read-model
+projection all apply before a renderer sees any data.
 
 ### Icon vocabulary
 

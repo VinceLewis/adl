@@ -476,16 +476,48 @@ describe('comment threading: AdljSourceDocument "comment" -> PartialApplicationM
 
 /**
  * A `.adlj` document reaching every construct Phase 100 gave text syntax that
- * no shipped application declares. Kept next to the round-trip that consumes
- * it rather than in `examples/`, because it exists to exercise the printer and
- * the parser against each other, not to demonstrate an application.
+ * no shipped application declares, plus (Phase 104) every part of a `MATRIX`
+ * that the presentation conformance corpus does not reach. Kept next to the
+ * round-trip that consumes it rather than in `examples/`, because it exists to
+ * exercise the printer and the parser against each other, not to demonstrate
+ * an application.
  */
 const PRINTER_COVERAGE_SOURCE = {
   app: { name: "PrinterCoverage", startView: "SongBoard" },
   modelVersion: "1.0.0",
   contexts: [],
-  readModels: [],
+  readModels: [
+    {
+      name: "SongRoster",
+      sources: [{ name: "song", object: "Song" }],
+      fields: [
+        { name: "SongKey", source: "song", field: "Title" },
+        { name: "SongLabel", source: "song", field: "Title" },
+      ],
+    },
+    {
+      name: "SongSlots",
+      sources: [{ name: "slot", object: "Slot" }],
+      fields: [
+        { name: "SongKey", source: "slot", field: "SongKey" },
+        { name: "SlotDay", source: "slot", field: "Day" },
+        { name: "SlotState", source: "slot", field: "State" },
+        { name: "Conflicted", source: "slot", field: "Conflicted" },
+      ],
+    },
+  ],
   objects: [
+    {
+      name: "Slot",
+      businessKey: "SongKey",
+      displayField: "SongKey",
+      fields: [
+        { name: "SongKey", type: "text", required: true },
+        { name: "Day", type: "date", required: true },
+        { name: "State", type: "text" },
+        { name: "Conflicted", type: "boolean" },
+      ],
+    },
     {
       name: "Song",
       businessKey: "Title",
@@ -504,6 +536,24 @@ const PRINTER_COVERAGE_SOURCE = {
             state: [{ name: "visibleMonth", type: "text", defaultValue: "2026-01" }],
             statuses: [
               { name: "current", label: "Current", themeToken: "colorInfo", precedence: 10 },
+              { name: "booked", label: "Booked", precedence: 20 },
+              { name: "held", label: "Held", precedence: 30 },
+              { name: "free", label: "Free" },
+            ],
+            statusMaps: [
+              {
+                name: "SlotStatus",
+                field: "SlotState",
+                values: [
+                  { value: "booked", status: "booked" },
+                  { value: "held", status: "held" },
+                ],
+              },
+              {
+                name: "ConflictStatus",
+                field: "Conflicted",
+                values: [{ value: true, status: "held" }],
+              },
             ],
             sections: [
               {
@@ -551,6 +601,65 @@ const PRINTER_COVERAGE_SOURCE = {
                           style: "caption",
                         },
                       ],
+                    },
+                  },
+                ],
+                matrices: [
+                  {
+                    // Everything the presentation conformance corpus's two
+                    // matrices do NOT reach: `readModel` on both sources,
+                    // `recordSource`, a `cell.status` binding distinct from the
+                    // cell *source's*, `unsetValue: null`, an explicit
+                    // `bulkBehavior`, an explicit `unsetAsAbsence: false`, and
+                    // all four status-candidate spellings with more than one
+                    // candidate.
+                    name: "Slots",
+                    density: "spacious",
+                    rowSource: {
+                      sourceKind: "readModel",
+                      source: "SongRoster",
+                      keyField: "SongKey",
+                      labelField: "SongLabel",
+                      fields: ["SongKey", "SongLabel"],
+                      sort: [{ field: "SongLabel", direction: "desc" }],
+                    },
+                    columnAxis: {
+                      kind: "dateRange",
+                      start: "2026-01-05",
+                      end: "2026-01-09",
+                      stepDays: 2,
+                      labelFormat: { kind: "date", pattern: "EEE d" },
+                    },
+                    cellSource: {
+                      sourceKind: "readModel",
+                      source: "SongSlots",
+                      rowField: "SongKey",
+                      columnField: "SlotDay",
+                      fields: ["SongKey", "SlotDay", "SlotState", "Conflicted"],
+                      status: { candidates: [{ kind: "map", map: "SlotStatus" }] },
+                      recordSource: "Slot",
+                    },
+                    cell: {
+                      status: {
+                        candidates: [
+                          { kind: "map", map: "SlotStatus", field: "SlotState" },
+                          { kind: "map", map: "ConflictStatus", value: true },
+                          { kind: "map", map: "SlotStatus" },
+                          { kind: "status", status: "current" },
+                        ],
+                      },
+                      unsetStatus: "free",
+                      accessibleLabel: "Slot",
+                    },
+                    edit: {
+                      object: "Slot",
+                      rowField: "SongKey",
+                      columnField: "Day",
+                      valueField: "State",
+                      cycle: ["booked", "held"],
+                      unsetValue: null,
+                      unsetAsAbsence: false,
+                      bulkBehavior: "sequentialValidatedWrites",
                     },
                   },
                 ],
@@ -787,6 +896,138 @@ describe("printPartialApplicationModelAsAdl", () => {
     expect(printed).toContain("        MONTH_LABEL_FORMAT DATE 'MMMM yyyy'");
     expect(printed).toContain("        EMPTY_ICON calendar");
 
+    // Phase 104's MATRIX, pinned as text as well as by the round-trip. Each of
+    // these three could vanish and still resolve equal, because a resolver
+    // default or an absent key would mask it:
+    //   * `RECORD_SOURCE` is read by nothing at runtime;
+    //   * `CELL ... STATUS` overrides `CELLS ... STATUS`, so printing one as
+    //     the other changes which binding wins, not whether there is one;
+    //   * `UNSET_VALUE NULL` and an omitted directive are different models,
+    //     and a `!value` test in the printer would collapse them.
+    expect(printed).toContain(
+      [
+        "      MATRIX Slots",
+        "        DENSITY SPACIOUS",
+        "        ROWS FROM READ_MODEL SongRoster",
+        "          KEY SongKey",
+        "          LABEL SongLabel",
+        "          FIELDS SongKey SongLabel",
+        "          ORDER BY SongLabel DESC",
+        "        END.ROWS",
+        "        COLUMNS DATE_RANGE '2026-01-05' TO '2026-01-09' STEP_DAYS 2 LABEL_FORMAT DATE 'EEE d'",
+        "        CELLS FROM READ_MODEL SongSlots ROW SongKey COLUMN SlotDay",
+        "          FIELDS SongKey SlotDay SlotState Conflicted",
+        "          RECORD_SOURCE Slot",
+        "          STATUS SlotStatus()",
+        "        END.CELLS",
+        "        CELL",
+        "          STATUS SlotStatus(FIELD SlotState)",
+        "          STATUS ConflictStatus(VALUE TRUE)",
+        "          STATUS SlotStatus()",
+        "          STATUS current",
+        "          UNSET_STATUS free",
+        "          ACCESSIBLE_LABEL 'Slot'",
+        "        END.CELL",
+        "        EDIT Slot ROW SongKey COLUMN Day VALUE State",
+        "          CYCLE 'booked' 'held'",
+        "          UNSET_VALUE NULL",
+        "          UNSET_AS_ABSENCE FALSE",
+        "          BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES",
+        "        END.EDIT",
+        "      END.MATRIX",
+      ].join("\n"),
+    );
+
+    // The negative half of those pins: each construct must not print as the
+    // *other* thing it could plausibly print as, because in every one of these
+    // pairs both spellings parse and only one is the model that was authored.
+    //
+    //   `STATUS SlotStatus` (no parentheses) reparses as a direct status
+    //   reference named after the map, not as a map candidate deferring to the
+    //   map's own field. That is exactly the silent widening Phase 103
+    //   measured for policy principals.
+    expect(printed).not.toMatch(/^\s*STATUS SlotStatus$/m);
+    //   A bare `FROM SongRoster` leaves the source kind unstated, which
+    //   resolves to `readModel` by default — right here by luck, wrong for
+    //   every object-sourced matrix.
+    expect(printed).not.toMatch(/^\s*ROWS FROM SongRoster$/m);
+    //   `UNSET_VALUE` with nothing after it, or omitted, is `undefined`.
+    expect(printed).not.toMatch(/^\s*UNSET_VALUE$/m);
+    //   A bare `UNSET_AS_ABSENCE` means `true`; this matrix declares `false`.
+    expect(printed).not.toMatch(/^\s*UNSET_AS_ABSENCE$/m);
+    //   `COLUMNS` without its axis-kind word would be an unmarked line that a
+    //   second axis kind could only be added by reinterpreting.
+    expect(printed).not.toMatch(/^\s*COLUMNS '2026-01-05'/m);
+
+    const reparsed = compileAdl(printed);
+    expect(reparsed.diagnostics).toEqual([]);
+    expect(reparsed.model).toEqual(original.model);
+  });
+
+  it("round-trips the presentation conformance corpus's two matrices", () => {
+    // `conformance/presentation/status-matrix-calendar.json`'s `resourceMatrix`
+    // model is the closest thing `MATRIX` has to a real application: two
+    // matrices, authored at Phase 29 to exercise the matrix *runtime*, and the
+    // corpus the eleven `presentation.matrix.*` conformance cases execute
+    // against. It cannot have been shaped to fit a grammar that did not exist
+    // when it was written, which is what makes it the right subject.
+    //
+    // `contexts`/`readModels` are supplied here rather than in the corpus:
+    // `compileAdlj` omits both keys when a document declares neither while
+    // `compileAdl` emits `[]`, a known cosmetic divergence carried forward
+    // since Phase 98 and unrelated to matrices. Without them the two resolved
+    // models differ in exactly those two keys and their fingerprint, and in
+    // nothing else — measured.
+    const corpus = JSON.parse(
+      readFileSync(
+        new URL("../conformance/presentation/status-matrix-calendar.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { models: Record<string, Record<string, unknown>> };
+    const resourceMatrix = corpus.models.resourceMatrix;
+    expect(resourceMatrix).toBeDefined();
+
+    const original = compileAdlj(
+      JSON.stringify({ contexts: [], readModels: [], ...resourceMatrix }),
+    );
+    expect(original.diagnostics).toEqual([]);
+
+    const printed = printPartialApplicationModelAsAdl(original.partialModel);
+    expect(printed).toContain(
+      [
+        "      MATRIX AvailabilityMatrix",
+        "        ROWS FROM OBJECT Member",
+        "          KEY MemberKey",
+        "          LABEL MemberName",
+        "          FIELDS MemberKey MemberName",
+        "          ORDER BY MemberName ASC",
+        "        END.ROWS",
+        "        COLUMNS DATE_RANGE '2026-03-02' TO '2026-03-06' LABEL_FORMAT DATE 'EEE d'",
+        "        CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day",
+        "          FIELDS MemberKey Day State",
+        "          STATUS StateStatus()",
+        "        END.CELLS",
+        "        CELL",
+        "          UNSET_STATUS unset",
+        "        END.CELL",
+        "        EDIT Availability ROW MemberKey COLUMN Day VALUE State",
+        "          CYCLE 'available' 'unavailable'",
+        "          UNSET_AS_ABSENCE",
+        "        END.EDIT",
+        "      END.MATRIX",
+      ].join("\n"),
+    );
+    // Neither matrix declares a `STEP_DAYS` of 1 or a `density` of
+    // `comfortable`; both are resolver defaults, and printing one would turn a
+    // default into an authored value that a later default change could no
+    // longer move.
+    expect(printed).not.toContain("STEP_DAYS 1");
+    expect(printed).not.toContain("DENSITY COMFORTABLE");
+    // The second matrix declares no `edit` at all.
+    expect(printed).not.toContain(
+      "EDIT Availability ROW MemberKey COLUMN Day VALUE State\n" + "        END.EDIT",
+    );
+
     const reparsed = compileAdl(printed);
     expect(reparsed.diagnostics).toEqual([]);
     expect(reparsed.model).toEqual(original.model);
@@ -794,11 +1035,16 @@ describe("printPartialApplicationModelAsAdl", () => {
 
   describe("constructs that still have no ADL text syntax", () => {
     // The printer's contract for what it cannot render is unchanged: throw a
-    // clear, named error rather than silently drop declared content. Phase 100
-    // deliberately left these three, for reasons recorded in
-    // `docs/phases/phase-100-printer-completeness.md` — two of them are open
-    // language questions in `docs/spec/ui-language-addendum.md`, and `MATRIX`
-    // is a whole construct whose intended syntax that document already sketches.
+    // clear, named error rather than silently drop declared content.
+    //
+    // One construct is left. Phase 100 deferred three; Phase 104 gave `MATRIX`
+    // text syntax (its round-trips are above, and they cover strictly more
+    // than the refusal test they replaced). What remains is a conditional row
+    // fragment, and it stays refused on purpose: "how much conditional logic
+    // belongs in a row template before it becomes a computed/read-model
+    // concern?" is an open *language* question in
+    // `docs/spec/ui-language-addendum.md`, and inventing a `WHEN` block inside
+    // `ROW` would settle it by fiat rather than by decision.
     function refusalFor(
       sectionExtras: Record<string, unknown>,
       presentationExtras: Record<string, unknown> = {},
@@ -836,26 +1082,6 @@ describe("printPartialApplicationModelAsAdl", () => {
       expect(compiled.diagnostics).toEqual([]);
       return () => printPartialApplicationModelAsAdl(compiled.partialModel);
     }
-
-    it("refuses a MATRIX by name", () => {
-      expect(
-        refusalFor({
-          matrices: [
-            {
-              name: "Availability",
-              rowSource: { sourceKind: "object", source: "Song", labelField: "Title" },
-              columnAxis: { kind: "dateRange", start: "2026-01-01", end: "2026-01-14" },
-              cellSource: {
-                sourceKind: "object",
-                source: "Song",
-                rowField: "Title",
-                columnField: "Date",
-              },
-            },
-          ],
-        }),
-      ).toThrow(/MATRIX/);
-    });
 
     it("refuses a conditional row fragment by name", () => {
       expect(

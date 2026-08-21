@@ -534,12 +534,14 @@ syntax. **Phase 100 closed nine of the twelve**: a calendar's
 `conflictOverlay` and `month.labelFormat`, a child collection's
 `projectedFields` and `summary`, a `LIST`'s `fields`, an empty state's
 `icon`, a field text fragment's `fallback`, and the `select` and
-`contextSelector` presentation controls. **Two** remain, each deferred for a
-stated reason rather than by omission: `MATRIX` (a whole construct with six
-nested sub-structures, whose intended syntax `ui-language-addendum.md`
-already sketches) and conditional row fragments, the latter because
-`ui-language-addendum.md` lists it as an *open language question* and
-inventing syntax would answer it by fiat. Per-view
+`contextSelector` presentation controls. **Phase 104 then closed `MATRIX`**,
+the last whole *construct* on the list — six nested sub-structures, its own
+resolved-model file, and a shipped runtime it already had — see
+[[presentation-matrix-runtime]] for the syntax and the three traps it
+contains. **One** remains, deferred for a stated reason rather than by
+omission: conditional row fragments, because `ui-language-addendum.md` lists
+that as an *open language question* and inventing syntax would answer it by
+fiat. Per-view
 `presentation.shell.regions` was the third until Phase 99: the owner settled
 that open question the other way — the shell stays global — so the construct
 was **removed** rather than given text syntax. That is the third possible
@@ -551,6 +553,18 @@ about what does and does not parse was confirmed against the actual grammar
 Phase 88), not the spec prose, per this repository's standing rule that a
 diagnostic — or, here, an absent grammar branch — is ground truth over any
 assumption about what should parse.
+
+**The printer's refusal list is not the same as the printer's gap list.**
+Phase 104 removed the `MATRIX` refusal and the presentation conformance corpus
+still would not print, because
+`printPresentationStatusCandidate` threw on a status candidate of kind `map`
+carrying neither `field` nor `value` — a shape the model allows, the validator
+handles, and both of that corpus's matrices use. Nothing had it on a list: it
+was not a *construct* with no syntax, it was one branch of a construct that had
+syntax. The general form: a printer that throws for an unrepresentable
+sub-shape is only discoverable by printing something that has it, so the
+completeness proof has to be "print every real compiled model in the
+repository", not "print the constructs someone enumerated".
 
 **Scope a completeness phase by measurement, not by the list.** Phase 100's
 list had twelve entries; a walk over both reference applications' compiled

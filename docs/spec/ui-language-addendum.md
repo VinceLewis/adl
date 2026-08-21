@@ -341,20 +341,49 @@ Composed sections may include matrix declarations for availability-style
 planning. A matrix has a row source, a regular date column axis, a cell source,
 cell status binding, and optional edit behavior:
 
-```text
+```adl
 MATRIX AvailabilityMatrix
-  ROWS FROM Members KEY User LABEL Name
-  COLUMNS DATE_RANGE 2026-08-01 TO 2026-08-14 STEP_DAYS 1
-  CELLS FROM AvailabilityCells ROW User COLUMN Date
-  STATUS AvailabilityStatus(Status), BusyStatus(BusyElsewhere)
-  UNSET_STATUS unset
-  EDIT Availability VALUE Status CYCLE Available Unavailable UNSET_AS_ABSENCE
+  DENSITY compact
+  ROWS FROM OBJECT Member
+    KEY MemberKey
+    LABEL MemberName
+    FIELDS MemberKey MemberName
+    ORDER BY MemberName ASC
+  END.ROWS
+  COLUMNS DATE_RANGE '2026-03-02' TO '2026-03-06' STEP_DAYS 1 LABEL_FORMAT date 'EEE d'
+  CELLS FROM OBJECT Availability ROW MemberKey COLUMN Day
+    FIELDS MemberKey Day State
+    RECORD_SOURCE Availability
+    STATUS StateStatus(FIELD State)
+  END.CELLS
+  CELL
+    UNSET_STATUS unset
+    ACCESSIBLE_LABEL 'Availability cell'
+  END.CELL
+  EDIT Availability ROW MemberKey COLUMN Day VALUE State
+    CYCLE 'available' 'unavailable'
+    UNSET_VALUE null
+    UNSET_AS_ABSENCE
+    BULK_BEHAVIOR SEQUENTIAL_VALIDATED_WRITES
+  END.EDIT
 END.MATRIX
 ```
 
-The implemented resolved-model shape is available to JSON/TypeScript partial
-models. ADL source syntax for `MATRIX` is documented here as intended language
-direction, but parser support remains future work.
+`MATRIX` is implemented ADL text syntax as of Phase 104, with the same standing
+as `LIST` and `CALENDAR`: grammar, an AST node, an AST-to-partial-model
+conversion, and a printer branch. **[language.md](language.md#matrices) is
+authoritative for it**; the block above is that syntax, and it compiles.
+
+From Phase 29 until Phase 104 this section carried a *sketch* instead — a
+shorter block that had never been compiled, because there was nothing to
+compile it with. It could not express two required fields
+(`edit.rowField`/`edit.columnField`), either source kind, or the difference
+between the cell's status binding and the cell *source's*; and its
+comma-separated `STATUS Map(Field), Map(Field)` line contradicted the one
+status-candidate spelling the rest of the language uses. The implemented syntax
+keeps the sketch's five section keywords and amends everything below them; see
+`docs/phases/phase-104-matrix-text-syntax.md` for the clause-by-clause
+reasoning.
 
 Rows and cells bind through object search or read-model execution, so policy,
 context scope, field shaping, and read-model projection apply before the
