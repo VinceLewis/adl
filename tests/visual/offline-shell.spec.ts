@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "./support/evidence.js";
+import { type Page } from "@playwright/test";
 
 /**
  * Phase 47 acceptance proof for the offline application shell.

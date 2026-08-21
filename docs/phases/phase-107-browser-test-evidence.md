@@ -918,3 +918,112 @@ Three candidates surfaced and were deliberately not taken:
 task that adds or changes a Playwright spec, a browser evidence assertion, or a
 deliberate-failure allowance, read `process/visual-browser-verification.md`,
 `process/testing-expectations.md` and `process/evidence-by-execution.md`."*
+
+---
+
+## Execution Note
+
+Executed 2026-08-21 on `phase-107-test-evidence`, merged from `main` at
+`c552cfc`. `npm run test:visual` went from 59 test cases to 72 (13 added by the
+self-check spec) and is green with all six gates on. Fast suite 65 → 66 files,
+1,240 → 1,258 tests.
+
+### The inventory run, which is the part nobody had ever looked at
+
+Report-only pass over all 59 pre-existing cases:
+
+- **51 of 59 were completely clean** — zero console errors, zero page errors,
+  zero failed requests, zero non-2xx. That is every `desktop` and `mobile` case
+  (all 50) plus `offline-shell`. Giggle Band and Jointly Care carry no hidden
+  console noise at all.
+- **Zero uncaught page errors anywhere in the suite**, across 15,891 recorded
+  requests.
+- All 8 dirty cases were the two authority projects, and 16 of the 19 console
+  errors plus all 16 non-2xx were one thing: `POST /v1/session/current` and
+  `POST /v1/sync/bootstrap` answered `401 unauthenticated` at signed-out startup.
+  The authority's own log agreed (`authority_request_rejected` / `denied` /
+  `unauthenticated`), and the app then warned "authority sync is unavailable;
+  continuing with local data". Three independent streams, one coherent story —
+  the application working as designed, now visible for the first time.
+- The remaining 3 failed requests and 3 console errors were the deliberate
+  `route.abort()` in the passkey offline test.
+
+### Four predictions in the plan's Evidence §7 were wrong
+
+All four were marked **inferred**, which is why they were measured before
+anything was built on them.
+
+1. **`offline-shell` produced zero failed requests.** Predicted a
+   `requestfailed` storm from `setOffline(true)`. The service worker serves
+   everything from cache — which is what the test claims and now has direct
+   evidence for.
+2. **`startup-failure-recovery` produced no page error.** Predicted one "by
+   construction" from the thrown `indexedDB.open`. The app catches it and renders
+   the fallback; nothing escapes. Both its cases are clean.
+3. **The passkey abort produced 3 failures, not "many".**
+4. **The dominant signal was not a deliberate provocation at all** but the
+   application's ordinary signed-out startup, which no spec provokes and which
+   would have failed 8 honestly-passing tests on day one.
+
+### Defects the layer found in itself, by running
+
+- Its own page-error gate caught its own first bug: the test-only font-override
+  init script ran before `document.documentElement` existed.
+- The authority slice was materialised at teardown, so every in-body
+  server-side assertion saw an empty list. Found when
+  `expectAuthorityAcceptedAfterSignIn` failed with "Recorded: (nothing)".
+- An allowance naming a `status` was silently also covering `net::ERR_FAILED` on
+  the same endpoint — a request that never got a response is a different fact.
+  Found by the gate-5 probe; now refused, with a paired hermetic case.
+- The Review section cried wolf twice: on the 8 by-design startup warnings, and
+  then on the allowance that declared them, which counted as "unused" because a
+  warning trips no gate. An allowance now counts as used when it covers any
+  recorded observation. A clean run's Review section holds exactly two rows: the
+  two self-check tests that exist to prove the unused-allowance signal works.
+
+### Two of the plan's own self-check cases were vacuous
+
+Caught by the per-gate mutation check, exactly the Phase 103 shape. Aborting a
+request and fetching a 404 both *also* log a console error, so the
+`request-failed` and `http-error` `test.fail()` cases still failed with their own
+gate deleted — satisfied by the console gate instead. Each now allows the console
+error, leaving the gate under test as the only unallowed signal. After the fix,
+every gate's removal flips a distinct, non-overlapping set of cases.
+
+### Deviations from the plan as written
+
+- **Screenshots are attached by directory scan, not by 31 call-site edits.** The
+  fixture globs `testInfo.outputDir` for `*.png` at teardown. Zero spec churn,
+  and a screenshot added later is indexed with no further wiring. The 9
+  hard-coded paths in `passkey-sign-in.spec.ts` still had to move.
+- **The `globalSetup` port probe became an enforcement, not a record.**
+  Playwright starts `webServer` before `globalSetup`, so "was the port already
+  listening?" is unanswerable there. It reads `/proc/<pid>/cwd` instead and fails
+  the run if a port is served from another working tree.
+- **Documentation placement follows `learnings/process/instruction-placement.md`,
+  which landed after this plan was written.** The plan proposed a new `AGENTS.md`
+  subsection and a `CLAUDE.md` line. Both rules here have a visible trigger — you
+  know when you are writing a Playwright spec — so the substance went to
+  `learnings/process/visual-browser-verification.md`, `AGENTS.md` gained a
+  reference in its existing `verify:push` paragraph, and `CLAUDE.md`'s inline
+  count stayed at four of its five.
+- **`AllowRule` covering authority events ignores the `during()` window**, by
+  design: the authority log is sliced per test, not per moment, so scoping it to
+  a sub-window would be false precision.
+- **Gate 6 needed a test-only seam** (`simulateRecorderWiringFailure`) to be
+  provable end to end rather than only as pure logic.
+
+### Not fixed, and not this phase's job
+
+`docs/phases/phase-105-invitee-can-accept-an-invitation.md`'s defect — Jointly
+Care rendering an enabled Accept button that is silently refused — is not
+reachable from the current suite: no spec drives Jointly Care against an
+authority, so no request is made and there is nothing for the gates to see.
+`expectAuthorityDenied` is the assertion that would pin it once Phase 105 adds a
+spec that does. This is a gap in coverage, not a gate that missed it.
+
+### First visual verification of `main` since Phase 101
+
+Phases 102 and 103 did not run `verify:push`. This run is the first since, and
+found **no regression**: all 50 `desktop`/`mobile` cases pass with clean
+evidence, and the screenshots were inspected.

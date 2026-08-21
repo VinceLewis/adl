@@ -86,6 +86,16 @@ by a constant. Concretely, in this repository:
 - **Browser specs:** for every rendered affordance, a case proving it is absent
   when it should be — Phase 99 shipped a "create a band" button offered to
   people who were not signed in, whose click the server would have refused.
+  Use the Phase 107 helpers rather than a bare `toHaveCount(0)`, which is the
+  browser form of the vacuous negative: it is satisfied equally by "correctly
+  not offered", "the page never mounted" and "the selector was renamed". This
+  repository carried exactly that — a `not.toContainText("Sign out")` on
+  `.adl-topbar-tools` that would have survived the whole top bar disappearing.
+  `expectAbsentWithin` requires a present-anchor; `expectRequestRefused`
+  separates "never requested" from "was permitted"; `expectAuthorityDenied`
+  asserts the **server's** own record of the refusal, which is the only thing
+  that distinguishes a hidden control from an enforced one. See
+  `process/visual-browser-verification.md`.
 
 ### The negative test goes in first, and must be seen to fail
 

@@ -1,4 +1,10 @@
-import { expect, test, type CDPSession, type Page } from "@playwright/test";
+import { expect, test } from "./support/evidence.js";
+import { type CDPSession, type Page } from "@playwright/test";
+import {
+  allowSignedOutStartup,
+  expectAuthorityAcceptedAfterSignIn,
+} from "./support/authority-allowances.js";
+import { expectAuthorityDenied, expectNoRequestTo } from "./support/expect-absence.js";
 import {
   PASSKEY_RELYING_PARTY_ID,
   startPasskeyAuthority,
@@ -28,7 +34,11 @@ test.afterAll(async () => {
   await authority?.close();
 });
 
-test("registers a passkey from an invitation and then signs in with it", async ({ page }) => {
+test("registers a passkey from an invitation and then signs in with it", async ({
+  page,
+  evidence,
+}, testInfo) => {
+  allowSignedOutStartup(evidence);
   const client = await addVirtualAuthenticator(page);
   const inviteToken = await authority.invite();
 
@@ -40,7 +50,7 @@ test("registers a passkey from an invitation and then signs in with it", async (
   await expect(panel.locator("[data-session-account-proof='true']")).toHaveCount(0);
   await expect(panel.locator("[data-session-passkey-sign-in='true']")).toBeVisible();
   await page.screenshot({
-    path: "test-results/visual/passkey-signed-out.png",
+    path: testInfo.outputPath("passkey-signed-out.png"),
     fullPage: true,
   });
 
@@ -50,6 +60,12 @@ test("registers a passkey from an invitation and then signs in with it", async (
   await expect(panel).toHaveAttribute("data-session-status", "signedIn", { timeout: 20_000 });
   const signedInUserId = await panel.locator("[data-session-identity] strong").innerText();
   expect(signedInUserId).toMatch(/^user-/u);
+  // The positive half of `allowSignedOutStartup`, asserted against the
+  // authority's own log rather than the UI: the pre-sign-in 401s really were
+  // pre-sign-in, because a later bootstrap for this session was accepted.
+  // Without this, "401 on bootstrap is allowed" would be satisfied by an app
+  // that never signs in at all.
+  await expectAuthorityAcceptedAfterSignIn(evidence);
   await expect(panel.locator("[data-session-notice='true']")).toContainText("registered");
   // The credential really was created by the authenticator, not simulated by
   // the page: it is the virtual authenticator that now holds it.
@@ -58,7 +74,7 @@ test("registers a passkey from an invitation and then signs in with it", async (
   });
   expect(credentials.credentials.length).toBe(1);
   expect(credentials.credentials[0]?.rpId).toBe(PASSKEY_RELYING_PARTY_ID);
-  await page.screenshot({ path: "test-results/visual/passkey-signed-in.png", fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("passkey-signed-in.png"), fullPage: true });
 
   await panel.locator("[data-session-sign-out='true']").click();
   await expect(panel).toHaveAttribute("data-session-status", "signedOut");
@@ -78,7 +94,9 @@ test("registers a passkey from an invitation and then signs in with it", async (
  */
 test("creates an account with no invitation, then creates a band from the empty state", async ({
   page,
-}) => {
+  evidence,
+}, testInfo) => {
+  allowSignedOutStartup(evidence);
   const client = await addVirtualAuthenticator(page);
 
   await page.goto("/?demo=giggle-band");
@@ -91,7 +109,7 @@ test("creates an account with no invitation, then creates a band from the empty 
   await expect(panel.locator("[data-session-self-register='true']")).toBeVisible();
   await expect(panel.locator("[data-session-passkey-invite='true']")).toBeVisible();
   await page.screenshot({
-    path: "test-results/visual/passkey-self-service-signed-out.png",
+    path: testInfo.outputPath("passkey-self-service-signed-out.png"),
     fullPage: true,
   });
 
@@ -117,7 +135,7 @@ test("creates an account with no invitation, then creates a band from the empty 
   const createBand = emptyState.locator("[data-shell-command-control='createFirstBand']");
   await expect(createBand).toBeVisible();
   await page.screenshot({
-    path: "test-results/visual/passkey-self-service-empty-state.png",
+    path: testInfo.outputPath("passkey-self-service-empty-state.png"),
     fullPage: true,
   });
 
@@ -126,7 +144,7 @@ test("creates an account with no invitation, then creates a band from the empty 
   await expect(form).toBeVisible();
   await form.locator("[data-command-input='Name']").fill("The Newcomers");
   await page.screenshot({
-    path: "test-results/visual/passkey-self-service-command-form.png",
+    path: testInfo.outputPath("passkey-self-service-command-form.png"),
     fullPage: true,
   });
   await form.locator(".adl-command-form-submit").click();
@@ -136,14 +154,16 @@ test("creates an account with no invitation, then creates a band from the empty 
   await expect(page.locator("adl-app")).toContainText("The Newcomers");
   await expect(page.locator("[data-shell-command-control='createFirstBand']")).toHaveCount(0);
   await page.screenshot({
-    path: "test-results/visual/passkey-self-service-first-band.png",
+    path: testInfo.outputPath("passkey-self-service-first-band.png"),
     fullPage: true,
   });
 });
 
 test("refuses to sign in when the browser holds no credential, and issues no session", async ({
   page,
+  evidence,
 }) => {
+  allowSignedOutStartup(evidence);
   await addVirtualAuthenticator(page);
 
   await page.goto("/?demo=giggle-band");
@@ -156,6 +176,19 @@ test("refuses to sign in when the browser holds no credential, and issues no ses
   // same and it is stated: still signed out, no session, no silent success.
   await expect(panel).toHaveAttribute("data-session-status", "signedOut");
   await expect(panel.locator("[data-session-identity]")).toHaveCount(0);
+
+  // ...and the server agrees. The UI showing "signed out" is the client's
+  // belief; this is the authority's own record that it refused, which is the
+  // fact that actually matters and which no UI assertion can reach. Phase 99
+  // shipped a control the server would have refused, and Phase 105 measured an
+  // enabled Accept button that is silently refused; in both, only the
+  // server-side record disambiguates.
+  await expectAuthorityDenied(evidence, {
+    event: /authority_request_rejected/u,
+    endpoint: /\/v1\/session\/current/u,
+    reason: /unauthenticated/u,
+  });
+  await expectNoRequestTo(evidence, /\/v1\/webauthn\/registration/u);
 });
 
 /*
@@ -168,7 +201,9 @@ test("refuses to sign in when the browser holds no credential, and issues no ses
 test("keeps the signed-in identity across an offline reload, then prompts once the grace lapses", async ({
   page,
   context,
-}) => {
+  evidence,
+}, testInfo) => {
+  allowSignedOutStartup(evidence);
   await addVirtualAuthenticator(page);
   const inviteToken = await authority.invite();
 
@@ -187,6 +222,18 @@ test("keeps the signed-in identity across an offline reload, then prompts once t
    * page loads, and every call to the authority fails.
    */
   await context.route(`**://localhost:${authority.port}/**`, (route) => route.abort());
+  // Measured in the Phase 107 inventory: aborting the authority origin produces
+  // `net::ERR_FAILED` on `/readyz` and `/v1/sync/bootstrap`, and Chromium logs a
+  // console error for each. Both are this test's subject, not defects.
+  evidence.allow({
+    reason:
+      "the authority origin is deliberately made unreachable here; this test exists to prove the app keeps the signed-in identity when it is",
+    requestUrl: new RegExp(`localhost:${authority.port}`, "u"),
+  });
+  evidence.allow({
+    reason: "Chromium logs a console error for each request aborted by the deliberate route above",
+    consoleText: /Failed to load resource: net::ERR_FAILED/u,
+  });
 
   // The defect this phase closed: with no connection the app used to fall back
   // to the local demo identity, and the user's own cached data stopped
@@ -196,7 +243,7 @@ test("keeps the signed-in identity across an offline reload, then prompts once t
   await expect(panel.locator("[data-session-identity] strong")).toHaveText(signedInUserId);
   await expect(panel.locator("[data-session-grace='withinGrace']")).toBeVisible();
   await page.screenshot({
-    path: "test-results/visual/passkey-offline-within-grace.png",
+    path: testInfo.outputPath("passkey-offline-within-grace.png"),
     fullPage: true,
   });
 
@@ -215,7 +262,7 @@ test("keeps the signed-in identity across an offline reload, then prompts once t
   // is offered here: there is nothing a ceremony could reach.
   await expect(expired.locator("[data-session-passkey-sign-in='true']")).toHaveCount(0);
   await page.screenshot({
-    path: "test-results/visual/passkey-grace-expired.png",
+    path: testInfo.outputPath("passkey-grace-expired.png"),
     fullPage: true,
   });
 
@@ -239,7 +286,8 @@ test("keeps the signed-in identity across an offline reload, then prompts once t
   await expect(panel.locator("[data-session-grace]")).toHaveCount(0);
 });
 
-test("shows the signed-in person their own devices", async ({ page }) => {
+test("shows the signed-in person their own devices", async ({ page, evidence }, testInfo) => {
+  allowSignedOutStartup(evidence);
   await addVirtualAuthenticator(page);
   const inviteToken = await authority.invite();
 
@@ -259,7 +307,7 @@ test("shows the signed-in person their own devices", async ({ page }) => {
   // own. Revoking another device is proven over real PostgreSQL, where a second
   // session can actually exist.
   await expect(devices.locator("[data-devices-revoke]")).toHaveCount(0);
-  await page.screenshot({ path: "test-results/visual/passkey-devices.png", fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("passkey-devices.png"), fullPage: true });
 });
 
 /**

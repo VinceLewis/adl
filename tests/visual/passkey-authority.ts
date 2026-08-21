@@ -17,6 +17,11 @@ import {
 } from "../../src/index.js";
 import type { AuthorityConfiguration, RuntimeContext } from "../../src/index.js";
 import { createAuthorityHttpHandler } from "../../src/server/authority-http.js";
+import {
+  RecordingSecurityLogger,
+  clearActiveAuthorityRecorder,
+  setActiveAuthorityRecorder,
+} from "./support/authority-log.js";
 import { loadAuthorityModel } from "../../src/server/authority-entrypoint.js";
 import { SimpleWebAuthnLibrary } from "../../src/server/simplewebauthn-adapter.js";
 
@@ -59,6 +64,8 @@ export const PASSKEY_RELYING_PARTY_ID = "localhost";
 
 export interface PasskeyAuthorityHarness {
   server: Server;
+  /** The authority's own security log, captured per test by the evidence fixture. */
+  recorder: RecordingSecurityLogger;
   port: number;
   /** A fresh single-use invitation for a first-time member. */
   invite(): Promise<string>;
@@ -149,7 +156,13 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
   );
   const adminSession = await sessions.issueSession(admin.userId);
 
+  // Captured rather than printed. Without this the authority's structured log
+  // goes to `console.info` in the Playwright worker, interleaved with the
+  // reporter and attributed to no test (see security-operations.ts).
+  const recorder = new RecordingSecurityLogger();
+
   const handle = createAuthorityHttpHandler({
+    logger: recorder,
     configuration: resolved,
     authority,
     sessions,
@@ -166,8 +179,18 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
       ...(incoming.method === "GET" || incoming.method === "HEAD" ? {} : { body: incoming }),
       duplex: "half",
     } as unknown as RequestInit);
+    const startedAt = Date.now();
     try {
       const result = await handle(request);
+      recorder.writeHarnessEvent({
+        event: "http_request",
+        outcome: result.status >= 500 ? "failed" : "allowed",
+        endpoint: new URL(request.url).pathname,
+        status: result.status,
+        method: incoming.method ?? "",
+        durationMs: Date.now() - startedAt,
+        occurredAt: new Date().toISOString(),
+      });
       const headers: Record<string, string | string[]> = Object.fromEntries(
         result.headers.entries(),
       );
@@ -177,7 +200,20 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
       if (setCookies !== undefined) headers["set-cookie"] = setCookies;
       outgoing.writeHead(result.status, headers);
       outgoing.end(Buffer.from(await result.arrayBuffer()));
-    } catch {
+    } catch (error) {
+      // Never swallowed. Before this, a genuine unhandled exception in the
+      // authority became an opaque 500 with the stack trace destroyed, and no
+      // browser test looked at the status. It is now a recorded `failed`
+      // outcome, which the evidence gate fails the test on.
+      recorder.writeHarnessEvent({
+        event: "http_request_unhandled_error",
+        outcome: "failed",
+        endpoint: new URL(request.url).pathname,
+        status: 500,
+        reason: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? (error.stack ?? "") : "",
+        occurredAt: new Date().toISOString(),
+      });
       outgoing.writeHead(500, { "content-type": "application/json" });
       outgoing.end('{"error":"internal_error"}');
     }
@@ -201,12 +237,19 @@ export async function startPasskeyAuthority(): Promise<PasskeyAuthorityHarness> 
       })
     ).inviteToken;
 
+  setActiveAuthorityRecorder(recorder, `http://localhost:${PASSKEY_AUTHORITY_PORT}`);
+
   return {
     server,
+    recorder,
     port: (server.address() as AddressInfo).port,
     invite: () => createInvite(),
     recoveryInvite: (userId: string) => createInvite(userId),
-    close: () => new Promise<void>((settle) => server.close(() => settle())),
+    close: () =>
+      new Promise<void>((settle) => {
+        clearActiveAuthorityRecorder();
+        server.close(() => settle());
+      }),
   };
 }
 
