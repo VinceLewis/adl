@@ -1,5 +1,5 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { access, mkdtemp } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -45,6 +45,39 @@ describe("qa-kit project runner contract", () => {
     expect(scope.survives).not.toEqual([]);
     expect(scope.reset.join(" ")).toMatch(/qa-kit/i);
     expect(scope.survives.join(" ")).toMatch(/PostgreSQL/i);
+  });
+
+  it("passes a mutation test-name pattern to Vitest as one literal argument", async () => {
+    const directory = await mkdtemp(`${tmpdir()}/adl-qa-kit-pattern-`);
+    const bin = join(directory, "bin");
+    const capture = join(directory, "arguments.txt");
+    const sentinel = join(directory, "must-not-exist");
+    await mkdir(bin);
+    const npx = join(bin, "npx");
+    await writeFile(
+      npx,
+      '#!/usr/bin/env bash\nset -euo pipefail\nprintf \'%s\\n\' "$@" > "$QA_KIT_CAPTURE"\n',
+    );
+    await chmod(npx, 0o755);
+    const pattern = `REQ-7 literal spaces;$(touch ${sentinel}) [punctuation]`;
+    const result = spawnSync(runner, ["unit"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        QA_KIT_CAPTURE: capture,
+        QA_KIT_TEST_PATTERN: pattern,
+      },
+    });
+    expect(result.status).toBe(0);
+    expect((await readFile(capture, "utf8")).split("\n").filter(Boolean)).toEqual([
+      "vitest",
+      "run",
+      "--testNamePattern",
+      pattern,
+    ]);
+    await expect(access(sentinel)).rejects.toThrow();
   });
 
   it("requires an absolute descriptor for browser environments", () => {

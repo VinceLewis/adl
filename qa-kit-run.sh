@@ -19,7 +19,14 @@ capability=$1
 shift
 
 case "$capability" in
-  unit) require_no_arguments "$@"; exec npm test ;;
+  unit)
+    require_no_arguments "$@"
+    if [[ -n "${QA_KIT_TEST_PATTERN+x}" ]]; then
+      if [[ -z "$QA_KIT_TEST_PATTERN" ]]; then usage; fi
+      exec npx vitest run --testNamePattern "$QA_KIT_TEST_PATTERN"
+    fi
+    exec npm test
+    ;;
   integration) require_no_arguments "$@"; exec npm run test:integration ;;
   journey)
     require_no_arguments "$@"
