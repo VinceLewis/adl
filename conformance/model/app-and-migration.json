@@ -76,9 +76,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -109,9 +107,7 @@
             {
               "action": "*",
               "principal": {
-                "roles": [
-                  "Admin"
-                ],
+                "roles": ["Admin"],
                 "match": "specific"
               },
               "effect": "allow",
@@ -174,9 +170,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -223,9 +217,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -272,9 +264,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -330,9 +320,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -379,9 +367,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             },
@@ -390,9 +376,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Viewer"
-                ]
+                "roles": ["Viewer"]
               },
               "action": "read"
             }
@@ -439,9 +423,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -488,9 +470,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -538,9 +518,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -588,9 +566,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -1643,9 +1619,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -1684,9 +1658,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -1725,9 +1697,7 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": [
-                  "Admin"
-                ]
+                "roles": ["Admin"]
               },
               "action": "*"
             }
@@ -1752,6 +1722,170 @@
           ]
         }
       ]
+    },
+    "registrationSelfService": {
+      "app": {
+        "name": "Registration",
+        "startView": "GroupList",
+        "registration": "selfService"
+      },
+      "contexts": [
+        {
+          "name": "Group",
+          "object": "Group",
+          "selection": {
+            "mode": "optional"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Group",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "CreatedBy",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "views": [
+            {
+              "name": "GroupList",
+              "kind": "list",
+              "fields": ["Name"]
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GroupPolicy",
+          "object": "Group",
+          "rules": [
+            {
+              "name": "allowAuthenticatedCreateOwnGroup",
+              "effect": "allow",
+              "action": "create",
+              "principal": {
+                "match": "authenticated"
+              },
+              "condition": "CreatedBy == runtime.userId"
+            }
+          ]
+        }
+      ]
+    },
+    "registrationInviteOnly": {
+      "app": {
+        "name": "Registration",
+        "startView": "GroupList",
+        "registration": "inviteOnly"
+      },
+      "contexts": [
+        {
+          "name": "Group",
+          "object": "Group",
+          "selection": {
+            "mode": "optional"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Group",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "CreatedBy",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "views": [
+            {
+              "name": "GroupList",
+              "kind": "list",
+              "fields": ["Name"]
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GroupPolicy",
+          "object": "Group",
+          "rules": [
+            {
+              "name": "allowAuthenticatedCreateOwnGroup",
+              "effect": "allow",
+              "action": "create",
+              "principal": {
+                "match": "authenticated"
+              },
+              "condition": "CreatedBy == runtime.userId"
+            }
+          ]
+        }
+      ]
+    },
+    "registrationSelfServiceUnreachable": {
+      "app": {
+        "name": "Registration",
+        "startView": "GroupList",
+        "registration": "selfService"
+      },
+      "contexts": [
+        {
+          "name": "Group",
+          "object": "Group",
+          "selection": {
+            "mode": "optional"
+          }
+        }
+      ],
+      "objects": [
+        {
+          "name": "Group",
+          "displayField": "Name",
+          "fields": [
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "CreatedBy",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "views": [
+            {
+              "name": "GroupList",
+              "kind": "list",
+              "fields": ["Name"]
+            }
+          ]
+        }
+      ],
+      "policies": [
+        {
+          "name": "GroupPolicy",
+          "object": "Group",
+          "rules": []
+        }
+      ]
     }
   },
   "cases": [
@@ -1762,9 +1896,7 @@
       "operation": "resolveModel",
       "modelRef": "appMinimal",
       "input": {
-        "select": [
-          "app.offlineGraceDays"
-        ]
+        "select": ["app.offlineGraceDays"]
       },
       "expected": {
         "ok": true,
@@ -1780,9 +1912,7 @@
       "operation": "resolveModel",
       "modelRef": "appDeclared",
       "input": {
-        "select": [
-          "app.offlineGraceDays"
-        ]
+        "select": ["app.offlineGraceDays"]
       },
       "expected": {
         "ok": true,
@@ -1798,9 +1928,7 @@
       "operation": "resolveModel",
       "modelRef": "appMinimal",
       "input": {
-        "select": [
-          "app.startView"
-        ]
+        "select": ["app.startView"]
       },
       "expected": {
         "ok": true,
@@ -1816,9 +1944,7 @@
       "operation": "resolveModel",
       "modelRef": "appDeclared",
       "input": {
-        "select": [
-          "app.startView"
-        ]
+        "select": ["app.startView"]
       },
       "expected": {
         "ok": true,
@@ -1834,9 +1960,7 @@
       "operation": "resolveModel",
       "modelRef": "appMinimal",
       "input": {
-        "select": [
-          "app.theme"
-        ]
+        "select": ["app.theme"]
       },
       "expected": {
         "ok": true,
@@ -1852,9 +1976,7 @@
       "operation": "resolveModel",
       "modelRef": "appDeclared",
       "input": {
-        "select": [
-          "app.theme"
-        ]
+        "select": ["app.theme"]
       },
       "expected": {
         "ok": true,
@@ -1870,9 +1992,7 @@
       "operation": "resolveModel",
       "modelRef": "appMinimal",
       "input": {
-        "select": [
-          "modelVersion"
-        ]
+        "select": ["modelVersion"]
       },
       "expected": {
         "ok": true,
@@ -1888,9 +2008,7 @@
       "operation": "resolveModel",
       "modelRef": "appDeclared",
       "input": {
-        "select": [
-          "modelVersion"
-        ]
+        "select": ["modelVersion"]
       },
       "expected": {
         "ok": true,
@@ -1906,9 +2024,7 @@
       "operation": "resolveModel",
       "modelRef": "appMinimal",
       "input": {
-        "select": [
-          "migrations"
-        ]
+        "select": ["migrations"]
       },
       "expected": {
         "ok": true,
@@ -1924,9 +2040,7 @@
       "operation": "resolveModel",
       "modelRef": "appDeclared",
       "input": {
-        "select": [
-          "app"
-        ]
+        "select": ["app"]
       },
       "expected": {
         "ok": true,
@@ -1947,9 +2061,7 @@
       "operation": "resolveModel",
       "modelRef": "gigV110",
       "input": {
-        "select": [
-          "migrations"
-        ]
+        "select": ["migrations"]
       },
       "expected": {
         "ok": true,
@@ -3826,6 +3938,82 @@
             "path": "migrations[0]"
           }
         ]
+      }
+    },
+    {
+      "id": "app.registration.absent.001",
+      "title": "An undeclared registration mode leaves no key on the resolved app, so a model that says nothing keeps its fingerprint",
+      "specRef": "language#self-service-registration",
+      "operation": "resolveModel",
+      "modelRef": "appMinimal",
+      "input": {
+        "select": ["app.registration"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.registration": "$absent"
+        }
+      }
+    },
+    {
+      "id": "app.registration.self-service.001",
+      "title": "A declared self-service registration mode resolves onto the app",
+      "specRef": "language#self-service-registration",
+      "operation": "resolveModel",
+      "modelRef": "registrationSelfService",
+      "input": {
+        "select": ["app.registration"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.registration": "selfService"
+        }
+      }
+    },
+    {
+      "id": "app.registration.invite-only.001",
+      "title": "A declared invite-only registration mode resolves onto the app rather than being dropped as the default",
+      "specRef": "language#self-service-registration",
+      "operation": "resolveModel",
+      "modelRef": "registrationInviteOnly",
+      "input": {
+        "select": ["app.registration"]
+      },
+      "expected": {
+        "ok": true,
+        "result": {
+          "app.registration": "inviteOnly"
+        }
+      }
+    },
+    {
+      "id": "app.registration.unreachable.001",
+      "title": "A self-service application that grants no uninvited principal the ability to create anything is a warning",
+      "specRef": "language#self-service-registration",
+      "operation": "validateModel",
+      "modelRef": "registrationSelfServiceUnreachable",
+      "expected": {
+        "ok": true,
+        "result": [
+          {
+            "severity": "warning",
+            "code": "ADL_APP_SELF_SERVICE_REGISTRATION_UNREACHABLE",
+            "path": "app.registration"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app.registration.reachable.001",
+      "title": "A self-service application whose policies let a stranger create a context object raises no diagnostic",
+      "specRef": "language#self-service-registration",
+      "operation": "validateModel",
+      "modelRef": "registrationSelfService",
+      "expected": {
+        "ok": true,
+        "result": []
       }
     }
   ]

@@ -18,6 +18,7 @@ export class AppParser extends ShellParser {
     let theme: string | undefined;
     let startView: string | undefined;
     let offlineGraceDays: number | undefined;
+    let registration: "selfService" | "inviteOnly" | undefined;
     let modelVersion: string | undefined;
     this.consumeLineEnd("APP declaration");
 
@@ -36,6 +37,7 @@ export class AppParser extends ShellParser {
           ...(theme === undefined ? {} : { theme }),
           ...(startView === undefined ? {} : { startView }),
           ...(offlineGraceDays === undefined ? {} : { offlineGraceDays }),
+          ...(registration === undefined ? {} : { registration }),
           ...(modelVersion === undefined ? {} : { modelVersion }),
           ...(leadingComment === undefined ? {} : { leadingComment }),
           end,
@@ -55,6 +57,15 @@ export class AppParser extends ShellParser {
         offlineGraceDays = this.consumeNumber("APP OFFLINE_GRACE day count");
         this.expectWord("DAYS", "APP OFFLINE_GRACE unit");
         this.consumeLineEnd("APP OFFLINE_GRACE directive");
+      } else if (this.matchWord("REGISTRATION")) {
+        // Two bare words, underscore-only: the dotted aliases are deprecated
+        // and being closed, so a new construct must not arrive with one.
+        const declared = this.consumeName("APP REGISTRATION value");
+        if (declared !== "SELF_SERVICE" && declared !== "INVITE_ONLY") {
+          this.failExpected("APP REGISTRATION value SELF_SERVICE or INVITE_ONLY", this.previous());
+        }
+        registration = declared === "SELF_SERVICE" ? "selfService" : "inviteOnly";
+        this.consumeLineEnd("APP REGISTRATION directive");
       } else if (
         this.matchUnderscoreOrDottedWord("APP MODEL_VERSION", "MODEL_VERSION", "MODEL", "VERSION")
       ) {
@@ -64,7 +75,7 @@ export class AppParser extends ShellParser {
         this.consumeLineEnd("APP MODEL_VERSION directive");
       } else {
         this.failUnexpected(
-          "APP directive THEME, START_VIEW, OFFLINE_GRACE, MODEL_VERSION, or END.APP",
+          "APP directive THEME, START_VIEW, OFFLINE_GRACE, REGISTRATION, MODEL_VERSION, or END.APP",
         );
       }
     }

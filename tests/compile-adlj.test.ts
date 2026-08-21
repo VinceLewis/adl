@@ -98,6 +98,76 @@ describe("compileAdlj", () => {
     expect(compileAdl(printed).model.shell.nav).toEqual(compiled.model.shell.nav);
   });
 
+  /*
+   * A round-trip that does not depend on which reference app the printer can
+   * currently handle: a small document carrying `registration`, printed and
+   * re-parsed, resolves to the same value in both spellings.
+   */
+  it.each([
+    ["selfService", "REGISTRATION SELF_SERVICE"],
+    ["inviteOnly", "REGISTRATION INVITE_ONLY"],
+  ])("round-trips app registration %s through printed .adl text", (registration, expected) => {
+    const source = JSON.stringify({
+      app: { name: "RegistrationRoundTrip", startView: "ItemList", registration },
+      objects: [
+        {
+          name: "Item",
+          fields: [{ name: "Name", type: "text" }],
+          views: [{ name: "ItemList", kind: "list", fields: ["Name"] }],
+        },
+      ],
+    });
+
+    const compiled = compileAdlj(source);
+    // This fixture declares no context and no create grant, so a `selfService`
+    // document legitimately carries the unreachability warning; nothing else.
+    expect(compiled.diagnostics.filter((entry) => entry.severity === "error")).toEqual([]);
+    expect(compiled.diagnostics.map((entry) => entry.code)).toEqual(
+      registration === "selfService"
+        ? [MODEL_VALIDATION_CODES.APP_SELF_SERVICE_REGISTRATION_UNREACHABLE]
+        : [],
+    );
+    expect(compiled.model.app.registration).toBe(registration);
+
+    const printed = printPartialApplicationModelAsAdl(compiled.partialModel);
+    expect(printed).toContain(expected);
+    expect(compileAdl(printed).model.app.registration).toBe(registration);
+  });
+
+  it("omits app registration from printed .adl text when the document declares none", () => {
+    const source = JSON.stringify({
+      app: { name: "NoRegistration", startView: "ItemList" },
+      objects: [
+        {
+          name: "Item",
+          fields: [{ name: "Name", type: "text" }],
+          views: [{ name: "ItemList", kind: "list", fields: ["Name"] }],
+        },
+      ],
+    });
+
+    const compiled = compileAdlj(source);
+    expect(compiled.model.app).not.toHaveProperty("registration");
+    expect(printPartialApplicationModelAsAdl(compiled.partialModel)).not.toContain("REGISTRATION");
+  });
+
+  it("rejects an unknown .adlj app registration value against the generated schema", () => {
+    const source = JSON.stringify({
+      app: { name: "BadRegistration", registration: "open" },
+      objects: [{ name: "Item" }],
+    });
+
+    try {
+      compileAdlj(source);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(AdljParseError);
+      expect((error as AdljParseError).diagnostic.code).toBe(
+        MODEL_VALIDATION_CODES.ADLJ_SCHEMA_INVALID,
+      );
+    }
+  });
+
   it("rejects an unknown .adlj shell navigation mode", () => {
     const source = JSON.stringify({
       app: { name: "BadNavigation" },

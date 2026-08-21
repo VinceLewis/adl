@@ -54,6 +54,27 @@ describe("ADL parser", () => {
     expect(() => parseAdl("APP Demo\n  OFFLINE_GRACE forever DAYS\nEND.APP\n")).toThrow();
   });
 
+  it("parses an APP registration declaration in both spellings", () => {
+    expect(parseAdl("APP Demo\n  REGISTRATION SELF_SERVICE\nEND.APP\n").app.registration).toBe(
+      "selfService",
+    );
+    expect(parseAdl("APP Demo\n  REGISTRATION INVITE_ONLY\nEND.APP\n").app.registration).toBe(
+      "inviteOnly",
+    );
+    // Absence is the restrictive value, and it is absent, not `inviteOnly`.
+    expect(parseAdl("APP Demo\nEND.APP\n").app).not.toHaveProperty("registration");
+  });
+
+  it("refuses an unknown APP registration value and names the directive", () => {
+    expect(() => parseAdl("APP Demo\n  REGISTRATION OPEN\nEND.APP\n")).toThrow(
+      /SELF_SERVICE or INVITE_ONLY/u,
+    );
+    // The dotted alias is deliberately not accepted: dotted spellings are
+    // deprecated and being closed, so a new construct must not arrive with one.
+    expect(() => parseAdl("APP Demo\n  REGISTRATION SELF.SERVICE\nEND.APP\n")).toThrow();
+    expect(() => parseAdl("APP Demo\n  REGISTER SELF_SERVICE\nEND.APP\n")).toThrow(/REGISTRATION/u);
+  });
+
   it("parses field predicate validators and policy WHEN expressions", () => {
     const ast = parseAdl(`APP Expressions
 END.APP

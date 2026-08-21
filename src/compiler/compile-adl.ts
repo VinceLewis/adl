@@ -156,6 +156,7 @@ export function adlAstToPartialApplicationModel(ast: AdlDocumentAst): PartialApp
       ...(ast.app.offlineGraceDays === undefined
         ? {}
         : { offlineGraceDays: ast.app.offlineGraceDays }),
+      ...(ast.app.registration === undefined ? {} : { registration: ast.app.registration }),
       ...(ast.app.leadingComment === undefined ? {} : { comment: ast.app.leadingComment }),
     },
     ...(ast.shell === undefined ? {} : { shell: shellToPartial(ast.shell) }),

@@ -17,7 +17,7 @@ keyboard — should be authored as `.adlj`, not as `.adl` text.** The author is
 overwhelmingly an LLM writing to a JSON Schema; `.adlj`'s JSON Schema
 (`src/model/adlj-schema.json`) validates structure before the ADL compiler
 ever runs, the way this grammar's keyword syntax cannot. `.adl` text's role
-is the *derived*, human-reviewable, diffable read surface — rendered from an
+is the _derived_, human-reviewable, diffable read surface — rendered from an
 authored `.adlj` document by `printPartialApplicationModelAsAdl`
 (`src/compiler/print-adl.ts`) — not a source of truth to hand-write for new
 work. The two are not equally-weighted alternatives: an `.adl` file with no
@@ -27,7 +27,7 @@ be pure overhead), but new application content defaults to `.adlj` unless
 there is a specific reason not to.
 
 This document (the grammar/semantics reference) still describes what every
-construct *means* — an `.adlj` document resolves to exactly the same grammar
+construct _means_ — an `.adlj` document resolves to exactly the same grammar
 and runtime semantics this file documents, just JSON-shaped instead of
 keyword-shaped. For the JSON format itself — the top-level document shape,
 how each construct below maps into JSON, how expressions are represented, and
@@ -48,7 +48,7 @@ snapshot of the same application kept beside the `.adlj` source. Every one of
 those line numbers resolved, and the citations were still wrong: the snapshot
 had frozen at model version 1.0.0 while the application reached 1.9.0, so the
 prose around each citation described a release nobody was running. A line
-number is only ever a citation into a file's *current* bytes, and no checker
+number is only ever a citation into a file's _current_ bytes, and no checker
 can tell you that the bytes it lands on stopped being true. The snapshot was
 deleted; the examples stayed, quoted where you can read them.
 
@@ -111,27 +111,27 @@ is a parser-level fact with no representation on the resolved model, so it
 never appears for a model built from JSON (a hand-built `PartialApplicationModel`,
 or the `.adlj` format) — there is no spelling to have gotten wrong.
 
-| Construct | Canonical | Deprecated |
-| --- | --- | --- |
-| Field validator | `VALIDATE` | `PREDICATE` |
-| Policy rule channel list | `CHANNELS` | `CHANNEL` |
-| Policy rule field list | `FIELDS` | `FIELD` |
-| Policy principal role list | `ROLE` | `ROLES` |
-| Policy principal group-role list | `GROUP_ROLE` | `GROUP_ROLES` |
-| Policy principal user list | `USER` | `USERS` |
-| `ACTION ALLOW` role list | `ROLE` | `ROLES` |
-| `ACTION` policy reference list | `POLICY` | `POLICIES` |
-| `CONSTRAINT UNIQUE` field list | `FIELDS` | `FIELD` |
-| `CONTEXT MEMBERSHIP` context field | `CONTEXT_FIELD` | `CONTEXT` |
-| `CONTEXT MEMBERSHIP` role field | `ROLE_FIELD` | `ROLE` |
-| `CONTEXT_GRANT` context field | `CONTEXT_FIELD` | `CONTEXT` |
-| `DECISION_TABLE INPUT` binder | `=` | `FROM` |
-| `COMPUTED FIELD` binder | `=` | `AS` |
-| `READ_MODEL FIELD` expression binder | `=` | `AS` |
-| `COMMAND STEP` record identity header | `ID` | `RECORD` |
-| `COMMAND STEP` value directive | `VALUE` | `SET`, `PATCH` |
-| `COMMAND STEP` iteration clause | `FOR EACH` (two words) | `FOR_EACH` (one word) |
-| Every `X_Y` keyword's dotted spelling — `AUTO_ID`, `MODEL_VERSION`, `SCHEMA_VERSION`, `ACTIVE_WHEN`, `READ_MODEL`, `ARIA_LABEL`, `RENDER_AS`, `DATE_FIELD`, `TITLE_FIELD`, `SUMMARY_FIELDS`, `MONTH_STATE`, `WEEK_START`, `CONTEXT_MEMBER`, `TOP_BAR`, `NAV_DRAWER`, `CONTEXT_GRANT`, `ICON_MAP`, `STATUS_MAP`, `DECISION_TABLE` | the underscore form | the dotted form, e.g. `AUTO.ID` |
+| Construct                                                                                                                                                                                                                                                                                                                        | Canonical              | Deprecated                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------- |
+| Field validator                                                                                                                                                                                                                                                                                                                  | `VALIDATE`             | `PREDICATE`                     |
+| Policy rule channel list                                                                                                                                                                                                                                                                                                         | `CHANNELS`             | `CHANNEL`                       |
+| Policy rule field list                                                                                                                                                                                                                                                                                                           | `FIELDS`               | `FIELD`                         |
+| Policy principal role list                                                                                                                                                                                                                                                                                                       | `ROLE`                 | `ROLES`                         |
+| Policy principal group-role list                                                                                                                                                                                                                                                                                                 | `GROUP_ROLE`           | `GROUP_ROLES`                   |
+| Policy principal user list                                                                                                                                                                                                                                                                                                       | `USER`                 | `USERS`                         |
+| `ACTION ALLOW` role list                                                                                                                                                                                                                                                                                                         | `ROLE`                 | `ROLES`                         |
+| `ACTION` policy reference list                                                                                                                                                                                                                                                                                                   | `POLICY`               | `POLICIES`                      |
+| `CONSTRAINT UNIQUE` field list                                                                                                                                                                                                                                                                                                   | `FIELDS`               | `FIELD`                         |
+| `CONTEXT MEMBERSHIP` context field                                                                                                                                                                                                                                                                                               | `CONTEXT_FIELD`        | `CONTEXT`                       |
+| `CONTEXT MEMBERSHIP` role field                                                                                                                                                                                                                                                                                                  | `ROLE_FIELD`           | `ROLE`                          |
+| `CONTEXT_GRANT` context field                                                                                                                                                                                                                                                                                                    | `CONTEXT_FIELD`        | `CONTEXT`                       |
+| `DECISION_TABLE INPUT` binder                                                                                                                                                                                                                                                                                                    | `=`                    | `FROM`                          |
+| `COMPUTED FIELD` binder                                                                                                                                                                                                                                                                                                          | `=`                    | `AS`                            |
+| `READ_MODEL FIELD` expression binder                                                                                                                                                                                                                                                                                             | `=`                    | `AS`                            |
+| `COMMAND STEP` record identity header                                                                                                                                                                                                                                                                                            | `ID`                   | `RECORD`                        |
+| `COMMAND STEP` value directive                                                                                                                                                                                                                                                                                                   | `VALUE`                | `SET`, `PATCH`                  |
+| `COMMAND STEP` iteration clause                                                                                                                                                                                                                                                                                                  | `FOR EACH` (two words) | `FOR_EACH` (one word)           |
+| Every `X_Y` keyword's dotted spelling — `AUTO_ID`, `MODEL_VERSION`, `SCHEMA_VERSION`, `ACTIVE_WHEN`, `READ_MODEL`, `ARIA_LABEL`, `RENDER_AS`, `DATE_FIELD`, `TITLE_FIELD`, `SUMMARY_FIELDS`, `MONTH_STATE`, `WEEK_START`, `CONTEXT_MEMBER`, `TOP_BAR`, `NAV_DRAWER`, `CONTEXT_GRANT`, `ICON_MAP`, `STATUS_MAP`, `DECISION_TABLE` | the underscore form    | the dotted form, e.g. `AUTO.ID` |
 
 A modifier value's parentheses (`MIN(0)`, `DEFAULT('Draft')`, an `ACTION FROM`
 state list) are a different kind of fix and are **not** in this table: a bare
@@ -148,6 +148,7 @@ APP 'Giggle Band ADL Example'
   THEME CorporateLight
   START_VIEW HomeDashboard
   OFFLINE_GRACE 30 DAYS
+  REGISTRATION SELF_SERVICE
 END.APP
 ```
 
@@ -163,13 +164,16 @@ END.APP
   inverted for a dark background), and `MinimalLight` (light, a neutral
   near-black primary and teal accent, smaller corner radius, compact density,
   and top navigation instead of side). `THEME Name BASE <BuiltIn> ...
-  END.THEME` overrides individual tokens on top of one of these three.
+END.THEME` overrides individual tokens on top of one of these three.
 - `START_VIEW` names the initial view. It defaults to the first resolved object
   view.
 - `OFFLINE_GRACE <days> DAYS` declares how long a device may keep syncing since
   its last successful authentication to the authority before a fresh logon is
   required. It defaults to `30 DAYS`. The unit word is required, so a bare
   number can never be read as the wrong unit if another unit is added later.
+- `REGISTRATION SELF_SERVICE | INVITE_ONLY` declares whether the application
+  admits people nobody invited. See
+  [Self-Service Registration](#self-service-registration).
 
 `OFFLINE_GRACE` is a **sync-policy** declaration, not an identity one. ADL models
 sync mode, conflict policy and offline dataset scope in the same family — see
@@ -190,6 +194,59 @@ The value must be a whole number of days between 1 and 365; anything else is the
 `ADL_APP_OFFLINE_GRACE_INVALID` diagnostic rather than a silent fallback to the
 default. Changing it changes the resolved model, so it is a model version change
 and passes through the startup compatibility guard like any other.
+
+### Self-Service Registration
+
+```text
+APP 'Giggle Band ADL Example'
+  REGISTRATION SELF_SERVICE
+END.APP
+```
+
+`REGISTRATION` takes exactly one of two bare words, both underscore-only:
+
+- `SELF_SERVICE` — a person who was never invited may obtain an identity
+  through the product's own registration ceremony.
+- `INVITE_ONLY` — registration requires either an existing session (adding
+  another authenticator to an identity that already exists) or a valid
+  invitation.
+
+**Absence means `INVITE_ONLY`.** The resolver deliberately omits the key rather
+than materialising a default, so a model that says nothing resolves to exactly
+the model it resolved to before this construct existed — same JSON, same
+`modelFingerprint`. Consumers must read absence as the restrictive value.
+
+Like `OFFLINE_GRACE`, this is a declaration about what the application _is_,
+and the **authority is the enforcement point**. Three properties are part of
+the language contract:
+
+- **The model is the ceiling.** A deployment control
+  (`ADL_SELF_SERVICE_REGISTRATION`, accepting `model` or `off`) may only ever
+  _restrict_ what the model declared. There is deliberately no value of any
+  environment variable that turns self-service on for a model that did not
+  declare it: an operator opening an application whose model says invite-only
+  would grant a capability the application never declared, and would do so
+  where nothing in the model records it.
+- **It is meaningful only where there is a registration ceremony.** The
+  authority's `passkey` identity mode is the only one that has one; in
+  `bypass` and `upstream` an identity is minted from an account proof and the
+  declaration resolves to `false`.
+- **A self-registered identity holds nothing.** It carries no membership and
+  therefore no context role. Whether it can then create anything of its own is
+  a question the model's own policies answer — which is why
+  `ADL_APP_SELF_SERVICE_REGISTRATION_UNREACHABLE` (warning) fires when a model
+  declares `SELF_SERVICE` and no policy grants `create` to an `authenticated`
+  or `everyone` principal on any object a business context is bound to. Such
+  an application admits strangers into an empty room.
+
+An application whose `User`-shaped object exposes anything more sensitive than
+a display name to the `AUTHENTICATED` principal should not declare
+`SELF_SERVICE`: after this declaration, "authenticated" no longer implies
+"somebody already inside vouched for them". The platform does not check what a
+model's policies expose.
+
+Changing the declaration changes the resolved model, so it is a model version
+change and passes through the startup compatibility guard like any other.
 
 ## Objects And Fields
 
@@ -308,7 +365,7 @@ FIELD LegacyId TEXT HIDDEN
   unconditional, unlike a policy rule's `HIDDEN` effect, which hides a field
   only for the principals and conditions that rule names.
 - `AUTO_ID`, together with any of `PREFIX '<text>'`, `PAD <n>`, and `SCOPE
-  <field>` (each optional, in any order), marks a text field as one whose
+<field>` (each optional, in any order), marks a text field as one whose
   value is minted rather than authored: `PREFIX` declares a literal prefix and
   `PAD` a zero-padded numeric width for the minted value, and `SCOPE <field>`
   names another field on the same object the minted sequence is meant to be
@@ -467,7 +524,7 @@ evicted by it. The day span and the predicate bound every route.
 
 `SCOPE recent` with no window resolves to 30 days over `_updatedAt`, which is
 what a model that declares no window has always meant. It is the one scope that
-*implies* a window; every other scope bounds nothing unless the model says so.
+_implies_ a window; every other scope bounds nothing unless the model says so.
 The resolved window carries `windowSource: "impliedByScope"` for this implied
 case and `"authored"` for a window the model actually wrote (Phase 72), so a
 resolved model — or a human reading a dumped one — can tell which happened
@@ -624,7 +681,7 @@ check is evaluated against either the contexts the target object's own
 `SCOPE` names, or — when the object declares no `SCOPE` at all — the one
 business context (if any) that names this object as its own bound `OBJECT`
 (a caller's own identity selection context, for example). A role earned
-through a *different* context is never among those targets, no matter which
+through a _different_ context is never among those targets, no matter which
 instance of that other context the caller has selected.
 
 For example, a `CircleMember` role earned through `CONTEXT Circle MEMBERSHIP
@@ -645,7 +702,7 @@ instead of a `ROLE` condition that can never fire.
 
 Where the model can prove such a rule is dead, the compiler refuses it
 (`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`, Phase 93) rather than accepting a
-grant that matches nothing. It fires only when *all* of the following hold, so
+grant that matches nothing. It fires only when _all_ of the following hold, so
 that firing is a proof rather than a guess:
 
 - the rule's principal is `ROLE`-only — a principal that also names specific
@@ -663,7 +720,7 @@ that firing is a proof rather than a guess:
 
 Two shapes it deliberately does **not** catch: a rule naming one dead role
 alongside a live one (the rule still works, and the dead half is invisible to
-this check), and a role dead only because the *host* never assigns it — the
+this check), and a role dead only because the _host_ never assigns it — the
 model has no declaration of global role assignment for the compiler to read.
 
 Lifecycle transition policy can name an action and state. Field rules restrict
@@ -1021,7 +1078,7 @@ shape:
 - `CONTEXT_SELECTOR Name ... END.CONTEXT_SELECTOR` places a context picker
   inside a composed section, taking `LABEL`, `ICON` and an optional
   `CONTEXT <context>`. Omitting `CONTEXT` offers whatever context the view is
-  bound to. This is the *view-local* selector; the application-wide one is
+  bound to. This is the _view-local_ selector; the application-wide one is
   `SHELL`'s `CONTROL ... KIND contextSelector` (see
   [shell-navigation](#shell-navigation)).
 
@@ -1137,7 +1194,7 @@ records edited inside the parent's form:
   [ui-language-addendum#implementation-notes](ui-language-addendum.md).
 - `EMPTY_TEXT 'text'` — what to show when the collection is empty.
 - `PROJECTED_FIELD <name> THROUGH <lookup field> FIELD <target field>` —
-  repeatable. Adds a row field sourced from a *related* object reached through
+  repeatable. Adds a row field sourced from a _related_ object reached through
   one of the child object's own lookup fields, rather than from the child's own
   stored fields. `THROUGH` must name a field on the child object carrying a
   `LOOKUP`; `FIELD` must exist on that lookup's target object and not be
@@ -1328,7 +1385,7 @@ FIELD Song TEXT REQUIRED LOOKUP Song TARGET_FIELD Isrc DISPLAY Title
 `TARGET_FIELD` must name a field that exists on the target object
 (`ADL_LOOKUP_TARGET_FIELD_UNKNOWN`). A `LOOKUP` with no `TARGET_FIELD` stores
 the target record's own id, resolved by an identity read. A `LOOKUP` that
-declares `TARGET_FIELD` stores a natural key instead: the *implicit* join a
+declares `TARGET_FIELD` stores a natural key instead: the _implicit_ join a
 read model source performs when it names no `JOIN` of its own (see
 [Read Models](resolved-model.md#read-models)) matches the target object's
 records by that field's value, not by id. `TARGET_FIELD` is meant for a
@@ -1344,7 +1401,7 @@ A `LOOKUP` field's value is also read by two other runtime paths that predate
 `TARGET_FIELD`: a "current user" read-model source scope matching a lookup
 field against the signed-in user, and the browser UI's lookup-label display.
 Both now honour `TARGET_FIELD` (Phase 75). The "current user" match compares
-the stored value against the *signed-in user's own record's* `TARGET_FIELD`
+the stored value against the _signed-in user's own record's_ `TARGET_FIELD`
 value rather than against the user's id directly, reading that record by
 identity and requiring it to pass read policy — if the record cannot be
 found or read, the match fails closed rather than throwing. The browser UI's
@@ -1586,7 +1643,7 @@ record than the caller could see by reading it directly, and there is no
 `AUTHORITY command` equivalent that would let it.
 
 A step's value expressions may only reference a `READ` step (or any other step)
-that executes *earlier* in the same command; referencing one that has not run
+that executes _earlier_ in the same command; referencing one that has not run
 yet, or does not exist, is refused at validation
 (`ADL_COMMAND_STEP_REFERENCE_UNKNOWN`) rather than left to fail at runtime.
 

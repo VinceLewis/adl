@@ -31,7 +31,7 @@ contract (every field name, every enum's exact values, which fields are
 required, `additionalProperties: false` on every object shape) always check
 `src/model/adlj-schema.json` — it is generated from `AdljSourceDocument`
 (`src/model/adlj-source.ts`) and is ground truth over this prose the moment
-the two disagree. For what each construct *means* (not its JSON shape),
+the two disagree. For what each construct _means_ (not its JSON shape),
 `docs/spec/language.md` is still the semantic reference — `.adlj` resolves to
 exactly the same grammar and runtime semantics, just JSON-shaped.
 
@@ -43,17 +43,37 @@ A `.adlj` file is one JSON object (`AdljSourceDocument`):
 {
   "app": { "name": "..." },
   "roles": [{ "name": "..." }],
-  "contexts": [ /* AdljBusinessContextModel */ ],
-  "objects": [ /* AdljObjectModel */ ],
-  "readModels": [ /* AdljReadModelModel */ ],
-  "decisionTables": [ /* AdljDecisionTableModel */ ],
-  "commands": [ /* AdljCommandModel */ ],
-  "policies": [ /* AdljPolicyModel */ ],
-  "themes": [ /* PartialThemeModel */ ],
-  "sync": [ /* AdljSyncPolicyModel */ ],
-  "shell": { /* PartialShellModel */ },
+  "contexts": [
+    /* AdljBusinessContextModel */
+  ],
+  "objects": [
+    /* AdljObjectModel */
+  ],
+  "readModels": [
+    /* AdljReadModelModel */
+  ],
+  "decisionTables": [
+    /* AdljDecisionTableModel */
+  ],
+  "commands": [
+    /* AdljCommandModel */
+  ],
+  "policies": [
+    /* AdljPolicyModel */
+  ],
+  "themes": [
+    /* PartialThemeModel */
+  ],
+  "sync": [
+    /* AdljSyncPolicyModel */
+  ],
+  "shell": {
+    /* PartialShellModel */
+  },
   "modelVersion": "1.0.0",
-  "migrations": [ /* PartialModelMigrationModel */ ]
+  "migrations": [
+    /* PartialModelMigrationModel */
+  ]
 }
 ```
 
@@ -76,17 +96,17 @@ silently-ignored one.
   `KEY` → `businessKey`, `DISPLAY` → `displayField`, `FIELD ... REQUIRED` →
   `"required": true`, `LIFECYCLE ... FIELD Status` → `"stateField": "Status"`.
 - An `.adl` `ALL_CAPS` enum keyword becomes a `camelCase` (or lowercase)
-  *string value*, not a JSON key: `TEXT` → `"type": "text"`,
+  _string value_, not a JSON key: `TEXT` → `"type": "text"`,
   `LOCAL_FIRST` → `"mode": "localFirst"`, `SCOPE all` → `"scope": "all"`,
   `ALLOW` → `"effect": "allow"`. This is the single most common source of a
-  first-draft mistake — writing the field's *type* is JSON already
+  first-draft mistake — writing the field's _type_ is JSON already
   (`"type": "text"`), there is no separate ADL-keyword-shaped token to carry
   over.
 - A name list (`FIELDS Title Priority Status`) becomes a JSON array of
   strings (`"fields": ["Title", "Priority", "Status"]`).
 - Anything that is free-form infix syntax in `.adl` text — `VALIDATE`, `WHEN`,
   a decision-table `ROW ... WHEN`, a `SYNC ... WHERE`, a computed field's `=`
-  expression — stays exactly that infix syntax, as a JSON *string* value (see
+  expression — stays exactly that infix syntax, as a JSON _string_ value (see
   "Expressions stay as strings" below). It is not JSON structure.
 - A `COMMAND STEP`'s `VALUE`/`SET`/`PATCH` assignment is the one exception:
   it is small structured JSON, not a string — see the command mapping below.
@@ -135,30 +155,30 @@ not an error).
 
 ### Construct-by-construct mapping
 
-| `.adl` construct | `.adlj` shape | Notes |
-| --- | --- | --- |
-| `APP Name` `START_VIEW`/`OFFLINE_GRACE` | `app: { name, startView?, offlineGraceDays?, theme?, comment? }` | Only `name` is required. |
-| `SHELL` / `NAV_MODE` / `NAV` | `shell: { nav?: { mode?, items? }, topBar?, navDrawer?, controls?, comment? }` | `nav.mode` is `"explicitOnly"` or `"includeUnlistedViews"`; omission defaults to explicit-only. |
-| `ROLE Name` | `roles: [{ name, comment? }]` | |
-| `CONTEXT Name ... MEMBERSHIP ...` | `contexts: [{ name, object?, selection?: { mode, ... }, membership?: { object, userField, contextField, roleField, roles? }, grants?: [AdljContextGrantModel], comment? }]` | `selection.mode`/`membership.*` mirror the `.adl` `SELECTION`/`MEMBERSHIP` sub-directives field-for-field. |
-| `CONTEXT_GRANT Name ON Context` | one entry of `contexts[i].grants`: `{ name, object, userField, contextField, condition?, comment? }` | `condition` is an infix expression string. |
-| `OBJECT Name` | one entry of `objects`: `{ name, businessKey?, displayField?, fields?, computedFields?, validations?, lifecycle?, scope?, constraints?, sync?, views?, comment? }` | Each `constraints[i]` (`unique`/`ordered`/`protectedRole`) also accepts its own `comment?`, though this table has no dedicated `CONSTRAINT` row today. |
-| `FIELD Name TYPE [REQUIRED] [DEFAULT(...)]` | one entry of `objects[i].fields`: `{ name, type, required?, defaultValue?, readonly?, hidden?, storageName?, lookup?, autoId?, validators?, comment? }` | `type` is one of `text`, `number`, `date`, `datetime`, `time`, `boolean`, `attachment`. |
-| `COMPUTED FIELD Name TYPE = expr` | one entry of `objects[i].computedFields`: `{ name, type, expression }` | `expression` is an infix string. |
-| `VALIDATE name expr MESSAGE '...'` | one entry of `objects[i].validations`: `{ name, expression, message, comment? }` | |
-| `LIFECYCLE Name FIELD X INITIAL Y ... STATE ... ACTION ...` | `objects[i].lifecycle: { name, stateField, initialState, states: [{ name, terminal? }], actions: [{ name, from, to, guards?: [{ name, expression, message }] }] }` | |
-| `SYNC MODE SCOPE ... CONFLICT ...` (object-level) | `objects[i].sync: { mode, scope, predicate?, window?, conflict? }` | `mode` ∈ `localFirst`/`cacheReadonly`/`onlineRequired`/`localPrivate`; `scope` ∈ `all`/`currentUser`/`assignedToUser`/`ownedByUser`/`currentContext`/`allAvailableContexts`/`recent`/`custom`. |
-| `VIEW Name KIND ... FIELDS ... END.VIEW` | one entry of `objects[i].views`: `{ name, kind, fields?, searchFields?, actions?, sort?, context?, readModel?, presentation?, editContainer?, editSections?, comment? }` | `kind` ∈ `list`/`detail`/`form`/`dashboard`/`masterDetail`/`grid`/`composite`. A `presentation.sections[i]` also accepts `comment?` (`SECTION`), a `presentation.sections[i].controls[i]`/list or calendar `actions[i]` of `kind: "action"` accepts `comment?` (`ACTION`), and an `editSections[i]` of `kind: "childCollection"`'s `picker` accepts `comment?` (`PICKER`) — none of these has a dedicated row in this table either. |
-| `POLICY Name ON Object ... END.POLICY` | one entry of `policies`: `{ name, object, rules, comment? }` | |
-| `ALLOW ACTION [ROLE ...] [WHEN ...]` (a policy rule) | one entry of `policies[i].rules`: `{ name, effect, action, principal?, condition?, fields?, state?, lifecycleAction?, channels?, comment? }` | `effect` ∈ `allow`/`deny`/`readonly`/`mask`/`hidden`; `action` ∈ `*`/`create`/`read`/`update`/`delete`/`search`/`transition`/`export`/`import`; `condition` is an infix expression string. |
-| a rule's principal (`ROLE X`, `EVERYONE`, `OWNER`, `CONTEXT_MEMBER ...`) | `principal: { match, roles?, groupRoles?, users?, owner?, contextMember? }` | `match` ∈ `everyone`/`authenticated`/`anonymous`/`owner`/`specific`/`contextMember` — **always write it explicitly**, see the `principal.match` gap below. |
-| `READ_MODEL Name ... SOURCE ... FIELD ...` | one entry of `readModels`: `{ name, sources, fields, strategy?, sort?, context?, comment? }` | `sources: [{ object, name?, scope?, join?: { source, localField, sourceField, cardinality? }, comment? }]` (`join` mirrors `SOURCE x OBJECT Y JOIN otherAlias ON LocalField == otherAlias.SourceField`); bare `UNION` → `"strategy": "union"` (default is `join`, no key needed). |
-| a read-model output field | one entry of `readModels[i].fields`: `{ name, source?, field?, type?, expression?, comment? }` | `FIELD X FROM alias.Y` → `{ name: "X", source: "alias", field: "Y" }`; a computed output field's `expression` is an infix string. |
-| `DECISION_TABLE Name ON Object MATCH ...` | one entry of `decisionTables`: `{ name, object, match?, inputs, rows, defaultOutputs? }` | `inputs: [{ name, expression }]`; `rows: [{ name, condition, outputs }]` — `expression`/`condition` are infix strings. |
-| `COMMAND Name INPUT ... STEP ...` | one entry of `commands`: `{ name, label?, inputs?, preconditions?, steps, comment? }` | `preconditions: [{ name, expression, message? }]` — infix strings. |
-| a `CREATE`/`UPDATE`/`READ` command step | one entry of `commands[i].steps`, discriminated by `action`: `{ action: "create", name, object, values?, establishesContext?, forEach?, authority?, preconditions?, comment? }` / `{ action: "update", name, object, recordId, patch?, forEach?, authority?, preconditions?, comment? }` / `{ action: "read", name, object, recordId, preconditions?, comment? }` | `preconditions` here are plain `string[]` (names of preconditions declared above), not inline objects. |
-| a step's `VALUE`/`SET`/`PATCH` assignment | a `ResolvedCommandValueExpression`, e.g. `{ "kind": "input", "name": "Owner" }`, `{ "kind": "literal", "value": 3 }`, `{ "kind": "runtime", "property": "userId" }`, `{ "kind": "stepField", "step": "create1", "field": "Id" }`, `{ "kind": "stepMeta", "step": "create1", "property": "recordId" }`, `{ "kind": "item", "field": "Title" }`, `{ "kind": "itemIndex" }` | This is the one place JSON structure, not an infix string, represents "an expression." |
-| `THEME Name BASE ...` | `themes: [PartialThemeModel]` | No expression-bearing fields; passes straight through. |
+| `.adl` construct                                                         | `.adlj` shape                                                                                                                                                                                                                                                                                                                                                            | Notes                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP Name` `START_VIEW`/`OFFLINE_GRACE`/`REGISTRATION`                   | `app: { name, startView?, offlineGraceDays?, registration?, theme?, comment? }`                                                                                                                                                                                                                                                                                          | Only `name` is required. `registration` is `"selfService"` or `"inviteOnly"`; omitting it means invite-only and leaves the resolved model byte-identical.                                                                                                                                                                                                                                                                           |
+| `SHELL` / `NAV_MODE` / `NAV`                                             | `shell: { nav?: { mode?, items? }, topBar?, navDrawer?, controls?, comment? }`                                                                                                                                                                                                                                                                                           | `nav.mode` is `"explicitOnly"` or `"includeUnlistedViews"`; omission defaults to explicit-only.                                                                                                                                                                                                                                                                                                                                     |
+| `ROLE Name`                                                              | `roles: [{ name, comment? }]`                                                                                                                                                                                                                                                                                                                                            |                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `CONTEXT Name ... MEMBERSHIP ...`                                        | `contexts: [{ name, object?, selection?: { mode, ... }, membership?: { object, userField, contextField, roleField, roles? }, grants?: [AdljContextGrantModel], comment? }]`                                                                                                                                                                                              | `selection.mode`/`membership.*` mirror the `.adl` `SELECTION`/`MEMBERSHIP` sub-directives field-for-field.                                                                                                                                                                                                                                                                                                                          |
+| `CONTEXT_GRANT Name ON Context`                                          | one entry of `contexts[i].grants`: `{ name, object, userField, contextField, condition?, comment? }`                                                                                                                                                                                                                                                                     | `condition` is an infix expression string.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `OBJECT Name`                                                            | one entry of `objects`: `{ name, businessKey?, displayField?, fields?, computedFields?, validations?, lifecycle?, scope?, constraints?, sync?, views?, comment? }`                                                                                                                                                                                                       | Each `constraints[i]` (`unique`/`ordered`/`protectedRole`) also accepts its own `comment?`, though this table has no dedicated `CONSTRAINT` row today.                                                                                                                                                                                                                                                                              |
+| `FIELD Name TYPE [REQUIRED] [DEFAULT(...)]`                              | one entry of `objects[i].fields`: `{ name, type, required?, defaultValue?, readonly?, hidden?, storageName?, lookup?, autoId?, validators?, comment? }`                                                                                                                                                                                                                  | `type` is one of `text`, `number`, `date`, `datetime`, `time`, `boolean`, `attachment`.                                                                                                                                                                                                                                                                                                                                             |
+| `COMPUTED FIELD Name TYPE = expr`                                        | one entry of `objects[i].computedFields`: `{ name, type, expression }`                                                                                                                                                                                                                                                                                                   | `expression` is an infix string.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `VALIDATE name expr MESSAGE '...'`                                       | one entry of `objects[i].validations`: `{ name, expression, message, comment? }`                                                                                                                                                                                                                                                                                         |                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `LIFECYCLE Name FIELD X INITIAL Y ... STATE ... ACTION ...`              | `objects[i].lifecycle: { name, stateField, initialState, states: [{ name, terminal? }], actions: [{ name, from, to, guards?: [{ name, expression, message }] }] }`                                                                                                                                                                                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `SYNC MODE SCOPE ... CONFLICT ...` (object-level)                        | `objects[i].sync: { mode, scope, predicate?, window?, conflict? }`                                                                                                                                                                                                                                                                                                       | `mode` ∈ `localFirst`/`cacheReadonly`/`onlineRequired`/`localPrivate`; `scope` ∈ `all`/`currentUser`/`assignedToUser`/`ownedByUser`/`currentContext`/`allAvailableContexts`/`recent`/`custom`.                                                                                                                                                                                                                                      |
+| `VIEW Name KIND ... FIELDS ... END.VIEW`                                 | one entry of `objects[i].views`: `{ name, kind, fields?, searchFields?, actions?, sort?, context?, readModel?, presentation?, editContainer?, editSections?, comment? }`                                                                                                                                                                                                 | `kind` ∈ `list`/`detail`/`form`/`dashboard`/`masterDetail`/`grid`/`composite`. A `presentation.sections[i]` also accepts `comment?` (`SECTION`), a `presentation.sections[i].controls[i]`/list or calendar `actions[i]` of `kind: "action"` accepts `comment?` (`ACTION`), and an `editSections[i]` of `kind: "childCollection"`'s `picker` accepts `comment?` (`PICKER`) — none of these has a dedicated row in this table either. |
+| `POLICY Name ON Object ... END.POLICY`                                   | one entry of `policies`: `{ name, object, rules, comment? }`                                                                                                                                                                                                                                                                                                             |                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `ALLOW ACTION [ROLE ...] [WHEN ...]` (a policy rule)                     | one entry of `policies[i].rules`: `{ name, effect, action, principal?, condition?, fields?, state?, lifecycleAction?, channels?, comment? }`                                                                                                                                                                                                                             | `effect` ∈ `allow`/`deny`/`readonly`/`mask`/`hidden`; `action` ∈ `*`/`create`/`read`/`update`/`delete`/`search`/`transition`/`export`/`import`; `condition` is an infix expression string.                                                                                                                                                                                                                                          |
+| a rule's principal (`ROLE X`, `EVERYONE`, `OWNER`, `CONTEXT_MEMBER ...`) | `principal: { match, roles?, groupRoles?, users?, owner?, contextMember? }`                                                                                                                                                                                                                                                                                              | `match` ∈ `everyone`/`authenticated`/`anonymous`/`owner`/`specific`/`contextMember` — **always write it explicitly**, see the `principal.match` gap below.                                                                                                                                                                                                                                                                          |
+| `READ_MODEL Name ... SOURCE ... FIELD ...`                               | one entry of `readModels`: `{ name, sources, fields, strategy?, sort?, context?, comment? }`                                                                                                                                                                                                                                                                             | `sources: [{ object, name?, scope?, join?: { source, localField, sourceField, cardinality? }, comment? }]` (`join` mirrors `SOURCE x OBJECT Y JOIN otherAlias ON LocalField == otherAlias.SourceField`); bare `UNION` → `"strategy": "union"` (default is `join`, no key needed).                                                                                                                                                   |
+| a read-model output field                                                | one entry of `readModels[i].fields`: `{ name, source?, field?, type?, expression?, comment? }`                                                                                                                                                                                                                                                                           | `FIELD X FROM alias.Y` → `{ name: "X", source: "alias", field: "Y" }`; a computed output field's `expression` is an infix string.                                                                                                                                                                                                                                                                                                   |
+| `DECISION_TABLE Name ON Object MATCH ...`                                | one entry of `decisionTables`: `{ name, object, match?, inputs, rows, defaultOutputs? }`                                                                                                                                                                                                                                                                                 | `inputs: [{ name, expression }]`; `rows: [{ name, condition, outputs }]` — `expression`/`condition` are infix strings.                                                                                                                                                                                                                                                                                                              |
+| `COMMAND Name INPUT ... STEP ...`                                        | one entry of `commands`: `{ name, label?, inputs?, preconditions?, steps, comment? }`                                                                                                                                                                                                                                                                                    | `preconditions: [{ name, expression, message? }]` — infix strings.                                                                                                                                                                                                                                                                                                                                                                  |
+| a `CREATE`/`UPDATE`/`READ` command step                                  | one entry of `commands[i].steps`, discriminated by `action`: `{ action: "create", name, object, values?, establishesContext?, forEach?, authority?, preconditions?, comment? }` / `{ action: "update", name, object, recordId, patch?, forEach?, authority?, preconditions?, comment? }` / `{ action: "read", name, object, recordId, preconditions?, comment? }`        | `preconditions` here are plain `string[]` (names of preconditions declared above), not inline objects.                                                                                                                                                                                                                                                                                                                              |
+| a step's `VALUE`/`SET`/`PATCH` assignment                                | a `ResolvedCommandValueExpression`, e.g. `{ "kind": "input", "name": "Owner" }`, `{ "kind": "literal", "value": 3 }`, `{ "kind": "runtime", "property": "userId" }`, `{ "kind": "stepField", "step": "create1", "field": "Id" }`, `{ "kind": "stepMeta", "step": "create1", "property": "recordId" }`, `{ "kind": "item", "field": "Title" }`, `{ "kind": "itemIndex" }` | This is the one place JSON structure, not an infix string, represents "an expression."                                                                                                                                                                                                                                                                                                                                              |
+| `THEME Name BASE ...`                                                    | `themes: [PartialThemeModel]`                                                                                                                                                                                                                                                                                                                                            | No expression-bearing fields; passes straight through.                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### Shell navigation modes
 
@@ -248,9 +268,7 @@ this is deliberate. The one structured exception is a command step's
           "comment": "The task's own display name; also the record's business key,\nso two tasks may never share one."
         }
       ],
-      "views": [
-        { "name": "TaskList", "kind": "list", "fields": ["Title"] }
-      ]
+      "views": [{ "name": "TaskList", "kind": "list", "fields": ["Title"] }]
     }
   ],
   "policies": [
@@ -396,7 +414,7 @@ contiguous — into one text blob and parses it once via the existing
 `parseAdljDocument` + `adljSourceToPartialApplicationModel`.
 
 **Fragment ordering.** The single `.adl`-derived fragment is placed at the
-position of the *first* `.adl` entry in the manifest's overall source order;
+position of the _first_ `.adl` entry in the manifest's overall source order;
 each `.adlj` fragment is placed at its own manifest position. A manifest
 listing `domain.adl`, `extra.adlj`, `ui.adl` therefore produces two
 fragments in this order: `[domain.adl+ui.adl fragment, extra.adlj fragment]`
@@ -484,7 +502,7 @@ This is deliberate, not a shortcut: expanding every `VALIDATE`, policy
 `{"kind":"binary","op":">=","left":{...},"right":{...}}`-shaped tree was
 considered and rejected. A nested expression tree is more surface area to
 get subtly wrong by hand than one infix line — which would make `.adlj`
-*more* error-prone on exactly the constructs where getting it right matters
+_more_ error-prone on exactly the constructs where getting it right matters
 most, directly against the format's own purpose. `.adlj` is JSON everywhere
 that removes ambiguity (field declarations, view layout, sync scope, command
 steps — the declarative skeleton) and stays ADL's existing infix syntax
@@ -514,7 +532,7 @@ without writing `match` explicitly — a parser-level convenience.
 defaults an undeclared `match` to `"everyone"` regardless of what else the
 principal names, which for a `"everyone"` principal makes any `roles` present
 irrelevant. A `.adlj` author who writes `{"roles": ["Admin"]}` without
-`"match": "specific"` gets a *silently wider* grant than they meant — the
+`"match": "specific"` gets a _silently wider_ grant than they meant — the
 same "no reading of it is correct" shape as Phase 72's `AUTO_ID` gap, just at
 the JSON front-end instead of the parser. **Always write `match` explicitly
 in `.adlj` policy principals.** This is not a defect in `resolveApplicationModel`,
@@ -527,7 +545,7 @@ The general shape of this trap is: `compile-adl.ts`'s AST-to-partial
 conversion computes a field's value via `x ?? <something other than a plain
 passthrough>` — i.e. it infers a value from context rather than leaving the
 field genuinely absent — for a field the `Partial*Model` type marks
-*optional*. `.adlj` (`compile-adlj.ts`) never does this: `adljSourceToPartialApplicationModel`
+_optional_. `.adlj` (`compile-adlj.ts`) never does this: `adljSourceToPartialApplicationModel`
 is a pure structural passthrough with no field-level inference anywhere in
 it. So a gap exists exactly where **(a)** `.adl`'s parser computes an
 inferred, non-obvious value for an omitted field, **and** **(b)** the JSON
@@ -625,7 +643,7 @@ fixtures: **both** reference applications' whole compiled `partialModel` —
 Giggle Band and Jointly Care — plus the `examples/` corpus
 (`tests/compile-adlj.test.ts`). Until Phase 98 the rich half ran against a
 `.adl` text snapshot of Giggle Band frozen at model version 1.0.0; from
-Phase 87 to Phase 100 the printer refused Giggle Band's *real* source
+Phase 87 to Phase 100 the printer refused Giggle Band's _real_ source
 outright, and only Jointly Care stood in. This is the sharp edge of
 `.adl`-as-printed-view, and it cuts both ways: `MIGRATION` printing was
 missing entirely until Phase 98 — silently, unlike a refused construct — and
@@ -661,17 +679,17 @@ Everything else that used to be on this list is gone. **Phase 100** gave text
 syntax to the nine constructs that had none and could be settled without
 answering an open language question:
 
-| Construct | ADL text syntax |
-|---|---|
-| A calendar's `conflictOverlay` | `CONFLICT_OVERLAY FROM READ_MODEL <name> ... END.CONFLICT_OVERLAY` |
-| A child collection's `projectedFields` | `PROJECTED_FIELD <name> THROUGH <lookup> FIELD <target>` |
-| A child collection's `summary` | `SUMMARY <aggregate> [<field>] ... END.SUMMARY` |
-| A calendar's `month.labelFormat` | `MONTH_LABEL_FORMAT <kind> ['pattern']` |
-| A list's `fields` | `FIELDS <names>` |
-| An empty state's `icon` (list and calendar) | `EMPTY_ICON <iconRef>` |
-| A field text fragment's `fallback` | `TEXT <field> FALLBACK 'text'` |
-| A `select` presentation control | `SELECT <name> ... OPTION <value> LABEL 'text' ... END.SELECT` |
-| A `contextSelector` presentation control | `CONTEXT_SELECTOR <name> ... END.CONTEXT_SELECTOR` |
+| Construct                                   | ADL text syntax                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| A calendar's `conflictOverlay`              | `CONFLICT_OVERLAY FROM READ_MODEL <name> ... END.CONFLICT_OVERLAY` |
+| A child collection's `projectedFields`      | `PROJECTED_FIELD <name> THROUGH <lookup> FIELD <target>`           |
+| A child collection's `summary`              | `SUMMARY <aggregate> [<field>] ... END.SUMMARY`                    |
+| A calendar's `month.labelFormat`            | `MONTH_LABEL_FORMAT <kind> ['pattern']`                            |
+| A list's `fields`                           | `FIELDS <names>`                                                   |
+| An empty state's `icon` (list and calendar) | `EMPTY_ICON <iconRef>`                                             |
+| A field text fragment's `fallback`          | `TEXT <field> FALLBACK 'text'`                                     |
+| A `select` presentation control             | `SELECT <name> ... OPTION <value> LABEL 'text' ... END.SELECT`     |
+| A `contextSelector` presentation control    | `CONTEXT_SELECTOR <name> ... END.CONTEXT_SELECTOR`                 |
 
 All nine are specified in [language.md](language.md) as first-class parts of
 the language, not as printer conveniences: each has grammar, an AST node, an
@@ -738,7 +756,7 @@ rather than surface it.
 
 `importAdlAsAdlj(adlSource: string): { document?: AdljSourceDocument;
 diagnostics: Diagnostic[] }` is the convenience entry point: it runs
-`compileAdl` and, only when the result carries no *error* diagnostics
+`compileAdl` and, only when the result carries no _error_ diagnostics
 (warnings pass through), converts `partialModel` with
 `partialApplicationModelToAdljSource`. When there is a blocking error,
 `document` is left `undefined` and no conversion is attempted, mirroring the
@@ -748,7 +766,7 @@ follows for `.adl` source.
 **Correctness contract**: matching the printer's own contract ("reparses to
 the identical tree," not "produces identical text"), the importer's contract
 is not byte-identical JSON against a hand-written `.adlj` file — field
-ordering and whitespace may differ — but that compiling the *imported*
+ordering and whitespace may differ — but that compiling the _imported_
 document with `compileAdlj` resolves to a `ResolvedApplicationModel`
 deep-equal to compiling the original `.adl` text with `compileAdl`. Proven
 for the fixture app in `tests/adl-to-adlj.test.ts`.
@@ -758,7 +776,7 @@ for the fixture app in `tests/adl-to-adlj.test.ts`.
 `.adl`'s AST-to-partial conversion always supplies `contexts: []` and
 `readModels: []`, even when the source declares neither — the parser's AST
 always holds these as arrays, never `undefined`. `resolveApplicationModel`
-itself treats an *omitted* `contexts`/`readModels` key as "not declared" and
+itself treats an _omitted_ `contexts`/`readModels` key as "not declared" and
 leaves it out of the resolved model rather than defaulting to `[]`. A `.adlj`
 document that omits these keys therefore resolves to a model missing those
 two keys entirely, rather than holding empty arrays — harmless at runtime
@@ -829,7 +847,7 @@ for the full list and reasoning, kept current as the authoritative record.
 ## Strategic direction: `.adlj` as the primary authoring surface
 
 The working assumption going forward is that `.adlj` — not `.adl` text — is
-what gets *authored*, because the author is overwhelmingly an LLM writing to
+what gets _authored_, because the author is overwhelmingly an LLM writing to
 a JSON Schema rather than a human hand-typing keyword syntax. `.adl` text's
 role narrows to what Phase 73's own originating conversation asked for: a
 generated, human-reviewable, diffable read surface (`printPartialApplicationModelAsAdl`),
@@ -838,7 +856,7 @@ questions Phase 72 deliberately left as "real, larger ideas, not started
 here":
 
 - **An `adlfmt` formatter is redundant, not merely deferred.** Its whole job
-  was normalising inconsistent spelling in *hand-typed* `.adl` text — Phase
+  was normalising inconsistent spelling in _hand-typed_ `.adl` text — Phase
   72's Class A problem (`MIN 0` vs `MIN(0)`, `VALIDATE` vs `PREDICATE`, and
   the rest of the catalogue in `docs/spec/language.md`'s "Deprecated
   Spellings" table). If `.adl` text is never hand-typed — only ever emitted
@@ -861,14 +879,14 @@ here":
 **One real exception, worth stating precisely rather than glossing over.**
 Expression-bearing fields in `.adlj` stay strings in infix syntax,
 deliberately (see above) — the JSON Schema can validate that such a field
-*is a string*, it cannot validate that the string is a *syntactically valid
-ADL expression*. That check still runs through `parseExpressionSource`,
+_is a string_, it cannot validate that the string is a _syntactically valid
+ADL expression_. That check still runs through `parseExpressionSource`,
 backed by the same hand-written expression grammar that `.adl` text has always
 used — `src/parser/grammar/expression.ts` since Phase 88 split the parser into
 grammar-area files behind the `src/parser/parser.ts` barrel. So it is not quite accurate to say the
 formal-grammar idea is now "just a JSON Schema checker" — more precisely:
 the declarative-skeleton grammar is now just a JSON Schema checker, and the
-*expression* sub-grammar remains a real, load-bearing, hand-written text
+_expression_ sub-grammar remains a real, load-bearing, hand-written text
 grammar — just a far smaller and more tractable one than the whole language
 was, and one already under conformance test coverage (see
 `learnings/implementation/expression-language.md`).

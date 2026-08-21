@@ -47,6 +47,47 @@ export function validateApplicationReferences(
     );
   }
 
+  /*
+   * An application that admits strangers and grants none of them the ability
+   * to create anything of their own is a door into an empty room: every
+   * self-registered identity holds no membership and therefore no context
+   * role, so unless *some* policy lets an `authenticated` (or `everyone`)
+   * principal `create` an object that a business context is bound to, there is
+   * nothing a newly admitted person can ever do.
+   *
+   * Warning, not error. It is not provably dead the way
+   * `ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE` is: an application may legitimately
+   * admit self-registered readers of an `everyone`-readable catalogue with no
+   * context of their own, and refusing that would be wrong.
+   */
+  if (model.app.registration === "selfService") {
+    const contextObjects = new Set((model.contexts ?? []).map((context) => context.object));
+    const reachable = model.policies.some(
+      (policy) =>
+        contextObjects.has(policy.object) &&
+        policy.rules.some(
+          (rule) =>
+            rule.effect === "allow" &&
+            (rule.action === "create" || rule.action === "*") &&
+            (rule.principal.match === "authenticated" || rule.principal.match === "everyone") &&
+            rule.principal.roles.length === 0 &&
+            rule.principal.groupRoles.length === 0 &&
+            rule.principal.users.length === 0 &&
+            rule.principal.contextMember === undefined,
+        ),
+    );
+    if (!reachable) {
+      diagnostics.push(
+        diagnostic(
+          MODEL_VALIDATION_CODES.APP_SELF_SERVICE_REGISTRATION_UNREACHABLE,
+          "Application declares REGISTRATION SELF_SERVICE, but no policy grants create to an authenticated or everyone principal on any object a business context is bound to, so a self-registered person could never create anything.",
+          "app.registration",
+          "warning",
+        ),
+      );
+    }
+  }
+
   if (!indexes.themesByName.has(model.app.theme)) {
     diagnostics.push(
       diagnostic(

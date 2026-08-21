@@ -541,6 +541,97 @@ END.OBJECT
     );
   });
 
+  /*
+   * `SELF_SERVICE` says the application admits strangers. A stranger holds no
+   * membership and therefore no context role, so unless some policy lets a
+   * bare `authenticated`/`everyone` principal create an object a business
+   * context is bound to, the declaration opens a door into an empty room.
+   * Warning, not error: an `everyone`-readable catalogue with no context of
+   * its own is a legitimate shape and refusing it would be wrong.
+   */
+  const selfServicePartialModel = {
+    app: { name: "Groups", startView: "GroupList", registration: "selfService" },
+    contexts: [{ name: "Group", object: "Group", selection: { mode: "optional" } }],
+    objects: [
+      {
+        name: "Group",
+        displayField: "Name",
+        fields: [
+          { name: "Name", type: "text", required: true },
+          { name: "CreatedBy", type: "text", required: true },
+        ],
+        views: [{ name: "GroupList", kind: "list", fields: ["Name"] }],
+      },
+    ],
+    policies: [
+      {
+        name: "GroupPolicy",
+        object: "Group",
+        rules: [
+          {
+            name: "allowAuthenticatedCreateOwnGroup",
+            effect: "allow",
+            action: "create",
+            principal: { match: "authenticated" },
+            condition: "CreatedBy == runtime.userId",
+          },
+        ],
+      },
+    ],
+  } as unknown as PartialApplicationModel;
+
+  it("warns when a self-service application grants no stranger the ability to create anything", () => {
+    const partial = JSON.parse(
+      JSON.stringify(selfServicePartialModel),
+    ) as typeof selfServicePartialModel;
+    // The only reachable create grant is removed; everything else is unchanged.
+    (partial.policies as { rules: unknown[] }[])[0]!.rules = [];
+
+    const diagnostics = validateApplicationModel(resolveApplicationModel(partial));
+    const unreachable = diagnostics.filter(
+      (entry) => entry.code === MODEL_VALIDATION_CODES.APP_SELF_SERVICE_REGISTRATION_UNREACHABLE,
+    );
+
+    expect(unreachable).toEqual([
+      expect.objectContaining({ severity: "warning", path: "app.registration" }),
+    ]);
+  });
+
+  it.each([
+    ["a role-gated create grant", { match: "authenticated", roles: ["GroupAdmin"] }],
+    ["a context-member create grant", { match: "contextMember" }],
+  ])("still warns for %s, which no stranger can satisfy", (_label, principal) => {
+    const partial = JSON.parse(
+      JSON.stringify(selfServicePartialModel),
+    ) as typeof selfServicePartialModel;
+    (partial.roles as unknown) = [{ name: "GroupAdmin" }];
+    (partial.policies as { rules: { principal: unknown }[] }[])[0]!.rules[0]!.principal = principal;
+
+    expect(
+      validateApplicationModel(resolveApplicationModel(partial)).map((entry) => entry.code),
+    ).toContain(MODEL_VALIDATION_CODES.APP_SELF_SERVICE_REGISTRATION_UNREACHABLE);
+  });
+
+  it("does not warn when a self-service application lets a stranger create a context object", () => {
+    expect(
+      validateApplicationModel(resolveApplicationModel(selfServicePartialModel)).map(
+        (entry) => entry.code,
+      ),
+    ).not.toContain(MODEL_VALIDATION_CODES.APP_SELF_SERVICE_REGISTRATION_UNREACHABLE);
+  });
+
+  it("never warns for a model that declares no registration at all", () => {
+    const partial = JSON.parse(
+      JSON.stringify(selfServicePartialModel),
+    ) as typeof selfServicePartialModel;
+    delete (partial.app as { registration?: string }).registration;
+    (partial.policies as { rules: unknown[] }[])[0]!.rules = [];
+
+    expect(
+      validateApplicationModel(resolveApplicationModel(partial)).map((entry) => entry.code),
+    ).not.toContain(MODEL_VALIDATION_CODES.APP_SELF_SERVICE_REGISTRATION_UNREACHABLE);
+  });
+
   it("does not mutate the resolved model", () => {
     const resolved = resolveApplicationModel(validPartialModel);
     const before = JSON.stringify(resolved);

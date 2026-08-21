@@ -28,9 +28,7 @@
           "$ref": "#/definitions/PartialContextSelectionPolicyModel"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "AdljCommandCreateStepModel": {
@@ -72,11 +70,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "action",
-        "name",
-        "object"
-      ],
+      "required": ["action", "name", "object"],
       "type": "object"
     },
     "AdljCommandModel": {
@@ -111,9 +105,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "AdljCommandPreconditionModel": {
@@ -129,10 +121,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "expression",
-        "name"
-      ],
+      "required": ["expression", "name"],
       "type": "object"
     },
     "AdljCommandReadStepModel": {
@@ -162,12 +151,7 @@
           "$ref": "#/definitions/ResolvedCommandValueExpression"
         }
       },
-      "required": [
-        "action",
-        "name",
-        "object",
-        "recordId"
-      ],
+      "required": ["action", "name", "object", "recordId"],
       "type": "object"
     },
     "AdljCommandStepModel": {
@@ -222,12 +206,7 @@
           "$ref": "#/definitions/ResolvedCommandValueExpression"
         }
       },
-      "required": [
-        "action",
-        "name",
-        "object",
-        "recordId"
-      ],
+      "required": ["action", "name", "object", "recordId"],
       "type": "object"
     },
     "AdljComputedFieldModel": {
@@ -249,11 +228,7 @@
           "$ref": "#/definitions/FieldType"
         }
       },
-      "required": [
-        "expression",
-        "name",
-        "type"
-      ],
+      "required": ["expression", "name", "type"],
       "type": "object"
     },
     "AdljContextGrantModel": {
@@ -279,12 +254,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "contextField",
-        "name",
-        "object",
-        "userField"
-      ],
+      "required": ["contextField", "name", "object", "userField"],
       "type": "object"
     },
     "AdljDecisionTableInputModel": {
@@ -297,10 +267,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "expression",
-        "name"
-      ],
+      "required": ["expression", "name"],
       "type": "object"
     },
     "AdljDecisionTableModel": {
@@ -334,10 +301,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "object"
-      ],
+      "required": ["name", "object"],
       "type": "object"
     },
     "AdljDecisionTableRowModel": {
@@ -356,10 +320,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "condition",
-        "name"
-      ],
+      "required": ["condition", "name"],
       "type": "object"
     },
     "AdljFieldModel": {
@@ -403,9 +364,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "AdljLifecycleActionModel": {
@@ -449,11 +408,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "from",
-        "name",
-        "to"
-      ],
+      "required": ["from", "name", "to"],
       "type": "object"
     },
     "AdljLifecycleGuardModel": {
@@ -469,10 +424,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "expression",
-        "name"
-      ],
+      "required": ["expression", "name"],
       "type": "object"
     },
     "AdljLifecycleModel": {
@@ -500,10 +452,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "states"
-      ],
+      "required": ["name", "states"],
       "type": "object"
     },
     "AdljObjectModel": {
@@ -580,9 +529,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "AdljObjectSyncPolicyModel": {
@@ -623,10 +570,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "expression",
-        "name"
-      ],
+      "required": ["expression", "name"],
       "type": "object"
     },
     "AdljPolicyModel": {
@@ -653,10 +597,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "object"
-      ],
+      "required": ["name", "object"],
       "type": "object"
     },
     "AdljPolicyRuleModel": {
@@ -710,11 +651,7 @@
           ]
         }
       },
-      "required": [
-        "action",
-        "effect",
-        "name"
-      ],
+      "required": ["action", "effect", "name"],
       "type": "object"
     },
     "AdljPredicateValidatorModel": {
@@ -731,10 +668,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "expression",
-        "kind"
-      ],
+      "required": ["expression", "kind"],
       "type": "object"
     },
     "AdljPresentationActionControlModel": {
@@ -779,10 +713,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "name"
-      ],
+      "required": ["kind", "name"],
       "type": "object"
     },
     "AdljPresentationCalendarModel": {
@@ -843,11 +774,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "dateField",
-        "name",
-        "source"
-      ],
+      "required": ["dateField", "name", "source"],
       "type": "object"
     },
     "AdljPresentationConditionalFragmentModel": {
@@ -867,10 +794,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "when"
-      ],
+      "required": ["kind", "when"],
       "type": "object"
     },
     "AdljPresentationControlModel": {
@@ -938,10 +862,7 @@
           "$ref": "#/definitions/PartialPresentationStatusBindingModel"
         }
       },
-      "required": [
-        "name",
-        "source"
-      ],
+      "required": ["name", "source"],
       "type": "object"
     },
     "AdljPresentationRowFragmentModel": {
@@ -1022,9 +943,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "AdljReadModelFieldModel": {
@@ -1050,9 +969,7 @@
           "$ref": "#/definitions/FieldType"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "AdljReadModelModel": {
@@ -1090,11 +1007,7 @@
           "$ref": "#/definitions/ReadModelStrategy"
         }
       },
-      "required": [
-        "fields",
-        "name",
-        "sources"
-      ],
+      "required": ["fields", "name", "sources"],
       "type": "object"
     },
     "AdljSourceDocument": {
@@ -1171,10 +1084,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "app",
-        "objects"
-      ],
+      "required": ["app", "objects"],
       "type": "object"
     },
     "AdljSyncPolicyModel": {
@@ -1199,9 +1109,7 @@
           "$ref": "#/definitions/PartialSyncWindowModel"
         }
       },
-      "required": [
-        "object"
-      ],
+      "required": ["object"],
       "type": "object"
     },
     "AdljValidatorModel": {
@@ -1273,10 +1181,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "kind",
-        "name"
-      ],
+      "required": ["kind", "name"],
       "type": "object"
     },
     "AdljViewPresentationModel": {
@@ -1330,16 +1235,15 @@
       },
       "type": "object"
     },
+    "AppRegistrationMode": {
+      "enum": ["selfService", "inviteOnly"],
+      "type": "string"
+    },
     "AuditOperation": {
       "anyOf": [
         {
           "description": "`command` is the whole of a model-declared command, not one of its writes. A command's steps commit in one transaction, and replaying them as separate per-record operations destroys that transaction across the sync boundary: a step writing into a context an earlier step established has no context to write into, and a batch lands partially. The command kind is what lets the queue carry the transaction rather than its pieces.\n\n`batch` is the same idea for a transaction no command declares: an edit surface's staged child changes, which the user made as one act of editing and which must therefore land as one. It differs from `command` in what crosses the wire. A command is re-executed from its input, because a command exists in the model and the authority can run it again. A batch has no such declaration, so it crosses as the writes themselves — each one still checked server-side by the same policy, validation, scope and constraint path an individual intent takes, but all of them inside one transaction.",
-          "enum": [
-            "create",
-            "update",
-            "delete",
-            "transition"
-          ],
+          "enum": ["create", "update", "delete", "transition"],
           "type": "string"
         },
         {
@@ -1354,26 +1258,15 @@
       "description": "Audit stays per record: a command is audited as the writes it made, step by step, and so is a batch. Only the queue needs the transaction as one thing."
     },
     "CommandRuntimeProperty": {
-      "enum": [
-        "userId",
-        "nowIso",
-        "today"
-      ],
+      "enum": ["userId", "nowIso", "today"],
       "type": "string"
     },
     "CommandStepAuthority": {
-      "enum": [
-        "caller",
-        "command"
-      ],
+      "enum": ["caller", "command"],
       "type": "string"
     },
     "CommandStepMetaProperty": {
-      "enum": [
-        "guid",
-        "createdAt",
-        "updatedAt"
-      ],
+      "enum": ["guid", "createdAt", "updatedAt"],
       "type": "string"
     },
     "ComputedFieldStrategy": {
@@ -1381,100 +1274,48 @@
       "type": "string"
     },
     "ConflictStrategy": {
-      "enum": [
-        "serverWins",
-        "clientWins",
-        "stateTransitionWins",
-        "manual"
-      ],
+      "enum": ["serverWins", "clientWins", "stateTransitionWins", "manual"],
       "type": "string"
     },
     "ContextSelectionMode": {
-      "enum": [
-        "required",
-        "optional"
-      ],
+      "enum": ["required", "optional"],
       "type": "string"
     },
     "ContextSelectionPersistence": {
-      "enum": [
-        "none",
-        "session",
-        "local"
-      ],
+      "enum": ["none", "session", "local"],
       "type": "string"
     },
     "ContextSelectionSource": {
-      "enum": [
-        "runtime",
-        "route"
-      ],
+      "enum": ["runtime", "route"],
       "type": "string"
     },
     "DecisionTableMatchPolicy": {
-      "enum": [
-        "first",
-        "single"
-      ],
+      "enum": ["first", "single"],
       "type": "string"
     },
     "EditChildCollectionSummaryAggregate": {
       "description": "The closed aggregate vocabulary a child collection's `summary` may declare.\n\nDeliberately not an open expression grammar: every declarative-total feature checked while designing this (SQL aggregates, Excel, Airtable rollups, Salesforce Roll-Up Summary fields, Crystal Reports' Summary field) converges on exactly this small, closed set. See Phase 87 and `learnings/implementation/edit-surface-language.md`.",
-      "enum": [
-        "sum",
-        "avg",
-        "min",
-        "max",
-        "count"
-      ],
+      "enum": ["sum", "avg", "min", "max", "count"],
       "type": "string"
     },
     "EditChildCollectionSummaryPlacement": {
-      "enum": [
-        "header",
-        "footer"
-      ],
+      "enum": ["header", "footer"],
       "type": "string"
     },
     "EditChildOperationKind": {
-      "enum": [
-        "createChild",
-        "linkExisting",
-        "updateChild",
-        "unlink",
-        "remove",
-        "reorder"
-      ],
+      "enum": ["createChild", "linkExisting", "updateChild", "unlink", "remove", "reorder"],
       "type": "string"
     },
     "EditContainerMode": {
-      "enum": [
-        "modal",
-        "drawer",
-        "page",
-        "splitPane"
-      ],
+      "enum": ["modal", "drawer", "page", "splitPane"],
       "type": "string"
     },
     "FieldType": {
-      "enum": [
-        "text",
-        "number",
-        "date",
-        "datetime",
-        "time",
-        "boolean",
-        "attachment"
-      ],
+      "enum": ["text", "number", "date", "datetime", "time", "boolean", "attachment"],
       "type": "string"
     },
     "JsonPrimitive": {
-      "type": [
-        "string",
-        "number",
-        "boolean",
-        "null"
-      ]
+      "type": ["string", "number", "boolean", "null"]
     },
     "JsonValue": {
       "anyOf": [
@@ -1496,17 +1337,11 @@
       ]
     },
     "OrderedCollectionCompaction": {
-      "enum": [
-        "none",
-        "onDelete"
-      ],
+      "enum": ["none", "onDelete"],
       "type": "string"
     },
     "OrderedCollectionReorder": {
-      "enum": [
-        "strict",
-        "shift"
-      ],
+      "enum": ["strict", "shift"],
       "type": "string"
     },
     "PartialAppModel": {
@@ -1522,6 +1357,10 @@
         "offlineGraceDays": {
           "type": "number"
         },
+        "registration": {
+          "$ref": "#/definitions/AppRegistrationMode",
+          "description": "See  {@link  ResolvedApp.registration } . Absent means `inviteOnly`."
+        },
         "startView": {
           "type": "string"
         },
@@ -1529,9 +1368,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialAutoIdModel": {
@@ -1562,9 +1399,7 @@
           "$ref": "#/definitions/FieldType"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialCommandInputModel": {
@@ -1592,9 +1427,7 @@
           "$ref": "#/definitions/FieldType"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialContextMembershipModel": {
@@ -1619,12 +1452,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "object",
-        "userField",
-        "contextField",
-        "roleField"
-      ],
+      "required": ["object", "userField", "contextField", "roleField"],
       "type": "object"
     },
     "PartialContextSelectionPolicyModel": {
@@ -1707,12 +1535,7 @@
           "$ref": "#/definitions/PartialEditChildCollectionSummaryModel"
         }
       },
-      "required": [
-        "childObject",
-        "kind",
-        "name",
-        "parentField"
-      ],
+      "required": ["childObject", "kind", "name", "parentField"],
       "type": "object"
     },
     "PartialEditChildCollectionSummaryModel": {
@@ -1734,9 +1557,7 @@
           "$ref": "#/definitions/EditChildCollectionSummaryPlacement"
         }
       },
-      "required": [
-        "aggregate"
-      ],
+      "required": ["aggregate"],
       "type": "object"
     },
     "PartialEditFieldsSectionModel": {
@@ -1759,10 +1580,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "name"
-      ],
+      "required": ["kind", "name"],
       "type": "object"
     },
     "PartialEditSectionModel": {
@@ -1812,10 +1630,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "targetObject",
-        "displayField"
-      ],
+      "required": ["targetObject", "displayField"],
       "type": "object"
     },
     "PartialModelMigrationModel": {
@@ -1834,10 +1649,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "from",
-        "to"
-      ],
+      "required": ["from", "to"],
       "type": "object"
     },
     "PartialModelMigrationObjectModel": {
@@ -1856,9 +1668,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "object"
-      ],
+      "required": ["object"],
       "type": "object"
     },
     "PartialNamedValidatorModel": {
@@ -1871,9 +1681,7 @@
           "$ref": "#/definitions/JsonValue"
         }
       },
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "type": "object"
     },
     "PartialObjectAuditPolicyModel": {
@@ -1914,10 +1722,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "context",
-        "field"
-      ],
+      "required": ["context", "field"],
       "type": "object"
     },
     "PartialOrderedObjectConstraintModel": {
@@ -1956,12 +1761,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "kind",
-        "parentField",
-        "positionField"
-      ],
+      "required": ["name", "kind", "parentField", "positionField"],
       "type": "object"
     },
     "PartialPresentationCalendarMonthModel": {
@@ -2008,10 +1808,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "name"
-      ],
+      "required": ["kind", "name"],
       "type": "object"
     },
     "PartialPresentationCreateTargetModel": {
@@ -2058,10 +1855,7 @@
           "$ref": "#/definitions/PresentationFragmentStyle"
         }
       },
-      "required": [
-        "kind",
-        "field"
-      ],
+      "required": ["kind", "field"],
       "type": "object"
     },
     "PartialPresentationFormatModel": {
@@ -2074,9 +1868,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "type": "object"
     },
     "PartialPresentationIconFragmentModel": {
@@ -2093,10 +1885,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "icon"
-      ],
+      "required": ["kind", "icon"],
       "type": "object"
     },
     "PartialPresentationIconMapModel": {
@@ -2118,10 +1907,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "field"
-      ],
+      "required": ["name", "field"],
       "type": "object"
     },
     "PartialPresentationIconMapValueModel": {
@@ -2134,10 +1920,7 @@
           "$ref": "#/definitions/JsonPrimitive"
         }
       },
-      "required": [
-        "value",
-        "icon"
-      ],
+      "required": ["value", "icon"],
       "type": "object"
     },
     "PartialPresentationIconRefModel": {
@@ -2153,10 +1936,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind",
-            "name"
-          ],
+          "required": ["kind", "name"],
           "type": "object"
         },
         {
@@ -2176,10 +1956,7 @@
               "$ref": "#/definitions/JsonPrimitive"
             }
           },
-          "required": [
-            "kind",
-            "map"
-          ],
+          "required": ["kind", "map"],
           "type": "object"
         }
       ]
@@ -2203,9 +1980,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialPresentationLiteralTextFragmentModel": {
@@ -2222,10 +1997,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "text"
-      ],
+      "required": ["kind", "text"],
       "type": "object"
     },
     "PartialPresentationMatrixAxisSourceModel": {
@@ -2256,10 +2028,7 @@
           "$ref": "#/definitions/PresentationMatrixSourceKind"
         }
       },
-      "required": [
-        "source",
-        "labelField"
-      ],
+      "required": ["source", "labelField"],
       "type": "object"
     },
     "PartialPresentationMatrixCellModel": {
@@ -2305,11 +2074,7 @@
           "$ref": "#/definitions/PartialPresentationStatusBindingModel"
         }
       },
-      "required": [
-        "source",
-        "rowField",
-        "columnField"
-      ],
+      "required": ["source", "rowField", "columnField"],
       "type": "object"
     },
     "PartialPresentationMatrixDateColumnAxisModel": {
@@ -2331,10 +2096,7 @@
           "type": "number"
         }
       },
-      "required": [
-        "start",
-        "end"
-      ],
+      "required": ["start", "end"],
       "type": "object"
     },
     "PartialPresentationMatrixEditModel": {
@@ -2375,12 +2137,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "object",
-        "rowField",
-        "columnField",
-        "valueField"
-      ],
+      "required": ["object", "rowField", "columnField", "valueField"],
       "type": "object"
     },
     "PartialPresentationMatrixModel": {
@@ -2408,12 +2165,7 @@
           "$ref": "#/definitions/PartialPresentationMatrixAxisSourceModel"
         }
       },
-      "required": [
-        "name",
-        "rowSource",
-        "columnAxis",
-        "cellSource"
-      ],
+      "required": ["name", "rowSource", "columnAxis", "cellSource"],
       "type": "object"
     },
     "PartialPresentationSelectControlModel": {
@@ -2442,11 +2194,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "name",
-        "state"
-      ],
+      "required": ["kind", "name", "state"],
       "type": "object"
     },
     "PartialPresentationSelectOptionModel": {
@@ -2462,10 +2210,7 @@
           "$ref": "#/definitions/JsonPrimitive"
         }
       },
-      "required": [
-        "value",
-        "label"
-      ],
+      "required": ["value", "label"],
       "type": "object"
     },
     "PartialPresentationShellModel": {
@@ -2496,9 +2241,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "region"
-      ],
+      "required": ["region"],
       "type": "object"
     },
     "PartialPresentationStateModel": {
@@ -2517,9 +2260,7 @@
           "$ref": "#/definitions/PresentationStateType"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialPresentationStatusBindingModel": {
@@ -2547,10 +2288,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind",
-            "status"
-          ],
+          "required": ["kind", "status"],
           "type": "object"
         },
         {
@@ -2570,10 +2308,7 @@
               "$ref": "#/definitions/JsonPrimitive"
             }
           },
-          "required": [
-            "kind",
-            "map"
-          ],
+          "required": ["kind", "map"],
           "type": "object"
         }
       ]
@@ -2597,10 +2332,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "field"
-      ],
+      "required": ["name", "field"],
       "type": "object"
     },
     "PartialPresentationStatusMapValueModel": {
@@ -2613,10 +2345,7 @@
           "$ref": "#/definitions/JsonPrimitive"
         }
       },
-      "required": [
-        "value",
-        "status"
-      ],
+      "required": ["value", "status"],
       "type": "object"
     },
     "PartialPresentationStatusModel": {
@@ -2641,9 +2370,7 @@
           "$ref": "#/definitions/PresentationStatusThemeToken"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialPresentationToggleControlModel": {
@@ -2666,11 +2393,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "name",
-        "state"
-      ],
+      "required": ["kind", "name", "state"],
       "type": "object"
     },
     "PartialPrincipalSelectorModel": {
@@ -2719,11 +2442,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "name",
-        "through",
-        "field"
-      ],
+      "required": ["name", "through", "field"],
       "type": "object"
     },
     "PartialProtectedRoleObjectConstraintModel": {
@@ -2759,12 +2478,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "kind",
-        "roleField",
-        "roleValues"
-      ],
+      "required": ["name", "kind", "roleField", "roleValues"],
       "type": "object"
     },
     "PartialReadModelSourceJoinModel": {
@@ -2783,11 +2497,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "source",
-        "localField",
-        "sourceField"
-      ],
+      "required": ["source", "localField", "sourceField"],
       "type": "object"
     },
     "PartialReadModelSourceModel": {
@@ -2810,9 +2520,7 @@
           "$ref": "#/definitions/ReadModelSourceScope"
         }
       },
-      "required": [
-        "object"
-      ],
+      "required": ["object"],
       "type": "object"
     },
     "PartialRelationshipPickerEmptyStateModel": {
@@ -2893,9 +2601,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialShellControlModel": {
@@ -2923,10 +2629,7 @@
           "$ref": "#/definitions/PartialShellVisibilityModel"
         }
       },
-      "required": [
-        "name",
-        "kind"
-      ],
+      "required": ["name", "kind"],
       "type": "object"
     },
     "PartialShellModel": {
@@ -3000,9 +2703,7 @@
           "$ref": "#/definitions/PartialShellVisibilityModel"
         }
       },
-      "required": [
-        "view"
-      ],
+      "required": ["view"],
       "type": "object"
     },
     "PartialShellNavigationModel": {
@@ -3060,9 +2761,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialSyncWindowModel": {
@@ -3168,9 +2867,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "PartialUniqueObjectConstraintModel": {
@@ -3200,11 +2897,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "kind",
-        "fields"
-      ],
+      "required": ["name", "kind", "fields"],
       "type": "object"
     },
     "PartialViewContextModel": {
@@ -3217,9 +2910,7 @@
           "$ref": "#/definitions/ViewContextMode"
         }
       },
-      "required": [
-        "mode"
-      ],
+      "required": ["mode"],
       "type": "object"
     },
     "PolicyAction": {
@@ -3237,100 +2928,47 @@
       "type": "string"
     },
     "PolicyEffect": {
-      "enum": [
-        "allow",
-        "deny",
-        "readonly",
-        "mask",
-        "hidden"
-      ],
+      "enum": ["allow", "deny", "readonly", "mask", "hidden"],
       "type": "string"
     },
     "PresentationActionPlacement": {
-      "enum": [
-        "primary",
-        "secondary",
-        "row"
-      ],
+      "enum": ["primary", "secondary", "row"],
       "type": "string"
     },
     "PresentationCalendarSourceKind": {
-      "enum": [
-        "readModel",
-        "object"
-      ],
+      "enum": ["readModel", "object"],
       "type": "string"
     },
     "PresentationCalendarWeekStart": {
-      "enum": [
-        "sunday",
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday"
-      ],
+      "enum": ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"],
       "type": "string"
     },
     "PresentationDensity": {
-      "enum": [
-        "compact",
-        "comfortable",
-        "spacious"
-      ],
+      "enum": ["compact", "comfortable", "spacious"],
       "type": "string"
     },
     "PresentationFormatKind": {
-      "enum": [
-        "text",
-        "number",
-        "date",
-        "datetime",
-        "time",
-        "duration"
-      ],
+      "enum": ["text", "number", "date", "datetime", "time", "duration"],
       "type": "string"
     },
     "PresentationFragmentStyle": {
-      "enum": [
-        "plain",
-        "bold",
-        "muted",
-        "caption"
-      ],
+      "enum": ["plain", "bold", "muted", "caption"],
       "type": "string"
     },
     "PresentationLayout": {
-      "enum": [
-        "stack",
-        "grid",
-        "split",
-        "sidebar"
-      ],
+      "enum": ["stack", "grid", "split", "sidebar"],
       "type": "string"
     },
     "PresentationLegendInclude": {
-      "enum": [
-        "present",
-        "all"
-      ],
+      "enum": ["present", "all"],
       "type": "string"
     },
     "PresentationListRenderStyle": {
-      "enum": [
-        "table",
-        "feed",
-        "compactFeed",
-        "cards"
-      ],
+      "enum": ["table", "feed", "compactFeed", "cards"],
       "type": "string"
     },
     "PresentationListSourceKind": {
-      "enum": [
-        "readModel",
-        "object"
-      ],
+      "enum": ["readModel", "object"],
       "type": "string"
     },
     "PresentationMatrixBulkBehavior": {
@@ -3342,44 +2980,23 @@
       "type": "string"
     },
     "PresentationMatrixSourceKind": {
-      "enum": [
-        "readModel",
-        "object"
-      ],
+      "enum": ["readModel", "object"],
       "type": "string"
     },
     "PresentationRowLayout": {
-      "enum": [
-        "inline",
-        "stack"
-      ],
+      "enum": ["inline", "stack"],
       "type": "string"
     },
     "PresentationShellRegion": {
-      "enum": [
-        "topBar",
-        "bottomBar",
-        "sidebar"
-      ],
+      "enum": ["topBar", "bottomBar", "sidebar"],
       "type": "string"
     },
     "PresentationStatePersistence": {
-      "enum": [
-        "memory",
-        "session",
-        "local"
-      ],
+      "enum": ["memory", "session", "local"],
       "type": "string"
     },
     "PresentationStateType": {
-      "enum": [
-        "text",
-        "number",
-        "date",
-        "datetime",
-        "time",
-        "boolean"
-      ],
+      "enum": ["text", "number", "date", "datetime", "time", "boolean"],
       "type": "string"
     },
     "PresentationStatusThemeToken": {
@@ -3396,51 +3013,27 @@
       "type": "string"
     },
     "PrincipalMatch": {
-      "enum": [
-        "everyone",
-        "authenticated",
-        "anonymous",
-        "owner",
-        "specific",
-        "contextMember"
-      ],
+      "enum": ["everyone", "authenticated", "anonymous", "owner", "specific", "contextMember"],
       "type": "string"
     },
     "ReadModelJoinCardinality": {
-      "enum": [
-        "one",
-        "many"
-      ],
+      "enum": ["one", "many"],
       "type": "string"
     },
     "ReadModelSourceScope": {
-      "enum": [
-        "all",
-        "currentContext",
-        "allAvailableContexts",
-        "currentUser"
-      ],
+      "enum": ["all", "currentContext", "allAvailableContexts", "currentUser"],
       "type": "string"
     },
     "ReadModelStrategy": {
-      "enum": [
-        "join",
-        "union"
-      ],
+      "enum": ["join", "union"],
       "type": "string"
     },
     "RelationshipPickerSelectionMode": {
-      "enum": [
-        "single",
-        "multiple"
-      ],
+      "enum": ["single", "multiple"],
       "type": "string"
     },
     "RelationshipPickerSourceKind": {
-      "enum": [
-        "object",
-        "readModel"
-      ],
+      "enum": ["object", "readModel"],
       "type": "string"
     },
     "ResolvedCommandValueExpression": {
@@ -3456,10 +3049,7 @@
               "$ref": "#/definitions/JsonValue"
             }
           },
-          "required": [
-            "kind",
-            "value"
-          ],
+          "required": ["kind", "value"],
           "type": "object"
         },
         {
@@ -3473,10 +3063,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind",
-            "name"
-          ],
+          "required": ["kind", "name"],
           "type": "object"
         },
         {
@@ -3490,10 +3077,7 @@
               "$ref": "#/definitions/CommandRuntimeProperty"
             }
           },
-          "required": [
-            "kind",
-            "property"
-          ],
+          "required": ["kind", "property"],
           "type": "object"
         },
         {
@@ -3510,11 +3094,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind",
-            "step",
-            "field"
-          ],
+          "required": ["kind", "step", "field"],
           "type": "object"
         },
         {
@@ -3531,11 +3111,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind",
-            "step",
-            "property"
-          ],
+          "required": ["kind", "step", "property"],
           "type": "object"
         },
         {
@@ -3549,9 +3125,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind"
-          ],
+          "required": ["kind"],
           "type": "object"
         },
         {
@@ -3562,9 +3136,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind"
-          ],
+          "required": ["kind"],
           "type": "object"
         }
       ]
@@ -3582,10 +3154,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "context",
-        "field"
-      ],
+      "required": ["context", "field"],
       "type": "object"
     },
     "ResolvedModelMigrationAddFieldStep": {
@@ -3603,11 +3172,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "field",
-        "defaultValue"
-      ],
+      "required": ["kind", "field", "defaultValue"],
       "type": "object"
     },
     "ResolvedModelMigrationDropFieldStep": {
@@ -3621,10 +3186,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "field"
-      ],
+      "required": ["kind", "field"],
       "type": "object"
     },
     "ResolvedModelMigrationRenameFieldStep": {
@@ -3641,11 +3203,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind",
-        "from",
-        "to"
-      ],
+      "required": ["kind", "from", "to"],
       "type": "object"
     },
     "ResolvedModelMigrationStep": {
@@ -3698,50 +3256,29 @@
           "type": "string"
         }
       },
-      "required": [
-        "readModel",
-        "dateField",
-        "flagField",
-        "status"
-      ],
+      "required": ["readModel", "dateField", "flagField", "status"],
       "type": "object"
     },
     "ResolvedSort": {
       "additionalProperties": false,
       "properties": {
         "direction": {
-          "enum": [
-            "asc",
-            "desc"
-          ],
+          "enum": ["asc", "desc"],
           "type": "string"
         },
         "field": {
           "type": "string"
         }
       },
-      "required": [
-        "field",
-        "direction"
-      ],
+      "required": ["field", "direction"],
       "type": "object"
     },
     "RuntimeChannel": {
-      "enum": [
-        "ui",
-        "api",
-        "sync",
-        "import",
-        "test"
-      ],
+      "enum": ["ui", "api", "sync", "import", "test"],
       "type": "string"
     },
     "ShellContextSelectorPlacement": {
-      "enum": [
-        "topBar",
-        "navDrawer",
-        "hidden"
-      ],
+      "enum": ["topBar", "navDrawer", "hidden"],
       "type": "string"
     },
     "ShellControlKind": {
@@ -3756,43 +3293,23 @@
       "type": "string"
     },
     "ShellControlPlacement": {
-      "enum": [
-        "topBar",
-        "navDrawer"
-      ],
+      "enum": ["topBar", "navDrawer"],
       "type": "string"
     },
     "ShellMobileContextSelectorMode": {
-      "enum": [
-        "dropdown",
-        "sheet"
-      ],
+      "enum": ["dropdown", "sheet"],
       "type": "string"
     },
     "ShellNavigationMode": {
-      "enum": [
-        "explicitOnly",
-        "includeUnlistedViews"
-      ],
+      "enum": ["explicitOnly", "includeUnlistedViews"],
       "type": "string"
     },
     "ShellVisibilityKind": {
-      "enum": [
-        "always",
-        "contextAvailable",
-        "contextSelected",
-        "online",
-        "offline"
-      ],
+      "enum": ["always", "contextAvailable", "contextSelected", "online", "offline"],
       "type": "string"
     },
     "SyncMode": {
-      "enum": [
-        "localFirst",
-        "cacheReadonly",
-        "onlineRequired",
-        "localPrivate"
-      ],
+      "enum": ["localFirst", "cacheReadonly", "onlineRequired", "localPrivate"],
       "type": "string"
     },
     "SyncScope": {
@@ -3809,50 +3326,24 @@
       "type": "string"
     },
     "ThemeDensity": {
-      "enum": [
-        "compact",
-        "comfortable",
-        "spacious"
-      ],
+      "enum": ["compact", "comfortable", "spacious"],
       "type": "string"
     },
     "ThemeNav": {
-      "enum": [
-        "top",
-        "side",
-        "bottom"
-      ],
+      "enum": ["top", "side", "bottom"],
       "type": "string"
     },
     "ThemeRadius": {
-      "enum": [
-        "none",
-        "small",
-        "medium",
-        "large"
-      ],
+      "enum": ["none", "small", "medium", "large"],
       "type": "string"
     },
     "ViewContextMode": {
       "description": "`syncStatus` reports the sync state of the device's *records*; `connectivity` reports whether the device can reach the authority. They were one control until Phase 58, which is why a control named for record state rendered \"Online\"/\"Offline\" and no surface answered the question it was named after.",
-      "enum": [
-        "none",
-        "required",
-        "optional",
-        "all"
-      ],
+      "enum": ["none", "required", "optional", "all"],
       "type": "string"
     },
     "ViewKind": {
-      "enum": [
-        "list",
-        "detail",
-        "form",
-        "dashboard",
-        "masterDetail",
-        "grid",
-        "composite"
-      ],
+      "enum": ["list", "detail", "form", "dashboard", "masterDetail", "grid", "composite"],
       "type": "string"
     }
   }

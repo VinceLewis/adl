@@ -133,6 +133,14 @@ describe("resolveApplicationModel", () => {
       theme: DEFAULT_THEME_NAME,
       offlineGraceDays: DEFAULT_OFFLINE_GRACE_DAYS,
     });
+    /*
+     * Deliberately absent rather than defaulted. Materialising `inviteOnly`
+     * here would put a new key in every resolved model in the repository and
+     * move every `modelFingerprint`, including for apps whose behaviour did
+     * not change. Absence *is* the contract; `not.toHaveProperty`, not
+     * `toBeUndefined`, is what states it.
+     */
+    expect(resolved.app).not.toHaveProperty("registration");
     expect(resolved.shell.nav).toEqual({ mode: "explicitOnly", items: [] });
     expect(resolved.shell.topBar).toEqual({
       contextSelector: "topBar",

@@ -126,7 +126,24 @@ export interface ResolvedApp {
    * enforcement point; the client-side check is only an affordance.
    */
   offlineGraceDays: number;
+  /**
+   * Whether this application admits people who were not invited.
+   *
+   * Absent means `inviteOnly`. It is deliberately omitted rather than
+   * defaulted, so a model that says nothing has a byte-identical
+   * `modelFingerprint` to the one it had before this field existed. There is
+   * exactly one consumer — `resolveSelfServiceRegistration` in
+   * `src/server/authority-config.ts` — and it treats absence as the
+   * restrictive value.
+   *
+   * The authority is the enforcement point, and a deployment control may only
+   * ever *restrict* what this declares: there is no environment value that
+   * enables self-service for a model that did not ask for it. See
+   * `docs/spec/language.md` and Phase 99.
+   */
+  registration?: AppRegistrationMode;
 }
+export type AppRegistrationMode = "selfService" | "inviteOnly";
 export interface PartialApplicationModel {
   modelVersion?: string;
   app: PartialAppModel;
@@ -171,6 +188,8 @@ export interface PartialAppModel {
   startView?: string;
   theme?: string;
   offlineGraceDays?: number;
+  /** See {@link ResolvedApp.registration}. Absent means `inviteOnly`. */
+  registration?: AppRegistrationMode;
   /** A leading `#`/`//` comment block from `.adl` text, or `.adlj`'s `"comment"` key. */
   comment?: string;
 }

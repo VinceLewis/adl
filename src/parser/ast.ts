@@ -169,6 +169,12 @@ export interface AppDeclarationAst {
   modelVersion?: string;
   /** Declared by `OFFLINE_GRACE <days> DAYS`; the unit word is required. */
   offlineGraceDays?: number;
+  /**
+   * Declared by `REGISTRATION SELF_SERVICE` / `REGISTRATION INVITE_ONLY`.
+   * Carries the resolved-model spelling, not the text spelling, exactly as
+   * `SYNC LOCAL_FIRST` becomes `localFirst`.
+   */
+  registration?: "selfService" | "inviteOnly";
   /** See `AdlParser.takeLeadingComment`: a whole-line `#`/`//` block immediately above. */
   leadingComment?: string;
   end: EndMarkerNode;

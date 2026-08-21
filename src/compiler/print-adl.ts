@@ -279,6 +279,11 @@ function printApp(model: PartialApplicationModel): string {
   if (model.app.offlineGraceDays !== undefined) {
     lines.push(`  OFFLINE_GRACE ${model.app.offlineGraceDays} DAYS`);
   }
+  if (model.app.registration !== undefined) {
+    lines.push(
+      `  REGISTRATION ${model.app.registration === "selfService" ? "SELF_SERVICE" : "INVITE_ONLY"}`,
+    );
+  }
   if (model.modelVersion !== undefined) {
     lines.push(`  MODEL_VERSION ${printStringLiteral(model.modelVersion)}`);
   }

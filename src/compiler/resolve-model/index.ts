@@ -66,6 +66,12 @@ export function resolveApplicationModel(input: PartialApplicationModel): Resolve
       startView,
       theme: input.app.theme ?? DEFAULT_THEME_NAME,
       offlineGraceDays: input.app.offlineGraceDays ?? DEFAULT_OFFLINE_GRACE_DAYS,
+      // Deliberately *not* defaulted the way `offlineGraceDays` is. Absent
+      // means `inviteOnly`, and materialising that would put a new key in
+      // every resolved model in the repository and move every
+      // `modelFingerprint` — including apps whose behaviour did not change.
+      // Same precedent as context/read-model optional top-level properties.
+      ...(input.app.registration === undefined ? {} : { registration: input.app.registration }),
     },
     shell,
     roles: resolveRoles(input.roles ?? []),
