@@ -5,6 +5,14 @@ coverage/
 .vitest/
 playwright-report/
 test-results/
+# playwright-bdd generates one spec per Scenario from the qa-kit Gherkin root.
+.features-gen/
+
+# qa-kit tool output. The contract requires these results to be untracked:
+# a tracked output path is refused, and the gate authenticates an untracked file.
+.qa-kit/pairs/
+.qa-kit/runs/
+.qa-kit/cucumber-build-*/
 npm-debug.log*
 
 # Local env overrides. Never commit a filled copy (see .env.authority.sample).

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { defineBddConfig } from "playwright-bdd";
 
 /**
  * qa-kit browser tiers have no webServer entries. env:up already ran `vite
@@ -9,6 +10,19 @@ import { defineConfig, devices } from "@playwright/test";
  * sequential passkey flows over production files. Its authority is the existing
  * in-process fixture, not a claimed deployed/PostgreSQL authority proof.
  */
+/**
+ * qa-kit's `ui` Gherkin root. playwright-bdd generates one spec per Scenario
+ * from `tests/visual/features/ui`; the Scenario keeps the TEST id that
+ * `.qa-kit/pairs.json` maps, and the generated specs never enter the tree
+ * `qa pairs` reads. `qa-kit-run.sh ui` regenerates them before every run, so
+ * the generated directory is build output, not a second source of truth.
+ */
+const uiAcceptanceTestDir = defineBddConfig({
+  features: "tests/visual/features/ui/**/*.feature",
+  steps: "tests/visual/features/ui/steps/**/*.ts",
+  outputDir: ".features-gen/ui",
+});
+
 const UI_SPECS = [
   /giggle-band\.visual\.spec\.ts$/,
   /jointly-care\.visual\.spec\.ts$/,
@@ -37,6 +51,17 @@ export default defineConfig({
       name: "desktop",
       testDir: "./tests/visual",
       testMatch: UI_SPECS,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://127.0.0.1:4173",
+        viewport: { width: 1440, height: 1000 },
+      },
+    },
+    {
+      // The Gherkin half of the same `ui` capability: acceptance Scenarios
+      // against the same production preview the smoke specs use.
+      name: "ui-acceptance",
+      testDir: uiAcceptanceTestDir,
       use: {
         ...devices["Desktop Chrome"],
         baseURL: "http://127.0.0.1:4173",

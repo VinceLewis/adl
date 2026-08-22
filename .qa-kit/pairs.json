@@ -4,6 +4,10 @@
     {
       "path": "tests/features",
       "capability": "unit"
+    },
+    {
+      "path": "tests/visual/features/ui",
+      "capability": "ui"
     }
   ],
   "requirements": {
@@ -20,6 +24,16 @@
         },
         "AC-0004": {
           "tests": ["TEST-0004"]
+        }
+      }
+    },
+    "REQ-0002": {
+      "acceptanceCriteria": {
+        "AC-0005": {
+          "tests": ["TEST-0005"]
+        },
+        "AC-0006": {
+          "tests": ["TEST-0006"]
         }
       }
     }
