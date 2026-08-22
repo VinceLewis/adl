@@ -25,7 +25,8 @@ case "$capability" in
       if [[ -z "$QA_KIT_TEST_PATTERN" ]]; then usage; fi
       exec npx vitest run --testNamePattern "$QA_KIT_TEST_PATTERN"
     fi
-    exec npm test
+    npm test
+    exec npm run test:gherkin
     ;;
   integration) require_no_arguments "$@"; exec npm run test:integration ;;
   journey)

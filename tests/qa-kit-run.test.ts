@@ -80,6 +80,53 @@ describe("qa-kit project runner contract", () => {
     await expect(access(sentinel)).rejects.toThrow();
   });
 
+  it("runs both ordinary unit suites", async () => {
+    const directory = await mkdtemp(`${tmpdir()}/adl-qa-kit-unit-suites-`);
+    const bin = join(directory, "bin");
+    const capture = join(directory, "arguments.txt");
+    await mkdir(bin);
+    const npm = join(bin, "npm");
+    await writeFile(
+      npm,
+      '#!/usr/bin/env bash\nset -euo pipefail\nprintf \'%s\\n\' "$*" >> "$QA_KIT_CAPTURE"\n',
+    );
+    await chmod(npm, 0o755);
+
+    const result = spawnSync(runner, ["unit"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}`, QA_KIT_CAPTURE: capture },
+    });
+
+    expect(result.status).toBe(0);
+    expect((await readFile(capture, "utf8")).split("\n").filter(Boolean)).toEqual([
+      "test",
+      "run test:gherkin",
+    ]);
+  });
+
+  it("does not run Gherkin when the ordinary unit suite fails", async () => {
+    const directory = await mkdtemp(`${tmpdir()}/adl-qa-kit-unit-failure-`);
+    const bin = join(directory, "bin");
+    const capture = join(directory, "arguments.txt");
+    await mkdir(bin);
+    const npm = join(bin, "npm");
+    await writeFile(
+      npm,
+      '#!/usr/bin/env bash\nset -euo pipefail\nprintf \'%s\\n\' "$*" >> "$QA_KIT_CAPTURE"\nif [[ "$1" == "test" ]]; then exit 23; fi\n',
+    );
+    await chmod(npm, 0o755);
+
+    const result = spawnSync(runner, ["unit"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}`, QA_KIT_CAPTURE: capture },
+    });
+
+    expect(result.status).toBe(23);
+    expect((await readFile(capture, "utf8")).split("\n").filter(Boolean)).toEqual(["test"]);
+  });
+
   it("requires an absolute descriptor for browser environments", () => {
     const result = spawnSync(runner, ["env:up", "ui", "relative.json"], {
       cwd: root,
