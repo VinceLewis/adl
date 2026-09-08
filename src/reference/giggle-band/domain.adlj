@@ -1,140 +1,488 @@
 {
-  "modelVersion": "1.13.0",
   "app": {
+    "comment": "Giggle Band is a self-service product: `allowAuthenticatedCreateOwnBand`\nand `CreateBand` already say any signed-in person may create their own band\nand becomes its `BandAdmin`. Until this declaration existed the identity\nlayer contradicted that -- registration was invite-gated, so nobody could\never be the first `authenticated` caller. See\n`docs/phases/phase-99-self-service-registration.md`.",
     "name": "Giggle Band ADL Example",
-    "startView": "HomeDashboard",
-    "theme": "CorporateLight",
-    "offlineGraceDays": 30,
     "registration": "selfService",
-    "comment": "Giggle Band is a self-service product: `allowAuthenticatedCreateOwnBand`\nand `CreateBand` already say any signed-in person may create their own band\nand becomes its `BandAdmin`. Until this declaration existed the identity\nlayer contradicted that -- registration was invite-gated, so nobody could\never be the first `authenticated` caller. See\n`docs/phases/phase-99-self-service-registration.md`."
+    "startView": "HomeDashboard"
   },
-  "roles": [
+  "commands": [
     {
-      "name": "SystemAdmin",
-      "inherits": []
+      "inputs": [
+        {
+          "name": "Invitation",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "label": "Accept invitation",
+      "name": "AcceptBandInvitation",
+      "preconditions": [],
+      "steps": [
+        {
+          "action": "update",
+          "name": "acceptInvitation",
+          "object": "BandInvitation",
+          "patch": {
+            "RespondedAt": {
+              "kind": "runtime",
+              "property": "today"
+            },
+            "Status": {
+              "kind": "literal",
+              "value": "Accepted"
+            }
+          },
+          "preconditions": [
+            "Invitee == RUNTIME.userId",
+            "Status == 'Pending'"
+          ],
+          "recordId": {
+            "kind": "input",
+            "name": "Invitation"
+          }
+        },
+        {
+          "action": "create",
+          "authority": "command",
+          "name": "createMembership",
+          "object": "BandMember",
+          "preconditions": [],
+          "values": {
+            "Band": {
+              "field": "Band",
+              "kind": "stepField",
+              "step": "acceptInvitation"
+            },
+            "JoinedAt": {
+              "kind": "runtime",
+              "property": "today"
+            },
+            "Role": {
+              "field": "Role",
+              "kind": "stepField",
+              "step": "acceptInvitation"
+            },
+            "User": {
+              "kind": "runtime",
+              "property": "userId"
+            }
+          }
+        }
+      ]
     },
     {
-      "name": "BandMember",
-      "inherits": []
+      "comment": "Revocation is deliberately any-`BandAdmin`, not sender-only: it relies on\n`BandInvitationPolicy.allowBandAdminUpdateInvitations`, the same\nunrestricted admin-management rule that already lets any `BandAdmin`\nupdate or delete a `BandInvitation` regardless of who sent it (see\n`allowBandAdminUpdateInvitations` / `allowBandAdminDeleteInvitations`).\nRestricting it to `Inviter == runtime.userId` would strand a pending\ninvitation the moment its original sender left the band or lost admin\nrights, which is worse product behavior than letting any current admin\nclean it up. `RespondedAt` is left unset because a revoke is not a\nresponse from the invitee (see the `respondedAtRequiredAfterResponse`\nvalidation on `BandInvitation`).",
+      "inputs": [
+        {
+          "name": "Invitation",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "label": "Revoke invitation",
+      "name": "RevokeBandInvitation",
+      "preconditions": [],
+      "steps": [
+        {
+          "action": "update",
+          "name": "revokeInvitation",
+          "object": "BandInvitation",
+          "patch": {
+            "Status": {
+              "kind": "literal",
+              "value": "Revoked"
+            }
+          },
+          "preconditions": [
+            "Status == 'Pending'"
+          ],
+          "recordId": {
+            "kind": "input",
+            "name": "Invitation"
+          }
+        }
+      ]
     },
     {
-      "name": "BandAdmin",
-      "inherits": [
-        "BandMember"
+      "inputs": [
+        {
+          "name": "Name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "name": "Description",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "label": "Create band",
+      "name": "CreateBand",
+      "preconditions": [],
+      "steps": [
+        {
+          "action": "create",
+          "establishesContext": "Band",
+          "name": "createBand",
+          "object": "Band",
+          "preconditions": [],
+          "values": {
+            "CreatedBy": {
+              "kind": "runtime",
+              "property": "userId"
+            },
+            "Description": {
+              "kind": "input",
+              "name": "Description"
+            },
+            "Name": {
+              "kind": "input",
+              "name": "Name"
+            }
+          }
+        },
+        {
+          "action": "create",
+          "authority": "command",
+          "name": "createFounderMembership",
+          "object": "BandMember",
+          "preconditions": [],
+          "values": {
+            "Band": {
+              "kind": "stepMeta",
+              "property": "guid",
+              "step": "createBand"
+            },
+            "JoinedAt": {
+              "kind": "runtime",
+              "property": "today"
+            },
+            "Role": {
+              "kind": "literal",
+              "value": "BandAdmin"
+            },
+            "User": {
+              "kind": "runtime",
+              "property": "userId"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "Band",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "itemFields": [
+            {
+              "name": "Title",
+              "required": true,
+              "type": "text"
+            },
+            {
+              "name": "Composer",
+              "required": false,
+              "type": "text"
+            },
+            {
+              "name": "DurationSeconds",
+              "required": false,
+              "type": "number"
+            }
+          ],
+          "name": "Songs",
+          "repeated": true,
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "label": "Import songs",
+      "name": "ImportSongs",
+      "preconditions": [],
+      "steps": [
+        {
+          "action": "create",
+          "forEach": "Songs",
+          "name": "importSongs",
+          "object": "Song",
+          "preconditions": [],
+          "values": {
+            "Band": {
+              "kind": "input",
+              "name": "Band"
+            },
+            "Composer": {
+              "field": "Composer",
+              "kind": "item"
+            },
+            "DurationSeconds": {
+              "field": "DurationSeconds",
+              "kind": "item"
+            },
+            "Title": {
+              "field": "Title",
+              "kind": "item"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "Band",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "name": "SetList",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "itemFields": [
+            {
+              "name": "Song",
+              "required": true,
+              "type": "text"
+            },
+            {
+              "name": "Position",
+              "required": true,
+              "type": "number"
+            }
+          ],
+          "name": "Items",
+          "repeated": true,
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "label": "Add songs to set list",
+      "name": "AddSongsToSetList",
+      "preconditions": [],
+      "steps": [
+        {
+          "action": "create",
+          "forEach": "Items",
+          "name": "addSetListItems",
+          "object": "SetListItem",
+          "preconditions": [],
+          "values": {
+            "Band": {
+              "kind": "input",
+              "name": "Band"
+            },
+            "Position": {
+              "field": "Position",
+              "kind": "item"
+            },
+            "SetList": {
+              "kind": "input",
+              "name": "SetList"
+            },
+            "Song": {
+              "field": "Song",
+              "kind": "item"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "itemFields": [
+            {
+              "name": "Item",
+              "required": true,
+              "type": "text"
+            },
+            {
+              "name": "Position",
+              "required": true,
+              "type": "number"
+            }
+          ],
+          "name": "Items",
+          "repeated": true,
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "label": "Reorder set list",
+      "name": "ReorderSetList",
+      "preconditions": [],
+      "steps": [
+        {
+          "action": "update",
+          "forEach": "Items",
+          "name": "moveSetListItems",
+          "object": "SetListItem",
+          "patch": {
+            "Position": {
+              "field": "Position",
+              "kind": "item"
+            }
+          },
+          "preconditions": [],
+          "recordId": {
+            "field": "Item",
+            "kind": "item"
+          }
+        }
       ]
     }
   ],
-  "themes": [],
+  "contexts": [
+    {
+      "name": "User",
+      "object": "User"
+    },
+    {
+      "grants": [
+        {
+          "condition": "Status == 'Pending'",
+          "contextField": "Band",
+          "name": "pendingBandInvitation",
+          "object": "BandInvitation",
+          "userField": "Invitee"
+        }
+      ],
+      "membership": {
+        "contextField": "Band",
+        "object": "BandMember",
+        "roleField": "Role",
+        "roles": [
+          "BandAdmin",
+          "BandMember"
+        ],
+        "userField": "User"
+      },
+      "name": "Band",
+      "object": "Band",
+      "selection": {
+        "autoSelect": false,
+        "mode": "optional",
+        "persistence": "local"
+      }
+    }
+  ],
+  "decisionTables": [],
   "migrations": [
     {
       "from": "1.0.0",
-      "to": "1.1.0",
-      "objects": []
+      "objects": [],
+      "to": "1.1.0"
     },
     {
       "from": "1.1.0",
-      "to": "1.2.0",
-      "objects": []
+      "objects": [],
+      "to": "1.2.0"
     },
     {
       "from": "1.2.0",
-      "to": "1.3.0",
-      "objects": []
+      "objects": [],
+      "to": "1.3.0"
     },
     {
       "from": "1.3.0",
-      "to": "1.4.0",
       "objects": [
         {
           "object": "Event",
           "steps": [
             {
-              "kind": "dropField",
-              "field": "SetList"
+              "field": "SetList",
+              "kind": "dropField"
             }
           ]
         }
-      ]
+      ],
+      "to": "1.4.0"
     },
     {
       "from": "1.4.0",
-      "to": "1.5.0",
       "objects": [
         {
           "object": "Event",
           "steps": [
             {
-              "kind": "addField",
+              "defaultValue": null,
               "field": "CreatedBy",
-              "defaultValue": null
+              "kind": "addField"
             }
           ]
         }
-      ]
+      ],
+      "to": "1.5.0"
     },
     {
       "from": "1.5.0",
-      "to": "1.6.0",
-      "objects": []
+      "objects": [],
+      "to": "1.6.0"
     },
     {
       "from": "1.6.0",
-      "to": "1.7.0",
-      "objects": []
+      "objects": [],
+      "to": "1.7.0"
     },
     {
       "from": "1.7.0",
-      "to": "1.8.0",
-      "objects": []
+      "objects": [],
+      "to": "1.8.0"
     },
     {
       "from": "1.8.0",
-      "to": "1.9.0",
-      "objects": []
+      "objects": [],
+      "to": "1.9.0"
     },
     {
       "from": "1.9.0",
-      "to": "1.10.0",
-      "objects": []
+      "objects": [],
+      "to": "1.10.0"
     },
     {
       "from": "1.10.0",
-      "to": "1.11.0",
-      "objects": []
+      "objects": [],
+      "to": "1.11.0"
     },
     {
       "from": "1.11.0",
-      "to": "1.12.0",
-      "objects": []
+      "objects": [],
+      "to": "1.12.0"
     },
     {
       "from": "1.12.0",
-      "to": "1.13.0",
-      "objects": []
+      "objects": [],
+      "to": "1.13.0"
     }
   ],
+  "modelVersion": "1.13.0",
   "objects": [
     {
-      "name": "User",
       "businessKey": "Email",
-      "displayField": "Name",
+      "computedFields": [],
       "constraints": [],
-      "policies": [],
+      "displayField": "Name",
       "fields": [
         {
-          "name": "Name",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "Name",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "Email",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "Email",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "email"
@@ -142,88 +490,87 @@
           ]
         },
         {
-          "name": "ProfilePicture",
-          "type": "attachment",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "ProfilePicture",
+          "readonly": false,
+          "required": false,
+          "type": "attachment",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "User",
+      "policies": [],
+      "sync": {
+        "scope": "currentUser"
+      },
       "validations": [],
       "views": [
         {
-          "name": "UserProfileList",
-          "kind": "list",
+          "actions": [
+            "read",
+            "search"
+          ],
           "fields": [
             "Name",
             "Email"
           ],
+          "kind": "list",
+          "name": "UserProfileList",
           "searchFields": [
             "Name",
             "Email"
           ],
-          "sort": [],
-          "actions": [
-            "read",
-            "search"
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentUser"
-      }
+      ]
     },
     {
-      "name": "Band",
-      "displayField": "Name",
+      "computedFields": [],
       "constraints": [],
-      "policies": [],
+      "displayField": "Name",
       "fields": [
         {
+          "hidden": false,
           "name": "Name",
-          "type": "text",
+          "readonly": false,
           "required": true,
-          "readonly": false,
-          "hidden": false,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "Description",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "Biography",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "CreatedBy",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
           "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
+            "displayField": "Name",
+            "targetObject": "User"
           },
+          "name": "CreatedBy",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "Facebook",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": [
             {
               "kind": "regexp",
@@ -232,11 +579,11 @@
           ]
         },
         {
+          "hidden": false,
           "name": "Instagram",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": [
             {
               "kind": "regexp",
@@ -245,11 +592,11 @@
           ]
         },
         {
+          "hidden": false,
           "name": "YouTube",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": [
             {
               "kind": "regexp",
@@ -258,43 +605,49 @@
           ]
         },
         {
-          "name": "ProfilePicture",
-          "type": "attachment",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "ProfilePicture",
+          "readonly": false,
+          "required": false,
+          "type": "attachment",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "Band",
+      "policies": [],
+      "sync": {
+        "scope": "allAvailableContexts"
+      },
       "validations": [],
       "views": [
         {
-          "name": "BandDirectory",
-          "kind": "list",
+          "actions": [
+            "read",
+            "search"
+          ],
           "context": {
-            "mode": "all",
-            "context": "Band"
+            "context": "Band",
+            "mode": "all"
           },
           "fields": [
             "Name",
             "Description"
           ],
+          "kind": "list",
+          "name": "BandDirectory",
           "searchFields": [
             "Name"
           ],
-          "sort": [],
-          "actions": [
-            "read",
-            "search"
-          ]
+          "sort": []
         },
         {
-          "name": "BandProfile",
-          "kind": "form",
+          "actions": [
+            "save",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "Name",
@@ -305,81 +658,70 @@
             "YouTube",
             "ProfilePicture"
           ],
+          "kind": "form",
+          "name": "BandProfile",
           "searchFields": [],
-          "sort": [],
-          "actions": [
-            "save",
-            "delete"
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "allAvailableContexts"
-      }
+      ]
     },
     {
-      "name": "BandMember",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "computedFields": [],
       "constraints": [
         {
-          "name": "uniqueBandMemberUser",
-          "kind": "unique",
           "fields": [
             "User"
           ],
+          "kind": "unique",
+          "name": "uniqueBandMemberUser",
           "scopeFields": [
             "Band"
           ]
         },
         {
-          "name": "lastBandAdminStanding",
           "kind": "protectedRole",
-          "scopeFields": [
-            "Band"
-          ],
+          "minCount": 1,
+          "name": "lastBandAdminStanding",
           "roleField": "Role",
           "roleValues": [
             "BandAdmin"
           ],
-          "minCount": 1
+          "scopeFields": [
+            "Band"
+          ]
         }
       ],
-      "policies": [],
       "fields": [
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "User"
+          },
           "name": "User",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "Band"
+          },
           "name": "Band",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "Role",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "Role",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -391,106 +733,105 @@
           ]
         },
         {
-          "name": "JoinedAt",
-          "type": "date",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "JoinedAt",
+          "readonly": false,
+          "required": false,
+          "type": "date",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "BandMember",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "scope": "allAvailableContexts"
+      },
       "validations": [],
       "views": [
         {
-          "name": "BandMemberList",
-          "kind": "list",
+          "actions": [
+            "read",
+            "search"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "User",
             "Role",
             "JoinedAt"
           ],
+          "kind": "list",
+          "name": "BandMemberList",
           "searchFields": [
             "Role"
           ],
-          "sort": [],
-          "actions": [
-            "read",
-            "search"
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "allAvailableContexts"
-      }
+      ]
     },
     {
-      "name": "BandInvitation",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "computedFields": [],
       "constraints": [
         {
-          "name": "uniqueBandInvitationEmail",
-          "kind": "unique",
           "fields": [
             "InviteeEmail"
           ],
+          "kind": "unique",
+          "name": "uniqueBandInvitationEmail",
           "scopeFields": [
             "Band"
           ]
         }
       ],
-      "policies": [],
       "fields": [
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "Band"
+          },
           "name": "Band",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "User"
+          },
           "name": "Inviter",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "User"
+          },
           "name": "Invitee",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
-          },
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "InviteeEmail",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "InviteeEmail",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "email"
@@ -498,12 +839,12 @@
           ]
         },
         {
-          "name": "Role",
-          "type": "text",
-          "required": true,
           "defaultValue": "BandMember",
-          "readonly": false,
           "hidden": false,
+          "name": "Role",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -514,12 +855,12 @@
           ]
         },
         {
-          "name": "Status",
-          "type": "text",
-          "required": true,
           "defaultValue": "Pending",
-          "readonly": false,
           "hidden": false,
+          "name": "Status",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -533,38 +874,51 @@
           ]
         },
         {
-          "name": "SentAt",
-          "type": "date",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "SentAt",
+          "readonly": false,
+          "required": false,
+          "type": "date",
           "validators": []
         },
         {
-          "name": "RespondedAt",
-          "type": "date",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "RespondedAt",
+          "readonly": false,
+          "required": false,
+          "type": "date",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "BandInvitation",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "mode": "onlineRequired",
+        "scope": "currentContext"
+      },
       "validations": [
         {
-          "name": "respondedAtRequiredAfterResponse",
+          "comment": "A revoke is the sender side withdrawing an invitation nobody has answered\nyet, not a response from the invitee, so it is exempted here the same way\na still-`Pending` invitation is: `RevokeBandInvitation` never sets\n`RespondedAt`, and requiring it would make every revoke fail its own\ncommand's validation.",
           "expression": "((Status == 'Pending') OR (Status == 'Revoked')) OR (RespondedAt != NULL)",
           "message": "RespondedAt is required when an invitation is accepted or declined.",
-          "comment": "A revoke is the sender side withdrawing an invitation nobody has answered\nyet, not a response from the invitee, so it is exempted here the same way\na still-`Pending` invitation is: `RevokeBandInvitation` never sets\n`RespondedAt`, and requiring it would make every revoke fail its own\ncommand's validation."
+          "name": "respondedAtRequiredAfterResponse"
         }
       ],
       "views": [
         {
-          "name": "BandInvitationList",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "InviteeEmail",
@@ -572,53 +926,40 @@
             "Status",
             "SentAt"
           ],
+          "kind": "list",
+          "name": "BandInvitationList",
           "searchFields": [
             "InviteeEmail",
             "Status"
           ],
-          "sort": [],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "onlineRequired",
-        "scope": "currentContext"
-      }
+      ]
     },
     {
-      "name": "Event",
-      "displayField": "Title",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "computedFields": [],
       "constraints": [],
-      "policies": [],
+      "displayField": "Title",
       "fields": [
         {
-          "name": "Band",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
           "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
+            "displayField": "Name",
+            "targetObject": "Band"
           },
+          "name": "Band",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "EventType",
-          "type": "text",
-          "required": true,
           "defaultValue": "Gig",
-          "readonly": false,
           "hidden": false,
+          "name": "EventType",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -630,76 +971,76 @@
           ]
         },
         {
+          "hidden": false,
           "name": "Date",
+          "readonly": false,
+          "required": true,
           "type": "date",
-          "required": true,
-          "readonly": false,
-          "hidden": false,
           "validators": []
         },
         {
+          "hidden": false,
           "name": "StartTime",
-          "type": "time",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "time",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "EndTime",
+          "readonly": false,
+          "required": false,
           "type": "time",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
           "validators": []
         },
         {
+          "hidden": false,
           "name": "Title",
-          "type": "text",
+          "readonly": false,
           "required": true,
-          "readonly": false,
-          "hidden": false,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "VenueName",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "VenueLocation",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "Notes",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "ContactName",
-          "type": "text",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
           "comment": "Booking contact and payment terms travel with the gig, matching the fields\ngiggle-new's own gig form carries (`contact_name`, `contact_phone`,\n`contact_email`, `amount`, `payment_method`, `agent`). `Amount` is a plain\n`NUMBER`, not a `CURRENCY_CODE`-validated field: `CURRENCY_CODE` checks that\na value is three uppercase letters, which is what a currency *code* like\n`'GBP'` looks like, not a fee -- giggle-new itself has no separate currency\nfield, so there is nothing here for `CURRENCY_CODE` to validate.",
+          "hidden": false,
+          "name": "ContactName",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "ContactPhone",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "ContactPhone",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": [
             {
               "kind": "regexp",
@@ -708,11 +1049,11 @@
           ]
         },
         {
-          "name": "ContactEmail",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "ContactEmail",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": [
             {
               "kind": "email"
@@ -720,11 +1061,11 @@
           ]
         },
         {
-          "name": "Amount",
-          "type": "number",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "Amount",
+          "readonly": false,
+          "required": false,
+          "type": "number",
           "validators": [
             {
               "kind": "min",
@@ -733,11 +1074,11 @@
           ]
         },
         {
-          "name": "PaymentMethod",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "PaymentMethod",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -750,49 +1091,66 @@
           ]
         },
         {
+          "hidden": false,
           "name": "Agent",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "PreviousGig",
-          "type": "text",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Event",
-            "displayField": "Title"
-          },
           "comment": "Self-referencing: naming the gig this one repeats lets a repeat booking\ncarry its history forward without duplicating the earlier record.",
+          "hidden": false,
+          "lookup": {
+            "displayField": "Title",
+            "targetObject": "Event"
+          },
+          "name": "PreviousGig",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "CreatedBy",
-          "type": "text",
-          "required": false,
-          "readonly": false,
+          "comment": "Matches `Band.CreatedBy` and `SetList.CreatedBy`: an explicit creator\nlookup, not just the automatic `_createdBy` metadata field, so a gig\nrecord names who booked it the same way its sibling objects do. Neither\nof those two shows up on its own create form either -- both are\npopulated by the write path itself (`CreateBand`'s command step, and a\ndirect field on `band-app.ts`'s seed calls for `SetList`); `Event` has no\ndedicated `CreateEvent` command, so it is populated the same way\n`SetList`'s already is: directly in `band-app.ts`'s seed calls.",
           "hidden": false,
           "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
+            "displayField": "Name",
+            "targetObject": "User"
           },
-          "comment": "Matches `Band.CreatedBy` and `SetList.CreatedBy`: an explicit creator\nlookup, not just the automatic `_createdBy` metadata field, so a gig\nrecord names who booked it the same way its sibling objects do. Neither\nof those two shows up on its own create form either -- both are\npopulated by the write path itself (`CreateBand`'s command step, and a\ndirect field on `band-app.ts`'s seed calls for `SetList`); `Event` has no\ndedicated `CreateEvent` command, so it is populated the same way\n`SetList`'s already is: directly in `band-app.ts`'s seed calls.",
+          "name": "CreatedBy",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "Event",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "scope": "currentContext",
+        "window": {
+          "days": 90,
+          "field": "Date",
+          "limit": 200
+        }
+      },
       "validations": [],
       "views": [
         {
-          "name": "BandEventList",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "Date",
@@ -801,6 +1159,8 @@
             "Title",
             "VenueName"
           ],
+          "kind": "list",
+          "name": "BandEventList",
           "searchFields": [
             "Title",
             "VenueName",
@@ -808,29 +1168,91 @@
           ],
           "sort": [
             {
-              "field": "Date",
-              "direction": "asc"
+              "direction": "asc",
+              "field": "Date"
             },
             {
-              "field": "StartTime",
-              "direction": "asc"
+              "direction": "asc",
+              "field": "StartTime"
             }
-          ],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
           ]
         },
         {
-          "name": "BandEventForm",
-          "kind": "form",
-          "context": {
-            "mode": "required",
-            "context": "Band"
-          },
+          "actions": [
+            "save",
+            "delete"
+          ],
           "comment": "The `SetLists` child collection replaces what was a single `SetList` lookup\non `Event`. giggle-new's own gig form carries a `Set Lists:` block -- an\nadd-from-dropdown list of *several* set lists in a dragged order, backed by\nits `gig_set_lists(gig_id, set_list_id, position)` table -- so one lookup\ncould never express a two-set night, which is the common case there (an\nopening set and a second set).\n\nNo `EDIT_CONTAINER page`, unlike `SetListForm`'s own `Songs` collection: a\ngig is edited in a modal in giggle-new with its set lists inside it, and a\ngig has a handful of them rather than a whole song library, so the room a\npage buys is room this collection does not need.",
+          "context": {
+            "context": "Band",
+            "mode": "required"
+          },
+          "editSections": [
+            {
+              "fields": [
+                "EventType",
+                "Date",
+                "StartTime",
+                "EndTime",
+                "Title",
+                "VenueName",
+                "VenueLocation",
+                "ContactName",
+                "ContactPhone",
+                "ContactEmail",
+                "Amount",
+                "PaymentMethod",
+                "Agent",
+                "PreviousGig",
+                "Notes"
+              ],
+              "heading": "Event",
+              "kind": "fields",
+              "name": "Details"
+            },
+            {
+              "childObject": "EventSetList",
+              "childView": "EventSetListList",
+              "emptyState": {
+                "text": "No set lists attached to this event yet."
+              },
+              "heading": "Set Lists",
+              "kind": "childCollection",
+              "name": "SetLists",
+              "operations": [
+                "createChild",
+                "updateChild",
+                "remove",
+                "reorder"
+              ],
+              "orderField": "Position",
+              "parentField": "Event",
+              "picker": {
+                "candidateField": "SetList",
+                "comment": "`EXCLUDE_LINKED` is the modelled form of what giggle-new's gig form does by\nhand: it rebuilds its `availableSetLists` dropdown as every set list minus\nthe ones already attached, because `gig_set_lists`' primary key forbids the\nsame set list twice on one gig. Declaring it here means the constraint is\nenforced by `uniqueSetListForEvent` on the object, not only by a picker that\ndeclines to offer the duplicate.",
+                "displayFields": [
+                  "Name",
+                  "Description"
+                ],
+                "emptyState": {
+                  "text": "Every set list this band has is already attached to this event."
+                },
+                "name": "EventSetListPicker",
+                "searchFields": [
+                  "Name"
+                ],
+                "selection": "multiple",
+                "sort": [
+                  {
+                    "direction": "asc",
+                    "field": "Name"
+                  }
+                ],
+                "source": "SetList",
+                "sourceKind": "object"
+              }
+            }
+          ],
           "fields": [
             "EventType",
             "Date",
@@ -848,135 +1270,55 @@
             "PreviousGig",
             "Notes"
           ],
+          "kind": "form",
+          "name": "BandEventForm",
           "searchFields": [],
-          "sort": [],
-          "actions": [
-            "save",
-            "delete"
-          ],
-          "editSections": [
-            {
-              "name": "Details",
-              "kind": "fields",
-              "heading": "Event",
-              "fields": [
-                "EventType",
-                "Date",
-                "StartTime",
-                "EndTime",
-                "Title",
-                "VenueName",
-                "VenueLocation",
-                "ContactName",
-                "ContactPhone",
-                "ContactEmail",
-                "Amount",
-                "PaymentMethod",
-                "Agent",
-                "PreviousGig",
-                "Notes"
-              ]
-            },
-            {
-              "name": "SetLists",
-              "kind": "childCollection",
-              "heading": "Set Lists",
-              "childObject": "EventSetList",
-              "parentField": "Event",
-              "childView": "EventSetListList",
-              "operations": [
-                "createChild",
-                "updateChild",
-                "remove",
-                "reorder"
-              ],
-              "staged": true,
-              "orderField": "Position",
-              "emptyState": {
-                "text": "No set lists attached to this event yet."
-              },
-              "picker": {
-                "name": "EventSetListPicker",
-                "sourceKind": "object",
-                "source": "SetList",
-                "candidateField": "SetList",
-                "selection": "multiple",
-                "displayFields": [
-                  "Name",
-                  "Description"
-                ],
-                "searchFields": [
-                  "Name"
-                ],
-                "sort": [
-                  {
-                    "field": "Name",
-                    "direction": "asc"
-                  }
-                ],
-                "excludeAlreadyLinked": true,
-                "emptyState": {
-                  "text": "Every set list this band has is already attached to this event."
-                },
-                "comment": "`EXCLUDE_LINKED` is the modelled form of what giggle-new's gig form does by\nhand: it rebuilds its `availableSetLists` dropdown as every set list minus\nthe ones already attached, because `gig_set_lists`' primary key forbids the\nsame set list twice on one gig. Declaring it here means the constraint is\nenforced by `uniqueSetListForEvent` on the object, not only by a picker that\ndeclines to offer the duplicate."
-              }
-            }
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentContext",
-        "window": {
-          "field": "Date",
-          "days": 90,
-          "limit": 200
-        }
-      }
+      ]
     },
     {
-      "name": "Availability",
-      "displayField": "Date",
+      "computedFields": [],
       "constraints": [
         {
-          "name": "uniqueUserAvailabilityDate",
-          "kind": "unique",
           "fields": [
             "Date"
           ],
+          "kind": "unique",
+          "name": "uniqueUserAvailabilityDate",
           "scopeFields": [
             "User"
           ]
         }
       ],
-      "policies": [],
+      "displayField": "Date",
       "fields": [
         {
-          "name": "User",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
           "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
+            "displayField": "Name",
+            "targetObject": "User"
           },
-          "validators": []
-        },
-        {
-          "name": "Date",
-          "type": "date",
-          "required": true,
+          "name": "User",
           "readonly": false,
-          "hidden": false,
-          "validators": []
-        },
-        {
-          "name": "Status",
+          "required": true,
           "type": "text",
-          "required": true,
-          "readonly": false,
+          "validators": []
+        },
+        {
           "hidden": false,
+          "name": "Date",
+          "readonly": false,
+          "required": true,
+          "type": "date",
+          "validators": []
+        },
+        {
+          "hidden": false,
+          "name": "Status",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -988,108 +1330,103 @@
           ]
         },
         {
-          "name": "Notes",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "Notes",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "Availability",
+      "policies": [],
+      "sync": {
+        "scope": "currentUser",
+        "window": {
+          "days": 90,
+          "field": "Date",
+          "limit": 400
+        }
+      },
       "validations": [],
       "views": [
         {
-          "name": "MyAvailabilityList",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "fields": [
             "Date",
             "Status",
             "Notes"
           ],
+          "kind": "list",
+          "name": "MyAvailabilityList",
           "searchFields": [
             "Status",
             "Notes"
           ],
           "sort": [
             {
-              "field": "Date",
-              "direction": "asc"
+              "direction": "asc",
+              "field": "Date"
             }
-          ],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
           ]
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentUser",
-        "window": {
-          "field": "Date",
-          "days": 90,
-          "limit": 400
-        }
-      }
+      ]
     },
     {
-      "name": "Song",
-      "displayField": "Title",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "computedFields": [],
       "constraints": [
         {
-          "name": "uniqueSongTitleInBand",
-          "kind": "unique",
           "fields": [
             "Title"
           ],
+          "kind": "unique",
+          "name": "uniqueSongTitleInBand",
           "scopeFields": [
             "Band"
           ]
         }
       ],
-      "policies": [],
+      "displayField": "Title",
       "fields": [
         {
-          "name": "Band",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
           "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
+            "displayField": "Name",
+            "targetObject": "Band"
           },
-          "validators": []
-        },
-        {
-          "name": "Title",
-          "type": "text",
+          "name": "Band",
+          "readonly": false,
           "required": true,
-          "readonly": false,
-          "hidden": false,
-          "validators": []
-        },
-        {
-          "name": "Composer",
           "type": "text",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
           "validators": []
         },
         {
-          "name": "DurationSeconds",
-          "type": "number",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "Title",
+          "readonly": false,
+          "required": true,
+          "type": "text",
+          "validators": []
+        },
+        {
+          "hidden": false,
+          "name": "Composer",
+          "readonly": false,
+          "required": false,
+          "type": "text",
+          "validators": []
+        },
+        {
+          "hidden": false,
+          "name": "DurationSeconds",
+          "readonly": false,
+          "required": false,
+          "type": "number",
           "validators": [
             {
               "kind": "min",
@@ -1098,215 +1435,213 @@
           ]
         },
         {
-          "name": "Notes",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "Notes",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "Song",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "scope": "currentContext"
+      },
       "validations": [],
       "views": [
         {
-          "name": "SongLibrary",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "Title",
             "Composer",
             "DurationSeconds"
           ],
+          "kind": "list",
+          "name": "SongLibrary",
           "searchFields": [
             "Title",
             "Composer"
           ],
-          "sort": [],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentContext"
-      }
+      ]
     },
     {
-      "name": "SetList",
-      "displayField": "Name",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "computedFields": [],
       "constraints": [
         {
-          "name": "uniqueSetListNameInBand",
-          "kind": "unique",
           "fields": [
             "Name"
           ],
+          "kind": "unique",
+          "name": "uniqueSetListNameInBand",
           "scopeFields": [
             "Band"
           ]
         }
       ],
-      "policies": [],
+      "displayField": "Name",
       "fields": [
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "Band"
+          },
           "name": "Band",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "Name",
-          "type": "text",
+          "readonly": false,
           "required": true,
-          "readonly": false,
-          "hidden": false,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "Description",
-          "type": "text",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "CreatedBy",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
           "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
+            "displayField": "Name",
+            "targetObject": "User"
           },
+          "name": "CreatedBy",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "SetList",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "scope": "currentContext"
+      },
       "validations": [],
       "views": [
         {
-          "name": "SetListList",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "editContainer": "page",
           "fields": [
             "Name",
             "Description"
           ],
+          "kind": "list",
+          "name": "SetListList",
           "searchFields": [
             "Name"
           ],
-          "sort": [],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentContext"
-      }
+      ]
     },
     {
-      "name": "SetListItem",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "computedFields": [],
       "constraints": [
         {
-          "name": "orderedSetListItems",
+          "compaction": "onDelete",
           "kind": "ordered",
+          "name": "orderedSetListItems",
           "parentField": "SetList",
           "positionField": "Position",
+          "reorder": "shift",
           "scopeFields": [
             "Band"
-          ],
-          "reorder": "shift",
-          "compaction": "onDelete"
+          ]
         },
         {
-          "name": "uniqueSongInSetList",
-          "kind": "unique",
           "comment": "giggle-new's `set_list_songs` carries `UNIQUE (set_list_id, song_id)`: the\nsame song cannot appear twice in one set list. `SongPicker`'s\n`EXCLUDE_LINKED` already hides an already-added song, but a picker that\ndeclines to offer a duplicate is a UI affordance, not enforcement -- nothing\nstopped a direct create or a replayed authority write from making one. This\nis the object constraint the real schema always had.",
           "fields": [
             "Song"
           ],
+          "kind": "unique",
+          "name": "uniqueSongInSetList",
           "scopeFields": [
             "SetList"
           ]
         }
       ],
-      "policies": [],
       "fields": [
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "Band"
+          },
           "name": "Band",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "SetList"
+          },
           "name": "SetList",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "SetList",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Title",
+            "targetObject": "Song"
+          },
           "name": "Song",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Song",
-            "displayField": "Title"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "Position",
-          "type": "number",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "Position",
+          "readonly": false,
+          "required": true,
+          "type": "number",
           "validators": [
             {
               "kind": "min",
@@ -1315,13 +1650,13 @@
           ]
         },
         {
-          "name": "Arrangement",
-          "type": "text",
-          "required": false,
-          "defaultValue": "Full",
-          "readonly": false,
-          "hidden": false,
           "comment": "A set-list item is not just a link to a song: how it is played, whether it\ncloses the night, and when it was last rehearsed all belong to the item.\nThese are what make the child collection's inline editor exercise the real\nfield renderer -- an enum, a boolean and a date beside the song lookup.",
+          "defaultValue": "Full",
+          "hidden": false,
+          "name": "Arrangement",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -1334,40 +1669,52 @@
           ]
         },
         {
-          "name": "Encore",
-          "type": "boolean",
-          "required": false,
           "defaultValue": false,
-          "readonly": false,
           "hidden": false,
+          "name": "Encore",
+          "readonly": false,
+          "required": false,
+          "type": "boolean",
           "validators": []
         },
         {
+          "hidden": false,
           "name": "RehearsedOn",
-          "type": "date",
-          "required": false,
           "readonly": false,
-          "hidden": false,
+          "required": false,
+          "type": "date",
           "validators": []
         },
         {
-          "name": "Notes",
-          "type": "text",
-          "required": false,
-          "readonly": false,
           "hidden": false,
+          "name": "Notes",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "SetListItem",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "scope": "currentContext"
+      },
       "validations": [],
       "views": [
         {
-          "name": "SetListItemList",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "SetList",
@@ -1378,129 +1725,116 @@
             "RehearsedOn",
             "Notes"
           ],
+          "kind": "list",
+          "name": "SetListItemList",
           "searchFields": [
             "Notes"
           ],
           "sort": [
             {
-              "field": "Position",
-              "direction": "asc"
+              "direction": "asc",
+              "field": "Position"
             }
-          ],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
           ]
         },
         {
-          "name": "SetListByPosition",
-          "kind": "dashboard",
+          "actions": [
+            "read",
+            "search"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
-          "readModel": "SetListItemsByPosition",
           "fields": [
             "Position",
             "SongTitle",
             "SetListName",
             "DurationSeconds"
           ],
+          "kind": "dashboard",
+          "name": "SetListByPosition",
+          "readModel": "SetListItemsByPosition",
           "searchFields": [],
           "sort": [
             {
-              "field": "Position",
-              "direction": "asc"
+              "direction": "asc",
+              "field": "Position"
             }
-          ],
-          "actions": [
-            "read",
-            "search"
           ]
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentContext"
-      }
+      ]
     },
     {
-      "name": "EventSetList",
-      "comment": "The gig <-> set-list link, and the reason `Event` no longer carries a single\n`SetList` lookup. giggle-new's `gig_set_lists(gig_id, set_list_id, position)`\nis a genuine ordered many-to-many -- its production data has nights running\ntwo set lists in order, and its gig form lets an admin add, reorder and\ndetach them one at a time. Same shape as `SetListItem` one object up (an\n`ORDERED` position under a parent, a `UNIQUE` guard against linking the same\nchild twice), because it is the same kind of relationship: `SetListItem`\norders songs within a set list, `EventSetList` orders set lists within a\nnight.",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "comment": "The gig \u003c-\u003e set-list link, and the reason `Event` no longer carries a single\n`SetList` lookup. giggle-new's `gig_set_lists(gig_id, set_list_id, position)`\nis a genuine ordered many-to-many -- its production data has nights running\ntwo set lists in order, and its gig form lets an admin add, reorder and\ndetach them one at a time. Same shape as `SetListItem` one object up (an\n`ORDERED` position under a parent, a `UNIQUE` guard against linking the same\nchild twice), because it is the same kind of relationship: `SetListItem`\norders songs within a set list, `EventSetList` orders set lists within a\nnight.",
+      "computedFields": [],
       "constraints": [
         {
-          "name": "orderedEventSetLists",
+          "compaction": "onDelete",
           "kind": "ordered",
+          "name": "orderedEventSetLists",
           "parentField": "Event",
           "positionField": "Position",
+          "reorder": "shift",
           "scopeFields": [
             "Band"
-          ],
-          "reorder": "shift",
-          "compaction": "onDelete"
+          ]
         },
         {
-          "name": "uniqueSetListForEvent",
-          "kind": "unique",
           "comment": "`gig_set_lists`' own primary key is `(gig_id, set_list_id)`: one set list\ncannot be attached to the same event twice.",
           "fields": [
             "SetList"
           ],
+          "kind": "unique",
+          "name": "uniqueSetListForEvent",
           "scopeFields": [
             "Event"
           ]
         }
       ],
-      "policies": [],
       "fields": [
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "Band"
+          },
           "name": "Band",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Title",
+            "targetObject": "Event"
+          },
           "name": "Event",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Event",
-            "displayField": "Title"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "SetList"
+          },
           "name": "SetList",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "SetList",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "Position",
-          "type": "number",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "Position",
+          "readonly": false,
+          "required": true,
+          "type": "number",
           "validators": [
             {
               "kind": "min",
@@ -1509,24 +1843,36 @@
           ]
         },
         {
-          "name": "Notes",
-          "type": "text",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
           "comment": "Not a `gig_set_lists` column, but the thing its users write into the gig's\nshared `notes` field instead -- which set is the acoustic one, which one\nfollows the interval. Kept on the link rather than the set list because the\nsame set list is reused across nights.",
+          "hidden": false,
+          "name": "Notes",
+          "readonly": false,
+          "required": false,
+          "type": "text",
           "validators": []
         }
       ],
-      "computedFields": [],
+      "name": "EventSetList",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "scope": "currentContext"
+      },
       "validations": [],
       "views": [
         {
-          "name": "EventSetListList",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "Event",
@@ -1534,78 +1880,65 @@
             "SetList",
             "Notes"
           ],
+          "kind": "list",
+          "name": "EventSetListList",
           "searchFields": [
             "Notes"
           ],
           "sort": [
             {
-              "field": "Position",
-              "direction": "asc"
+              "direction": "asc",
+              "field": "Position"
             }
-          ],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
           ]
         }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentContext"
-      }
+      ]
     },
     {
-      "name": "StreamingLink",
-      "scope": {
-        "context": "Band",
-        "field": "Band"
-      },
+      "computedFields": [],
       "constraints": [
         {
-          "name": "uniqueStreamingPlatformForSong",
-          "kind": "unique",
           "fields": [
             "Platform"
           ],
+          "kind": "unique",
+          "name": "uniqueStreamingPlatformForSong",
           "scopeFields": [
             "Song"
           ]
         }
       ],
-      "policies": [],
       "fields": [
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "Band"
+          },
           "name": "Band",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Title",
+            "targetObject": "Song"
+          },
           "name": "Song",
-          "type": "text",
-          "required": true,
           "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Song",
-            "displayField": "Title"
-          },
+          "required": true,
+          "type": "text",
           "validators": []
         },
         {
-          "name": "Platform",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "Platform",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "in",
@@ -1625,11 +1958,11 @@
           ]
         },
         {
-          "name": "Url",
-          "type": "text",
-          "required": true,
-          "readonly": false,
           "hidden": false,
+          "name": "Url",
+          "readonly": false,
+          "required": true,
+          "type": "text",
           "validators": [
             {
               "kind": "regexp",
@@ -1638,151 +1971,1170 @@
           ]
         }
       ],
-      "computedFields": [],
+      "name": "StreamingLink",
+      "policies": [],
+      "scope": {
+        "context": "Band",
+        "field": "Band"
+      },
+      "sync": {
+        "scope": "currentContext"
+      },
       "validations": [],
       "views": [
         {
-          "name": "StreamingLinkList",
-          "kind": "list",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "delete"
+          ],
           "context": {
-            "mode": "required",
-            "context": "Band"
+            "context": "Band",
+            "mode": "required"
           },
           "fields": [
             "Song",
             "Platform",
             "Url"
           ],
+          "kind": "list",
+          "name": "StreamingLinkList",
           "searchFields": [
             "Platform",
             "Url"
           ],
-          "sort": [],
+          "sort": []
+        }
+      ]
+    },
+    {
+      "computedFields": [],
+      "constraints": [],
+      "displayField": "LastOpenedView",
+      "fields": [
+        {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "User"
+          },
+          "name": "User",
+          "readonly": false,
+          "required": true,
+          "type": "text",
+          "validators": []
+        },
+        {
+          "hidden": false,
+          "lookup": {
+            "displayField": "Name",
+            "targetObject": "Band"
+          },
+          "name": "SelectedBand",
+          "readonly": false,
+          "required": false,
+          "type": "text",
+          "validators": []
+        },
+        {
+          "hidden": false,
+          "name": "LastOpenedView",
+          "readonly": false,
+          "required": false,
+          "type": "text",
+          "validators": []
+        }
+      ],
+      "name": "DevicePreference",
+      "policies": [],
+      "sync": {
+        "mode": "localPrivate",
+        "scope": "currentUser"
+      },
+      "validations": [],
+      "views": [
+        {
           "actions": [
             "create",
             "read",
             "update",
             "delete"
-          ]
-        }
-      ],
-      "sync": {
-        "mode": "localFirst",
-        "scope": "currentContext"
-      }
-    },
-    {
-      "name": "DevicePreference",
-      "displayField": "LastOpenedView",
-      "constraints": [],
-      "policies": [],
-      "fields": [
-        {
-          "name": "User",
-          "type": "text",
-          "required": true,
-          "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "User",
-            "displayField": "Name"
-          },
-          "validators": []
-        },
-        {
-          "name": "SelectedBand",
-          "type": "text",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
-          "lookup": {
-            "targetObject": "Band",
-            "displayField": "Name"
-          },
-          "validators": []
-        },
-        {
-          "name": "LastOpenedView",
-          "type": "text",
-          "required": false,
-          "readonly": false,
-          "hidden": false,
-          "validators": []
-        }
-      ],
-      "computedFields": [],
-      "validations": [],
-      "views": [
-        {
-          "name": "DevicePreferenceList",
-          "kind": "list",
+          ],
           "fields": [
             "SelectedBand",
             "LastOpenedView"
           ],
+          "kind": "list",
+          "name": "DevicePreferenceList",
           "searchFields": [
             "LastOpenedView"
           ],
-          "sort": [],
-          "actions": [
-            "create",
-            "read",
-            "update",
-            "delete"
-          ]
+          "sort": []
         }
-      ],
-      "sync": {
-        "mode": "localPrivate",
-        "scope": "currentUser"
-      }
+      ]
     }
   ],
-  "contexts": [
+  "policies": [
     {
-      "name": "User",
+      "name": "UserSystemAdminPolicy",
       "object": "User",
-      "selection": {
-        "mode": "required"
-      }
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllUserOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
     },
     {
-      "name": "Band",
+      "name": "BandSystemAdminPolicy",
       "object": "Band",
-      "selection": {
-        "mode": "optional",
-        "autoSelect": false,
-        "persistence": "local"
-      },
-      "membership": {
-        "object": "BandMember",
-        "userField": "User",
-        "contextField": "Band",
-        "roleField": "Role",
-        "roles": [
-          "BandAdmin",
-          "BandMember"
-        ]
-      },
-      "grants": [
+      "rules": [
         {
-          "name": "pendingBandInvitation",
-          "object": "BandInvitation",
-          "userField": "Invitee",
-          "contextField": "Band",
-          "condition": "Status == 'Pending'"
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllBandOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BandMemberSystemAdminPolicy",
+      "object": "BandMember",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllBandMemberOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BandInvitationSystemAdminPolicy",
+      "object": "BandInvitation",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllBandInvitationOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "EventSystemAdminPolicy",
+      "object": "Event",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllEventOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "AvailabilitySystemAdminPolicy",
+      "object": "Availability",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllAvailabilityOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SongSystemAdminPolicy",
+      "object": "Song",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllSongOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SetListSystemAdminPolicy",
+      "object": "SetList",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllSetListOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SetListItemSystemAdminPolicy",
+      "object": "SetListItem",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllSetListItemOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "EventSetListSystemAdminPolicy",
+      "object": "EventSetList",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllEventSetListOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "StreamingLinkSystemAdminPolicy",
+      "object": "StreamingLink",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllStreamingLinkOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DevicePreferenceSystemAdminPolicy",
+      "object": "DevicePreference",
+      "rules": [
+        {
+          "action": "*",
+          "effect": "allow",
+          "name": "allowSystemAdminAllDevicePreferenceOps",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "SystemAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "comment": "A signed-in caller may resolve a musician's *name*, and nothing else.\n\n`FIELDS Name` is what makes that true rather than aspirational: a rule that\nnames `FIELDS` cannot match a whole-record request at all (`ruleMatches`,\n`policy-engine.ts`), so this grants the display field and never the record\nit lives on. `Email` has no rule of its own, so default deny applies to it,\nand there is deliberately no `SEARCH` rule -- search is the enumeration\nprimitive over a user directory, and once `CurrentUserAvailability` stopped\nsourcing `User` nothing legitimate needed it. `UserSystemAdminPolicy` above\nkeeps `SystemAdmin`'s whole-record access untouched.\n\nThis narrows the whole-object `ALLOW SEARCH/READ AUTHENTICATED` pair Phase\n91 put here, which was defensible only while registration was invite-only:\nevery authenticated caller had been vouched for by somebody already inside.\nPhase 99 adds self-service registration, so \"anyone who can reach the\nauthority may sign up\" plus \"any authenticated caller may read every `User`\nrecord\" would have been an open directory of every user's name and email.\n\nWhat must not come back is the *pre*-Phase-91 `ROLE BandMember` pair, which\nmatched nothing at all: a context-scoped `ROLE` condition only resolves\nagainst an object that is itself scoped to that context (`SCOPE Band FIELD\nBand`) or is a context's own bound object (`Band`, for `CONTEXT Band OBJECT\nBand`). `User` is neither -- it is the bound object of the *`User`* context\n-- so `getPolicyRequestContextTargets` (`context-scope.ts`) could only ever\nresolve a `User`-object check against the caller's own identity selection.\nThe compiler refuses that shape now (`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`,\nPhase 93).\n\nTwo narrower grants remain inexpressible and are not attempted here. \"Only\npeople I share a band with\" needs `CONTEXT_MEMBER` to key on a field holding\nthe record's own id, and a `User` record has none. \"My own record in full\"\nneeds the same thing: `OWNER` matches `meta.createdBy`/`CreatedBy`/`OwnerId`,\nnone of which a `User` record carries about itself, and no policy condition\ncan compare a record's id to `runtime.userId`.",
+      "name": "UserPolicy",
+      "object": "User",
+      "rules": [
+        {
+          "action": "read",
+          "effect": "allow",
+          "fields": [
+            "Name"
+          ],
+          "name": "allowAuthenticatedReadUserName",
+          "principal": {
+            "match": "authenticated"
+          }
+        }
+      ]
+    },
+    {
+      "name": "BandPolicy",
+      "object": "Band",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchBands",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadBand",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "create",
+          "condition": "CreatedBy == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowAuthenticatedCreateOwnBand",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "read",
+          "condition": "CreatedBy == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowBandCreatorReadOwnBand",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateBand",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteBand",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "comment": "\"You have been invited to The Betas\" is the whole point of\n`MyBandInvitationList`, and without this rule the row reads\n`band-b4b935e2-...` instead: a `CONTEXT_GRANT` puts the *granted* object\n(`BandInvitation`) in reach of the object-scope gate and never the\ncontext's own root object, and no other `BandPolicy` rule fits a pending\ninvitee -- `allowBandMemberReadBand` wants the role they have not got and\n`allowBandCreatorReadOwnBand` wants a band they did not create. Jointly\nCare's `MyPendingCircleInvites` records the same finding and routes around\nit by not naming the circle at all; the mechanism that makes naming it\nsafe (Phase 101) landed after that comment was written.\n\n`FIELDS Name` is what makes this a field grant rather than a record grant:\na rule that names `FIELDS` cannot match a whole-record request at all\n(`ruleMatches`, `policy-engine.ts`), so `runtime.read('Band', ...)` stays\ndenied for an invitee and `Description`, `Biography` and the social links\nkeep their own default deny. Same construction as `UserPolicy.\nallowAuthenticatedReadUserName` above -- see its comment for the fuller\naccount of why the whole-object pair it replaced was wrong. There is\ndeliberately no `SEARCH` counterpart: search is the enumeration primitive\nover a band directory, and `allowBandMemberSearchBands` already says who\nmay have it.",
+          "effect": "allow",
+          "fields": [
+            "Name"
+          ],
+          "name": "allowAuthenticatedReadBandName",
+          "principal": {
+            "match": "authenticated"
+          }
+        }
+      ]
+    },
+    {
+      "name": "BandMemberPolicy",
+      "object": "BandMember",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchMembers",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadMembers",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "condition": "User == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowAuthenticatedReadOwnMembership",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateMembers",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateMembers",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteMembers",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BandInvitationPolicy",
+      "object": "BandInvitation",
+      "rules": [
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateInvitations",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandAdminReadInvitations",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "condition": "Invitee == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowInviteeReadOwnInvitation",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandAdminSearchInvitations",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "search",
+          "comment": "Deliberately unconditioned, mirroring Jointly Care's\n`CircleInvitePolicy.allowAuthenticatedSearchInvites` and this app's own\n`AvailabilityPolicy.allowAuthenticatedSearchAvailability`: a `SEARCH`\nrule's `WHEN` is evaluated against `request.record`, which the coarse\n\"may this principal search this object at all\" gate never has, so\n`Invitee == RUNTIME.userId` here would test a condition against no record\nand could never grant anything. The compiler names that shape\n(`ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE`) for the principal that\ncannot express it at all.\n\nThis does not open a directory, and two independent gates are why.\n`requireObjectScopeForSearch` narrows to `getAllowedContextIds` before any\nrecord is read, so an invitee reaches only the bands a `pendingBand\nInvitation` grant admits them to; then `ObjectStore.search` filters every\nsurviving result through the per-record read rules, where\n`allowInviteeReadOwnInvitation` (`WHEN Invitee == RUNTIME.userId`) is the\nonly rule a non-admin matches. A `BandAdmin` still sees their own band's\ninvitations and nobody else's, by the same two gates.\n\nWithout it, `MyBandInvitations` throws `Policy denied search on object\n'BandInvitation'` for exactly the caller it exists for: `ReadModelService.\nsearchAuthorisedSourceRecords` checks `search` first, before any scope or\nper-record filtering, so `allowBandAdminSearchInvitations` alone made an\ninvitee's own invitation unreachable through every read model over this\nobject.",
+          "effect": "allow",
+          "name": "allowAuthenticatedSearchInvitations",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateInvitations",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "condition": "(Invitee == RUNTIME.userId) AND (Status == 'Accepted')",
+          "effect": "allow",
+          "name": "allowInviteeAcceptInvitation",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "update",
+          "condition": "(Invitee == RUNTIME.userId) AND (Status == 'Accepted')",
+          "effect": "deny",
+          "fields": [
+            "Band",
+            "Inviter",
+            "Invitee",
+            "InviteeEmail",
+            "Role"
+          ],
+          "name": "denyInviteeIdentityInvitationUpdates",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteInvitations",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "EventPolicy",
+      "object": "Event",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchEvents",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadEvents",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateEvents",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateEvents",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteEvents",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "export",
+          "effect": "allow",
+          "name": "allowBandAdminExportEvents",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "AvailabilityPolicy",
+      "object": "Availability",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowAuthenticatedSearchAvailability",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "create",
+          "condition": "User == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowAuthenticatedCreateAvailability",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "read",
+          "condition": "User == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowAvailabilityOwnerRead",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "update",
+          "condition": "User == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowAvailabilityOwnerUpdate",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "delete",
+          "condition": "User == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowAvailabilityOwnerDelete",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "export",
+          "condition": "User == RUNTIME.userId",
+          "effect": "allow",
+          "name": "allowAvailabilityOwnerExport",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadSharedAvailability",
+          "principal": {
+            "contextMember": {
+              "context": "Band",
+              "field": "User"
+            },
+            "match": "contextMember"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SongPolicy",
+      "object": "Song",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchSongs",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadSongs",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateSongs",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateSongs",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteSongs",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SetListPolicy",
+      "object": "SetList",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SetListItemPolicy",
+      "object": "SetListItem",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchSetListItems",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadSetListItems",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateSetListItemsWithPosition",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateSetListItems",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteSetListItems",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "comment": "Identical to `SetListItemPolicy`: every band member may read which set lists\na night runs, only a `BandAdmin` may attach, reorder or detach them. Both\nobjects are `SCOPE Band`, so the role conditions resolve against the\nselected band's membership.",
+      "name": "EventSetListPolicy",
+      "object": "EventSetList",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchEventSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadEventSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateEventSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateEventSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteEventSetLists",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "StreamingLinkPolicy",
+      "object": "StreamingLink",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowBandMemberSearchStreamingLinks",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowBandMemberReadStreamingLinks",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandMember"
+            ]
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowBandAdminCreateStreamingLinks",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowBandAdminUpdateStreamingLinks",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowBandAdminDeleteStreamingLinks",
+          "principal": {
+            "match": "specific",
+            "roles": [
+              "BandAdmin"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DevicePreferencePolicy",
+      "object": "DevicePreference",
+      "rules": [
+        {
+          "action": "search",
+          "effect": "allow",
+          "name": "allowAuthenticatedSearchDevicePreferences",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "create",
+          "effect": "allow",
+          "name": "allowAuthenticatedCreateDevicePreferences",
+          "principal": {
+            "match": "authenticated"
+          }
+        },
+        {
+          "action": "read",
+          "effect": "allow",
+          "name": "allowDevicePreferenceOwnerRead",
+          "principal": {
+            "match": "owner",
+            "owner": true
+          }
+        },
+        {
+          "action": "update",
+          "effect": "allow",
+          "name": "allowDevicePreferenceOwnerUpdate",
+          "principal": {
+            "match": "owner",
+            "owner": true
+          }
+        },
+        {
+          "action": "delete",
+          "effect": "allow",
+          "name": "allowDevicePreferenceOwnerDelete",
+          "principal": {
+            "match": "owner",
+            "owner": true
+          }
         }
       ]
     }
   ],
   "readModels": [
     {
-      "name": "HomeUpcomingEvents",
       "context": {
-        "mode": "all",
-        "context": "Band"
+        "context": "Band",
+        "mode": "all"
       },
-      "strategy": "union",
+      "fields": [
+        {
+          "field": "Date",
+          "name": "EventDateSource",
+          "source": "event"
+        },
+        {
+          "field": "Date",
+          "name": "AvailabilityDate",
+          "source": "availability"
+        },
+        {
+          "expression": "EventDateSource ?? AvailabilityDate",
+          "name": "EventDate",
+          "type": "date"
+        },
+        {
+          "field": "StartTime",
+          "name": "EventStartTime",
+          "source": "event"
+        },
+        {
+          "expression": "EventStartTime ?? NULL",
+          "name": "StartTime",
+          "type": "time"
+        },
+        {
+          "field": "EventType",
+          "name": "EventTypeSource",
+          "source": "event"
+        },
+        {
+          "field": "Status",
+          "name": "AvailabilityStatus",
+          "source": "availability"
+        },
+        {
+          "expression": "EventTypeSource ?? AvailabilityStatus",
+          "name": "EventType",
+          "type": "text"
+        },
+        {
+          "field": "Title",
+          "name": "EventTitle",
+          "source": "event"
+        },
+        {
+          "field": "Notes",
+          "name": "AvailabilityNotes",
+          "source": "availability"
+        },
+        {
+          "expression": "EventTitle ?? AvailabilityNotes",
+          "name": "Title",
+          "type": "text"
+        },
+        {
+          "field": "VenueName",
+          "name": "EventVenueName",
+          "source": "event"
+        },
+        {
+          "expression": "EventVenueName ?? 'Personal calendar'",
+          "name": "VenueName",
+          "type": "text"
+        }
+      ],
+      "name": "HomeUpcomingEvents",
+      "sort": [
+        {
+          "direction": "asc",
+          "field": "EventDate"
+        },
+        {
+          "direction": "asc",
+          "field": "StartTime"
+        }
+      ],
       "sources": [
         {
           "name": "event",
@@ -1795,90 +3147,42 @@
           "scope": "currentUser"
         }
       ],
-      "sort": [
-        {
-          "field": "EventDate",
-          "direction": "asc"
-        },
-        {
-          "field": "StartTime",
-          "direction": "asc"
-        }
-      ],
-      "fields": [
-        {
-          "name": "EventDateSource",
-          "source": "event",
-          "field": "Date"
-        },
-        {
-          "name": "AvailabilityDate",
-          "source": "availability",
-          "field": "Date"
-        },
-        {
-          "name": "EventDate",
-          "type": "date",
-          "expression": "EventDateSource ?? AvailabilityDate"
-        },
-        {
-          "name": "EventStartTime",
-          "source": "event",
-          "field": "StartTime"
-        },
-        {
-          "name": "StartTime",
-          "type": "time",
-          "expression": "EventStartTime ?? NULL"
-        },
-        {
-          "name": "EventTypeSource",
-          "source": "event",
-          "field": "EventType"
-        },
-        {
-          "name": "AvailabilityStatus",
-          "source": "availability",
-          "field": "Status"
-        },
-        {
-          "name": "EventType",
-          "type": "text",
-          "expression": "EventTypeSource ?? AvailabilityStatus"
-        },
-        {
-          "name": "EventTitle",
-          "source": "event",
-          "field": "Title"
-        },
-        {
-          "name": "AvailabilityNotes",
-          "source": "availability",
-          "field": "Notes"
-        },
-        {
-          "name": "Title",
-          "type": "text",
-          "expression": "EventTitle ?? AvailabilityNotes"
-        },
-        {
-          "name": "EventVenueName",
-          "source": "event",
-          "field": "VenueName"
-        },
-        {
-          "name": "VenueName",
-          "type": "text",
-          "expression": "EventVenueName ?? 'Personal calendar'"
-        }
-      ]
+      "strategy": "union"
     },
     {
-      "name": "SetListItemsByPosition",
       "context": {
-        "mode": "required",
-        "context": "Band"
+        "context": "Band",
+        "mode": "required"
       },
+      "fields": [
+        {
+          "field": "Position",
+          "name": "Position",
+          "source": "item"
+        },
+        {
+          "field": "Name",
+          "name": "SetListName",
+          "source": "setList"
+        },
+        {
+          "field": "Title",
+          "name": "SongTitle",
+          "source": "song"
+        },
+        {
+          "field": "DurationSeconds",
+          "name": "DurationSeconds",
+          "source": "song"
+        }
+      ],
+      "name": "SetListItemsByPosition",
+      "sort": [
+        {
+          "direction": "asc",
+          "field": "Position"
+        }
+      ],
       "sources": [
         {
           "name": "item",
@@ -1895,163 +3199,115 @@
           "object": "Song",
           "scope": "currentContext"
         }
-      ],
-      "sort": [
-        {
-          "field": "Position",
-          "direction": "asc"
-        }
-      ],
-      "fields": [
-        {
-          "name": "Position",
-          "source": "item",
-          "field": "Position"
-        },
-        {
-          "name": "SetListName",
-          "source": "setList",
-          "field": "Name"
-        },
-        {
-          "name": "SongTitle",
-          "source": "song",
-          "field": "Title"
-        },
-        {
-          "name": "DurationSeconds",
-          "source": "song",
-          "field": "DurationSeconds"
-        }
       ]
     },
     {
-      "name": "CurrentUserAvailability",
       "comment": "Projects the availability row's own `User` lookup rather than joining the\n`User` object as a second source.\n\nIt used to source `User` with `SCOPE currentUser` purely to project\n`user.Name`, which made the read model depend on a whole-record read grant\non `User` that `UserPolicy` no longer gives an ordinary caller. `FIELD\nUserName FROM availability.User` inherits that field's `LOOKUP User DISPLAY\nName` (Phase 91), so the row carries the musician's id in `values` and\ntheir name in `display`, resolved through the same field-scoped label read\nevery other lookup label in this app uses.",
-      "sources": [
-        {
-          "name": "availability",
-          "object": "Availability",
-          "scope": "currentUser"
-        }
-      ],
-      "sort": [
-        {
-          "field": "AvailabilityDate",
-          "direction": "asc"
-        }
-      ],
       "fields": [
-        {
-          "name": "AvailabilityDate",
-          "source": "availability",
-          "field": "Date"
-        },
-        {
-          "name": "Status",
-          "source": "availability",
-          "field": "Status"
-        },
-        {
-          "name": "UserName",
-          "source": "availability",
-          "field": "User"
-        }
-      ]
-    },
-    {
-      "name": "CalendarPlanningItems",
-      "context": {
-        "mode": "required",
-        "context": "Band"
-      },
-      "strategy": "union",
-      "sources": [
-        {
-          "name": "event",
-          "object": "Event",
-          "scope": "currentContext"
-        },
-        {
-          "name": "availability",
-          "object": "Availability",
-          "scope": "currentUser"
-        }
-      ],
-      "sort": [
         {
           "field": "Date",
-          "direction": "asc"
+          "name": "AvailabilityDate",
+          "source": "availability"
+        },
+        {
+          "field": "Status",
+          "name": "Status",
+          "source": "availability"
+        },
+        {
+          "field": "User",
+          "name": "UserName",
+          "source": "availability"
+        }
+      ],
+      "name": "CurrentUserAvailability",
+      "sort": [
+        {
+          "direction": "asc",
+          "field": "AvailabilityDate"
+        }
+      ],
+      "sources": [
+        {
+          "name": "availability",
+          "object": "Availability",
+          "scope": "currentUser"
+        }
+      ]
+    },
+    {
+      "context": {
+        "context": "Band",
+        "mode": "required"
+      },
+      "fields": [
+        {
+          "field": "Date",
+          "name": "EventDate",
+          "source": "event"
+        },
+        {
+          "field": "Date",
+          "name": "AvailabilityDate",
+          "source": "availability"
+        },
+        {
+          "expression": "EventDate ?? AvailabilityDate",
+          "name": "Date",
+          "type": "date"
         },
         {
           "field": "StartTime",
-          "direction": "asc"
+          "name": "StartTime",
+          "source": "event"
+        },
+        {
+          "field": "EventType",
+          "name": "EventType",
+          "source": "event"
+        },
+        {
+          "field": "Status",
+          "name": "AvailabilityStatus",
+          "source": "availability"
+        },
+        {
+          "expression": "EventType ?? AvailabilityStatus",
+          "name": "CalendarStatus",
+          "type": "text"
+        },
+        {
+          "field": "Title",
+          "name": "EventTitle",
+          "source": "event"
+        },
+        {
+          "field": "Notes",
+          "name": "AvailabilityNotes",
+          "source": "availability"
+        },
+        {
+          "expression": "EventTitle ?? AvailabilityNotes",
+          "name": "Title",
+          "type": "text"
+        },
+        {
+          "field": "VenueName",
+          "name": "VenueName",
+          "source": "event"
         }
       ],
-      "fields": [
+      "name": "CalendarPlanningItems",
+      "sort": [
         {
-          "name": "EventDate",
-          "source": "event",
+          "direction": "asc",
           "field": "Date"
         },
         {
-          "name": "AvailabilityDate",
-          "source": "availability",
-          "field": "Date"
-        },
-        {
-          "name": "Date",
-          "type": "date",
-          "expression": "EventDate ?? AvailabilityDate"
-        },
-        {
-          "name": "StartTime",
-          "source": "event",
+          "direction": "asc",
           "field": "StartTime"
-        },
-        {
-          "name": "EventType",
-          "source": "event",
-          "field": "EventType"
-        },
-        {
-          "name": "AvailabilityStatus",
-          "source": "availability",
-          "field": "Status"
-        },
-        {
-          "name": "CalendarStatus",
-          "type": "text",
-          "expression": "EventType ?? AvailabilityStatus"
-        },
-        {
-          "name": "EventTitle",
-          "source": "event",
-          "field": "Title"
-        },
-        {
-          "name": "AvailabilityNotes",
-          "source": "availability",
-          "field": "Notes"
-        },
-        {
-          "name": "Title",
-          "type": "text",
-          "expression": "EventTitle ?? AvailabilityNotes"
-        },
-        {
-          "name": "VenueName",
-          "source": "event",
-          "field": "VenueName"
         }
-      ]
-    },
-    {
-      "name": "EventAvailabilityConflicts",
-      "context": {
-        "mode": "required",
-        "context": "Band"
-      },
+      ],
       "sources": [
         {
           "name": "event",
@@ -2061,46 +3317,93 @@
         {
           "name": "availability",
           "object": "Availability",
-          "scope": "currentUser",
-          "join": {
-            "source": "event",
-            "localField": "Date",
-            "sourceField": "Date",
-            "cardinality": "one"
-          }
+          "scope": "currentUser"
         }
       ],
-      "fields": [
-        {
-          "name": "Date",
-          "source": "event",
-          "field": "Date"
-        },
-        {
-          "name": "EventType",
-          "source": "event",
-          "field": "EventType"
-        },
-        {
-          "name": "AvailabilityStatus",
-          "source": "availability",
-          "field": "Status"
-        },
-        {
-          "name": "IsConflict",
-          "type": "boolean",
-          "expression": "EventType == 'Gig' and AvailabilityStatus == 'Unavailable'"
-        }
-      ],
-      "comment": "`BandEventCalendar`'s `conflict` status (`ui.adlj`) needs a fact\n`CalendarPlanningItems` can never produce: `CalendarPlanningItems` is a\n`UNION` of an `event` source and an `availability` source, and a `UNION`\nread model may not declare a `JOIN` on any source at all\n(`ADL_READ_MODEL_JOIN_STRATEGY_INVALID`) -- each of its rows comes from\nexactly one source, so no row can ever see whether the *other* source also\nhas a matching record for the same date.\n\nThis is a second, purpose-built read model instead, correlating the two by\n`Date` through a real `JOIN`. Because a declared join is an inner join --\nevery ADL join is, cardinality does not change that -- its rows are\nalready exactly the dates where a Gig/Rehearsal *and* a same-user\navailability note coincide; nothing else needs filtering out at the\nread-model layer. `IsConflict` narrows that correlated set one step\nfurther, to the one combination that is a genuine scheduling conflict\n(`EventType == 'Gig'` and `AvailabilityStatus == 'Unavailable'`), not\nmerely any coincidence (a gig with someone *available* that day is not a\nconflict).\n\n`event` stays the primary source (`CARDINALITY one` on the availability\njoin, matching `uniqueUserAvailabilityDate`'s own guarantee of at most one\navailability record per user per date) rather than the other way around,\nbecause an inner join drops every primary-side row with no match -- if\n`availability` were primary, every gig with no availability note that\ndate (the overwhelming majority) would vanish from this read model. That\nis fine here, because this read model's only job is naming the conflict\ndates, not rendering the calendar's ordinary day-to-day content --\n`CalendarPlanningItems` keeps doing that, completely unchanged. See\n`BandEventCalendar`'s `MonthPlanner` calendar in `ui.adlj` for how the two\nread models' outputs are layered onto the same grid without either being\nable to see the other.",
-      "sort": []
+      "strategy": "union"
     },
     {
-      "name": "BandMemberAvailability",
+      "comment": "`BandEventCalendar`'s `conflict` status (`ui.adlj`) needs a fact\n`CalendarPlanningItems` can never produce: `CalendarPlanningItems` is a\n`UNION` of an `event` source and an `availability` source, and a `UNION`\nread model may not declare a `JOIN` on any source at all\n(`ADL_READ_MODEL_JOIN_STRATEGY_INVALID`) -- each of its rows comes from\nexactly one source, so no row can ever see whether the *other* source also\nhas a matching record for the same date.\n\nThis is a second, purpose-built read model instead, correlating the two by\n`Date` through a real `JOIN`. Because a declared join is an inner join --\nevery ADL join is, cardinality does not change that -- its rows are\nalready exactly the dates where a Gig/Rehearsal *and* a same-user\navailability note coincide; nothing else needs filtering out at the\nread-model layer. `IsConflict` narrows that correlated set one step\nfurther, to the one combination that is a genuine scheduling conflict\n(`EventType == 'Gig'` and `AvailabilityStatus == 'Unavailable'`), not\nmerely any coincidence (a gig with someone *available* that day is not a\nconflict).\n\n`event` stays the primary source (`CARDINALITY one` on the availability\njoin, matching `uniqueUserAvailabilityDate`'s own guarantee of at most one\navailability record per user per date) rather than the other way around,\nbecause an inner join drops every primary-side row with no match -- if\n`availability` were primary, every gig with no availability note that\ndate (the overwhelming majority) would vanish from this read model. That\nis fine here, because this read model's only job is naming the conflict\ndates, not rendering the calendar's ordinary day-to-day content --\n`CalendarPlanningItems` keeps doing that, completely unchanged. See\n`BandEventCalendar`'s `MonthPlanner` calendar in `ui.adlj` for how the two\nread models' outputs are layered onto the same grid without either being\nable to see the other.",
       "context": {
-        "mode": "required",
-        "context": "Band"
+        "context": "Band",
+        "mode": "required"
       },
+      "fields": [
+        {
+          "field": "Date",
+          "name": "Date",
+          "source": "event"
+        },
+        {
+          "field": "EventType",
+          "name": "EventType",
+          "source": "event"
+        },
+        {
+          "field": "Status",
+          "name": "AvailabilityStatus",
+          "source": "availability"
+        },
+        {
+          "expression": "EventType == 'Gig' and AvailabilityStatus == 'Unavailable'",
+          "name": "IsConflict",
+          "type": "boolean"
+        }
+      ],
+      "name": "EventAvailabilityConflicts",
+      "sort": [],
+      "sources": [
+        {
+          "name": "event",
+          "object": "Event",
+          "scope": "currentContext"
+        },
+        {
+          "join": {
+            "localField": "Date",
+            "source": "event",
+            "sourceField": "Date"
+          },
+          "name": "availability",
+          "object": "Availability",
+          "scope": "currentUser"
+        }
+      ]
+    },
+    {
+      "context": {
+        "context": "Band",
+        "mode": "required"
+      },
+      "fields": [
+        {
+          "field": "User",
+          "name": "Member",
+          "source": "member"
+        },
+        {
+          "field": "Role",
+          "name": "Role",
+          "source": "member"
+        },
+        {
+          "field": "Date",
+          "name": "Date",
+          "source": "availability"
+        },
+        {
+          "field": "Status",
+          "name": "Status",
+          "source": "availability"
+        }
+      ],
+      "name": "BandMemberAvailability",
+      "sort": [
+        {
+          "direction": "asc",
+          "field": "Date"
+        }
+      ],
       "sources": [
         {
           "name": "member",
@@ -2108,53 +3411,88 @@
           "scope": "currentContext"
         },
         {
+          "join": {
+            "cardinality": "many",
+            "localField": "User",
+            "source": "member",
+            "sourceField": "User"
+          },
           "name": "availability",
           "object": "Availability",
-          "scope": "all",
-          "join": {
-            "source": "member",
-            "localField": "User",
-            "sourceField": "User",
-            "cardinality": "many"
-          }
-        }
-      ],
-      "sort": [
-        {
-          "field": "Date",
-          "direction": "asc"
-        }
-      ],
-      "fields": [
-        {
-          "name": "Member",
-          "source": "member",
-          "field": "User"
-        },
-        {
-          "name": "Role",
-          "source": "member",
-          "field": "Role"
-        },
-        {
-          "name": "Date",
-          "source": "availability",
-          "field": "Date"
-        },
-        {
-          "name": "Status",
-          "source": "availability",
-          "field": "Status"
+          "scope": "all"
         }
       ]
     },
     {
-      "name": "MyAvailabilityWithGigs",
+      "comment": "The cross-band counterpart to `CalendarPlanningItems`: the same union of a\ngig-shaped fact with a personal-availability fact, but the event source is\n`SCOPE allAvailableContexts` (every band the caller belongs to) instead of\n`SCOPE currentContext` (only the selected band). This is what lets a gig\nbooked with a *different* band show up as a same-date overlay on a band's\nown availability board -- exactly the union `HomeUpcomingEvents` already\nuses for the cross-band home feed, reused here for the same reason.\n\n`CONTEXT ALL Band`, matching `HomeUpcomingEvents`, not `CONTEXT REQUIRED\nBand` like the view (`BandMemberAvailabilityBoard`) that consumes this read\nmodel: `ReadModelService.resolveExecutionContext` only drops the caller's\n*selected* business context -- letting `SCOPE allAvailableContexts` reach\nevery band the caller belongs to -- when the read model itself is declared\n`CONTEXT ALL`. Left as `REQUIRED`, `getAllowedContextIds` collapses to the\none already-selected band even though the source says `allAvailableContexts`,\nand a gig from another band silently never appears. A read model may widen a\ncontext requirement past its consuming view's; the view still gates entry\nto the page.",
       "context": {
-        "mode": "all",
-        "context": "Band"
+        "context": "Band",
+        "mode": "all"
       },
-      "strategy": "union",
+      "fields": [
+        {
+          "field": "Date",
+          "name": "EventDateSource",
+          "source": "event"
+        },
+        {
+          "field": "Date",
+          "name": "AvailabilityDate",
+          "source": "availability"
+        },
+        {
+          "expression": "EventDateSource ?? AvailabilityDate",
+          "name": "ScheduleDate",
+          "type": "date"
+        },
+        {
+          "field": "EventType",
+          "name": "EventTypeSource",
+          "source": "event"
+        },
+        {
+          "field": "Status",
+          "name": "AvailabilityStatus",
+          "source": "availability"
+        },
+        {
+          "expression": "EventTypeSource ?? AvailabilityStatus",
+          "name": "ScheduleStatus",
+          "type": "text"
+        },
+        {
+          "field": "Title",
+          "name": "EventTitle",
+          "source": "event"
+        },
+        {
+          "field": "Notes",
+          "name": "AvailabilityNotes",
+          "source": "availability"
+        },
+        {
+          "expression": "EventTitle ?? AvailabilityNotes",
+          "name": "Title",
+          "type": "text"
+        },
+        {
+          "field": "VenueName",
+          "name": "EventVenueName",
+          "source": "event"
+        },
+        {
+          "expression": "EventVenueName ?? 'Personal calendar'",
+          "name": "VenueName",
+          "type": "text"
+        }
+      ],
+      "name": "MyAvailabilityWithGigs",
+      "sort": [
+        {
+          "direction": "asc",
+          "field": "ScheduleDate"
+        }
+      ],
       "sources": [
         {
           "name": "event",
@@ -2167,1936 +3505,175 @@
           "scope": "currentUser"
         }
       ],
-      "sort": [
-        {
-          "field": "ScheduleDate",
-          "direction": "asc"
-        }
-      ],
-      "comment": "The cross-band counterpart to `CalendarPlanningItems`: the same union of a\ngig-shaped fact with a personal-availability fact, but the event source is\n`SCOPE allAvailableContexts` (every band the caller belongs to) instead of\n`SCOPE currentContext` (only the selected band). This is what lets a gig\nbooked with a *different* band show up as a same-date overlay on a band's\nown availability board -- exactly the union `HomeUpcomingEvents` already\nuses for the cross-band home feed, reused here for the same reason.\n\n`CONTEXT ALL Band`, matching `HomeUpcomingEvents`, not `CONTEXT REQUIRED\nBand` like the view (`BandMemberAvailabilityBoard`) that consumes this read\nmodel: `ReadModelService.resolveExecutionContext` only drops the caller's\n*selected* business context -- letting `SCOPE allAvailableContexts` reach\nevery band the caller belongs to -- when the read model itself is declared\n`CONTEXT ALL`. Left as `REQUIRED`, `getAllowedContextIds` collapses to the\none already-selected band even though the source says `allAvailableContexts`,\nand a gig from another band silently never appears. A read model may widen a\ncontext requirement past its consuming view's; the view still gates entry\nto the page.",
-      "fields": [
-        {
-          "name": "EventDateSource",
-          "source": "event",
-          "field": "Date"
-        },
-        {
-          "name": "AvailabilityDate",
-          "source": "availability",
-          "field": "Date"
-        },
-        {
-          "name": "ScheduleDate",
-          "type": "date",
-          "expression": "EventDateSource ?? AvailabilityDate"
-        },
-        {
-          "name": "EventTypeSource",
-          "source": "event",
-          "field": "EventType"
-        },
-        {
-          "name": "AvailabilityStatus",
-          "source": "availability",
-          "field": "Status"
-        },
-        {
-          "name": "ScheduleStatus",
-          "type": "text",
-          "expression": "EventTypeSource ?? AvailabilityStatus"
-        },
-        {
-          "name": "EventTitle",
-          "source": "event",
-          "field": "Title"
-        },
-        {
-          "name": "AvailabilityNotes",
-          "source": "availability",
-          "field": "Notes"
-        },
-        {
-          "name": "Title",
-          "type": "text",
-          "expression": "EventTitle ?? AvailabilityNotes"
-        },
-        {
-          "name": "EventVenueName",
-          "source": "event",
-          "field": "VenueName"
-        },
-        {
-          "name": "VenueName",
-          "type": "text",
-          "expression": "EventVenueName ?? 'Personal calendar'"
-        }
-      ]
+      "strategy": "union"
     },
     {
-      "name": "PendingInvitations",
       "context": {
-        "mode": "required",
-        "context": "Band"
+        "context": "Band",
+        "mode": "required"
       },
-      "sources": [
-        {
-          "name": "invitation",
-          "object": "BandInvitation",
-          "scope": "currentContext"
-        }
-      ],
-      "sort": [
-        {
-          "field": "SentAt",
-          "direction": "asc"
-        }
-      ],
       "fields": [
         {
-          "name": "InviteeEmail",
-          "source": "invitation",
-          "field": "InviteeEmail"
-        },
-        {
-          "name": "Role",
-          "source": "invitation",
-          "field": "Role"
-        },
-        {
-          "name": "Status",
-          "source": "invitation",
-          "field": "Status"
-        },
-        {
-          "name": "SentAt",
-          "source": "invitation",
-          "field": "SentAt"
-        }
-      ]
-    },
-    {
-      "name": "SentBandInvitations",
-      "context": {
-        "mode": "required",
-        "context": "Band"
-      },
-      "sources": [
-        {
-          "name": "invitation",
-          "object": "BandInvitation",
-          "scope": "currentContext"
-        }
-      ],
-      "sort": [
-        {
-          "field": "SentAt",
-          "direction": "desc"
-        }
-      ],
-      "comment": "The admin-facing counterpart to `PendingInvitations`: every invitation this\nband has sent, in any status, so a `BandAdmin` can see what was accepted,\ndeclined or revoked as well as what is still outstanding. `IsSender` uses\nthe same `runtime.userId` comparison the object's own policy rules already\nuse for `Invitee` (see `BandInvitationPolicy.allowInviteeReadOwnInvitation`)\nso the view can tell an admin which invitations they personally sent.",
-      "fields": [
-        {
-          "name": "InviteeEmail",
-          "source": "invitation",
           "field": "InviteeEmail",
-          "comment": "`InviteeEmail` leads the field list on purpose: the generic dashboard\nrenderer used by a `READ_MODEL`-backed view with no composed presentation\n(see `MyInvitationList` in `ui.adlj`, and `BandMemberAvailabilityBoard` /\n`SetListByPosition` for the same pattern elsewhere in this app) always\nshows every read-model field, using the first non-date field as each\nrow's bold title -- so `Inviter` (a lookup id, not something to read)\ncomes last, alongside the `IsSender` field it only exists to support."
+          "name": "InviteeEmail",
+          "source": "invitation"
         },
         {
+          "field": "Role",
           "name": "Role",
-          "source": "invitation",
-          "field": "Role"
+          "source": "invitation"
         },
         {
+          "field": "Status",
           "name": "Status",
-          "source": "invitation",
-          "field": "Status"
+          "source": "invitation"
         },
         {
+          "field": "SentAt",
           "name": "SentAt",
-          "source": "invitation",
+          "source": "invitation"
+        }
+      ],
+      "name": "PendingInvitations",
+      "sort": [
+        {
+          "direction": "asc",
           "field": "SentAt"
-        },
+        }
+      ],
+      "sources": [
         {
-          "name": "RespondedAt",
-          "source": "invitation",
-          "field": "RespondedAt"
-        },
-        {
-          "name": "Inviter",
-          "source": "invitation",
-          "field": "Inviter"
-        },
-        {
-          "name": "IsSender",
-          "type": "boolean",
-          "expression": "Inviter == RUNTIME.userId"
+          "name": "invitation",
+          "object": "BandInvitation",
+          "scope": "currentContext"
         }
       ]
     },
     {
-      "name": "MyBandInvitations",
+      "comment": "The admin-facing counterpart to `PendingInvitations`: every invitation this\nband has sent, in any status, so a `BandAdmin` can see what was accepted,\ndeclined or revoked as well as what is still outstanding. `IsSender` uses\nthe same `runtime.userId` comparison the object's own policy rules already\nuse for `Invitee` (see `BandInvitationPolicy.allowInviteeReadOwnInvitation`)\nso the view can tell an admin which invitations they personally sent.",
       "context": {
-        "mode": "all",
-        "context": "Band"
+        "context": "Band",
+        "mode": "required"
       },
+      "fields": [
+        {
+          "comment": "`InviteeEmail` leads the field list on purpose: the generic dashboard\nrenderer used by a `READ_MODEL`-backed view with no composed presentation\n(see `MyInvitationList` in `ui.adlj`, and `BandMemberAvailabilityBoard` /\n`SetListByPosition` for the same pattern elsewhere in this app) always\nshows every read-model field, using the first non-date field as each\nrow's bold title -- so `Inviter` (a lookup id, not something to read)\ncomes last, alongside the `IsSender` field it only exists to support.",
+          "field": "InviteeEmail",
+          "name": "InviteeEmail",
+          "source": "invitation"
+        },
+        {
+          "field": "Role",
+          "name": "Role",
+          "source": "invitation"
+        },
+        {
+          "field": "Status",
+          "name": "Status",
+          "source": "invitation"
+        },
+        {
+          "field": "SentAt",
+          "name": "SentAt",
+          "source": "invitation"
+        },
+        {
+          "field": "RespondedAt",
+          "name": "RespondedAt",
+          "source": "invitation"
+        },
+        {
+          "field": "Inviter",
+          "name": "Inviter",
+          "source": "invitation"
+        },
+        {
+          "expression": "Inviter == RUNTIME.userId",
+          "name": "IsSender",
+          "type": "boolean"
+        }
+      ],
+      "name": "SentBandInvitations",
+      "sort": [
+        {
+          "direction": "desc",
+          "field": "SentAt"
+        }
+      ],
+      "sources": [
+        {
+          "name": "invitation",
+          "object": "BandInvitation",
+          "scope": "currentContext"
+        }
+      ]
+    },
+    {
+      "comment": "The invitee-facing counterpart to `PendingInvitations` and\n`SentBandInvitations`, which are both `CONTEXT REQUIRED Band` and so can\nonly be opened by somebody who has already picked a band -- which an\ninvited musician has no reason to do, and until Phase 105 no way to\nbenefit from. `CONTEXT ALL` plus `SCOPE allAvailableContexts` reaches\nevery band the caller can get to *including* the ones only a\n`pendingBandInvitation` grant admits them to, so a person who belongs to\nnothing still has somewhere their invitation appears.\n\nUnlike Jointly Care's `MyPendingCircleInvites`, this one does name the\nband: `BandPolicy.allowAuthenticatedReadBandName` grants `Band.Name` as a\nfield and never the record, so `Band`'s own `LOOKUP Band DISPLAY Name`\nresolves to \"The Betas\" rather than degrading to the stored id.\n\nThis is deliberately not filtered to `Status == 'Pending'`. The read model\nis what a caller may *see*; which rows carry an `Accept` button is the\nview's business, and `MyBandInvitationList` states it as a list `FILTER`\nbeside the action's own `WHEN`.",
+      "context": {
+        "context": "Band",
+        "mode": "all"
+      },
+      "fields": [
+        {
+          "field": "Band",
+          "name": "Band",
+          "source": "invitation"
+        },
+        {
+          "field": "Role",
+          "name": "Role",
+          "source": "invitation"
+        },
+        {
+          "field": "Status",
+          "name": "Status",
+          "source": "invitation"
+        },
+        {
+          "field": "SentAt",
+          "name": "SentAt",
+          "source": "invitation"
+        },
+        {
+          "comment": "Projected so the view's row `ACTION` can gate itself to the row's\nactual invitee. `allowAuthenticatedSearchInvitations` is\nunconditioned and `allowBandAdminReadInvitations` legitimately lets an\nadmin read every invitation their own band sent, so this read model\nalso surfaces an admin's own outgoing invitations -- rows they are\nnever the `Invitee` of. `AcceptBandInvitation`'s own `REQUIRE Invitee\n== RUNTIME.userId` step guard makes offering the button on somebody\nelse's invitation safe either way, but a button that always fails for\nthe person looking at it is still worth not drawing.",
+          "field": "Invitee",
+          "name": "Invitee",
+          "source": "invitation"
+        }
+      ],
+      "name": "MyBandInvitations",
+      "sort": [
+        {
+          "direction": "asc",
+          "field": "SentAt"
+        }
+      ],
       "sources": [
         {
           "name": "invitation",
           "object": "BandInvitation",
           "scope": "allAvailableContexts"
         }
-      ],
-      "sort": [
-        {
-          "field": "SentAt",
-          "direction": "asc"
-        }
-      ],
-      "comment": "The invitee-facing counterpart to `PendingInvitations` and\n`SentBandInvitations`, which are both `CONTEXT REQUIRED Band` and so can\nonly be opened by somebody who has already picked a band -- which an\ninvited musician has no reason to do, and until Phase 105 no way to\nbenefit from. `CONTEXT ALL` plus `SCOPE allAvailableContexts` reaches\nevery band the caller can get to *including* the ones only a\n`pendingBandInvitation` grant admits them to, so a person who belongs to\nnothing still has somewhere their invitation appears.\n\nUnlike Jointly Care's `MyPendingCircleInvites`, this one does name the\nband: `BandPolicy.allowAuthenticatedReadBandName` grants `Band.Name` as a\nfield and never the record, so `Band`'s own `LOOKUP Band DISPLAY Name`\nresolves to \"The Betas\" rather than degrading to the stored id.\n\nThis is deliberately not filtered to `Status == 'Pending'`. The read model\nis what a caller may *see*; which rows carry an `Accept` button is the\nview's business, and `MyBandInvitationList` states it as a list `FILTER`\nbeside the action's own `WHEN`.",
-      "fields": [
-        {
-          "name": "Band",
-          "source": "invitation",
-          "field": "Band"
-        },
-        {
-          "name": "Role",
-          "source": "invitation",
-          "field": "Role"
-        },
-        {
-          "name": "Status",
-          "source": "invitation",
-          "field": "Status"
-        },
-        {
-          "name": "SentAt",
-          "source": "invitation",
-          "field": "SentAt"
-        },
-        {
-          "name": "Invitee",
-          "source": "invitation",
-          "field": "Invitee",
-          "comment": "Projected so the view's row `ACTION` can gate itself to the row's\nactual invitee. `allowAuthenticatedSearchInvitations` is\nunconditioned and `allowBandAdminReadInvitations` legitimately lets an\nadmin read every invitation their own band sent, so this read model\nalso surfaces an admin's own outgoing invitations -- rows they are\nnever the `Invitee` of. `AcceptBandInvitation`'s own `REQUIRE Invitee\n== RUNTIME.userId` step guard makes offering the button on somebody\nelse's invitation safe either way, but a button that always fails for\nthe person looking at it is still worth not drawing."
-        }
       ]
     }
   ],
-  "decisionTables": [],
-  "commands": [
+  "roles": [
     {
-      "name": "AcceptBandInvitation",
-      "label": "Accept invitation",
-      "inputs": [
-        {
-          "name": "Invitation",
-          "type": "text",
-          "required": true
-        }
-      ],
-      "preconditions": [],
-      "steps": [
-        {
-          "name": "acceptInvitation",
-          "action": "update",
-          "object": "BandInvitation",
-          "recordId": {
-            "kind": "input",
-            "name": "Invitation"
-          },
-          "patch": {
-            "Status": {
-              "kind": "literal",
-              "value": "Accepted"
-            },
-            "RespondedAt": {
-              "kind": "runtime",
-              "property": "today"
-            }
-          },
-          "preconditions": [
-            "Invitee == RUNTIME.userId",
-            "Status == 'Pending'"
-          ]
-        },
-        {
-          "name": "createMembership",
-          "action": "create",
-          "object": "BandMember",
-          "authority": "command",
-          "values": {
-            "User": {
-              "kind": "runtime",
-              "property": "userId"
-            },
-            "Band": {
-              "kind": "stepField",
-              "step": "acceptInvitation",
-              "field": "Band"
-            },
-            "Role": {
-              "kind": "stepField",
-              "step": "acceptInvitation",
-              "field": "Role"
-            },
-            "JoinedAt": {
-              "kind": "runtime",
-              "property": "today"
-            }
-          },
-          "preconditions": []
-        }
-      ]
+      "inherits": [],
+      "name": "SystemAdmin"
     },
     {
-      "name": "RevokeBandInvitation",
-      "label": "Revoke invitation",
-      "inputs": [
-        {
-          "name": "Invitation",
-          "type": "text",
-          "required": true
-        }
-      ],
-      "comment": "Revocation is deliberately any-`BandAdmin`, not sender-only: it relies on\n`BandInvitationPolicy.allowBandAdminUpdateInvitations`, the same\nunrestricted admin-management rule that already lets any `BandAdmin`\nupdate or delete a `BandInvitation` regardless of who sent it (see\n`allowBandAdminUpdateInvitations` / `allowBandAdminDeleteInvitations`).\nRestricting it to `Inviter == runtime.userId` would strand a pending\ninvitation the moment its original sender left the band or lost admin\nrights, which is worse product behavior than letting any current admin\nclean it up. `RespondedAt` is left unset because a revoke is not a\nresponse from the invitee (see the `respondedAtRequiredAfterResponse`\nvalidation on `BandInvitation`).",
-      "preconditions": [],
-      "steps": [
-        {
-          "name": "revokeInvitation",
-          "action": "update",
-          "object": "BandInvitation",
-          "recordId": {
-            "kind": "input",
-            "name": "Invitation"
-          },
-          "patch": {
-            "Status": {
-              "kind": "literal",
-              "value": "Revoked"
-            }
-          },
-          "preconditions": [
-            "Status == 'Pending'"
-          ]
-        }
-      ]
+      "inherits": [],
+      "name": "BandMember"
     },
     {
-      "name": "CreateBand",
-      "label": "Create band",
-      "inputs": [
-        {
-          "name": "Name",
-          "type": "text",
-          "required": true
-        },
-        {
-          "name": "Description",
-          "type": "text",
-          "required": false
-        }
+      "inherits": [
+        "BandMember"
       ],
-      "preconditions": [],
-      "steps": [
-        {
-          "name": "createBand",
-          "action": "create",
-          "object": "Band",
-          "values": {
-            "Name": {
-              "kind": "input",
-              "name": "Name"
-            },
-            "Description": {
-              "kind": "input",
-              "name": "Description"
-            },
-            "CreatedBy": {
-              "kind": "runtime",
-              "property": "userId"
-            }
-          },
-          "establishesContext": "Band",
-          "preconditions": []
-        },
-        {
-          "name": "createFounderMembership",
-          "action": "create",
-          "object": "BandMember",
-          "authority": "command",
-          "values": {
-            "User": {
-              "kind": "runtime",
-              "property": "userId"
-            },
-            "Band": {
-              "kind": "stepMeta",
-              "step": "createBand",
-              "property": "guid"
-            },
-            "Role": {
-              "kind": "literal",
-              "value": "BandAdmin"
-            },
-            "JoinedAt": {
-              "kind": "runtime",
-              "property": "today"
-            }
-          },
-          "preconditions": []
-        }
-      ]
-    },
-    {
-      "name": "ImportSongs",
-      "label": "Import songs",
-      "inputs": [
-        {
-          "name": "Band",
-          "type": "text",
-          "required": true
-        },
-        {
-          "name": "Songs",
-          "type": "text",
-          "required": true,
-          "repeated": true,
-          "itemFields": [
-            {
-              "name": "Title",
-              "type": "text",
-              "required": true
-            },
-            {
-              "name": "Composer",
-              "type": "text",
-              "required": false
-            },
-            {
-              "name": "DurationSeconds",
-              "type": "number",
-              "required": false
-            }
-          ]
-        }
-      ],
-      "preconditions": [],
-      "steps": [
-        {
-          "name": "importSongs",
-          "action": "create",
-          "object": "Song",
-          "values": {
-            "Band": {
-              "kind": "input",
-              "name": "Band"
-            },
-            "Title": {
-              "kind": "item",
-              "field": "Title"
-            },
-            "Composer": {
-              "kind": "item",
-              "field": "Composer"
-            },
-            "DurationSeconds": {
-              "kind": "item",
-              "field": "DurationSeconds"
-            }
-          },
-          "forEach": "Songs",
-          "preconditions": []
-        }
-      ]
-    },
-    {
-      "name": "AddSongsToSetList",
-      "label": "Add songs to set list",
-      "inputs": [
-        {
-          "name": "Band",
-          "type": "text",
-          "required": true
-        },
-        {
-          "name": "SetList",
-          "type": "text",
-          "required": true
-        },
-        {
-          "name": "Items",
-          "type": "text",
-          "required": true,
-          "repeated": true,
-          "itemFields": [
-            {
-              "name": "Song",
-              "type": "text",
-              "required": true
-            },
-            {
-              "name": "Position",
-              "type": "number",
-              "required": true
-            }
-          ]
-        }
-      ],
-      "preconditions": [],
-      "steps": [
-        {
-          "name": "addSetListItems",
-          "action": "create",
-          "object": "SetListItem",
-          "values": {
-            "Band": {
-              "kind": "input",
-              "name": "Band"
-            },
-            "SetList": {
-              "kind": "input",
-              "name": "SetList"
-            },
-            "Song": {
-              "kind": "item",
-              "field": "Song"
-            },
-            "Position": {
-              "kind": "item",
-              "field": "Position"
-            }
-          },
-          "forEach": "Items",
-          "preconditions": []
-        }
-      ]
-    },
-    {
-      "name": "ReorderSetList",
-      "label": "Reorder set list",
-      "inputs": [
-        {
-          "name": "Items",
-          "type": "text",
-          "required": true,
-          "repeated": true,
-          "itemFields": [
-            {
-              "name": "Item",
-              "type": "text",
-              "required": true
-            },
-            {
-              "name": "Position",
-              "type": "number",
-              "required": true
-            }
-          ]
-        }
-      ],
-      "preconditions": [],
-      "steps": [
-        {
-          "name": "moveSetListItems",
-          "action": "update",
-          "object": "SetListItem",
-          "recordId": {
-            "kind": "item",
-            "field": "Item"
-          },
-          "patch": {
-            "Position": {
-              "kind": "item",
-              "field": "Position"
-            }
-          },
-          "forEach": "Items",
-          "preconditions": []
-        }
-      ]
+      "name": "BandAdmin"
     }
   ],
-  "policies": [
-    {
-      "name": "UserSystemAdminPolicy",
-      "object": "User",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllUserOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "BandSystemAdminPolicy",
-      "object": "Band",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllBandOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "BandMemberSystemAdminPolicy",
-      "object": "BandMember",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllBandMemberOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "BandInvitationSystemAdminPolicy",
-      "object": "BandInvitation",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllBandInvitationOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "EventSystemAdminPolicy",
-      "object": "Event",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllEventOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "AvailabilitySystemAdminPolicy",
-      "object": "Availability",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllAvailabilityOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "SongSystemAdminPolicy",
-      "object": "Song",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllSongOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "SetListSystemAdminPolicy",
-      "object": "SetList",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllSetListOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "SetListItemSystemAdminPolicy",
-      "object": "SetListItem",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllSetListItemOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "EventSetListSystemAdminPolicy",
-      "object": "EventSetList",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllEventSetListOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "StreamingLinkSystemAdminPolicy",
-      "object": "StreamingLink",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllStreamingLinkOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "DevicePreferenceSystemAdminPolicy",
-      "object": "DevicePreference",
-      "rules": [
-        {
-          "name": "allowSystemAdminAllDevicePreferenceOps",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "SystemAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "*",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "UserPolicy",
-      "object": "User",
-      "comment": "A signed-in caller may resolve a musician's *name*, and nothing else.\n\n`FIELDS Name` is what makes that true rather than aspirational: a rule that\nnames `FIELDS` cannot match a whole-record request at all (`ruleMatches`,\n`policy-engine.ts`), so this grants the display field and never the record\nit lives on. `Email` has no rule of its own, so default deny applies to it,\nand there is deliberately no `SEARCH` rule -- search is the enumeration\nprimitive over a user directory, and once `CurrentUserAvailability` stopped\nsourcing `User` nothing legitimate needed it. `UserSystemAdminPolicy` above\nkeeps `SystemAdmin`'s whole-record access untouched.\n\nThis narrows the whole-object `ALLOW SEARCH/READ AUTHENTICATED` pair Phase\n91 put here, which was defensible only while registration was invite-only:\nevery authenticated caller had been vouched for by somebody already inside.\nPhase 99 adds self-service registration, so \"anyone who can reach the\nauthority may sign up\" plus \"any authenticated caller may read every `User`\nrecord\" would have been an open directory of every user's name and email.\n\nWhat must not come back is the *pre*-Phase-91 `ROLE BandMember` pair, which\nmatched nothing at all: a context-scoped `ROLE` condition only resolves\nagainst an object that is itself scoped to that context (`SCOPE Band FIELD\nBand`) or is a context's own bound object (`Band`, for `CONTEXT Band OBJECT\nBand`). `User` is neither -- it is the bound object of the *`User`* context\n-- so `getPolicyRequestContextTargets` (`context-scope.ts`) could only ever\nresolve a `User`-object check against the caller's own identity selection.\nThe compiler refuses that shape now (`ADL_POLICY_ROLE_PRINCIPAL_UNREACHABLE`,\nPhase 93).\n\nTwo narrower grants remain inexpressible and are not attempted here. \"Only\npeople I share a band with\" needs `CONTEXT_MEMBER` to key on a field holding\nthe record's own id, and a `User` record has none. \"My own record in full\"\nneeds the same thing: `OWNER` matches `meta.createdBy`/`CreatedBy`/`OwnerId`,\nnone of which a `User` record carries about itself, and no policy condition\ncan compare a record's id to `runtime.userId`.",
-      "rules": [
-        {
-          "name": "allowAuthenticatedReadUserName",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": [
-            "Name"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "BandPolicy",
-      "object": "Band",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchBands",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadBand",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedCreateOwnBand",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": [],
-          "condition": "CreatedBy == RUNTIME.userId"
-        },
-        {
-          "name": "allowBandCreatorReadOwnBand",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": [],
-          "condition": "CreatedBy == RUNTIME.userId"
-        },
-        {
-          "name": "allowBandAdminUpdateBand",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteBand",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedReadBandName",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": [
-            "Name"
-          ],
-          "comment": "\"You have been invited to The Betas\" is the whole point of\n`MyBandInvitationList`, and without this rule the row reads\n`band-b4b935e2-...` instead: a `CONTEXT_GRANT` puts the *granted* object\n(`BandInvitation`) in reach of the object-scope gate and never the\ncontext's own root object, and no other `BandPolicy` rule fits a pending\ninvitee -- `allowBandMemberReadBand` wants the role they have not got and\n`allowBandCreatorReadOwnBand` wants a band they did not create. Jointly\nCare's `MyPendingCircleInvites` records the same finding and routes around\nit by not naming the circle at all; the mechanism that makes naming it\nsafe (Phase 101) landed after that comment was written.\n\n`FIELDS Name` is what makes this a field grant rather than a record grant:\na rule that names `FIELDS` cannot match a whole-record request at all\n(`ruleMatches`, `policy-engine.ts`), so `runtime.read('Band', ...)` stays\ndenied for an invitee and `Description`, `Biography` and the social links\nkeep their own default deny. Same construction as `UserPolicy.\nallowAuthenticatedReadUserName` above -- see its comment for the fuller\naccount of why the whole-object pair it replaced was wrong. There is\ndeliberately no `SEARCH` counterpart: search is the enumeration primitive\nover a band directory, and `allowBandMemberSearchBands` already says who\nmay have it."
-        }
-      ]
-    },
-    {
-      "name": "BandMemberPolicy",
-      "object": "BandMember",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchMembers",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadMembers",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedReadOwnMembership",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": [],
-          "condition": "User == RUNTIME.userId"
-        },
-        {
-          "name": "allowBandAdminCreateMembers",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminUpdateMembers",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteMembers",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "BandInvitationPolicy",
-      "object": "BandInvitation",
-      "rules": [
-        {
-          "name": "allowBandAdminCreateInvitations",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminReadInvitations",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowInviteeReadOwnInvitation",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": [],
-          "condition": "Invitee == RUNTIME.userId"
-        },
-        {
-          "name": "allowBandAdminSearchInvitations",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedSearchInvitations",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": [],
-          "comment": "Deliberately unconditioned, mirroring Jointly Care's\n`CircleInvitePolicy.allowAuthenticatedSearchInvites` and this app's own\n`AvailabilityPolicy.allowAuthenticatedSearchAvailability`: a `SEARCH`\nrule's `WHEN` is evaluated against `request.record`, which the coarse\n\"may this principal search this object at all\" gate never has, so\n`Invitee == RUNTIME.userId` here would test a condition against no record\nand could never grant anything. The compiler names that shape\n(`ADL_POLICY_CONTEXT_MEMBER_SEARCH_UNREACHABLE`) for the principal that\ncannot express it at all.\n\nThis does not open a directory, and two independent gates are why.\n`requireObjectScopeForSearch` narrows to `getAllowedContextIds` before any\nrecord is read, so an invitee reaches only the bands a `pendingBand\nInvitation` grant admits them to; then `ObjectStore.search` filters every\nsurviving result through the per-record read rules, where\n`allowInviteeReadOwnInvitation` (`WHEN Invitee == RUNTIME.userId`) is the\nonly rule a non-admin matches. A `BandAdmin` still sees their own band's\ninvitations and nobody else's, by the same two gates.\n\nWithout it, `MyBandInvitations` throws `Policy denied search on object\n'BandInvitation'` for exactly the caller it exists for: `ReadModelService.\nsearchAuthorisedSourceRecords` checks `search` first, before any scope or\nper-record filtering, so `allowBandAdminSearchInvitations` alone made an\ninvitee's own invitation unreachable through every read model over this\nobject."
-        },
-        {
-          "name": "allowBandAdminUpdateInvitations",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowInviteeAcceptInvitation",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": [],
-          "condition": "(Invitee == RUNTIME.userId) AND (Status == 'Accepted')"
-        },
-        {
-          "name": "denyInviteeIdentityInvitationUpdates",
-          "effect": "deny",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": [
-            "Band",
-            "Inviter",
-            "Invitee",
-            "InviteeEmail",
-            "Role"
-          ],
-          "condition": "(Invitee == RUNTIME.userId) AND (Status == 'Accepted')"
-        },
-        {
-          "name": "allowBandAdminDeleteInvitations",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "EventPolicy",
-      "object": "Event",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchEvents",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadEvents",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminCreateEvents",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminUpdateEvents",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteEvents",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminExportEvents",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "export",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "AvailabilityPolicy",
-      "object": "Availability",
-      "rules": [
-        {
-          "name": "allowAuthenticatedSearchAvailability",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedCreateAvailability",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": [],
-          "condition": "User == RUNTIME.userId"
-        },
-        {
-          "name": "allowAvailabilityOwnerRead",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": [],
-          "condition": "User == RUNTIME.userId"
-        },
-        {
-          "name": "allowAvailabilityOwnerUpdate",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": [],
-          "condition": "User == RUNTIME.userId"
-        },
-        {
-          "name": "allowAvailabilityOwnerDelete",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": [],
-          "condition": "User == RUNTIME.userId"
-        },
-        {
-          "name": "allowAvailabilityOwnerExport",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "export",
-          "state": [],
-          "fields": [],
-          "condition": "User == RUNTIME.userId"
-        },
-        {
-          "name": "allowBandMemberReadSharedAvailability",
-          "effect": "allow",
-          "principal": {
-            "match": "contextMember",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false,
-            "contextMember": {
-              "context": "Band",
-              "field": "User"
-            }
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "SongPolicy",
-      "object": "Song",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchSongs",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadSongs",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminCreateSongs",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminUpdateSongs",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteSongs",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "SetListPolicy",
-      "object": "SetList",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminCreateSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminUpdateSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "SetListItemPolicy",
-      "object": "SetListItem",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchSetListItems",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadSetListItems",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminCreateSetListItemsWithPosition",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminUpdateSetListItems",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteSetListItems",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "EventSetListPolicy",
-      "object": "EventSetList",
-      "comment": "Identical to `SetListItemPolicy`: every band member may read which set lists\na night runs, only a `BandAdmin` may attach, reorder or detach them. Both\nobjects are `SCOPE Band`, so the role conditions resolve against the\nselected band's membership.",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchEventSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadEventSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminCreateEventSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminUpdateEventSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteEventSetLists",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "StreamingLinkPolicy",
-      "object": "StreamingLink",
-      "rules": [
-        {
-          "name": "allowBandMemberSearchStreamingLinks",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandMemberReadStreamingLinks",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandMember"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminCreateStreamingLinks",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminUpdateStreamingLinks",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowBandAdminDeleteStreamingLinks",
-          "effect": "allow",
-          "principal": {
-            "match": "specific",
-            "roles": [
-              "BandAdmin"
-            ],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    },
-    {
-      "name": "DevicePreferencePolicy",
-      "object": "DevicePreference",
-      "rules": [
-        {
-          "name": "allowAuthenticatedSearchDevicePreferences",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "search",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowAuthenticatedCreateDevicePreferences",
-          "effect": "allow",
-          "principal": {
-            "match": "authenticated",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": false
-          },
-          "action": "create",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowDevicePreferenceOwnerRead",
-          "effect": "allow",
-          "principal": {
-            "match": "owner",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": true
-          },
-          "action": "read",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowDevicePreferenceOwnerUpdate",
-          "effect": "allow",
-          "principal": {
-            "match": "owner",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": true
-          },
-          "action": "update",
-          "state": [],
-          "fields": []
-        },
-        {
-          "name": "allowDevicePreferenceOwnerDelete",
-          "effect": "allow",
-          "principal": {
-            "match": "owner",
-            "roles": [],
-            "groupRoles": [],
-            "users": [],
-            "owner": true
-          },
-          "action": "delete",
-          "state": [],
-          "fields": []
-        }
-      ]
-    }
-  ],
-  "sync": []
+  "sync": [],
+  "themes": []
 }
