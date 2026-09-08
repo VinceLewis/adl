@@ -35,7 +35,11 @@
             {
               "name": "Board",
               "kind": "composite",
-              "fields": ["Name", "Kind", "Level"],
+              "fields": [
+                "Name",
+                "Kind",
+                "Level"
+              ],
               "presentation": {
                 "iconMaps": [
                   {
@@ -137,7 +141,11 @@
                         "name": "MappedList",
                         "sourceKind": "object",
                         "source": "Slot",
-                        "fields": ["Name", "Kind", "Level"],
+                        "fields": [
+                          "Name",
+                          "Kind",
+                          "Level"
+                        ],
                         "sort": [
                           {
                             "field": "Name",
@@ -170,7 +178,11 @@
                         "name": "DirectList",
                         "sourceKind": "object",
                         "source": "Slot",
-                        "fields": ["Name", "Kind", "Level"],
+                        "fields": [
+                          "Name",
+                          "Kind",
+                          "Level"
+                        ],
                         "sort": [
                           {
                             "field": "Name",
@@ -203,7 +215,11 @@
                         "name": "PrecedenceList",
                         "sourceKind": "object",
                         "source": "Slot",
-                        "fields": ["Name", "Kind", "Level"],
+                        "fields": [
+                          "Name",
+                          "Kind",
+                          "Level"
+                        ],
                         "sort": [
                           {
                             "field": "Name",
@@ -240,7 +256,11 @@
                         "name": "TieList",
                         "sourceKind": "object",
                         "source": "Slot",
-                        "fields": ["Name", "Kind", "Level"],
+                        "fields": [
+                          "Name",
+                          "Kind",
+                          "Level"
+                        ],
                         "sort": [
                           {
                             "field": "Name",
@@ -277,7 +297,11 @@
                         "name": "FixedList",
                         "sourceKind": "object",
                         "source": "Slot",
-                        "fields": ["Name", "Kind", "Level"],
+                        "fields": [
+                          "Name",
+                          "Kind",
+                          "Level"
+                        ],
                         "sort": [
                           {
                             "field": "Name",
@@ -310,7 +334,11 @@
             {
               "name": "StrictBoard",
               "kind": "composite",
-              "fields": ["Name", "Kind", "Level"],
+              "fields": [
+                "Name",
+                "Kind",
+                "Level"
+              ],
               "presentation": {
                 "statuses": [
                   {
@@ -337,7 +365,11 @@
                         "name": "StrictList",
                         "sourceKind": "object",
                         "source": "Slot",
-                        "fields": ["Name", "Kind", "Level"],
+                        "fields": [
+                          "Name",
+                          "Kind",
+                          "Level"
+                        ],
                         "sort": [
                           {
                             "field": "Name",
@@ -379,7 +411,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -416,7 +450,10 @@
             {
               "name": "Legends",
               "kind": "composite",
-              "fields": ["Name", "Kind"],
+              "fields": [
+                "Name",
+                "Kind"
+              ],
               "presentation": {
                 "statuses": [
                   {
@@ -454,16 +491,28 @@
                   {
                     "name": "Visible",
                     "title": "Schedule status",
-                    "statuses": ["event", "rehearsal", "customFlag"]
+                    "statuses": [
+                      "event",
+                      "rehearsal",
+                      "customFlag"
+                    ]
                   },
                   {
                     "name": "Complete",
-                    "statuses": ["event", "rehearsal", "customFlag"],
+                    "statuses": [
+                      "event",
+                      "rehearsal",
+                      "customFlag"
+                    ],
                     "include": "all"
                   },
                   {
                     "name": "Ordered",
-                    "statuses": ["customFlag", "rehearsal", "event"],
+                    "statuses": [
+                      "customFlag",
+                      "rehearsal",
+                      "event"
+                    ],
                     "include": "all"
                   },
                   {
@@ -479,7 +528,10 @@
                         "name": "Items",
                         "sourceKind": "object",
                         "source": "Item",
-                        "fields": ["Name", "Kind"],
+                        "fields": [
+                          "Name",
+                          "Kind"
+                        ],
                         "sort": [
                           {
                             "field": "Name",
@@ -524,7 +576,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -564,7 +618,10 @@
             {
               "name": "Grid",
               "kind": "composite",
-              "fields": ["MemberKey", "MemberName"],
+              "fields": [
+                "MemberKey",
+                "MemberName"
+              ],
               "presentation": {
                 "statuses": [
                   {
@@ -612,7 +669,10 @@
                           "source": "Member",
                           "keyField": "MemberKey",
                           "labelField": "MemberName",
-                          "fields": ["MemberKey", "MemberName"],
+                          "fields": [
+                            "MemberKey",
+                            "MemberName"
+                          ],
                           "sort": [
                             {
                               "field": "MemberName",
@@ -633,7 +693,11 @@
                           "source": "Availability",
                           "rowField": "MemberKey",
                           "columnField": "Day",
-                          "fields": ["MemberKey", "Day", "State"],
+                          "fields": [
+                            "MemberKey",
+                            "Day",
+                            "State"
+                          ],
                           "status": {
                             "candidates": [
                               {
@@ -651,7 +715,10 @@
                           "rowField": "MemberKey",
                           "columnField": "Day",
                           "valueField": "State",
-                          "cycle": ["available", "unavailable"],
+                          "cycle": [
+                            "available",
+                            "unavailable"
+                          ],
                           "unsetAsAbsence": true
                         }
                       }
@@ -663,7 +730,10 @@
             {
               "name": "SteppedGrid",
               "kind": "composite",
-              "fields": ["MemberKey", "MemberName"],
+              "fields": [
+                "MemberKey",
+                "MemberName"
+              ],
               "presentation": {
                 "statuses": [
                   {
@@ -701,7 +771,10 @@
                           "source": "Member",
                           "keyField": "MemberKey",
                           "labelField": "MemberName",
-                          "fields": ["MemberKey", "MemberName"],
+                          "fields": [
+                            "MemberKey",
+                            "MemberName"
+                          ],
                           "sort": [
                             {
                               "field": "MemberName",
@@ -719,7 +792,11 @@
                           "source": "Availability",
                           "rowField": "MemberKey",
                           "columnField": "Day",
-                          "fields": ["MemberKey", "Day", "State"],
+                          "fields": [
+                            "MemberKey",
+                            "Day",
+                            "State"
+                          ],
                           "status": {
                             "candidates": [
                               {
@@ -770,7 +847,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             },
@@ -779,7 +858,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Viewer"]
+                "roles": [
+                  "Viewer"
+                ]
               },
               "action": "read"
             },
@@ -788,7 +869,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Viewer"]
+                "roles": [
+                  "Viewer"
+                ]
               },
               "action": "search"
             }
@@ -803,7 +886,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             },
@@ -812,7 +897,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Viewer"]
+                "roles": [
+                  "Viewer"
+                ]
               },
               "action": "read"
             },
@@ -821,7 +908,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Viewer"]
+                "roles": [
+                  "Viewer"
+                ]
               },
               "action": "search"
             }
@@ -867,7 +956,12 @@
             {
               "name": "Planner",
               "kind": "composite",
-              "fields": ["Title", "EventDate", "Kind", "Venue"],
+              "fields": [
+                "Title",
+                "EventDate",
+                "Kind",
+                "Venue"
+              ],
               "presentation": {
                 "state": [
                   {
@@ -920,8 +1014,16 @@
                         "source": "Event",
                         "dateField": "EventDate",
                         "titleField": "Title",
-                        "summaryFields": ["Venue", "Kind"],
-                        "fields": ["Title", "EventDate", "Kind", "Venue"],
+                        "summaryFields": [
+                          "Venue",
+                          "Kind"
+                        ],
+                        "fields": [
+                          "Title",
+                          "EventDate",
+                          "Kind",
+                          "Venue"
+                        ],
                         "sort": [
                           {
                             "field": "Title",
@@ -969,7 +1071,12 @@
             {
               "name": "SundayPlanner",
               "kind": "composite",
-              "fields": ["Title", "EventDate", "Kind", "Venue"],
+              "fields": [
+                "Title",
+                "EventDate",
+                "Kind",
+                "Venue"
+              ],
               "presentation": {
                 "sections": [
                   {
@@ -981,7 +1088,10 @@
                         "source": "Event",
                         "dateField": "EventDate",
                         "titleField": "Title",
-                        "fields": ["Title", "EventDate"],
+                        "fields": [
+                          "Title",
+                          "EventDate"
+                        ],
                         "month": {
                           "value": "2026-03",
                           "weekStart": "sunday",
@@ -1007,7 +1117,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -1060,7 +1172,14 @@
             {
               "name": "Feed",
               "kind": "composite",
-              "fields": ["Title", "Kind", "DueDate", "DueTime", "Amount", "Notes"],
+              "fields": [
+                "Title",
+                "Kind",
+                "DueDate",
+                "DueTime",
+                "Amount",
+                "Notes"
+              ],
               "presentation": {
                 "iconMaps": [
                   {
@@ -1085,7 +1204,14 @@
                         "source": "Task",
                         "renderAs": "compactFeed",
                         "density": "compact",
-                        "fields": ["Title", "Kind", "DueDate", "DueTime", "Amount", "Notes"],
+                        "fields": [
+                          "Title",
+                          "Kind",
+                          "DueDate",
+                          "DueTime",
+                          "Amount",
+                          "Notes"
+                        ],
                         "sort": [
                           {
                             "field": "Title",
@@ -1189,7 +1315,10 @@
             {
               "name": "StrictIconFeed",
               "kind": "composite",
-              "fields": ["Title", "Kind"],
+              "fields": [
+                "Title",
+                "Kind"
+              ],
               "presentation": {
                 "iconMaps": [
                   {
@@ -1211,7 +1340,10 @@
                         "name": "StrictIconTasks",
                         "sourceKind": "object",
                         "source": "Task",
-                        "fields": ["Title", "Kind"],
+                        "fields": [
+                          "Title",
+                          "Kind"
+                        ],
                         "sort": [
                           {
                             "field": "Title",
@@ -1242,7 +1374,11 @@
             {
               "name": "BadFormatFeed",
               "kind": "composite",
-              "fields": ["Title", "Kind", "DueDate"],
+              "fields": [
+                "Title",
+                "Kind",
+                "DueDate"
+              ],
               "presentation": {
                 "sections": [
                   {
@@ -1252,7 +1388,10 @@
                         "name": "BadFormatTasks",
                         "sourceKind": "object",
                         "source": "Task",
-                        "fields": ["Title", "DueDate"],
+                        "fields": [
+                          "Title",
+                          "DueDate"
+                        ],
                         "sort": [
                           {
                             "field": "Title",
@@ -1290,7 +1429,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -1322,7 +1463,9 @@
             {
               "name": "StateView",
               "kind": "composite",
-              "fields": ["Label"],
+              "fields": [
+                "Label"
+              ],
               "presentation": {
                 "state": [
                   {
@@ -1395,8 +1538,12 @@
             {
               "name": "PlainList",
               "kind": "list",
-              "fields": ["Label"],
-              "actions": ["read"]
+              "fields": [
+                "Label"
+              ],
+              "actions": [
+                "read"
+              ]
             }
           ]
         }
@@ -1411,7 +1558,9 @@
               "effect": "allow",
               "principal": {
                 "match": "specific",
-                "roles": ["Admin"]
+                "roles": [
+                  "Admin"
+                ]
               },
               "action": "*"
             }
@@ -1529,7 +1678,10 @@
               {
                 "name": "Planner",
                 "kind": "composite",
-                "fields": ["Title", "EventDate"],
+                "fields": [
+                  "Title",
+                  "EventDate"
+                ],
                 "searchFields": [],
                 "sort": [],
                 "actions": [],
@@ -1815,7 +1967,10 @@
               {
                 "name": "Grid",
                 "kind": "composite",
-                "fields": ["MemberKey", "MemberName"],
+                "fields": [
+                  "MemberKey",
+                  "MemberName"
+                ],
                 "searchFields": [],
                 "sort": [],
                 "actions": [],
@@ -1869,7 +2024,10 @@
                             "source": "Member",
                             "keyField": "MemberKey",
                             "labelField": "MemberName",
-                            "fields": ["MemberKey", "MemberName"],
+                            "fields": [
+                              "MemberKey",
+                              "MemberName"
+                            ],
                             "sort": [
                               {
                                 "field": "MemberName",
@@ -1891,7 +2049,11 @@
                             "source": "Availability",
                             "rowField": "MemberKey",
                             "columnField": "Day",
-                            "fields": ["MemberKey", "Day", "State"],
+                            "fields": [
+                              "MemberKey",
+                              "Day",
+                              "State"
+                            ],
                             "status": {
                               "candidates": [
                                 {
@@ -1909,7 +2071,10 @@
                             "rowField": "MemberKey",
                             "columnField": "Day",
                             "valueField": "State",
-                            "cycle": ["available", "unavailable"],
+                            "cycle": [
+                              "available",
+                              "unavailable"
+                            ],
                             "unsetAsAbsence": true
                           }
                         }
@@ -1924,7 +2089,10 @@
               {
                 "name": "SteppedGrid",
                 "kind": "composite",
-                "fields": ["MemberKey", "MemberName"],
+                "fields": [
+                  "MemberKey",
+                  "MemberName"
+                ],
                 "searchFields": [],
                 "sort": [],
                 "actions": [],
@@ -1968,7 +2136,10 @@
                             "source": "Member",
                             "keyField": "MemberKey",
                             "labelField": "MemberName",
-                            "fields": ["MemberKey", "MemberName"],
+                            "fields": [
+                              "MemberKey",
+                              "MemberName"
+                            ],
                             "sort": [
                               {
                                 "field": "MemberName",
@@ -1987,7 +2158,11 @@
                             "source": "Availability",
                             "rowField": "MemberKey",
                             "columnField": "Day",
-                            "fields": ["MemberKey", "Day", "State"],
+                            "fields": [
+                              "MemberKey",
+                              "Day",
+                              "State"
+                            ],
                             "status": {
                               "candidates": [
                                 {
@@ -2012,7 +2187,10 @@
               {
                 "name": "RichGrid",
                 "kind": "composite",
-                "fields": ["MemberKey", "MemberName"],
+                "fields": [
+                  "MemberKey",
+                  "MemberName"
+                ],
                 "searchFields": [],
                 "sort": [],
                 "actions": [],
@@ -2077,7 +2255,11 @@
                             "source": "AvailabilityCells",
                             "rowField": "CellMemberKey",
                             "columnField": "CellDay",
-                            "fields": ["CellMemberKey", "CellDay", "CellState"],
+                            "fields": [
+                              "CellMemberKey",
+                              "CellDay",
+                              "CellState"
+                            ],
                             "status": {
                               "candidates": [
                                 {
@@ -2110,7 +2292,10 @@
                             "rowField": "MemberKey",
                             "columnField": "Day",
                             "valueField": "State",
-                            "cycle": ["available", "unavailable"],
+                            "cycle": [
+                              "available",
+                              "unavailable"
+                            ],
                             "unsetValue": null,
                             "unsetAsAbsence": false,
                             "bulkBehavior": "sequentialValidatedWrites"
@@ -2225,7 +2410,9 @@
                 "effect": "allow",
                 "principal": {
                   "match": "specific",
-                  "roles": ["Admin"],
+                  "roles": [
+                    "Admin"
+                  ],
                   "groupRoles": [],
                   "users": [],
                   "owner": false
@@ -2239,7 +2426,9 @@
                 "effect": "allow",
                 "principal": {
                   "match": "specific",
-                  "roles": ["Viewer"],
+                  "roles": [
+                    "Viewer"
+                  ],
                   "groupRoles": [],
                   "users": [],
                   "owner": false
@@ -2253,7 +2442,9 @@
                 "effect": "allow",
                 "principal": {
                   "match": "specific",
-                  "roles": ["Viewer"],
+                  "roles": [
+                    "Viewer"
+                  ],
                   "groupRoles": [],
                   "users": [],
                   "owner": false
@@ -2273,7 +2464,9 @@
                 "effect": "allow",
                 "principal": {
                   "match": "specific",
-                  "roles": ["Admin"],
+                  "roles": [
+                    "Admin"
+                  ],
                   "groupRoles": [],
                   "users": [],
                   "owner": false
@@ -2287,7 +2480,9 @@
                 "effect": "allow",
                 "principal": {
                   "match": "specific",
-                  "roles": ["Viewer"],
+                  "roles": [
+                    "Viewer"
+                  ],
                   "groupRoles": [],
                   "users": [],
                   "owner": false
@@ -2301,7 +2496,9 @@
                 "effect": "allow",
                 "principal": {
                   "match": "specific",
-                  "roles": ["Viewer"],
+                  "roles": [
+                    "Viewer"
+                  ],
                   "groupRoles": [],
                   "users": [],
                   "owner": false
@@ -2405,7 +2602,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -2419,7 +2618,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2429,7 +2630,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2511,7 +2714,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2521,7 +2726,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2577,7 +2784,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2587,7 +2796,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2642,7 +2853,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2652,7 +2865,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2712,7 +2927,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2722,7 +2939,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2776,7 +2995,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2786,7 +3007,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2841,7 +3064,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2851,7 +3076,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2905,7 +3132,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2915,7 +3144,9 @@
         "viewName": "Board",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -2971,7 +3202,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -2985,7 +3218,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -2995,7 +3230,9 @@
         "viewName": "StrictBoard",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3064,7 +3301,11 @@
         "result": {
           "objects.0.views.0.presentation.legends.0.include": "present",
           "objects.0.views.0.presentation.legends.0.title": "Schedule status",
-          "objects.0.views.0.presentation.legends.0.statuses": ["event", "rehearsal", "customFlag"],
+          "objects.0.views.0.presentation.legends.0.statuses": [
+            "event",
+            "rehearsal",
+            "customFlag"
+          ],
           "objects.0.views.0.presentation.legends.1.include": "all",
           "objects.0.views.0.presentation.legends.3.statuses": [],
           "objects.0.views.0.presentation.legends.3.include": "all"
@@ -3087,7 +3328,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3097,7 +3340,9 @@
         "viewName": "Legends",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3203,7 +3448,9 @@
         "viewName": "Legends",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3295,7 +3542,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3305,7 +3554,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3372,7 +3623,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3382,7 +3635,9 @@
         "viewName": "SteppedGrid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3432,7 +3687,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -3446,7 +3703,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3456,7 +3715,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3510,7 +3771,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -3523,7 +3786,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3533,7 +3798,9 @@
         "viewName": "SteppedGrid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3576,7 +3843,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -3591,7 +3860,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -3605,7 +3876,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3615,7 +3888,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3693,7 +3968,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3703,7 +3980,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3761,7 +4040,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -3775,7 +4056,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3785,7 +4068,9 @@
         "viewName": "SteppedGrid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3856,7 +4141,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -3870,7 +4157,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3880,7 +4169,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3929,7 +4220,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -3939,7 +4232,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -3953,7 +4248,10 @@
                   "edit": {
                     "object": "Availability",
                     "valueField": "State",
-                    "cycle": ["available", "unavailable"],
+                    "cycle": [
+                      "available",
+                      "unavailable"
+                    ],
                     "unsetAsAbsence": true,
                     "bulkBehavior": "sequentialValidatedWrites"
                   }
@@ -3980,7 +4278,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -3994,7 +4294,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -4008,7 +4310,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -4018,7 +4322,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4087,7 +4393,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -4101,7 +4409,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -4111,7 +4421,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "viewer",
-          "roles": ["Viewer"],
+          "roles": [
+            "Viewer"
+          ],
           "channel": "api"
         }
       },
@@ -4132,14 +4444,18 @@
                           },
                           "edit": {
                             "enabled": false,
-                            "reasons": ["No policy rule allowed update; default deny applies."],
+                            "reasons": [
+                              "No policy rule allowed update; default deny applies."
+                            ],
                             "operation": "update"
                           }
                         },
                         {
                           "edit": {
                             "enabled": false,
-                            "reasons": ["No policy rule allowed create; default deny applies."],
+                            "reasons": [
+                              "No policy rule allowed create; default deny applies."
+                            ],
                             "operation": "create"
                           }
                         },
@@ -4172,7 +4488,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -4186,7 +4504,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -4196,7 +4516,9 @@
         "viewName": "Grid",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4268,7 +4590,9 @@
         "viewName": "Planner",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4404,7 +4728,9 @@
         "viewName": "SundayPlanner",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4468,7 +4794,9 @@
         "viewName": "SundayPlanner",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4563,7 +4891,9 @@
         },
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4608,7 +4938,9 @@
         },
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4662,7 +4994,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -4677,7 +5011,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -4692,7 +5028,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -4702,7 +5040,9 @@
         "viewName": "Planner",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api",
           "now": "2026-03-10T09:00:00.000Z"
         }
@@ -4843,7 +5183,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -4858,7 +5200,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -4868,7 +5212,9 @@
         "viewName": "Planner",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -4956,7 +5302,9 @@
         },
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5060,7 +5408,9 @@
         "viewName": "Planner",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5103,7 +5453,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -5113,7 +5465,9 @@
         "viewName": "Feed",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5211,7 +5565,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -5221,7 +5577,9 @@
         "viewName": "Feed",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5313,7 +5671,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -5323,7 +5683,9 @@
         "viewName": "BadFormatFeed",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5373,7 +5735,9 @@
         "viewName": "Feed",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5419,7 +5783,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         },
@@ -5432,7 +5798,9 @@
           },
           "context": {
             "userId": "admin",
-            "roles": ["Admin"],
+            "roles": [
+              "Admin"
+            ],
             "channel": "api"
           }
         }
@@ -5442,7 +5810,9 @@
         "viewName": "StrictIconFeed",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5547,7 +5917,9 @@
         "viewName": "StateView",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5619,7 +5991,9 @@
         },
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5674,7 +6048,9 @@
         "viewName": "PlainList",
         "context": {
           "userId": "admin",
-          "roles": ["Admin"],
+          "roles": [
+            "Admin"
+          ],
           "channel": "api"
         }
       },
@@ -5724,7 +6100,10 @@
               {
                 "name": "Board",
                 "kind": "composite",
-                "fields": ["Name", "Kind"],
+                "fields": [
+                  "Name",
+                  "Kind"
+                ],
                 "presentation": {
                   "statuses": [
                     {
@@ -5752,7 +6131,9 @@
                   "legends": [
                     {
                       "name": "L",
-                      "statuses": ["ghost"]
+                      "statuses": [
+                        "ghost"
+                      ]
                     }
                   ],
                   "sections": [
@@ -5763,7 +6144,9 @@
                           "name": "L1",
                           "sourceKind": "object",
                           "source": "Slot",
-                          "fields": ["Name"],
+                          "fields": [
+                            "Name"
+                          ],
                           "status": {
                             "candidates": [
                               {
@@ -5872,7 +6255,10 @@
               {
                 "name": "Grid",
                 "kind": "composite",
-                "fields": ["MemberKey", "MemberName"],
+                "fields": [
+                  "MemberKey",
+                  "MemberName"
+                ],
                 "presentation": {
                   "sections": [
                     {
@@ -5985,7 +6371,10 @@
               {
                 "name": "Planner",
                 "kind": "composite",
-                "fields": ["Title", "EventDate"],
+                "fields": [
+                  "Title",
+                  "EventDate"
+                ],
                 "presentation": {
                   "sections": [
                     {
@@ -5997,7 +6386,9 @@
                           "source": "NoSuchObject",
                           "dateField": "NoSuchDate",
                           "titleField": "NoSuchTitle",
-                          "summaryFields": ["NoSuchSummary"],
+                          "summaryFields": [
+                            "NoSuchSummary"
+                          ],
                           "month": {
                             "value": "nope",
                             "weekStart": "funday"
@@ -6289,7 +6680,94 @@
           "  FIELD MemberKey TEXT REQUIRED",
           "  FIELD Day DATE REQUIRED",
           "END.OBJECT"
-        ]
+        ],
+        "adlj": {
+          "app": {
+            "name": "InvalidAdlMatrix",
+            "startView": "Grid"
+          },
+          "objects": [
+            {
+              "name": "Member",
+              "fields": [
+                {
+                  "name": "MemberKey",
+                  "type": "text",
+                  "required": true
+                },
+                {
+                  "name": "MemberName",
+                  "type": "text",
+                  "required": true
+                }
+              ],
+              "views": [
+                {
+                  "name": "Grid",
+                  "kind": "composite",
+                  "fields": [
+                    "MemberKey",
+                    "MemberName"
+                  ],
+                  "presentation": {
+                    "sections": [
+                      {
+                        "name": "Availability",
+                        "matrices": [
+                          {
+                            "name": "AvailabilityMatrix",
+                            "rowSource": {
+                              "sourceKind": "object",
+                              "source": "Member",
+                              "labelField": "MemberName"
+                            },
+                            "columnAxis": {
+                              "kind": "dateRange",
+                              "start": "2026-03-02",
+                              "end": "2026-03-06"
+                            },
+                            "cellSource": {
+                              "sourceKind": "object",
+                              "source": "Availability",
+                              "rowField": "MemberKey",
+                              "columnField": "Day"
+                            },
+                            "cell": {
+                              "status": {
+                                "candidates": [
+                                  {
+                                    "kind": "status",
+                                    "status": "noSuchStatus"
+                                  }
+                                ]
+                              },
+                              "unsetStatus": "alsoNoSuchStatus"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Availability",
+              "fields": [
+                {
+                  "name": "MemberKey",
+                  "type": "text",
+                  "required": true
+                },
+                {
+                  "name": "Day",
+                  "type": "date",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        }
       },
       "expected": {
         "ok": true,
