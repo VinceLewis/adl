@@ -34,7 +34,164 @@
         "  FIELD Body TEXT REQUIRED",
         "  SYNC LOCAL_FIRST SCOPE recent WINDOW LIMIT 5",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Declared Offline Scopes"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Gig",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Owner",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "GigDate",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "recent",
+              "window": {
+                "field": "GigDate",
+                "days": 14,
+                "limit": 50
+              }
+            }
+          },
+          {
+            "name": "Note",
+            "displayField": "Body",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Body",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "recent"
+            }
+          },
+          {
+            "name": "Task",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Owner",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "custom",
+              "predicate": "(Status == 'open') AND (Owner == RUNTIME.userId)"
+            }
+          },
+          {
+            "name": "Receipt",
+            "displayField": "Body",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Body",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "recent",
+              "window": {
+                "limit": 5
+              }
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "customScopeWithoutPredicate": {
       "adl": [
@@ -47,7 +204,54 @@
         "  FIELD Status TEXT REQUIRED",
         "  SYNC LOCAL_FIRST SCOPE custom",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Custom Scope Without Predicate"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Gig",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "custom"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "customPredicateOverAFieldThatDoesNotExist": {
       "adl": [
@@ -59,7 +263,47 @@
         "  FIELD Title TEXT REQUIRED",
         "  SYNC LOCAL_FIRST SCOPE custom WHERE Status == 'open'",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Custom Predicate Over A Field That Does Not Exist"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Gig",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "custom",
+              "predicate": "Status == 'open'"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "customPredicateThatIsNotBoolean": {
       "adl": [
@@ -72,7 +316,55 @@
         "  FIELD Status TEXT REQUIRED",
         "  SYNC LOCAL_FIRST SCOPE custom WHERE Status",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Custom Predicate That Is Not Boolean"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Gig",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "custom",
+              "predicate": "Status"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "composedOfflineBounds": {
       "adl": [
@@ -100,7 +392,135 @@
         "  FIELD IssuedOn DATE REQUIRED",
         "  SYNC LOCAL_FIRST SCOPE currentUser WINDOW IssuedOn 30 DAYS WHERE Status == 'open'",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Composed Offline Bounds"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Shift",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "ShiftDate",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "currentUser",
+              "window": {
+                "field": "ShiftDate",
+                "days": 90,
+                "limit": 50
+              }
+            }
+          },
+          {
+            "name": "Ticket",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "currentContext",
+              "predicate": "Status == 'open'"
+            }
+          },
+          {
+            "name": "Invoice",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "IssuedOn",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "currentUser",
+              "window": {
+                "field": "IssuedOn",
+                "days": 30
+              },
+              "predicate": "Status == 'open'"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     }
   },
   "cases": [

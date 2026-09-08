@@ -2,15 +2,34 @@
   "version": 1,
   "models": {
     "semanticStatus": {
-      "app": { "name": "SemanticStatus", "startView": "Board" },
-      "roles": [{ "name": "Admin" }],
+      "app": {
+        "name": "SemanticStatus",
+        "startView": "Board"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
       "objects": [
         {
           "name": "Slot",
           "fields": [
-            { "name": "Name", "type": "text", "required": true },
-            { "name": "Kind", "type": "text", "required": true },
-            { "name": "Level", "type": "text", "required": true }
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Kind",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Level",
+              "type": "text",
+              "required": true
+            }
           ],
           "views": [
             {
@@ -23,35 +42,75 @@
                     "name": "KindIcon",
                     "field": "Kind",
                     "values": [
-                      { "value": "Gig", "icon": "music" },
-                      { "value": "Rehearsal", "icon": "microphone" }
+                      {
+                        "value": "Gig",
+                        "icon": "music"
+                      },
+                      {
+                        "value": "Rehearsal",
+                        "icon": "microphone"
+                      }
                     ],
                     "defaultIcon": "calendar"
                   }
                 ],
                 "statuses": [
-                  { "name": "event" },
-                  { "name": "rehearsal", "label": "Rehearsal", "precedence": 10 },
-                  { "name": "available" },
-                  { "name": "unavailable" },
-                  { "name": "busyElsewhere" },
+                  {
+                    "name": "event"
+                  },
+                  {
+                    "name": "rehearsal",
+                    "label": "Rehearsal",
+                    "precedence": 10
+                  },
+                  {
+                    "name": "available"
+                  },
+                  {
+                    "name": "unavailable"
+                  },
+                  {
+                    "name": "busyElsewhere"
+                  },
                   {
                     "name": "conflict",
                     "precedence": 50,
-                    "icon": { "kind": "map", "map": "KindIcon", "value": "Gig" }
+                    "icon": {
+                      "kind": "map",
+                      "map": "KindIcon",
+                      "value": "Gig"
+                    }
                   },
-                  { "name": "unset" },
-                  { "name": "customFlag", "label": "Custom", "accessibleLabel": "Custom flag" },
-                  { "name": "tieFirst", "precedence": 30 },
-                  { "name": "tieSecond", "precedence": 30 }
+                  {
+                    "name": "unset"
+                  },
+                  {
+                    "name": "customFlag",
+                    "label": "Custom",
+                    "accessibleLabel": "Custom flag"
+                  },
+                  {
+                    "name": "tieFirst",
+                    "precedence": 30
+                  },
+                  {
+                    "name": "tieSecond",
+                    "precedence": 30
+                  }
                 ],
                 "statusMaps": [
                   {
                     "name": "KindStatus",
                     "field": "Kind",
                     "values": [
-                      { "value": "Gig", "status": "event" },
-                      { "value": "Rehearsal", "status": "rehearsal" }
+                      {
+                        "value": "Gig",
+                        "status": "event"
+                      },
+                      {
+                        "value": "Rehearsal",
+                        "status": "rehearsal"
+                      }
                     ],
                     "defaultStatus": "customFlag"
                   },
@@ -59,8 +118,14 @@
                     "name": "LevelStatus",
                     "field": "Level",
                     "values": [
-                      { "value": "high", "status": "conflict" },
-                      { "value": "low", "status": "unset" }
+                      {
+                        "value": "high",
+                        "status": "conflict"
+                      },
+                      {
+                        "value": "low",
+                        "status": "unset"
+                      }
                     ]
                   }
                 ],
@@ -73,9 +138,28 @@
                         "sourceKind": "object",
                         "source": "Slot",
                         "fields": ["Name", "Kind", "Level"],
-                        "sort": [{ "field": "Name", "direction": "asc" }],
-                        "status": { "candidates": [{ "kind": "map", "map": "KindStatus" }] },
-                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                        "sort": [
+                          {
+                            "field": "Name",
+                            "direction": "asc"
+                          }
+                        ],
+                        "status": {
+                          "candidates": [
+                            {
+                              "kind": "map",
+                              "map": "KindStatus"
+                            }
+                          ]
+                        },
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "Name"
+                            }
+                          ]
+                        }
                       }
                     ]
                   },
@@ -87,11 +171,28 @@
                         "sourceKind": "object",
                         "source": "Slot",
                         "fields": ["Name", "Kind", "Level"],
-                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Name",
+                            "direction": "asc"
+                          }
+                        ],
                         "status": {
-                          "candidates": [{ "kind": "status", "status": "busyElsewhere" }]
+                          "candidates": [
+                            {
+                              "kind": "status",
+                              "status": "busyElsewhere"
+                            }
+                          ]
                         },
-                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "Name"
+                            }
+                          ]
+                        }
                       }
                     ]
                   },
@@ -103,14 +204,32 @@
                         "sourceKind": "object",
                         "source": "Slot",
                         "fields": ["Name", "Kind", "Level"],
-                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Name",
+                            "direction": "asc"
+                          }
+                        ],
                         "status": {
                           "candidates": [
-                            { "kind": "map", "map": "KindStatus" },
-                            { "kind": "map", "map": "LevelStatus" }
+                            {
+                              "kind": "map",
+                              "map": "KindStatus"
+                            },
+                            {
+                              "kind": "map",
+                              "map": "LevelStatus"
+                            }
                           ]
                         },
-                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "Name"
+                            }
+                          ]
+                        }
                       }
                     ]
                   },
@@ -122,14 +241,32 @@
                         "sourceKind": "object",
                         "source": "Slot",
                         "fields": ["Name", "Kind", "Level"],
-                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Name",
+                            "direction": "asc"
+                          }
+                        ],
                         "status": {
                           "candidates": [
-                            { "kind": "status", "status": "tieSecond" },
-                            { "kind": "status", "status": "tieFirst" }
+                            {
+                              "kind": "status",
+                              "status": "tieSecond"
+                            },
+                            {
+                              "kind": "status",
+                              "status": "tieFirst"
+                            }
                           ]
                         },
-                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "Name"
+                            }
+                          ]
+                        }
                       }
                     ]
                   },
@@ -141,13 +278,29 @@
                         "sourceKind": "object",
                         "source": "Slot",
                         "fields": ["Name", "Kind", "Level"],
-                        "sort": [{ "field": "Name", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Name",
+                            "direction": "asc"
+                          }
+                        ],
                         "status": {
                           "candidates": [
-                            { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                            {
+                              "kind": "map",
+                              "map": "KindStatus",
+                              "value": "Rehearsal"
+                            }
                           ]
                         },
-                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "Name"
+                            }
+                          ]
+                        }
                       }
                     ]
                   }
@@ -159,12 +312,21 @@
               "kind": "composite",
               "fields": ["Name", "Kind", "Level"],
               "presentation": {
-                "statuses": [{ "name": "event" }],
+                "statuses": [
+                  {
+                    "name": "event"
+                  }
+                ],
                 "statusMaps": [
                   {
                     "name": "StrictKindStatus",
                     "field": "Kind",
-                    "values": [{ "value": "Gig", "status": "event" }]
+                    "values": [
+                      {
+                        "value": "Gig",
+                        "status": "event"
+                      }
+                    ]
                   }
                 ],
                 "sections": [
@@ -176,9 +338,28 @@
                         "sourceKind": "object",
                         "source": "Slot",
                         "fields": ["Name", "Kind", "Level"],
-                        "sort": [{ "field": "Name", "direction": "asc" }],
-                        "status": { "candidates": [{ "kind": "map", "map": "StrictKindStatus" }] },
-                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                        "sort": [
+                          {
+                            "field": "Name",
+                            "direction": "asc"
+                          }
+                        ],
+                        "status": {
+                          "candidates": [
+                            {
+                              "kind": "map",
+                              "map": "StrictKindStatus"
+                            }
+                          ]
+                        },
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "Name"
+                            }
+                          ]
+                        }
                       }
                     ]
                   }
@@ -196,7 +377,10 @@
             {
               "name": "allowAdminAllSlotActions",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
               "action": "*"
             }
           ]
@@ -204,14 +388,29 @@
       ]
     },
     "statusLegends": {
-      "app": { "name": "StatusLegends", "startView": "Legends" },
-      "roles": [{ "name": "Admin" }],
+      "app": {
+        "name": "StatusLegends",
+        "startView": "Legends"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
       "objects": [
         {
           "name": "Item",
           "fields": [
-            { "name": "Name", "type": "text", "required": true },
-            { "name": "Kind", "type": "text", "required": true }
+            {
+              "name": "Name",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Kind",
+              "type": "text",
+              "required": true
+            }
           ],
           "views": [
             {
@@ -220,18 +419,33 @@
               "fields": ["Name", "Kind"],
               "presentation": {
                 "statuses": [
-                  { "name": "event" },
-                  { "name": "rehearsal" },
-                  { "name": "customFlag", "label": "Custom" },
-                  { "name": "conflict" }
+                  {
+                    "name": "event"
+                  },
+                  {
+                    "name": "rehearsal"
+                  },
+                  {
+                    "name": "customFlag",
+                    "label": "Custom"
+                  },
+                  {
+                    "name": "conflict"
+                  }
                 ],
                 "statusMaps": [
                   {
                     "name": "KindStatus",
                     "field": "Kind",
                     "values": [
-                      { "value": "Gig", "status": "event" },
-                      { "value": "Rehearsal", "status": "rehearsal" }
+                      {
+                        "value": "Gig",
+                        "status": "event"
+                      },
+                      {
+                        "value": "Rehearsal",
+                        "status": "rehearsal"
+                      }
                     ],
                     "defaultStatus": "customFlag"
                   }
@@ -252,7 +466,10 @@
                     "statuses": ["customFlag", "rehearsal", "event"],
                     "include": "all"
                   },
-                  { "name": "AllDeclared", "include": "all" }
+                  {
+                    "name": "AllDeclared",
+                    "include": "all"
+                  }
                 ],
                 "sections": [
                   {
@@ -263,10 +480,31 @@
                         "sourceKind": "object",
                         "source": "Item",
                         "fields": ["Name", "Kind"],
-                        "sort": [{ "field": "Name", "direction": "asc" }],
-                        "status": { "candidates": [{ "kind": "map", "map": "KindStatus" }] },
-                        "row": { "fragments": [{ "kind": "field", "field": "Name" }] },
-                        "emptyState": { "text": "No items" }
+                        "sort": [
+                          {
+                            "field": "Name",
+                            "direction": "asc"
+                          }
+                        ],
+                        "status": {
+                          "candidates": [
+                            {
+                              "kind": "map",
+                              "map": "KindStatus"
+                            }
+                          ]
+                        },
+                        "row": {
+                          "fragments": [
+                            {
+                              "kind": "field",
+                              "field": "Name"
+                            }
+                          ]
+                        },
+                        "emptyState": {
+                          "text": "No items"
+                        }
                       }
                     ]
                   }
@@ -284,7 +522,10 @@
             {
               "name": "allowAdminAllItemActions",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
               "action": "*"
             }
           ]
@@ -292,14 +533,32 @@
       ]
     },
     "resourceMatrix": {
-      "app": { "name": "ResourceMatrix", "startView": "Grid" },
-      "roles": [{ "name": "Admin" }, { "name": "Viewer" }],
+      "app": {
+        "name": "ResourceMatrix",
+        "startView": "Grid"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        },
+        {
+          "name": "Viewer"
+        }
+      ],
       "objects": [
         {
           "name": "Member",
           "fields": [
-            { "name": "MemberKey", "type": "text", "required": true },
-            { "name": "MemberName", "type": "text", "required": true }
+            {
+              "name": "MemberKey",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "MemberName",
+              "type": "text",
+              "required": true
+            }
           ],
           "views": [
             {
@@ -308,21 +567,40 @@
               "fields": ["MemberKey", "MemberName"],
               "presentation": {
                 "statuses": [
-                  { "name": "available", "precedence": 10 },
-                  { "name": "unavailable", "precedence": 20 },
-                  { "name": "unset" }
+                  {
+                    "name": "available",
+                    "precedence": 10
+                  },
+                  {
+                    "name": "unavailable",
+                    "precedence": 20
+                  },
+                  {
+                    "name": "unset"
+                  }
                 ],
                 "statusMaps": [
                   {
                     "name": "StateStatus",
                     "field": "State",
                     "values": [
-                      { "value": "available", "status": "available" },
-                      { "value": "unavailable", "status": "unavailable" }
+                      {
+                        "value": "available",
+                        "status": "available"
+                      },
+                      {
+                        "value": "unavailable",
+                        "status": "unavailable"
+                      }
                     ]
                   }
                 ],
-                "legends": [{ "name": "Grid", "title": "Availability" }],
+                "legends": [
+                  {
+                    "name": "Grid",
+                    "title": "Availability"
+                  }
+                ],
                 "sections": [
                   {
                     "name": "Availability",
@@ -335,12 +613,20 @@
                           "keyField": "MemberKey",
                           "labelField": "MemberName",
                           "fields": ["MemberKey", "MemberName"],
-                          "sort": [{ "field": "MemberName", "direction": "asc" }]
+                          "sort": [
+                            {
+                              "field": "MemberName",
+                              "direction": "asc"
+                            }
+                          ]
                         },
                         "columnAxis": {
                           "start": "2026-03-02",
                           "end": "2026-03-06",
-                          "labelFormat": { "kind": "date", "pattern": "EEE d" }
+                          "labelFormat": {
+                            "kind": "date",
+                            "pattern": "EEE d"
+                          }
                         },
                         "cellSource": {
                           "sourceKind": "object",
@@ -348,9 +634,18 @@
                           "rowField": "MemberKey",
                           "columnField": "Day",
                           "fields": ["MemberKey", "Day", "State"],
-                          "status": { "candidates": [{ "kind": "map", "map": "StateStatus" }] }
+                          "status": {
+                            "candidates": [
+                              {
+                                "kind": "map",
+                                "map": "StateStatus"
+                              }
+                            ]
+                          }
                         },
-                        "cell": { "unsetStatus": "unset" },
+                        "cell": {
+                          "unsetStatus": "unset"
+                        },
                         "edit": {
                           "object": "Availability",
                           "rowField": "MemberKey",
@@ -370,14 +665,27 @@
               "kind": "composite",
               "fields": ["MemberKey", "MemberName"],
               "presentation": {
-                "statuses": [{ "name": "available" }, { "name": "unavailable" }],
+                "statuses": [
+                  {
+                    "name": "available"
+                  },
+                  {
+                    "name": "unavailable"
+                  }
+                ],
                 "statusMaps": [
                   {
                     "name": "StateStatus",
                     "field": "State",
                     "values": [
-                      { "value": "available", "status": "available" },
-                      { "value": "unavailable", "status": "unavailable" }
+                      {
+                        "value": "available",
+                        "status": "available"
+                      },
+                      {
+                        "value": "unavailable",
+                        "status": "unavailable"
+                      }
                     ]
                   }
                 ],
@@ -394,7 +702,12 @@
                           "keyField": "MemberKey",
                           "labelField": "MemberName",
                           "fields": ["MemberKey", "MemberName"],
-                          "sort": [{ "field": "MemberName", "direction": "desc" }]
+                          "sort": [
+                            {
+                              "field": "MemberName",
+                              "direction": "desc"
+                            }
+                          ]
                         },
                         "columnAxis": {
                           "start": "2026-03-02",
@@ -407,9 +720,18 @@
                           "rowField": "MemberKey",
                           "columnField": "Day",
                           "fields": ["MemberKey", "Day", "State"],
-                          "status": { "candidates": [{ "kind": "map", "map": "StateStatus" }] }
+                          "status": {
+                            "candidates": [
+                              {
+                                "kind": "map",
+                                "map": "StateStatus"
+                              }
+                            ]
+                          }
                         },
-                        "cell": { "accessibleLabel": "Availability cell" }
+                        "cell": {
+                          "accessibleLabel": "Availability cell"
+                        }
                       }
                     ]
                   }
@@ -421,9 +743,20 @@
         {
           "name": "Availability",
           "fields": [
-            { "name": "MemberKey", "type": "text", "required": true },
-            { "name": "Day", "type": "date", "required": true },
-            { "name": "State", "type": "text" }
+            {
+              "name": "MemberKey",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Day",
+              "type": "date",
+              "required": true
+            },
+            {
+              "name": "State",
+              "type": "text"
+            }
           ]
         }
       ],
@@ -435,19 +768,28 @@
             {
               "name": "allowAdminAllMemberActions",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
               "action": "*"
             },
             {
               "name": "allowViewerReadMember",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Viewer"]
+              },
               "action": "read"
             },
             {
               "name": "allowViewerSearchMember",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Viewer"]
+              },
               "action": "search"
             }
           ]
@@ -459,19 +801,28 @@
             {
               "name": "allowAdminAllAvailabilityActions",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
               "action": "*"
             },
             {
               "name": "allowViewerReadAvailability",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Viewer"]
+              },
               "action": "read"
             },
             {
               "name": "allowViewerSearchAvailability",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Viewer"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Viewer"]
+              },
               "action": "search"
             }
           ]
@@ -479,16 +830,38 @@
       ]
     },
     "monthCalendar": {
-      "app": { "name": "MonthCalendar", "startView": "Planner" },
-      "roles": [{ "name": "Admin" }],
+      "app": {
+        "name": "MonthCalendar",
+        "startView": "Planner"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
       "objects": [
         {
           "name": "Event",
           "fields": [
-            { "name": "Title", "type": "text", "required": true },
-            { "name": "EventDate", "type": "date", "required": true },
-            { "name": "Kind", "type": "text", "required": true },
-            { "name": "Venue", "type": "text" }
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "EventDate",
+              "type": "date",
+              "required": true
+            },
+            {
+              "name": "Kind",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Venue",
+              "type": "text"
+            }
           ],
           "views": [
             {
@@ -496,20 +869,44 @@
               "kind": "composite",
               "fields": ["Title", "EventDate", "Kind", "Venue"],
               "presentation": {
-                "state": [{ "name": "month", "type": "text", "defaultValue": "2026-03" }],
+                "state": [
+                  {
+                    "name": "month",
+                    "type": "text",
+                    "defaultValue": "2026-03"
+                  }
+                ],
                 "statuses": [
-                  { "name": "event", "precedence": 10 },
-                  { "name": "rehearsal", "precedence": 10 },
-                  { "name": "conflict", "precedence": 50 }
+                  {
+                    "name": "event",
+                    "precedence": 10
+                  },
+                  {
+                    "name": "rehearsal",
+                    "precedence": 10
+                  },
+                  {
+                    "name": "conflict",
+                    "precedence": 50
+                  }
                 ],
                 "statusMaps": [
                   {
                     "name": "KindStatus",
                     "field": "Kind",
                     "values": [
-                      { "value": "Gig", "status": "event" },
-                      { "value": "Rehearsal", "status": "rehearsal" },
-                      { "value": "Clash", "status": "conflict" }
+                      {
+                        "value": "Gig",
+                        "status": "event"
+                      },
+                      {
+                        "value": "Rehearsal",
+                        "status": "rehearsal"
+                      },
+                      {
+                        "value": "Clash",
+                        "status": "conflict"
+                      }
                     ]
                   }
                 ],
@@ -525,23 +922,44 @@
                         "titleField": "Title",
                         "summaryFields": ["Venue", "Kind"],
                         "fields": ["Title", "EventDate", "Kind", "Venue"],
-                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Title",
+                            "direction": "asc"
+                          }
+                        ],
                         "month": {
                           "state": "month",
                           "minDate": "2026-02-01",
                           "maxDate": "2026-04-30"
                         },
-                        "status": { "candidates": [{ "kind": "map", "map": "KindStatus" }] },
+                        "status": {
+                          "candidates": [
+                            {
+                              "kind": "map",
+                              "map": "KindStatus"
+                            }
+                          ]
+                        },
                         "actions": [
                           {
                             "name": "addOnDay",
                             "kind": "action",
                             "label": "Add event",
-                            "create": { "object": "Event" },
-                            "input": { "EventDate": { "kind": "field", "field": "Date" } }
+                            "create": {
+                              "object": "Event"
+                            },
+                            "input": {
+                              "EventDate": {
+                                "kind": "field",
+                                "field": "Date"
+                              }
+                            }
                           }
                         ],
-                        "emptyState": { "text": "No events this month" }
+                        "emptyState": {
+                          "text": "No events this month"
+                        }
                       }
                     ]
                   }
@@ -587,7 +1005,10 @@
             {
               "name": "allowAdminAllEventActions",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
               "action": "*"
             }
           ]
@@ -595,18 +1016,45 @@
       ]
     },
     "rowTemplate": {
-      "app": { "name": "RowTemplate", "startView": "Feed" },
-      "roles": [{ "name": "Admin" }],
+      "app": {
+        "name": "RowTemplate",
+        "startView": "Feed"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
       "objects": [
         {
           "name": "Task",
           "fields": [
-            { "name": "Title", "type": "text", "required": true },
-            { "name": "Kind", "type": "text", "required": true },
-            { "name": "DueDate", "type": "date" },
-            { "name": "DueTime", "type": "time" },
-            { "name": "Amount", "type": "number" },
-            { "name": "Notes", "type": "text" }
+            {
+              "name": "Title",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "Kind",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "DueDate",
+              "type": "date"
+            },
+            {
+              "name": "DueTime",
+              "type": "time"
+            },
+            {
+              "name": "Amount",
+              "type": "number"
+            },
+            {
+              "name": "Notes",
+              "type": "text"
+            }
           ],
           "views": [
             {
@@ -618,7 +1066,12 @@
                   {
                     "name": "KindIcon",
                     "field": "Kind",
-                    "values": [{ "value": "Gig", "icon": "music" }],
+                    "values": [
+                      {
+                        "value": "Gig",
+                        "icon": "music"
+                      }
+                    ],
                     "defaultIcon": "dot"
                   }
                 ],
@@ -633,35 +1086,67 @@
                         "renderAs": "compactFeed",
                         "density": "compact",
                         "fields": ["Title", "Kind", "DueDate", "DueTime", "Amount", "Notes"],
-                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Title",
+                            "direction": "asc"
+                          }
+                        ],
                         "row": {
                           "layout": "stack",
                           "density": "compact",
                           "fragments": [
                             {
                               "kind": "icon",
-                              "icon": { "kind": "map", "map": "KindIcon", "field": "Kind" },
+                              "icon": {
+                                "kind": "map",
+                                "map": "KindIcon",
+                                "field": "Kind"
+                              },
                               "label": "Kind"
                             },
-                            { "kind": "field", "field": "Title", "style": "bold" },
-                            { "kind": "text", "text": " on ", "style": "muted" },
+                            {
+                              "kind": "field",
+                              "field": "Title",
+                              "style": "bold"
+                            },
+                            {
+                              "kind": "text",
+                              "text": " on ",
+                              "style": "muted"
+                            },
                             {
                               "kind": "field",
                               "field": "DueDate",
-                              "format": { "kind": "date", "pattern": "EEE d MMM yyyy" },
+                              "format": {
+                                "kind": "date",
+                                "pattern": "EEE d MMM yyyy"
+                              },
                               "fallback": "no date"
                             },
-                            { "kind": "text", "text": " at " },
+                            {
+                              "kind": "text",
+                              "text": " at "
+                            },
                             {
                               "kind": "field",
                               "field": "DueTime",
-                              "format": { "kind": "time", "pattern": "h:mma" }
+                              "format": {
+                                "kind": "time",
+                                "pattern": "h:mma"
+                              }
                             },
-                            { "kind": "text", "text": " " },
+                            {
+                              "kind": "text",
+                              "text": " "
+                            },
                             {
                               "kind": "field",
                               "field": "Amount",
-                              "format": { "kind": "number", "pattern": "fixed:2" },
+                              "format": {
+                                "kind": "number",
+                                "pattern": "fixed:2"
+                              },
                               "style": "caption"
                             },
                             {
@@ -669,16 +1154,31 @@
                               "when": {
                                 "kind": "binary",
                                 "operator": "==",
-                                "left": { "kind": "field", "field": "Kind" },
-                                "right": { "kind": "literal", "value": "Gig" }
+                                "left": {
+                                  "kind": "field",
+                                  "field": "Kind"
+                                },
+                                "right": {
+                                  "kind": "literal",
+                                  "value": "Gig"
+                                }
                               },
-                              "fragments": [{ "kind": "text", "text": " [gig]", "style": "caption" }]
+                              "fragments": [
+                                {
+                                  "kind": "text",
+                                  "text": " [gig]",
+                                  "style": "caption"
+                                }
+                              ]
                             }
                           ]
                         },
                         "emptyState": {
                           "text": "Nothing scheduled",
-                          "icon": { "kind": "named", "name": "check" }
+                          "icon": {
+                            "kind": "named",
+                            "name": "check"
+                          }
                         }
                       }
                     ]
@@ -695,7 +1195,12 @@
                   {
                     "name": "StrictKindIcon",
                     "field": "Kind",
-                    "values": [{ "value": "Gig", "icon": "music" }]
+                    "values": [
+                      {
+                        "value": "Gig",
+                        "icon": "music"
+                      }
+                    ]
                   }
                 ],
                 "sections": [
@@ -707,11 +1212,25 @@
                         "sourceKind": "object",
                         "source": "Task",
                         "fields": ["Title", "Kind"],
-                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Title",
+                            "direction": "asc"
+                          }
+                        ],
                         "row": {
                           "fragments": [
-                            { "kind": "icon", "icon": { "kind": "map", "map": "StrictKindIcon" } },
-                            { "kind": "field", "field": "Title" }
+                            {
+                              "kind": "icon",
+                              "icon": {
+                                "kind": "map",
+                                "map": "StrictKindIcon"
+                              }
+                            },
+                            {
+                              "kind": "field",
+                              "field": "Title"
+                            }
                           ]
                         }
                       }
@@ -734,13 +1253,21 @@
                         "sourceKind": "object",
                         "source": "Task",
                         "fields": ["Title", "DueDate"],
-                        "sort": [{ "field": "Title", "direction": "asc" }],
+                        "sort": [
+                          {
+                            "field": "Title",
+                            "direction": "asc"
+                          }
+                        ],
                         "row": {
                           "fragments": [
                             {
                               "kind": "field",
                               "field": "DueDate",
-                              "format": { "kind": "date", "pattern": "QQQ" }
+                              "format": {
+                                "kind": "date",
+                                "pattern": "QQQ"
+                              }
                             }
                           ]
                         }
@@ -761,7 +1288,10 @@
             {
               "name": "allowAdminAllTaskActions",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
               "action": "*"
             }
           ]
@@ -769,12 +1299,25 @@
       ]
     },
     "viewState": {
-      "app": { "name": "ViewState", "startView": "StateView" },
-      "roles": [{ "name": "Admin" }],
+      "app": {
+        "name": "ViewState",
+        "startView": "StateView"
+      },
+      "roles": [
+        {
+          "name": "Admin"
+        }
+      ],
       "objects": [
         {
           "name": "Pref",
-          "fields": [{ "name": "Label", "type": "text", "required": true }],
+          "fields": [
+            {
+              "name": "Label",
+              "type": "text",
+              "required": true
+            }
+          ],
           "views": [
             {
               "name": "StateView",
@@ -782,12 +1325,29 @@
               "fields": ["Label"],
               "presentation": {
                 "state": [
-                  { "name": "flag" },
-                  { "name": "count", "type": "number" },
-                  { "name": "note", "type": "text" },
-                  { "name": "day", "type": "date" },
-                  { "name": "stamp", "type": "datetime" },
-                  { "name": "clock", "type": "time" },
+                  {
+                    "name": "flag"
+                  },
+                  {
+                    "name": "count",
+                    "type": "number"
+                  },
+                  {
+                    "name": "note",
+                    "type": "text"
+                  },
+                  {
+                    "name": "day",
+                    "type": "date"
+                  },
+                  {
+                    "name": "stamp",
+                    "type": "datetime"
+                  },
+                  {
+                    "name": "clock",
+                    "type": "time"
+                  },
                   {
                     "name": "pinned",
                     "type": "boolean",
@@ -805,15 +1365,26 @@
                   {
                     "name": "Controls",
                     "controls": [
-                      { "name": "flagToggle", "kind": "toggle", "state": "flag", "label": "Flag" },
+                      {
+                        "name": "flagToggle",
+                        "kind": "toggle",
+                        "state": "flag",
+                        "label": "Flag"
+                      },
                       {
                         "name": "noteSelect",
                         "kind": "select",
                         "state": "note",
                         "label": "Note",
                         "options": [
-                          { "value": "a", "label": "Alpha" },
-                          { "value": "b", "label": "Beta" }
+                          {
+                            "value": "a",
+                            "label": "Alpha"
+                          },
+                          {
+                            "value": "b",
+                            "label": "Beta"
+                          }
                         ]
                       }
                     ]
@@ -821,7 +1392,12 @@
                 ]
               }
             },
-            { "name": "PlainList", "kind": "list", "fields": ["Label"], "actions": ["read"] }
+            {
+              "name": "PlainList",
+              "kind": "list",
+              "fields": ["Label"],
+              "actions": ["read"]
+            }
           ]
         }
       ],
@@ -833,7 +1409,10 @@
             {
               "name": "allowAdminAllPrefActions",
               "effect": "allow",
-              "principal": { "match": "specific", "roles": ["Admin"] },
+              "principal": {
+                "match": "specific",
+                "roles": ["Admin"]
+              },
               "action": "*"
             }
           ]
@@ -884,7 +1463,167 @@
         "    END.SECTION",
         "  END.VIEW",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Calendar Conflict Overlay",
+          "startView": "Planner"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Block",
+            "displayField": "EventDate",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "EventDate",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Blocking",
+                "type": "boolean",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "Event",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "EventDate",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "Planner",
+                "kind": "composite",
+                "fields": ["Title", "EventDate"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "presentation": {
+                  "state": [],
+                  "iconMaps": [],
+                  "statuses": [
+                    {
+                      "name": "conflict",
+                      "label": "Conflict",
+                      "themeToken": "colorStatusConflict",
+                      "precedence": 50
+                    }
+                  ],
+                  "statusMaps": [],
+                  "legends": [],
+                  "sections": [
+                    {
+                      "name": "Month",
+                      "matrices": [],
+                      "controls": [],
+                      "lists": [],
+                      "calendars": [
+                        {
+                          "name": "MonthPlanner",
+                          "sourceKind": "object",
+                          "source": "Event",
+                          "dateField": "EventDate",
+                          "titleField": "Title",
+                          "sort": [],
+                          "month": {
+                            "weekStart": "monday",
+                            "labelFormat": {
+                              "kind": "date",
+                              "pattern": "MMMM yyyy"
+                            }
+                          },
+                          "emptyState": {
+                            "text": "No events this month"
+                          },
+                          "conflictOverlay": {
+                            "readModel": "EventConflicts",
+                            "dateField": "Date",
+                            "flagField": "IsConflict",
+                            "status": "conflict"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "contexts": [],
+        "readModels": [
+          {
+            "name": "EventConflicts",
+            "sources": [
+              {
+                "name": "event",
+                "object": "Event"
+              },
+              {
+                "name": "block",
+                "object": "Block",
+                "join": {
+                  "source": "event",
+                  "localField": "EventDate",
+                  "sourceField": "EventDate"
+                }
+              }
+            ],
+            "sort": [],
+            "fields": [
+              {
+                "name": "Date",
+                "source": "event",
+                "field": "EventDate"
+              },
+              {
+                "name": "IsConflict",
+                "source": "block",
+                "field": "Blocking"
+              }
+            ]
+          }
+        ],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "resourceMatrixAdlSource": {
       "adl": [
@@ -1029,7 +1768,553 @@
         "  RULE allowViewerReadAvailability ALLOW READ ROLE Viewer",
         "  RULE allowViewerSearchAvailability ALLOW SEARCH ROLE Viewer",
         "END.POLICY"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "ResourceMatrix",
+          "startView": "Grid"
+        },
+        "roles": [
+          {
+            "name": "Admin",
+            "inherits": []
+          },
+          {
+            "name": "Viewer",
+            "inherits": []
+          }
+        ],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Member",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "MemberKey",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "MemberName",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "Grid",
+                "kind": "composite",
+                "fields": ["MemberKey", "MemberName"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "presentation": {
+                  "state": [],
+                  "iconMaps": [],
+                  "statuses": [
+                    {
+                      "name": "available",
+                      "precedence": 10
+                    },
+                    {
+                      "name": "unavailable",
+                      "precedence": 20
+                    },
+                    {
+                      "name": "unset"
+                    }
+                  ],
+                  "statusMaps": [
+                    {
+                      "name": "StateStatus",
+                      "field": "State",
+                      "values": [
+                        {
+                          "value": "available",
+                          "status": "available"
+                        },
+                        {
+                          "value": "unavailable",
+                          "status": "unavailable"
+                        }
+                      ]
+                    }
+                  ],
+                  "legends": [
+                    {
+                      "name": "Grid",
+                      "title": "Availability",
+                      "statuses": []
+                    }
+                  ],
+                  "sections": [
+                    {
+                      "name": "Availability",
+                      "matrices": [
+                        {
+                          "name": "AvailabilityMatrix",
+                          "rowSource": {
+                            "sourceKind": "object",
+                            "source": "Member",
+                            "keyField": "MemberKey",
+                            "labelField": "MemberName",
+                            "fields": ["MemberKey", "MemberName"],
+                            "sort": [
+                              {
+                                "field": "MemberName",
+                                "direction": "asc"
+                              }
+                            ]
+                          },
+                          "columnAxis": {
+                            "kind": "dateRange",
+                            "start": "2026-03-02",
+                            "end": "2026-03-06",
+                            "labelFormat": {
+                              "kind": "date",
+                              "pattern": "EEE d"
+                            }
+                          },
+                          "cellSource": {
+                            "sourceKind": "object",
+                            "source": "Availability",
+                            "rowField": "MemberKey",
+                            "columnField": "Day",
+                            "fields": ["MemberKey", "Day", "State"],
+                            "status": {
+                              "candidates": [
+                                {
+                                  "kind": "map",
+                                  "map": "StateStatus"
+                                }
+                              ]
+                            }
+                          },
+                          "cell": {
+                            "unsetStatus": "unset"
+                          },
+                          "edit": {
+                            "object": "Availability",
+                            "rowField": "MemberKey",
+                            "columnField": "Day",
+                            "valueField": "State",
+                            "cycle": ["available", "unavailable"],
+                            "unsetAsAbsence": true
+                          }
+                        }
+                      ],
+                      "controls": [],
+                      "lists": [],
+                      "calendars": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "SteppedGrid",
+                "kind": "composite",
+                "fields": ["MemberKey", "MemberName"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "presentation": {
+                  "state": [],
+                  "iconMaps": [],
+                  "statuses": [
+                    {
+                      "name": "available"
+                    },
+                    {
+                      "name": "unavailable"
+                    }
+                  ],
+                  "statusMaps": [
+                    {
+                      "name": "StateStatus",
+                      "field": "State",
+                      "values": [
+                        {
+                          "value": "available",
+                          "status": "available"
+                        },
+                        {
+                          "value": "unavailable",
+                          "status": "unavailable"
+                        }
+                      ]
+                    }
+                  ],
+                  "legends": [],
+                  "sections": [
+                    {
+                      "name": "Availability",
+                      "matrices": [
+                        {
+                          "name": "SteppedMatrix",
+                          "density": "compact",
+                          "rowSource": {
+                            "sourceKind": "object",
+                            "source": "Member",
+                            "keyField": "MemberKey",
+                            "labelField": "MemberName",
+                            "fields": ["MemberKey", "MemberName"],
+                            "sort": [
+                              {
+                                "field": "MemberName",
+                                "direction": "desc"
+                              }
+                            ]
+                          },
+                          "columnAxis": {
+                            "kind": "dateRange",
+                            "start": "2026-03-02",
+                            "end": "2026-03-08",
+                            "stepDays": 3
+                          },
+                          "cellSource": {
+                            "sourceKind": "object",
+                            "source": "Availability",
+                            "rowField": "MemberKey",
+                            "columnField": "Day",
+                            "fields": ["MemberKey", "Day", "State"],
+                            "status": {
+                              "candidates": [
+                                {
+                                  "kind": "map",
+                                  "map": "StateStatus"
+                                }
+                              ]
+                            }
+                          },
+                          "cell": {
+                            "accessibleLabel": "Availability cell"
+                          }
+                        }
+                      ],
+                      "controls": [],
+                      "lists": [],
+                      "calendars": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "RichGrid",
+                "kind": "composite",
+                "fields": ["MemberKey", "MemberName"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "presentation": {
+                  "state": [],
+                  "iconMaps": [],
+                  "statuses": [
+                    {
+                      "name": "available"
+                    },
+                    {
+                      "name": "unavailable"
+                    },
+                    {
+                      "name": "conflict"
+                    },
+                    {
+                      "name": "unset"
+                    }
+                  ],
+                  "statusMaps": [
+                    {
+                      "name": "CellStateStatus",
+                      "field": "CellState",
+                      "values": [
+                        {
+                          "value": "available",
+                          "status": "available"
+                        },
+                        {
+                          "value": "unavailable",
+                          "status": "unavailable"
+                        }
+                      ]
+                    }
+                  ],
+                  "legends": [],
+                  "sections": [
+                    {
+                      "name": "Availability",
+                      "matrices": [
+                        {
+                          "name": "RichMatrix",
+                          "rowSource": {
+                            "sourceKind": "readModel",
+                            "source": "MemberRoster",
+                            "keyField": "RosterKey",
+                            "labelField": "RosterName"
+                          },
+                          "columnAxis": {
+                            "kind": "dateRange",
+                            "start": "2026-03-02",
+                            "end": "2026-03-06",
+                            "stepDays": 2,
+                            "labelFormat": {
+                              "kind": "date",
+                              "pattern": "EEE d"
+                            }
+                          },
+                          "cellSource": {
+                            "sourceKind": "readModel",
+                            "source": "AvailabilityCells",
+                            "rowField": "CellMemberKey",
+                            "columnField": "CellDay",
+                            "fields": ["CellMemberKey", "CellDay", "CellState"],
+                            "status": {
+                              "candidates": [
+                                {
+                                  "kind": "map",
+                                  "map": "CellStateStatus"
+                                }
+                              ]
+                            },
+                            "recordSource": "Availability"
+                          },
+                          "cell": {
+                            "status": {
+                              "candidates": [
+                                {
+                                  "kind": "map",
+                                  "map": "CellStateStatus",
+                                  "field": "CellState"
+                                },
+                                {
+                                  "kind": "status",
+                                  "status": "conflict"
+                                }
+                              ]
+                            },
+                            "unsetStatus": "unset",
+                            "accessibleLabel": "Availability cell"
+                          },
+                          "edit": {
+                            "object": "Availability",
+                            "rowField": "MemberKey",
+                            "columnField": "Day",
+                            "valueField": "State",
+                            "cycle": ["available", "unavailable"],
+                            "unsetValue": null,
+                            "unsetAsAbsence": false,
+                            "bulkBehavior": "sequentialValidatedWrites"
+                          }
+                        }
+                      ],
+                      "controls": [],
+                      "lists": [],
+                      "calendars": []
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "Availability",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "MemberKey",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Day",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "State",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [
+          {
+            "name": "MemberRoster",
+            "sources": [
+              {
+                "name": "member",
+                "object": "Member"
+              }
+            ],
+            "sort": [],
+            "fields": [
+              {
+                "name": "RosterKey",
+                "source": "member",
+                "field": "MemberKey"
+              },
+              {
+                "name": "RosterName",
+                "source": "member",
+                "field": "MemberName"
+              }
+            ]
+          },
+          {
+            "name": "AvailabilityCells",
+            "sources": [
+              {
+                "name": "cell",
+                "object": "Availability"
+              }
+            ],
+            "sort": [],
+            "fields": [
+              {
+                "name": "CellMemberKey",
+                "source": "cell",
+                "field": "MemberKey"
+              },
+              {
+                "name": "CellDay",
+                "source": "cell",
+                "field": "Day"
+              },
+              {
+                "name": "CellState",
+                "source": "cell",
+                "field": "State"
+              }
+            ]
+          }
+        ],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [
+          {
+            "name": "MemberPolicy",
+            "object": "Member",
+            "rules": [
+              {
+                "name": "allowAdminAllMemberActions",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              },
+              {
+                "name": "allowViewerReadMember",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Viewer"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "read",
+                "state": [],
+                "fields": []
+              },
+              {
+                "name": "allowViewerSearchMember",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Viewer"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "search",
+                "state": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "AvailabilityPolicy",
+            "object": "Availability",
+            "rules": [
+              {
+                "name": "allowAdminAllAvailabilityActions",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              },
+              {
+                "name": "allowViewerReadAvailability",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Viewer"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "read",
+                "state": [],
+                "fields": []
+              },
+              {
+                "name": "allowViewerSearchAvailability",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Viewer"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "search",
+                "state": [],
+                "fields": []
+              }
+            ]
+          }
+        ],
+        "sync": []
+      }
     }
   },
   "cases": [
@@ -1113,20 +2398,40 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "A Gig",
+            "Kind": "Gig",
+            "Level": "high"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "B Rehearsal", "Kind": "Rehearsal", "Level": "low" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "B Rehearsal",
+            "Kind": "Rehearsal",
+            "Level": "low"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1145,24 +2450,36 @@
                   "source": "Slot",
                   "rows": [
                     {
-                      "values": { "Name": "A Gig" },
+                      "values": {
+                        "Name": "A Gig"
+                      },
                       "status": {
                         "name": "event",
                         "label": "Event",
                         "accessibleLabel": "Event",
                         "themeToken": "colorStatusEvent",
                         "precedence": 0,
-                        "source": { "kind": "map", "map": "KindStatus", "value": "Gig" }
+                        "source": {
+                          "kind": "map",
+                          "map": "KindStatus",
+                          "value": "Gig"
+                        }
                       }
                     },
                     {
-                      "values": { "Name": "B Rehearsal" },
+                      "values": {
+                        "Name": "B Rehearsal"
+                      },
                       "status": {
                         "name": "rehearsal",
                         "label": "Rehearsal",
                         "themeToken": "colorInfo",
                         "precedence": 10,
-                        "source": { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                        "source": {
+                          "kind": "map",
+                          "map": "KindStatus",
+                          "value": "Rehearsal"
+                        }
                       }
                     }
                   ]
@@ -1187,14 +2504,26 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "C Other", "Kind": "Workshop", "Level": "low" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "C Other",
+            "Kind": "Workshop",
+            "Level": "low"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1212,7 +2541,11 @@
                         "label": "Custom",
                         "accessibleLabel": "Custom flag",
                         "themeToken": "colorInfo",
-                        "source": { "kind": "map", "map": "KindStatus", "value": "Workshop" }
+                        "source": {
+                          "kind": "map",
+                          "map": "KindStatus",
+                          "value": "Workshop"
+                        }
                       }
                     }
                   ]
@@ -1237,14 +2570,26 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "A Gig",
+            "Kind": "Gig",
+            "Level": "high"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1264,7 +2609,9 @@
                         "accessibleLabel": "Busy Elsewhere",
                         "themeToken": "colorStatusBusyElsewhere",
                         "precedence": 0,
-                        "source": { "kind": "direct" }
+                        "source": {
+                          "kind": "direct"
+                        }
                       }
                     }
                   ]
@@ -1288,14 +2635,26 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "A Gig",
+            "Kind": "Gig",
+            "Level": "high"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1310,12 +2669,20 @@
                 {
                   "rows": [
                     {
-                      "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
+                      "values": {
+                        "Name": "A Gig",
+                        "Kind": "Gig",
+                        "Level": "high"
+                      },
                       "status": {
                         "name": "conflict",
                         "themeToken": "colorStatusConflict",
                         "precedence": 50,
-                        "source": { "kind": "map", "map": "LevelStatus", "value": "high" }
+                        "source": {
+                          "kind": "map",
+                          "map": "LevelStatus",
+                          "value": "high"
+                        }
                       }
                     }
                   ]
@@ -1338,14 +2705,26 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "B Rehearsal", "Kind": "Rehearsal", "Level": "low" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "B Rehearsal",
+            "Kind": "Rehearsal",
+            "Level": "low"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1363,7 +2742,11 @@
                       "status": {
                         "name": "rehearsal",
                         "precedence": 10,
-                        "source": { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                        "source": {
+                          "kind": "map",
+                          "map": "KindStatus",
+                          "value": "Rehearsal"
+                        }
                       }
                     }
                   ]
@@ -1386,14 +2769,26 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "C Other", "Kind": "Workshop", "Level": "low" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "C Other",
+            "Kind": "Workshop",
+            "Level": "low"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1412,7 +2807,11 @@
                         "name": "unset",
                         "themeToken": "colorStatusUnset",
                         "precedence": 0,
-                        "source": { "kind": "map", "map": "LevelStatus", "value": "low" }
+                        "source": {
+                          "kind": "map",
+                          "map": "LevelStatus",
+                          "value": "low"
+                        }
                       }
                     }
                   ]
@@ -1435,14 +2834,26 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "A Gig",
+            "Kind": "Gig",
+            "Level": "high"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1463,7 +2874,9 @@
                         "label": "Tie First",
                         "themeToken": "colorInfo",
                         "precedence": 30,
-                        "source": { "kind": "direct" }
+                        "source": {
+                          "kind": "direct"
+                        }
                       }
                     }
                   ]
@@ -1485,14 +2898,26 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "A Gig",
+            "Kind": "Gig",
+            "Level": "high"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "Board",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1509,10 +2934,16 @@
                 {
                   "rows": [
                     {
-                      "values": { "Kind": "Gig" },
+                      "values": {
+                        "Kind": "Gig"
+                      },
                       "status": {
                         "name": "rehearsal",
-                        "source": { "kind": "map", "map": "KindStatus", "value": "Rehearsal" }
+                        "source": {
+                          "kind": "map",
+                          "map": "KindStatus",
+                          "value": "Rehearsal"
+                        }
                       }
                     }
                   ]
@@ -1533,20 +2964,40 @@
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "A Gig", "Kind": "Gig", "Level": "high" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "A Gig",
+            "Kind": "Gig",
+            "Level": "high"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Slot",
-          "values": { "Name": "B Rehearsal", "Kind": "Rehearsal", "Level": "low" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "B Rehearsal",
+            "Kind": "Rehearsal",
+            "Level": "low"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Slot",
         "viewName": "StrictBoard",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1566,8 +3017,24 @@
               "lists": [
                 {
                   "rows": [
-                    { "values": { "Name": "A Gig" }, "status": { "name": "event" } },
-                    { "values": { "Name": "B Rehearsal" }, "fragments": [{ "text": "B Rehearsal" }] }
+                    {
+                      "values": {
+                        "Name": "A Gig"
+                      },
+                      "status": {
+                        "name": "event"
+                      }
+                    },
+                    {
+                      "values": {
+                        "Name": "B Rehearsal"
+                      },
+                      "fragments": [
+                        {
+                          "text": "B Rehearsal"
+                        }
+                      ]
+                    }
                   ]
                 }
               ]
@@ -1597,11 +3064,7 @@
         "result": {
           "objects.0.views.0.presentation.legends.0.include": "present",
           "objects.0.views.0.presentation.legends.0.title": "Schedule status",
-          "objects.0.views.0.presentation.legends.0.statuses": [
-            "event",
-            "rehearsal",
-            "customFlag"
-          ],
+          "objects.0.views.0.presentation.legends.0.statuses": ["event", "rehearsal", "customFlag"],
           "objects.0.views.0.presentation.legends.1.include": "all",
           "objects.0.views.0.presentation.legends.3.statuses": [],
           "objects.0.views.0.presentation.legends.3.include": "all"
@@ -1618,14 +3081,25 @@
         {
           "operation": "create",
           "objectName": "Item",
-          "values": { "Name": "One", "Kind": "Gig" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Name": "One",
+            "Kind": "Gig"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Item",
         "viewName": "Legends",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1636,34 +3110,82 @@
               "name": "Visible",
               "title": "Schedule status",
               "include": "present",
-              "items": [{ "status": { "name": "event", "themeToken": "colorStatusEvent" } }]
+              "items": [
+                {
+                  "status": {
+                    "name": "event",
+                    "themeToken": "colorStatusEvent"
+                  }
+                }
+              ]
             },
             {
               "name": "Complete",
               "include": "all",
               "items": [
-                { "status": { "name": "event" } },
-                { "status": { "name": "rehearsal" } },
-                { "status": { "name": "customFlag", "label": "Custom" } }
+                {
+                  "status": {
+                    "name": "event"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "rehearsal"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "customFlag",
+                    "label": "Custom"
+                  }
+                }
               ]
             },
             {
               "name": "Ordered",
               "include": "all",
               "items": [
-                { "status": { "name": "customFlag" } },
-                { "status": { "name": "rehearsal" } },
-                { "status": { "name": "event" } }
+                {
+                  "status": {
+                    "name": "customFlag"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "rehearsal"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "event"
+                  }
+                }
               ]
             },
             {
               "name": "AllDeclared",
               "include": "all",
               "items": [
-                { "status": { "name": "event" } },
-                { "status": { "name": "rehearsal" } },
-                { "status": { "name": "customFlag" } },
-                { "status": { "name": "conflict" } }
+                {
+                  "status": {
+                    "name": "event"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "rehearsal"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "customFlag"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "conflict"
+                  }
+                }
               ]
             }
           ]
@@ -1679,21 +3201,42 @@
       "input": {
         "objectName": "Item",
         "viewName": "Legends",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
         "result": {
           "diagnostics": [],
           "legends": [
-            { "name": "Complete", "include": "all" },
-            { "name": "Ordered", "include": "all" },
-            { "name": "AllDeclared", "include": "all" }
+            {
+              "name": "Complete",
+              "include": "all"
+            },
+            {
+              "name": "Ordered",
+              "include": "all"
+            },
+            {
+              "name": "AllDeclared",
+              "include": "all"
+            }
           ],
           "sections": [
             {
               "name": "Main",
-              "lists": [{ "name": "Items", "rows": [], "emptyState": { "text": "No items" } }]
+              "lists": [
+                {
+                  "name": "Items",
+                  "rows": [],
+                  "emptyState": {
+                    "text": "No items"
+                  }
+                }
+              ]
             }
           ]
         }
@@ -1746,14 +3289,25 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1769,11 +3323,31 @@
                   "name": "AvailabilityMatrix",
                   "density": "comfortable",
                   "columns": [
-                    { "key": "2026-03-02", "value": "2026-03-02", "label": "Mon 2" },
-                    { "key": "2026-03-03", "value": "2026-03-03", "label": "Tue 3" },
-                    { "key": "2026-03-04", "value": "2026-03-04", "label": "Wed 4" },
-                    { "key": "2026-03-05", "value": "2026-03-05", "label": "Thu 5" },
-                    { "key": "2026-03-06", "value": "2026-03-06", "label": "Fri 6" }
+                    {
+                      "key": "2026-03-02",
+                      "value": "2026-03-02",
+                      "label": "Mon 2"
+                    },
+                    {
+                      "key": "2026-03-03",
+                      "value": "2026-03-03",
+                      "label": "Tue 3"
+                    },
+                    {
+                      "key": "2026-03-04",
+                      "value": "2026-03-04",
+                      "label": "Wed 4"
+                    },
+                    {
+                      "key": "2026-03-05",
+                      "value": "2026-03-05",
+                      "label": "Thu 5"
+                    },
+                    {
+                      "key": "2026-03-06",
+                      "value": "2026-03-06",
+                      "label": "Fri 6"
+                    }
                   ]
                 }
               ]
@@ -1792,14 +3366,25 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "SteppedGrid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1811,9 +3396,18 @@
                   "name": "SteppedMatrix",
                   "density": "compact",
                   "columns": [
-                    { "key": "2026-03-02", "label": "2026-03-02" },
-                    { "key": "2026-03-05", "label": "2026-03-05" },
-                    { "key": "2026-03-08", "label": "2026-03-08" }
+                    {
+                      "key": "2026-03-02",
+                      "label": "2026-03-02"
+                    },
+                    {
+                      "key": "2026-03-05",
+                      "label": "2026-03-05"
+                    },
+                    {
+                      "key": "2026-03-08",
+                      "label": "2026-03-08"
+                    }
                   ]
                 }
               ]
@@ -1832,21 +3426,39 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "bo", "MemberName": "Bo" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "bo",
+            "MemberName": "Bo"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "alias": "ana",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1859,10 +3471,21 @@
                     {
                       "key": "ana",
                       "label": "Ana",
-                      "values": { "MemberKey": "ana", "MemberName": "Ana" },
-                      "sources": [{ "objectName": "Member", "recordId": "$ana" }]
+                      "values": {
+                        "MemberKey": "ana",
+                        "MemberName": "Ana"
+                      },
+                      "sources": [
+                        {
+                          "objectName": "Member",
+                          "recordId": "$ana"
+                        }
+                      ]
                     },
-                    { "key": "bo", "label": "Bo" }
+                    {
+                      "key": "bo",
+                      "label": "Bo"
+                    }
                   ]
                 }
               ]
@@ -1881,20 +3504,38 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "bo", "MemberName": "Bo" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "bo",
+            "MemberName": "Bo"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "SteppedGrid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1903,7 +3544,15 @@
             {
               "matrices": [
                 {
-                  "rows": [{ "key": "bo", "label": "Bo" }, { "key": "ana" }]
+                  "rows": [
+                    {
+                      "key": "bo",
+                      "label": "Bo"
+                    },
+                    {
+                      "key": "ana"
+                    }
+                  ]
                 }
               ]
             }
@@ -1921,27 +3570,54 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "alias": "cell-a",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-02",
+            "State": "available"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-04", "State": "unavailable" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-04",
+            "State": "unavailable"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -1958,13 +3634,26 @@
                         {
                           "rowKey": "ana",
                           "columnKey": "2026-03-02",
-                          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
-                          "sources": [{ "objectName": "Availability", "recordId": "$cell-a" }],
+                          "values": {
+                            "MemberKey": "ana",
+                            "Day": "2026-03-02",
+                            "State": "available"
+                          },
+                          "sources": [
+                            {
+                              "objectName": "Availability",
+                              "recordId": "$cell-a"
+                            }
+                          ],
                           "status": {
                             "name": "available",
                             "themeToken": "colorStatusAvailable",
                             "precedence": 10,
-                            "source": { "kind": "map", "map": "StateStatus", "value": "available" }
+                            "source": {
+                              "kind": "map",
+                              "map": "StateStatus",
+                              "value": "available"
+                            }
                           }
                         },
                         {},
@@ -1998,14 +3687,25 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2026,7 +3726,9 @@
                             "name": "unset",
                             "label": "Unset",
                             "themeToken": "colorStatusUnset",
-                            "source": { "kind": "direct" }
+                            "source": {
+                              "kind": "direct"
+                            }
                           }
                         },
                         {},
@@ -2053,20 +3755,39 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-02",
+            "State": "available"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "SteppedGrid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2094,14 +3815,21 @@
                   "rows": [
                     {
                       "cells": [
-                        { "columnKey": "2026-03-02", "status": { "name": "available" } },
+                        {
+                          "columnKey": "2026-03-02",
+                          "status": {
+                            "name": "available"
+                          }
+                        },
                         {
                           "columnKey": "2026-03-05",
                           "values": {},
                           "sources": [],
                           "accessibleLabel": "Availability cell"
                         },
-                        { "columnKey": "2026-03-08" }
+                        {
+                          "columnKey": "2026-03-08"
+                        }
                       ]
                     }
                   ]
@@ -2122,20 +3850,39 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-02",
+            "State": "available"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2147,8 +3894,12 @@
                   "rows": [
                     {
                       "cells": [
-                        { "accessibleLabel": "Ana, Mon 2: Available" },
-                        { "accessibleLabel": "Ana, Tue 3: Unset" },
+                        {
+                          "accessibleLabel": "Ana, Mon 2: Available"
+                        },
+                        {
+                          "accessibleLabel": "Ana, Tue 3: Unset"
+                        },
                         {},
                         {},
                         {}
@@ -2172,14 +3923,25 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2212,26 +3974,53 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-02",
+            "State": "available"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-04", "State": "unavailable" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-04",
+            "State": "unavailable"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2292,20 +4081,39 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-02",
+            "State": "available"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "viewer", "roles": ["Viewer"], "channel": "api" }
+        "context": {
+          "userId": "viewer",
+          "roles": ["Viewer"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2319,21 +4127,19 @@
                       "cells": [
                         {
                           "columnKey": "2026-03-02",
-                          "status": { "name": "available" },
+                          "status": {
+                            "name": "available"
+                          },
                           "edit": {
                             "enabled": false,
-                            "reasons": [
-                              "No policy rule allowed update; default deny applies."
-                            ],
+                            "reasons": ["No policy rule allowed update; default deny applies."],
                             "operation": "update"
                           }
                         },
                         {
                           "edit": {
                             "enabled": false,
-                            "reasons": [
-                              "No policy rule allowed create; default deny applies."
-                            ],
+                            "reasons": ["No policy rule allowed create; default deny applies."],
                             "operation": "create"
                           }
                         },
@@ -2360,20 +4166,39 @@
         {
           "operation": "create",
           "objectName": "Member",
-          "values": { "MemberKey": "ana", "MemberName": "Ana" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "MemberName": "Ana"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Availability",
-          "values": { "MemberKey": "ana", "Day": "2026-03-02", "State": "available" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "MemberKey": "ana",
+            "Day": "2026-03-02",
+            "State": "available"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Member",
         "viewName": "Grid",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2384,8 +4209,16 @@
               "title": "Availability",
               "include": "present",
               "items": [
-                { "status": { "name": "available" } },
-                { "status": { "name": "unset" } }
+                {
+                  "status": {
+                    "name": "available"
+                  }
+                },
+                {
+                  "status": {
+                    "name": "unset"
+                  }
+                }
               ]
             }
           ]
@@ -2433,7 +4266,11 @@
       "input": {
         "objectName": "Event",
         "viewName": "Planner",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2459,37 +4296,52 @@
                     "canNavigateNext": true
                   },
                   "weekdays": [
-                    { "key": "monday", "label": "Mon" },
-                    { "key": "tuesday", "label": "Tue" },
-                    { "key": "wednesday", "label": "Wed" },
-                    { "key": "thursday", "label": "Thu" },
-                    { "key": "friday", "label": "Fri" },
-                    { "key": "saturday", "label": "Sat" },
-                    { "key": "sunday", "label": "Sun" }
+                    {
+                      "key": "monday",
+                      "label": "Mon"
+                    },
+                    {
+                      "key": "tuesday",
+                      "label": "Tue"
+                    },
+                    {
+                      "key": "wednesday",
+                      "label": "Wed"
+                    },
+                    {
+                      "key": "thursday",
+                      "label": "Thu"
+                    },
+                    {
+                      "key": "friday",
+                      "label": "Fri"
+                    },
+                    {
+                      "key": "saturday",
+                      "label": "Sat"
+                    },
+                    {
+                      "key": "sunday",
+                      "label": "Sun"
+                    }
                   ],
                   "cells": [
-                    { "date": "2026-02-23", "day": 23, "inMonth": false, "withinRange": true },
+                    {
+                      "date": "2026-02-23",
+                      "day": 23,
+                      "inMonth": false,
+                      "withinRange": true
+                    },
                     {},
                     {},
                     {},
                     {},
                     {},
-                    { "date": "2026-03-01", "day": 1, "inMonth": true },
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
+                    {
+                      "date": "2026-03-01",
+                      "day": 1,
+                      "inMonth": true
+                    },
                     {},
                     {},
                     {},
@@ -2504,12 +4356,35 @@
                     {},
                     {},
                     {},
-                    { "date": "2026-03-31", "day": 31, "inMonth": true },
                     {},
                     {},
                     {},
                     {},
-                    { "date": "2026-04-05", "day": 5, "inMonth": false }
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "date": "2026-03-31",
+                      "day": 31,
+                      "inMonth": true
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "date": "2026-04-05",
+                      "day": 5,
+                      "inMonth": false
+                    }
                   ]
                 }
               ]
@@ -2527,7 +4402,11 @@
       "input": {
         "objectName": "Event",
         "viewName": "SundayPlanner",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2537,15 +4416,39 @@
               "calendars": [
                 {
                   "name": "SundayPlan",
-                  "month": { "value": "2026-03", "label": "March 2026" },
+                  "month": {
+                    "value": "2026-03",
+                    "label": "March 2026"
+                  },
                   "weekdays": [
-                    { "key": "sunday", "label": "Sun" },
-                    { "key": "monday", "label": "Mon" },
-                    { "key": "tuesday", "label": "Tue" },
-                    { "key": "wednesday", "label": "Wed" },
-                    { "key": "thursday", "label": "Thu" },
-                    { "key": "friday", "label": "Fri" },
-                    { "key": "saturday", "label": "Sat" }
+                    {
+                      "key": "sunday",
+                      "label": "Sun"
+                    },
+                    {
+                      "key": "monday",
+                      "label": "Mon"
+                    },
+                    {
+                      "key": "tuesday",
+                      "label": "Tue"
+                    },
+                    {
+                      "key": "wednesday",
+                      "label": "Wed"
+                    },
+                    {
+                      "key": "thursday",
+                      "label": "Thu"
+                    },
+                    {
+                      "key": "friday",
+                      "label": "Fri"
+                    },
+                    {
+                      "key": "saturday",
+                      "label": "Sat"
+                    }
                   ]
                 }
               ]
@@ -2563,7 +4466,11 @@
       "input": {
         "objectName": "Event",
         "viewName": "SundayPlanner",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2579,7 +4486,11 @@
                     "canNavigateNext": false
                   },
                   "cells": [
-                    { "date": "2026-03-01", "withinRange": true, "actions": [] },
+                    {
+                      "date": "2026-03-01",
+                      "withinRange": true,
+                      "actions": []
+                    },
                     {},
                     {},
                     {},
@@ -2609,18 +4520,27 @@
                     {},
                     {},
                     {},
-                    { "date": "2026-03-31", "withinRange": true },
+                    {
+                      "date": "2026-03-31",
+                      "withinRange": true
+                    },
                     {},
                     {},
                     {},
-                    { "date": "2026-04-04", "withinRange": false },
+                    {
+                      "date": "2026-04-04",
+                      "withinRange": false
+                    },
                     {},
                     {},
                     {},
                     {},
                     {},
                     {},
-                    { "date": "2026-04-11", "withinRange": false }
+                    {
+                      "date": "2026-04-11",
+                      "withinRange": false
+                    }
                   ]
                 }
               ]
@@ -2638,13 +4558,21 @@
       "input": {
         "objectName": "Event",
         "viewName": "Planner",
-        "updates": { "month": "2026-04" },
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "updates": {
+          "month": "2026-04"
+        },
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
         "result": {
-          "state": { "month": "2026-04" },
+          "state": {
+            "month": "2026-04"
+          },
           "diagnostics": [],
           "sections": [
             {
@@ -2675,13 +4603,21 @@
       "input": {
         "objectName": "Event",
         "viewName": "Planner",
-        "updates": { "month": "not-a-month" },
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "updates": {
+          "month": "not-a-month"
+        },
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
         "result": {
-          "state": { "month": "not-a-month" },
+          "state": {
+            "month": "not-a-month"
+          },
           "diagnostics": [
             {
               "severity": "warning",
@@ -2724,7 +4660,11 @@
             "Kind": "Gig",
             "Venue": "Alpha Hall"
           },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
@@ -2735,7 +4675,11 @@
             "Kind": "Clash",
             "Venue": ""
           },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
@@ -2746,7 +4690,11 @@
             "Kind": "Rehearsal",
             "Venue": "Studio"
           },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
@@ -2783,7 +4731,10 @@
                       "eventCount": 2,
                       "hasConflict": true,
                       "accessibleLabel": "2026-03-05: 2 events, conflict",
-                      "statusCounts": { "conflict": 1, "event": 1 },
+                      "statusCounts": {
+                        "conflict": 1,
+                        "event": 1
+                      },
                       "values": {
                         "Date": "2026-03-05",
                         "EventCount": 2,
@@ -2794,14 +4745,26 @@
                         {
                           "title": "Alpha clash",
                           "summary": "Clash",
-                          "values": { "Title": "Alpha clash", "Kind": "Clash" },
-                          "status": { "name": "conflict" }
+                          "values": {
+                            "Title": "Alpha clash",
+                            "Kind": "Clash"
+                          },
+                          "status": {
+                            "name": "conflict"
+                          }
                         },
                         {
                           "title": "Zed gig",
                           "summary": "Alpha Hall Gig",
-                          "sources": [{ "objectName": "Event", "recordId": "$gig" }],
-                          "status": { "name": "event" }
+                          "sources": [
+                            {
+                              "objectName": "Event",
+                              "recordId": "$gig"
+                            }
+                          ],
+                          "status": {
+                            "name": "event"
+                          }
                         }
                       ]
                     },
@@ -2809,7 +4772,11 @@
                     {},
                     {},
                     {},
-                    { "date": "2026-03-10", "isToday": true, "eventCount": 0 },
+                    {
+                      "date": "2026-03-10",
+                      "isToday": true,
+                      "eventCount": 0
+                    },
                     {},
                     {},
                     {},
@@ -2835,8 +4802,15 @@
                       "eventCount": 1,
                       "hasConflict": false,
                       "accessibleLabel": "2026-03-31: 1 event",
-                      "statusCounts": { "rehearsal": 1 },
-                      "items": [{ "title": "Rehearsal", "summary": "Studio Rehearsal" }]
+                      "statusCounts": {
+                        "rehearsal": 1
+                      },
+                      "items": [
+                        {
+                          "title": "Rehearsal",
+                          "summary": "Studio Rehearsal"
+                        }
+                      ]
                     },
                     {},
                     {},
@@ -2867,7 +4841,11 @@
             "Kind": "Gig",
             "Venue": "Alpha Hall"
           },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
@@ -2878,13 +4856,21 @@
             "Kind": "Clash",
             "Venue": ""
           },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Event",
         "viewName": "Planner",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2910,7 +4896,11 @@
                         "name": "conflict",
                         "themeToken": "colorStatusConflict",
                         "precedence": 50,
-                        "source": { "kind": "map", "map": "KindStatus", "value": "Clash" }
+                        "source": {
+                          "kind": "map",
+                          "map": "KindStatus",
+                          "value": "Clash"
+                        }
                       }
                     },
                     {},
@@ -2961,8 +4951,14 @@
       "input": {
         "objectName": "Event",
         "viewName": "Planner",
-        "updates": { "month": "2026-04" },
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "updates": {
+          "month": "2026-04"
+        },
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -2984,8 +4980,12 @@
                           "visible": true,
                           "enabled": true,
                           "reasons": [],
-                          "input": { "EventDate": "2026-03-30" },
-                          "create": { "object": "Event" }
+                          "input": {
+                            "EventDate": "2026-03-30"
+                          },
+                          "create": {
+                            "object": "Event"
+                          }
                         }
                       ]
                     },
@@ -3019,8 +5019,15 @@
                     {},
                     {},
                     {},
-                    { "date": "2026-04-30", "withinRange": true },
-                    { "date": "2026-05-01", "withinRange": false, "actions": [] },
+                    {
+                      "date": "2026-04-30",
+                      "withinRange": true
+                    },
+                    {
+                      "date": "2026-05-01",
+                      "withinRange": false,
+                      "actions": []
+                    },
                     {},
                     {},
                     {},
@@ -3029,7 +5036,11 @@
                     {},
                     {},
                     {},
-                    { "date": "2026-05-10", "withinRange": false, "actions": [] }
+                    {
+                      "date": "2026-05-10",
+                      "withinRange": false,
+                      "actions": []
+                    }
                   ]
                 }
               ]
@@ -3047,7 +5058,11 @@
       "input": {
         "objectName": "Event",
         "viewName": "Planner",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3056,7 +5071,12 @@
           "sections": [
             {
               "calendars": [
-                { "name": "MonthPlan", "emptyState": { "text": "No events this month" } }
+                {
+                  "name": "MonthPlan",
+                  "emptyState": {
+                    "text": "No events this month"
+                  }
+                }
               ]
             }
           ]
@@ -3081,13 +5101,21 @@
             "Amount": 12.5,
             "Notes": "bring gear"
           },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Task",
         "viewName": "Feed",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3110,17 +5138,53 @@
                           "label": "Kind",
                           "icon": {
                             "name": "music",
-                            "source": { "kind": "map", "map": "KindIcon", "value": "Gig" }
+                            "source": {
+                              "kind": "map",
+                              "map": "KindIcon",
+                              "value": "Gig"
+                            }
                           }
                         },
-                        { "kind": "text", "text": "Alpha", "style": "bold" },
-                        { "kind": "text", "text": " on ", "style": "muted" },
-                        { "kind": "text", "text": "Sat 1 Aug 2026", "style": "plain" },
-                        { "kind": "text", "text": " at ", "style": "plain" },
-                        { "kind": "text", "text": "8:05PM", "style": "plain" },
-                        { "kind": "text", "text": " ", "style": "plain" },
-                        { "kind": "text", "text": "12.50", "style": "caption" },
-                        { "kind": "text", "text": " [gig]", "style": "caption" }
+                        {
+                          "kind": "text",
+                          "text": "Alpha",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " on ",
+                          "style": "muted"
+                        },
+                        {
+                          "kind": "text",
+                          "text": "Sat 1 Aug 2026",
+                          "style": "plain"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " at ",
+                          "style": "plain"
+                        },
+                        {
+                          "kind": "text",
+                          "text": "8:05PM",
+                          "style": "plain"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " ",
+                          "style": "plain"
+                        },
+                        {
+                          "kind": "text",
+                          "text": "12.50",
+                          "style": "caption"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " [gig]",
+                          "style": "caption"
+                        }
                       ]
                     }
                   ]
@@ -3141,14 +5205,25 @@
         {
           "operation": "create",
           "objectName": "Task",
-          "values": { "Title": "Beta", "Kind": "Other" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Title": "Beta",
+            "Kind": "Other"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Task",
         "viewName": "Feed",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3184,13 +5259,33 @@
                           "kind": "icon",
                           "icon": {
                             "name": "dot",
-                            "source": { "kind": "map", "map": "KindIcon", "value": "Other" }
+                            "source": {
+                              "kind": "map",
+                              "map": "KindIcon",
+                              "value": "Other"
+                            }
                           }
                         },
-                        { "kind": "text", "text": "Beta", "style": "bold" },
-                        { "kind": "text", "text": " on ", "style": "muted" },
-                        { "kind": "text", "text": "no date", "style": "plain" },
-                        { "kind": "text", "text": " at ", "style": "plain" }
+                        {
+                          "kind": "text",
+                          "text": "Beta",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " on ",
+                          "style": "muted"
+                        },
+                        {
+                          "kind": "text",
+                          "text": "no date",
+                          "style": "plain"
+                        },
+                        {
+                          "kind": "text",
+                          "text": " at ",
+                          "style": "plain"
+                        }
                       ]
                     }
                   ]
@@ -3211,14 +5306,26 @@
         {
           "operation": "create",
           "objectName": "Task",
-          "values": { "Title": "Alpha", "Kind": "Gig", "DueDate": "2026-08-01" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Title": "Alpha",
+            "Kind": "Gig",
+            "DueDate": "2026-08-01"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Task",
         "viewName": "BadFormatFeed",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3238,7 +5345,15 @@
               "lists": [
                 {
                   "rows": [
-                    { "fragments": [{ "kind": "text", "text": "2026-08-01", "style": "plain" }] }
+                    {
+                      "fragments": [
+                        {
+                          "kind": "text",
+                          "text": "2026-08-01",
+                          "style": "plain"
+                        }
+                      ]
+                    }
                   ]
                 }
               ]
@@ -3256,7 +5371,11 @@
       "input": {
         "objectName": "Task",
         "viewName": "Feed",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3270,7 +5389,12 @@
                   "rows": [],
                   "emptyState": {
                     "text": "Nothing scheduled",
-                    "icon": { "name": "check", "source": { "kind": "named" } }
+                    "icon": {
+                      "name": "check",
+                      "source": {
+                        "kind": "named"
+                      }
+                    }
                   }
                 }
               ]
@@ -3289,20 +5413,38 @@
         {
           "operation": "create",
           "objectName": "Task",
-          "values": { "Title": "Alpha", "Kind": "Gig" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Title": "Alpha",
+            "Kind": "Gig"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         },
         {
           "operation": "create",
           "objectName": "Task",
-          "values": { "Title": "Beta", "Kind": "Other" },
-          "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+          "values": {
+            "Title": "Beta",
+            "Kind": "Other"
+          },
+          "context": {
+            "userId": "admin",
+            "roles": ["Admin"],
+            "channel": "api"
+          }
         }
       ],
       "input": {
         "objectName": "Task",
         "viewName": "StrictIconFeed",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3327,13 +5469,29 @@
                           "kind": "icon",
                           "icon": {
                             "name": "music",
-                            "source": { "kind": "map", "map": "StrictKindIcon", "value": "Gig" }
+                            "source": {
+                              "kind": "map",
+                              "map": "StrictKindIcon",
+                              "value": "Gig"
+                            }
                           }
                         },
-                        { "kind": "text", "text": "Alpha", "style": "plain" }
+                        {
+                          "kind": "text",
+                          "text": "Alpha",
+                          "style": "plain"
+                        }
                       ]
                     },
-                    { "fragments": [{ "kind": "text", "text": "Beta", "style": "plain" }] }
+                    {
+                      "fragments": [
+                        {
+                          "kind": "text",
+                          "text": "Beta",
+                          "style": "plain"
+                        }
+                      ]
+                    }
                   ]
                 }
               ]
@@ -3387,7 +5545,11 @@
       "input": {
         "objectName": "Pref",
         "viewName": "StateView",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3407,15 +5569,26 @@
             {
               "name": "Controls",
               "controls": [
-                { "name": "flagToggle", "kind": "toggle", "state": "flag", "value": false },
+                {
+                  "name": "flagToggle",
+                  "kind": "toggle",
+                  "state": "flag",
+                  "value": false
+                },
                 {
                   "name": "noteSelect",
                   "kind": "select",
                   "state": "note",
                   "value": "",
                   "options": [
-                    { "value": "a", "label": "Alpha" },
-                    { "value": "b", "label": "Beta" }
+                    {
+                      "value": "a",
+                      "label": "Alpha"
+                    },
+                    {
+                      "value": "b",
+                      "label": "Beta"
+                    }
                   ]
                 }
               ]
@@ -3433,9 +5606,22 @@
       "input": {
         "objectName": "Pref",
         "viewName": "StateView",
-        "state": { "flag": true, "count": 7, "day": "2026-05-01" },
-        "updates": { "note": "b", "day": null, "missingState": 1, "count": "seven" },
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "state": {
+          "flag": true,
+          "count": 7,
+          "day": "2026-05-01"
+        },
+        "updates": {
+          "note": "b",
+          "day": null,
+          "missingState": 1,
+          "count": "seven"
+        },
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3463,8 +5649,14 @@
           "sections": [
             {
               "controls": [
-                { "kind": "toggle", "value": true },
-                { "kind": "select", "value": "b" }
+                {
+                  "kind": "toggle",
+                  "value": true
+                },
+                {
+                  "kind": "select",
+                  "value": "b"
+                }
               ]
             }
           ]
@@ -3480,7 +5672,11 @@
       "input": {
         "objectName": "Pref",
         "viewName": "PlainList",
-        "context": { "userId": "admin", "roles": ["Admin"], "channel": "api" }
+        "context": {
+          "userId": "admin",
+          "roles": ["Admin"],
+          "channel": "api"
+        }
       },
       "expected": {
         "ok": true,
@@ -3493,7 +5689,10 @@
           "legends": [],
           "sections": [],
           "diagnostics": [
-            { "severity": "error", "code": "ADL_PRESENTATION_VIEW_NOT_COMPOSED" }
+            {
+              "severity": "error",
+              "code": "ADL_PRESENTATION_VIEW_NOT_COMPOSED"
+            }
           ]
         }
       }
@@ -3504,13 +5703,22 @@
       "specRef": "ui-language-addendum#semantic-statuses-and-legends",
       "operation": "validateModel",
       "model": {
-        "app": { "name": "InvalidStatusReferences", "startView": "Board" },
+        "app": {
+          "name": "InvalidStatusReferences",
+          "startView": "Board"
+        },
         "objects": [
           {
             "name": "Slot",
             "fields": [
-              { "name": "Name", "type": "text" },
-              { "name": "Kind", "type": "text" }
+              {
+                "name": "Name",
+                "type": "text"
+              },
+              {
+                "name": "Kind",
+                "type": "text"
+              }
             ],
             "views": [
               {
@@ -3519,18 +5727,34 @@
                 "fields": ["Name", "Kind"],
                 "presentation": {
                   "statuses": [
-                    { "name": "event", "themeToken": "colorNope", "precedence": 1.5 },
-                    { "name": "event" }
+                    {
+                      "name": "event",
+                      "themeToken": "colorNope",
+                      "precedence": 1.5
+                    },
+                    {
+                      "name": "event"
+                    }
                   ],
                   "statusMaps": [
                     {
                       "name": "KindStatus",
                       "field": "Missing",
-                      "values": [{ "value": "Gig", "status": "ghost" }],
+                      "values": [
+                        {
+                          "value": "Gig",
+                          "status": "ghost"
+                        }
+                      ],
                       "defaultStatus": "phantom"
                     }
                   ],
-                  "legends": [{ "name": "L", "statuses": ["ghost"] }],
+                  "legends": [
+                    {
+                      "name": "L",
+                      "statuses": ["ghost"]
+                    }
+                  ],
                   "sections": [
                     {
                       "name": "S",
@@ -3542,11 +5766,24 @@
                           "fields": ["Name"],
                           "status": {
                             "candidates": [
-                              { "kind": "map", "map": "NoSuchMap" },
-                              { "kind": "status", "status": "ghost" }
+                              {
+                                "kind": "map",
+                                "map": "NoSuchMap"
+                              },
+                              {
+                                "kind": "status",
+                                "status": "ghost"
+                              }
                             ]
                           },
-                          "row": { "fragments": [{ "kind": "field", "field": "Name" }] }
+                          "row": {
+                            "fragments": [
+                              {
+                                "kind": "field",
+                                "field": "Name"
+                              }
+                            ]
+                          }
                         }
                       ]
                     }
@@ -3614,13 +5851,22 @@
       "specRef": "ui-language-addendum#resourcedate-matrices",
       "operation": "validateModel",
       "model": {
-        "app": { "name": "InvalidMatrixReferences", "startView": "Grid" },
+        "app": {
+          "name": "InvalidMatrixReferences",
+          "startView": "Grid"
+        },
         "objects": [
           {
             "name": "Member",
             "fields": [
-              { "name": "MemberKey", "type": "text" },
-              { "name": "MemberName", "type": "text" }
+              {
+                "name": "MemberKey",
+                "type": "text"
+              },
+              {
+                "name": "MemberName",
+                "type": "text"
+              }
             ],
             "views": [
               {
@@ -3639,7 +5885,11 @@
                             "source": "NoSuchObject",
                             "labelField": "MemberName"
                           },
-                          "columnAxis": { "start": "not-a-date", "end": "2026-03-01", "stepDays": 0 },
+                          "columnAxis": {
+                            "start": "not-a-date",
+                            "end": "2026-03-01",
+                            "stepDays": 0
+                          },
                           "cellSource": {
                             "sourceKind": "readModel",
                             "source": "NoSuchReadModel",
@@ -3714,13 +5964,22 @@
       "specRef": "resolved-model#view-presentation",
       "operation": "validateModel",
       "model": {
-        "app": { "name": "InvalidCalendarReferences", "startView": "Planner" },
+        "app": {
+          "name": "InvalidCalendarReferences",
+          "startView": "Planner"
+        },
         "objects": [
           {
             "name": "Event",
             "fields": [
-              { "name": "Title", "type": "text" },
-              { "name": "EventDate", "type": "date" }
+              {
+                "name": "Title",
+                "type": "text"
+              },
+              {
+                "name": "EventDate",
+                "type": "date"
+              }
             ],
             "views": [
               {
@@ -3739,9 +5998,17 @@
                           "dateField": "NoSuchDate",
                           "titleField": "NoSuchTitle",
                           "summaryFields": ["NoSuchSummary"],
-                          "month": { "value": "nope", "weekStart": "funday" },
+                          "month": {
+                            "value": "nope",
+                            "weekStart": "funday"
+                          },
                           "status": {
-                            "candidates": [{ "kind": "map", "map": "NoSuchStatusMap" }]
+                            "candidates": [
+                              {
+                                "kind": "map",
+                                "map": "NoSuchStatusMap"
+                              }
+                            ]
                           }
                         }
                       ]
@@ -3793,8 +6060,7 @@
           }
         ]
       }
-    }
-,
+    },
     {
       "id": "presentation.calendar.conflict-overlay.001",
       "title": "CALENDAR CONFLICT_OVERLAY and MONTH_LABEL_FORMAT in ADL source resolve onto the calendar",
@@ -3880,7 +6146,10 @@
             "MemberName"
           ],
           "objects.0.views.0.presentation.sections.0.matrices.0.rowSource.sort": [
-            { "field": "MemberName", "direction": "asc" }
+            {
+              "field": "MemberName",
+              "direction": "asc"
+            }
           ],
           "objects.0.views.0.presentation.sections.0.matrices.0.columnAxis.kind": "dateRange",
           "objects.0.views.0.presentation.sections.0.matrices.0.columnAxis.start": "2026-03-02",
@@ -3898,7 +6167,10 @@
             "State"
           ],
           "objects.0.views.0.presentation.sections.0.matrices.0.cellSource.status.candidates": [
-            { "kind": "map", "map": "StateStatus" }
+            {
+              "kind": "map",
+              "map": "StateStatus"
+            }
           ],
           "objects.0.views.0.presentation.sections.0.matrices.0.cell.unsetStatus": "unset",
           "objects.0.views.0.presentation.sections.0.matrices.0.edit.object": "Availability",
@@ -3954,11 +6226,21 @@
           "objects.0.views.2.presentation.sections.0.matrices.0.cellSource.source": "AvailabilityCells",
           "objects.0.views.2.presentation.sections.0.matrices.0.cellSource.recordSource": "Availability",
           "objects.0.views.2.presentation.sections.0.matrices.0.cellSource.status.candidates": [
-            { "kind": "map", "map": "CellStateStatus" }
+            {
+              "kind": "map",
+              "map": "CellStateStatus"
+            }
           ],
           "objects.0.views.2.presentation.sections.0.matrices.0.cell.status.candidates": [
-            { "kind": "map", "map": "CellStateStatus", "field": "CellState" },
-            { "kind": "status", "status": "conflict" }
+            {
+              "kind": "map",
+              "map": "CellStateStatus",
+              "field": "CellState"
+            },
+            {
+              "kind": "status",
+              "status": "conflict"
+            }
           ],
           "objects.0.views.2.presentation.sections.0.matrices.0.cell.unsetStatus": "unset",
           "objects.0.views.2.presentation.sections.0.matrices.0.cell.accessibleLabel": "Availability cell",

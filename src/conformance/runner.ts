@@ -1,4 +1,5 @@
 import { explainPolicyRequest, explainResolvedModel, inspectResolvedModel } from "../inspect.js";
+import type { AdljSourceDocument } from "../model/adlj-source.js";
 import type {
   JsonValue,
   PartialApplicationModel,
@@ -69,6 +70,12 @@ export interface ConformanceSuite {
  */
 export interface ConformanceAdlSource {
   adl: string | string[];
+  /**
+   * The equivalent language-neutral ADLJ source. A second runtime may consume
+   * this while the reference runner continues to exercise the textual parser.
+   * Corpus tests require both forms to compile to the same partial model.
+   */
+  adlj?: AdljSourceDocument;
 }
 
 export type ConformanceModelInput = PartialApplicationModel | ConformanceAdlSource;

@@ -30,7 +30,144 @@
         "POLICY TaskPolicy ON Task",
         "  RULE allowTask ALLOW * ROLE Admin",
         "END.POLICY"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Declared Offline Scope Runtime"
+        },
+        "roles": [
+          {
+            "name": "Admin",
+            "inherits": []
+          }
+        ],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Gig",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "GigDate",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "recent",
+              "window": {
+                "field": "GigDate",
+                "days": 7
+              }
+            }
+          },
+          {
+            "name": "Task",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Owner",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "custom",
+              "predicate": "(Status == 'open') AND (Owner == RUNTIME.userId)"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [
+          {
+            "name": "GigPolicy",
+            "object": "Gig",
+            "rules": [
+              {
+                "name": "allowGig",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "TaskPolicy",
+            "object": "Task",
+            "rules": [
+              {
+                "name": "allowTask",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          }
+        ],
+        "sync": []
+      }
     },
     "boundedByAReadModelSource": {
       "adl": [
@@ -69,7 +206,164 @@
         "POLICY VenuePolicy ON Venue",
         "  RULE allowVenue ALLOW * ROLE Admin",
         "END.POLICY"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Bounded By A Read Model Source"
+        },
+        "roles": [
+          {
+            "name": "Admin",
+            "inherits": []
+          }
+        ],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Gig",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "GigDate",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "recent",
+              "window": {
+                "field": "GigDate",
+                "days": 7
+              }
+            }
+          },
+          {
+            "name": "Venue",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "all"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [
+          {
+            "name": "GigBoard",
+            "sources": [
+              {
+                "name": "gig",
+                "object": "Gig",
+                "scope": "all"
+              }
+            ],
+            "sort": [],
+            "fields": [
+              {
+                "name": "Title",
+                "source": "gig",
+                "field": "Title"
+              }
+            ]
+          },
+          {
+            "name": "VenueBoard",
+            "sources": [
+              {
+                "name": "venue",
+                "object": "Venue",
+                "scope": "all"
+              }
+            ],
+            "sort": [],
+            "fields": [
+              {
+                "name": "Name",
+                "source": "venue",
+                "field": "Name"
+              }
+            ]
+          }
+        ],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [
+          {
+            "name": "GigPolicy",
+            "object": "Gig",
+            "rules": [
+              {
+                "name": "allowGig",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "VenuePolicy",
+            "object": "Venue",
+            "rules": [
+              {
+                "name": "allowVenue",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          }
+        ],
+        "sync": []
+      }
     },
     "boundOnAUserScope": {
       "adl": [
@@ -100,7 +394,149 @@
         "POLICY ExpensePolicy ON Expense",
         "  RULE allowExpense ALLOW * ROLE Admin",
         "END.POLICY"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Bound On A User Scope"
+        },
+        "roles": [
+          {
+            "name": "Admin",
+            "inherits": []
+          }
+        ],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "ShiftNote",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "ShiftDate",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "currentUser",
+              "window": {
+                "field": "ShiftDate",
+                "days": 30,
+                "limit": 2
+              }
+            }
+          },
+          {
+            "name": "Expense",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "SpentOn",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "currentUser",
+              "window": {
+                "field": "SpentOn",
+                "days": 30
+              },
+              "predicate": "Status == 'open'"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [
+          {
+            "name": "ShiftNotePolicy",
+            "object": "ShiftNote",
+            "rules": [
+              {
+                "name": "allowShiftNote",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "ExpensePolicy",
+            "object": "Expense",
+            "rules": [
+              {
+                "name": "allowExpense",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          }
+        ],
+        "sync": []
+      }
     },
     "composedBoundWithAReadModelSource": {
       "adl": [
@@ -125,7 +561,112 @@
         "POLICY ExpensePolicy ON Expense",
         "  RULE allowExpense ALLOW * ROLE Admin",
         "END.POLICY"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Composed Bound With A Read Model Source"
+        },
+        "roles": [
+          {
+            "name": "Admin",
+            "inherits": []
+          }
+        ],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Expense",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Status",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "SpentOn",
+                "type": "date",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "currentUser",
+              "window": {
+                "field": "SpentOn",
+                "days": 30
+              },
+              "predicate": "Status == 'open'"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [
+          {
+            "name": "ExpenseBoard",
+            "sources": [
+              {
+                "name": "expense",
+                "object": "Expense",
+                "scope": "all"
+              }
+            ],
+            "sort": [],
+            "fields": [
+              {
+                "name": "Title",
+                "source": "expense",
+                "field": "Title"
+              }
+            ]
+          }
+        ],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [
+          {
+            "name": "ExpensePolicy",
+            "object": "Expense",
+            "rules": [
+              {
+                "name": "allowExpense",
+                "effect": "allow",
+                "principal": {
+                  "match": "specific",
+                  "roles": ["Admin"],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          }
+        ],
+        "sync": []
+      }
     }
   },
   "cases": [

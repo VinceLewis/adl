@@ -11,6 +11,10 @@ decision behavior, or the executable conformance corpus.
 - Shared models may live in a suite-level `models` map and be referenced by
   `modelRef`. This keeps data-driven cases readable while preserving a
   runtime-agnostic corpus.
+- A textual `adl` model fixture also carries its structurally equivalent `adlj`
+  source. The reference runner keeps consuming `adl` to pin parser behavior;
+  runtimes that defer the textual parser consume `adlj`. The discovered corpus
+  test compiles both and requires identical partial models.
 - `src/conformance/runner.ts` is the TypeScript semantic harness. It executes
   corpus cases through public compiler/runtime surfaces and returns normalized
   pass/fail results. It is not a second runtime.

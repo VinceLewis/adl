@@ -2,6 +2,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { runConformanceSuite } from "../src/index.js";
+import { compileAdl } from "../src/compiler/compile-adl.js";
+import { compileAdlj } from "../src/compiler/compile-adlj.js";
 import type { ConformanceSuite } from "../src/index.js";
 
 /**
@@ -61,6 +63,21 @@ describe("ADL conformance corpus", () => {
         );
 
         expect(offences).toEqual([]);
+      });
+
+      it("keeps textual ADL fixtures equivalent to their language-neutral ADLJ forms", () => {
+        for (const [name, model] of Object.entries(suite.models ?? {})) {
+          if (!("adl" in model)) continue;
+
+          expect(model.adlj, `${name} is missing its ADLJ equivalent`).toBeDefined();
+          if (model.adlj === undefined) continue;
+
+          const source = Array.isArray(model.adl) ? model.adl.join("\n") : model.adl;
+          const fromAdl = compileAdl(source).partialModel;
+          const fromAdlj = compileAdlj(JSON.stringify(model.adlj)).partialModel;
+
+          expect(fromAdlj, `${name} differs between ADL and ADLJ`).toEqual(fromAdl);
+        }
       });
 
       it("passes against the TypeScript semantic reference runtime", async () => {

@@ -52,7 +52,166 @@
         "    ACTIONS read",
         "  END.VIEW",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Order Edit Surfaces"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "displayField": "Code",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Notes",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "editContainer": "page",
+                "fields": ["Code", "Notes"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Details",
+                    "kind": "fields",
+                    "heading": "Order",
+                    "fields": ["Code", "Notes"]
+                  },
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "heading": "Lines",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "childView": "OrderLineList",
+                    "operations": [
+                      "createChild",
+                      "linkExisting",
+                      "updateChild",
+                      "remove",
+                      "reorder"
+                    ],
+                    "staged": true,
+                    "orderField": "Position",
+                    "emptyState": {
+                      "text": "No lines yet."
+                    },
+                    "picker": {
+                      "name": "LinePicker",
+                      "sourceKind": "object",
+                      "source": "OrderLine",
+                      "selection": "single",
+                      "displayFields": ["Description"],
+                      "searchFields": ["Description"],
+                      "sort": [
+                        {
+                          "field": "Position",
+                          "direction": "asc"
+                        }
+                      ],
+                      "excludeAlreadyLinked": true,
+                      "emptyState": {
+                        "text": "Nothing to link."
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "OrderList",
+                "kind": "list",
+                "fields": ["Code", "Notes"],
+                "searchFields": [],
+                "sort": [],
+                "actions": ["read"]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Position",
+                "type": "number",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": [
+                  {
+                    "kind": "min",
+                    "value": 1
+                  }
+                ]
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderLineList",
+                "kind": "list",
+                "fields": ["Description", "Position"],
+                "searchFields": [],
+                "sort": [],
+                "actions": ["read"]
+              }
+            ]
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "unknownChildObject": {
       "adl": [
@@ -69,7 +228,58 @@
         "    END.CHILD_COLLECTION",
         "  END.VIEW",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Unknown Child Object"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderRow",
+                    "parentField": "Order"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "parentFieldNotALookupToTheParent": {
       "adl": [
@@ -91,7 +301,88 @@
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Parent Field Invalid"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Description"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "unknownChildView": {
       "adl": [
@@ -114,7 +405,89 @@
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Unknown Child View"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "childView": "OrderLineGrid"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "unknownOrderField": {
       "adl": [
@@ -138,7 +511,90 @@
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Unknown Order Field"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "operations": ["createChild", "updateChild", "reorder"],
+                    "orderField": "Rank"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "unlinkOnRequiredParentField": {
       "adl": [
@@ -161,7 +617,89 @@
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Unlink On Required Parent Field"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "operations": ["createChild", "updateChild", "unlink"]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "unlinkOnOptionalParentField": {
       "adl": [
@@ -184,7 +722,89 @@
         "  FIELD Order TEXT LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Unlink On Optional Parent Field"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "operations": ["createChild", "updateChild", "unlink"]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "childCollectionWithoutOperations": {
       "adl": [
@@ -206,7 +826,88 @@
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Child Collection Without Operations"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Order"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "pickerWithoutLinkExisting": {
       "adl": [
@@ -233,7 +934,95 @@
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Picker Without Link"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "operations": ["createChild", "updateChild", "remove"],
+                    "picker": {
+                      "name": "LinePicker",
+                      "sourceKind": "object",
+                      "source": "OrderLine",
+                      "displayFields": ["Description"]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "songMintingPicker": {
       "adl": [
@@ -284,7 +1073,170 @@
         "    ACTIONS read",
         "  END.VIEW",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Set List Minting Picker"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "SetList",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListForm",
+                "kind": "form",
+                "editContainer": "page",
+                "fields": ["Name"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Songs",
+                    "kind": "childCollection",
+                    "heading": "Songs",
+                    "childObject": "SetListItem",
+                    "parentField": "SetList",
+                    "childView": "SetListItemList",
+                    "operations": ["createChild", "updateChild", "remove", "reorder"],
+                    "staged": true,
+                    "orderField": "Position",
+                    "emptyState": {
+                      "text": "No songs in this set list yet."
+                    },
+                    "picker": {
+                      "name": "SongPicker",
+                      "sourceKind": "object",
+                      "source": "Song",
+                      "candidateField": "Song",
+                      "selection": "multiple",
+                      "displayFields": ["Title", "Composer"],
+                      "searchFields": ["Title", "Composer"],
+                      "sort": [
+                        {
+                          "field": "Title",
+                          "direction": "asc"
+                        }
+                      ],
+                      "excludeAlreadyLinked": true,
+                      "emptyState": {
+                        "text": "Every song in the library is already in this set list."
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Song",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Composer",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "SetListItem",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "SetList",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "SetList",
+                  "displayField": "Name"
+                },
+                "validators": []
+              },
+              {
+                "name": "Song",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Song",
+                  "displayField": "Title"
+                },
+                "validators": []
+              },
+              {
+                "name": "Position",
+                "type": "number",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": [
+                  {
+                    "kind": "min",
+                    "value": 1
+                  }
+                ]
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListItemList",
+                "kind": "list",
+                "fields": ["Song", "Position"],
+                "searchFields": [],
+                "sort": [],
+                "actions": ["read"]
+              }
+            ]
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "songMintingPickerFromReadModel": {
       "adl": [
@@ -324,7 +1276,145 @@
         "  FIELD SongTitle FROM song.Title",
         "  SORT SongTitle ASC",
         "END.READ_MODEL"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Set List Minting Picker From Read Model"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "SetList",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListForm",
+                "kind": "form",
+                "fields": ["Name"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Songs",
+                    "kind": "childCollection",
+                    "heading": "Songs",
+                    "childObject": "SetListItem",
+                    "parentField": "SetList",
+                    "operations": ["createChild", "updateChild", "remove"],
+                    "picker": {
+                      "name": "SongPicker",
+                      "sourceKind": "readModel",
+                      "source": "SongCatalogue",
+                      "candidateField": "Song",
+                      "displayFields": ["SongTitle"]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Song",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "SetListItem",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "SetList",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "SetList",
+                  "displayField": "Name"
+                },
+                "validators": []
+              },
+              {
+                "name": "Song",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Song",
+                  "displayField": "Title"
+                },
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [
+          {
+            "name": "SongCatalogue",
+            "sources": [
+              {
+                "name": "song",
+                "object": "Song",
+                "scope": "all"
+              }
+            ],
+            "sort": [
+              {
+                "field": "SongTitle",
+                "direction": "asc"
+              }
+            ],
+            "fields": [
+              {
+                "name": "SongTitle",
+                "source": "song",
+                "field": "Title"
+              }
+            ]
+          }
+        ],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "mintingPickerSourcedFromTheChildObject": {
       "adl": [
@@ -357,7 +1447,119 @@
         "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
         "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Minting Picker Sourced From The Child"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "SetList",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListForm",
+                "kind": "form",
+                "fields": ["Name"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Songs",
+                    "kind": "childCollection",
+                    "childObject": "SetListItem",
+                    "parentField": "SetList",
+                    "operations": ["createChild", "updateChild", "remove"],
+                    "picker": {
+                      "name": "SongPicker",
+                      "sourceKind": "object",
+                      "source": "SetListItem",
+                      "candidateField": "Song"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Song",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "SetListItem",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "SetList",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "SetList",
+                  "displayField": "Name"
+                },
+                "validators": []
+              },
+              {
+                "name": "Song",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Song",
+                  "displayField": "Title"
+                },
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "mintingPickerWithoutCreateChild": {
       "adl": [
@@ -390,7 +1592,119 @@
         "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
         "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Minting Picker Without Create"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "SetList",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListForm",
+                "kind": "form",
+                "fields": ["Name"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Songs",
+                    "kind": "childCollection",
+                    "childObject": "SetListItem",
+                    "parentField": "SetList",
+                    "operations": ["updateChild", "remove"],
+                    "picker": {
+                      "name": "SongPicker",
+                      "sourceKind": "object",
+                      "source": "Song",
+                      "candidateField": "Song"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Song",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "SetListItem",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "SetList",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "SetList",
+                  "displayField": "Name"
+                },
+                "validators": []
+              },
+              {
+                "name": "Song",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Song",
+                  "displayField": "Title"
+                },
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "mintingPickerWithUnknownCandidateField": {
       "adl": [
@@ -423,7 +1737,119 @@
         "  FIELD SetList TEXT REQUIRED LOOKUP SetList DISPLAY Name",
         "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Minting Picker Unknown Candidate Field"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "SetList",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListForm",
+                "kind": "form",
+                "fields": ["Name"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Songs",
+                    "kind": "childCollection",
+                    "childObject": "SetListItem",
+                    "parentField": "SetList",
+                    "operations": ["createChild", "updateChild", "remove"],
+                    "picker": {
+                      "name": "SongPicker",
+                      "sourceKind": "object",
+                      "source": "Song",
+                      "candidateField": "Track"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Song",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "SetListItem",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "SetList",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "SetList",
+                  "displayField": "Name"
+                },
+                "validators": []
+              },
+              {
+                "name": "Song",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Song",
+                  "displayField": "Title"
+                },
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "mintingPickerWithCandidateFieldThatIsNotALookup": {
       "adl": [
@@ -457,7 +1883,132 @@
         "  FIELD Song TEXT REQUIRED LOOKUP Song DISPLAY Title",
         "  FIELD Position NUMBER REQUIRED MIN(1)",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Minting Picker Candidate Field Not A Lookup"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "SetList",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListForm",
+                "kind": "form",
+                "fields": ["Name"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Songs",
+                    "kind": "childCollection",
+                    "childObject": "SetListItem",
+                    "parentField": "SetList",
+                    "operations": ["createChild", "updateChild", "remove"],
+                    "picker": {
+                      "name": "SongPicker",
+                      "sourceKind": "object",
+                      "source": "Song",
+                      "candidateField": "Position"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Song",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "SetListItem",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "SetList",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "SetList",
+                  "displayField": "Name"
+                },
+                "validators": []
+              },
+              {
+                "name": "Song",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Song",
+                  "displayField": "Title"
+                },
+                "validators": []
+              },
+              {
+                "name": "Position",
+                "type": "number",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": [
+                  {
+                    "kind": "min",
+                    "value": 1
+                  }
+                ]
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "pickerWithUnknownCandidateFields": {
       "adl": [
@@ -486,7 +2037,102 @@
         "  FIELD Order TEXT REQUIRED LOOKUP Order DISPLAY Code",
         "  FIELD Description TEXT REQUIRED",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Picker Unknown Fields"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "fields": ["Code"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "operations": ["createChild", "linkExisting", "remove"],
+                    "picker": {
+                      "name": "LinePicker",
+                      "sourceKind": "object",
+                      "source": "OrderLine",
+                      "displayFields": ["Nickname"],
+                      "searchFields": ["Nickname"],
+                      "sort": [
+                        {
+                          "field": "Rank",
+                          "direction": "asc"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     },
     "projectedFieldsAndSummary": {
       "app": {
@@ -512,10 +2158,7 @@
                   "kind": "childCollection",
                   "childObject": "Track",
                   "parentField": "Playlist",
-                  "operations": [
-                    "createChild",
-                    "remove"
-                  ],
+                  "operations": ["createChild", "remove"],
                   "projectedFields": [
                     {
                       "name": "LengthSeconds",
@@ -593,10 +2236,7 @@
                   "kind": "childCollection",
                   "childObject": "Track",
                   "parentField": "Playlist",
-                  "operations": [
-                    "createChild",
-                    "remove"
-                  ],
+                  "operations": ["createChild", "remove"],
                   "projectedFields": [
                     {
                       "name": "Bogus",
@@ -667,7 +2307,139 @@
         "  FIELD Title TEXT REQUIRED",
         "  FIELD LengthSeconds NUMBER",
         "END.OBJECT"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Tracks Demo"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Playlist",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "PlaylistForm",
+                "kind": "form",
+                "fields": ["Title"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Tracks",
+                    "kind": "childCollection",
+                    "childObject": "Track",
+                    "parentField": "Playlist",
+                    "operations": ["createChild", "remove"],
+                    "projectedFields": [
+                      {
+                        "name": "LengthSeconds",
+                        "through": "Album",
+                        "field": "LengthSeconds"
+                      }
+                    ],
+                    "summary": {
+                      "aggregate": "sum",
+                      "field": "LengthSeconds",
+                      "label": "Total length",
+                      "format": {
+                        "kind": "duration",
+                        "pattern": "m:ss"
+                      },
+                      "placement": "header"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Track",
+            "displayField": "Album",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Playlist",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Playlist",
+                  "displayField": "Title"
+                },
+                "validators": []
+              },
+              {
+                "name": "Album",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Album",
+                  "displayField": "Title"
+                },
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          },
+          {
+            "name": "Album",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "LengthSeconds",
+                "type": "number",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": []
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [],
+        "sync": []
+      }
     }
   },
   "cases": [
@@ -678,10 +2450,7 @@
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
       "input": {
-        "select": [
-          "objects.0.views.0.editContainer",
-          "objects.0.views.1.editContainer"
-        ]
+        "select": ["objects.0.views.0.editContainer", "objects.0.views.1.editContainer"]
       },
       "expected": {
         "ok": true,
@@ -698,9 +2467,7 @@
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
       "input": {
-        "select": [
-          "objects.0.views.0.editSections.0"
-        ]
+        "select": ["objects.0.views.0.editSections.0"]
       },
       "expected": {
         "ok": true,
@@ -709,10 +2476,7 @@
             "name": "Details",
             "kind": "fields",
             "heading": "Order",
-            "fields": [
-              "Code",
-              "Notes"
-            ]
+            "fields": ["Code", "Notes"]
           }
         }
       }
@@ -724,9 +2488,7 @@
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
       "input": {
-        "select": [
-          "objects.0.views.0.editSections.1"
-        ]
+        "select": ["objects.0.views.0.editSections.1"]
       },
       "expected": {
         "ok": true,
@@ -738,13 +2500,7 @@
             "childObject": "OrderLine",
             "parentField": "Order",
             "childView": "OrderLineList",
-            "operations": [
-              "createChild",
-              "linkExisting",
-              "updateChild",
-              "remove",
-              "reorder"
-            ],
+            "operations": ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
             "staged": true,
             "orderField": "Position",
             "emptyState": {
@@ -755,12 +2511,8 @@
               "sourceKind": "object",
               "source": "OrderLine",
               "selection": "single",
-              "displayFields": [
-                "Description"
-              ],
-              "searchFields": [
-                "Description"
-              ],
+              "displayFields": ["Description"],
+              "searchFields": ["Description"],
               "sort": [
                 {
                   "field": "Position",
@@ -783,9 +2535,7 @@
       "operation": "resolveModel",
       "modelRef": "orderEditSurfaces",
       "input": {
-        "select": [
-          "objects.0.views.1.editSections"
-        ]
+        "select": ["objects.0.views.1.editSections"]
       },
       "expected": {
         "ok": true,
@@ -794,10 +2544,7 @@
             {
               "name": "Fields",
               "kind": "fields",
-              "fields": [
-                "Code",
-                "Notes"
-              ]
+              "fields": ["Code", "Notes"]
             }
           ]
         }
@@ -810,18 +2557,12 @@
       "operation": "resolveModel",
       "modelRef": "childCollectionWithoutOperations",
       "input": {
-        "select": [
-          "objects.0.views.0.editSections.0.operations"
-        ]
+        "select": ["objects.0.views.0.editSections.0.operations"]
       },
       "expected": {
         "ok": true,
         "result": {
-          "objects.0.views.0.editSections.0.operations": [
-            "createChild",
-            "updateChild",
-            "remove"
-          ]
+          "objects.0.views.0.editSections.0.operations": ["createChild", "updateChild", "remove"]
         }
       }
     },
@@ -850,13 +2591,7 @@
             },
             {
               "path": "objects[0].views[0].editSections[1].operations",
-              "value": [
-                "createChild",
-                "linkExisting",
-                "updateChild",
-                "remove",
-                "reorder"
-              ],
+              "value": ["createChild", "linkExisting", "updateChild", "remove", "reorder"],
               "origin": "source"
             },
             {
@@ -1005,9 +2740,7 @@
       "operation": "resolveModel",
       "modelRef": "songMintingPicker",
       "input": {
-        "select": [
-          "objects.0.views.0.editSections.0.picker"
-        ]
+        "select": ["objects.0.views.0.editSections.0.picker"]
       },
       "expected": {
         "ok": true,
@@ -1018,14 +2751,8 @@
             "source": "Song",
             "candidateField": "Song",
             "selection": "multiple",
-            "displayFields": [
-              "Title",
-              "Composer"
-            ],
-            "searchFields": [
-              "Title",
-              "Composer"
-            ],
+            "displayFields": ["Title", "Composer"],
+            "searchFields": ["Title", "Composer"],
             "sort": [
               {
                 "field": "Title",
@@ -1208,8 +2935,7 @@
           }
         ]
       }
-    }
-,
+    },
     {
       "id": "edit-surface.language.projected-fields-and-summary.002",
       "title": "PROJECTED_FIELD and SUMMARY in ADL source resolve to the same child-collection shape the JSON surface produces",

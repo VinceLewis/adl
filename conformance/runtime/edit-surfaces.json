@@ -66,7 +66,240 @@
         "POLICY OrderLinePolicy ON OrderLine",
         "  RULE allowOrderLine ALLOW * AUTHENTICATED",
         "END.POLICY"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Order Edit Surface Runtime"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "Order",
+            "displayField": "Code",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Code",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Notes",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderForm",
+                "kind": "form",
+                "editContainer": "page",
+                "fields": ["Code", "Notes"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Details",
+                    "kind": "fields",
+                    "heading": "Order",
+                    "fields": ["Code", "Notes"]
+                  },
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "heading": "Lines",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "childView": "OrderLineList",
+                    "operations": [
+                      "createChild",
+                      "linkExisting",
+                      "updateChild",
+                      "remove",
+                      "reorder"
+                    ],
+                    "orderField": "Position",
+                    "emptyState": {
+                      "text": "No lines yet."
+                    },
+                    "picker": {
+                      "name": "LinePicker",
+                      "sourceKind": "object",
+                      "source": "OrderLine",
+                      "selection": "multiple",
+                      "displayFields": ["Description"],
+                      "searchFields": ["Description"],
+                      "sort": [
+                        {
+                          "field": "Position",
+                          "direction": "asc"
+                        }
+                      ],
+                      "excludeAlreadyLinked": true,
+                      "emptyState": {
+                        "text": "Nothing to link."
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "OrderAppendOnlyForm",
+                "kind": "form",
+                "fields": ["Code", "Notes"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Lines",
+                    "kind": "childCollection",
+                    "heading": "Lines",
+                    "childObject": "OrderLine",
+                    "parentField": "Order",
+                    "operations": ["createChild"]
+                  }
+                ]
+              }
+            ],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "all"
+            }
+          },
+          {
+            "name": "OrderLine",
+            "constraints": [
+              {
+                "name": "uniqueOrderLineDescription",
+                "kind": "unique",
+                "fields": ["Description"],
+                "scopeFields": []
+              },
+              {
+                "name": "orderedOrderLines",
+                "kind": "ordered",
+                "parentField": "Order",
+                "positionField": "Position",
+                "scopeFields": [],
+                "reorder": "shift",
+                "compaction": "onDelete"
+              }
+            ],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Order",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Order",
+                  "displayField": "Code"
+                },
+                "validators": []
+              },
+              {
+                "name": "Description",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Position",
+                "type": "number",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": [
+                  {
+                    "kind": "min",
+                    "value": 1
+                  }
+                ]
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "OrderLineList",
+                "kind": "list",
+                "fields": ["Description", "Position"],
+                "searchFields": [],
+                "sort": [],
+                "actions": ["read"]
+              }
+            ],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "all"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [
+          {
+            "name": "OrderPolicy",
+            "object": "Order",
+            "rules": [
+              {
+                "name": "allowOrder",
+                "effect": "allow",
+                "principal": {
+                  "match": "authenticated",
+                  "roles": [],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "OrderLinePolicy",
+            "object": "OrderLine",
+            "rules": [
+              {
+                "name": "allowOrderLine",
+                "effect": "allow",
+                "principal": {
+                  "match": "authenticated",
+                  "roles": [],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          }
+        ],
+        "sync": []
+      }
     },
     "setListMintingSurface": {
       "adl": [
@@ -133,7 +366,253 @@
         "POLICY SetListItemPolicy ON SetListItem",
         "  RULE allowSetListItem ALLOW * AUTHENTICATED",
         "END.POLICY"
-      ]
+      ],
+      "adlj": {
+        "app": {
+          "name": "Set List Minting Surface"
+        },
+        "roles": [],
+        "themes": [],
+        "migrations": [],
+        "objects": [
+          {
+            "name": "SetList",
+            "displayField": "Name",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Name",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListForm",
+                "kind": "form",
+                "editContainer": "page",
+                "fields": ["Name"],
+                "searchFields": [],
+                "sort": [],
+                "actions": [],
+                "editSections": [
+                  {
+                    "name": "Songs",
+                    "kind": "childCollection",
+                    "heading": "Songs",
+                    "childObject": "SetListItem",
+                    "parentField": "SetList",
+                    "childView": "SetListItemList",
+                    "operations": ["createChild", "updateChild", "remove", "reorder"],
+                    "staged": true,
+                    "orderField": "Position",
+                    "emptyState": {
+                      "text": "No songs in this set list yet."
+                    },
+                    "picker": {
+                      "name": "SongPicker",
+                      "sourceKind": "object",
+                      "source": "Song",
+                      "candidateField": "Song",
+                      "selection": "multiple",
+                      "displayFields": ["Title", "Composer"],
+                      "searchFields": ["Title", "Composer"],
+                      "sort": [
+                        {
+                          "field": "Title",
+                          "direction": "asc"
+                        }
+                      ],
+                      "excludeAlreadyLinked": true,
+                      "emptyState": {
+                        "text": "Every song in the library is already in this set list."
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "all"
+            }
+          },
+          {
+            "name": "Song",
+            "displayField": "Title",
+            "constraints": [],
+            "policies": [],
+            "fields": [
+              {
+                "name": "Title",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              },
+              {
+                "name": "Composer",
+                "type": "text",
+                "required": false,
+                "readonly": false,
+                "hidden": false,
+                "validators": []
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "all"
+            }
+          },
+          {
+            "name": "SetListItem",
+            "constraints": [
+              {
+                "name": "orderedSetListItems",
+                "kind": "ordered",
+                "parentField": "SetList",
+                "positionField": "Position",
+                "scopeFields": [],
+                "reorder": "shift",
+                "compaction": "onDelete"
+              }
+            ],
+            "policies": [],
+            "fields": [
+              {
+                "name": "SetList",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "SetList",
+                  "displayField": "Name"
+                },
+                "validators": []
+              },
+              {
+                "name": "Song",
+                "type": "text",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "lookup": {
+                  "targetObject": "Song",
+                  "displayField": "Title"
+                },
+                "validators": []
+              },
+              {
+                "name": "Position",
+                "type": "number",
+                "required": true,
+                "readonly": false,
+                "hidden": false,
+                "validators": [
+                  {
+                    "kind": "min",
+                    "value": 1
+                  }
+                ]
+              }
+            ],
+            "computedFields": [],
+            "validations": [],
+            "views": [
+              {
+                "name": "SetListItemList",
+                "kind": "list",
+                "fields": ["Song", "Position"],
+                "searchFields": [],
+                "sort": [],
+                "actions": ["read"]
+              }
+            ],
+            "sync": {
+              "mode": "localFirst",
+              "scope": "all"
+            }
+          }
+        ],
+        "contexts": [],
+        "readModels": [],
+        "decisionTables": [],
+        "commands": [],
+        "policies": [
+          {
+            "name": "SetListPolicy",
+            "object": "SetList",
+            "rules": [
+              {
+                "name": "allowSetList",
+                "effect": "allow",
+                "principal": {
+                  "match": "authenticated",
+                  "roles": [],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "SongPolicy",
+            "object": "Song",
+            "rules": [
+              {
+                "name": "allowSong",
+                "effect": "allow",
+                "principal": {
+                  "match": "authenticated",
+                  "roles": [],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          },
+          {
+            "name": "SetListItemPolicy",
+            "object": "SetListItem",
+            "rules": [
+              {
+                "name": "allowSetListItem",
+                "effect": "allow",
+                "principal": {
+                  "match": "authenticated",
+                  "roles": [],
+                  "groupRoles": [],
+                  "users": [],
+                  "owner": false
+                },
+                "action": "*",
+                "state": [],
+                "fields": []
+              }
+            ]
+          }
+        ],
+        "sync": []
+      }
     }
   },
   "cases": [
@@ -917,7 +1396,9 @@
           "operation": "create",
           "alias": "setList",
           "objectName": "SetList",
-          "values": { "Name": "Main set" },
+          "values": {
+            "Name": "Main set"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -930,7 +1411,9 @@
         "objectName": "SetList",
         "viewName": "SetListForm",
         "mode": "edit",
-        "recordId": { "$ref": "setList.meta.guid" },
+        "recordId": {
+          "$ref": "setList.meta.guid"
+        },
         "context": {
           "userId": "user-1",
           "roles": [],
@@ -957,7 +1440,12 @@
                 "selection": "multiple",
                 "displayFields": ["Title", "Composer"],
                 "searchFields": ["Title", "Composer"],
-                "sort": [{ "field": "Title", "direction": "asc" }],
+                "sort": [
+                  {
+                    "field": "Title",
+                    "direction": "asc"
+                  }
+                ],
                 "excludeAlreadyLinked": true
               },
               "rows": []
@@ -977,7 +1465,9 @@
           "operation": "create",
           "alias": "setList",
           "objectName": "SetList",
-          "values": { "Name": "Main set" },
+          "values": {
+            "Name": "Main set"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -989,7 +1479,10 @@
           "operation": "create",
           "alias": "anthem",
           "objectName": "Song",
-          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "values": {
+            "Title": "Anthem",
+            "Composer": "Ada"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1001,7 +1494,10 @@
           "operation": "create",
           "alias": "ballad",
           "objectName": "Song",
-          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "values": {
+            "Title": "Ballad",
+            "Composer": "Bo"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1013,7 +1509,10 @@
           "operation": "create",
           "alias": "reel",
           "objectName": "Song",
-          "values": { "Title": "Reel", "Composer": "Rae" },
+          "values": {
+            "Title": "Reel",
+            "Composer": "Rae"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1026,8 +1525,12 @@
           "alias": "balladItem",
           "objectName": "SetListItem",
           "values": {
-            "SetList": { "$ref": "setList.meta.guid" },
-            "Song": { "$ref": "ballad.meta.guid" },
+            "SetList": {
+              "$ref": "setList.meta.guid"
+            },
+            "Song": {
+              "$ref": "ballad.meta.guid"
+            },
             "Position": 1
           },
           "context": {
@@ -1042,7 +1545,9 @@
         "objectName": "SetList",
         "viewName": "SetListForm",
         "sectionName": "Songs",
-        "recordId": { "$ref": "setList.meta.guid" },
+        "recordId": {
+          "$ref": "setList.meta.guid"
+        },
         "context": {
           "userId": "user-1",
           "roles": [],
@@ -1068,15 +1573,29 @@
             {
               "id": "$anthem",
               "label": "Anthem - Ada",
-              "values": { "Title": "Anthem", "Composer": "Ada" },
-              "source": { "kind": "object", "objectName": "Song", "recordId": "$anthem" },
+              "values": {
+                "Title": "Anthem",
+                "Composer": "Ada"
+              },
+              "source": {
+                "kind": "object",
+                "objectName": "Song",
+                "recordId": "$anthem"
+              },
               "alreadyLinked": false
             },
             {
               "id": "$reel",
               "label": "Reel - Rae",
-              "values": { "Title": "Reel", "Composer": "Rae" },
-              "source": { "kind": "object", "objectName": "Song", "recordId": "$reel" },
+              "values": {
+                "Title": "Reel",
+                "Composer": "Rae"
+              },
+              "source": {
+                "kind": "object",
+                "objectName": "Song",
+                "recordId": "$reel"
+              },
               "alreadyLinked": false
             }
           ],
@@ -1095,7 +1614,9 @@
           "operation": "create",
           "alias": "setList",
           "objectName": "SetList",
-          "values": { "Name": "Main set" },
+          "values": {
+            "Name": "Main set"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1107,7 +1628,10 @@
           "operation": "create",
           "alias": "anthem",
           "objectName": "Song",
-          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "values": {
+            "Title": "Anthem",
+            "Composer": "Ada"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1119,7 +1643,10 @@
           "operation": "create",
           "alias": "ballad",
           "objectName": "Song",
-          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "values": {
+            "Title": "Ballad",
+            "Composer": "Bo"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1131,7 +1658,10 @@
           "operation": "create",
           "alias": "reel",
           "objectName": "Song",
-          "values": { "Title": "Reel", "Composer": "Rae" },
+          "values": {
+            "Title": "Reel",
+            "Composer": "Rae"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1144,7 +1674,9 @@
         "objectName": "SetList",
         "viewName": "SetListForm",
         "sectionName": "Songs",
-        "recordId": { "$ref": "setList.meta.guid" },
+        "recordId": {
+          "$ref": "setList.meta.guid"
+        },
         "context": {
           "userId": "user-1",
           "roles": [],
@@ -1156,9 +1688,18 @@
         "ok": true,
         "result": {
           "candidates": [
-            { "id": "$anthem", "label": "Anthem - Ada" },
-            { "id": "$ballad", "label": "Ballad - Bo" },
-            { "id": "$reel", "label": "Reel - Rae" }
+            {
+              "id": "$anthem",
+              "label": "Anthem - Ada"
+            },
+            {
+              "id": "$ballad",
+              "label": "Ballad - Bo"
+            },
+            {
+              "id": "$reel",
+              "label": "Reel - Rae"
+            }
           ],
           "diagnostics": []
         }
@@ -1175,7 +1716,9 @@
           "operation": "create",
           "alias": "setList",
           "objectName": "SetList",
-          "values": { "Name": "Main set" },
+          "values": {
+            "Name": "Main set"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1187,7 +1730,10 @@
           "operation": "create",
           "alias": "anthem",
           "objectName": "Song",
-          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "values": {
+            "Title": "Anthem",
+            "Composer": "Ada"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1199,7 +1745,10 @@
           "operation": "create",
           "alias": "ballad",
           "objectName": "Song",
-          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "values": {
+            "Title": "Ballad",
+            "Composer": "Bo"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1211,7 +1760,10 @@
           "operation": "create",
           "alias": "reel",
           "objectName": "Song",
-          "values": { "Title": "Reel", "Composer": "Rae" },
+          "values": {
+            "Title": "Reel",
+            "Composer": "Rae"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1224,8 +1776,12 @@
           "alias": "balladItem",
           "objectName": "SetListItem",
           "values": {
-            "SetList": { "$ref": "setList.meta.guid" },
-            "Song": { "$ref": "ballad.meta.guid" },
+            "SetList": {
+              "$ref": "setList.meta.guid"
+            },
+            "Song": {
+              "$ref": "ballad.meta.guid"
+            },
             "Position": 1
           },
           "context": {
@@ -1240,14 +1796,20 @@
         "objectName": "SetList",
         "viewName": "SetListForm",
         "sectionName": "Songs",
-        "recordId": { "$ref": "setList.meta.guid" },
+        "recordId": {
+          "$ref": "setList.meta.guid"
+        },
         "stagedChanges": [
           {
             "id": "reelItem",
             "section": "Songs",
             "operation": "createChild",
             "childObject": "SetListItem",
-            "values": { "Song": { "$ref": "reel.meta.guid" } }
+            "values": {
+              "Song": {
+                "$ref": "reel.meta.guid"
+              }
+            }
           }
         ],
         "context": {
@@ -1260,7 +1822,12 @@
       "expected": {
         "ok": true,
         "result": {
-          "candidates": [{ "id": "$anthem", "label": "Anthem - Ada" }],
+          "candidates": [
+            {
+              "id": "$anthem",
+              "label": "Anthem - Ada"
+            }
+          ],
           "diagnostics": []
         }
       }
@@ -1276,7 +1843,9 @@
           "operation": "create",
           "alias": "order",
           "objectName": "Order",
-          "values": { "Code": "A-1" },
+          "values": {
+            "Code": "A-1"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1288,7 +1857,9 @@
           "operation": "create",
           "alias": "otherOrder",
           "objectName": "Order",
-          "values": { "Code": "B-1" },
+          "values": {
+            "Code": "B-1"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1301,7 +1872,9 @@
           "alias": "strings",
           "objectName": "OrderLine",
           "values": {
-            "Order": { "$ref": "order.meta.guid" },
+            "Order": {
+              "$ref": "order.meta.guid"
+            },
             "Description": "Strings",
             "Position": 1
           },
@@ -1317,7 +1890,9 @@
           "alias": "brass",
           "objectName": "OrderLine",
           "values": {
-            "Order": { "$ref": "otherOrder.meta.guid" },
+            "Order": {
+              "$ref": "otherOrder.meta.guid"
+            },
             "Description": "Brass",
             "Position": 1
           },
@@ -1333,7 +1908,9 @@
         "objectName": "Order",
         "viewName": "OrderForm",
         "sectionName": "Lines",
-        "recordId": { "$ref": "order.meta.guid" },
+        "recordId": {
+          "$ref": "order.meta.guid"
+        },
         "context": {
           "userId": "user-1",
           "roles": [],
@@ -1355,7 +1932,11 @@
             {
               "id": "$brass",
               "label": "Brass",
-              "source": { "kind": "object", "objectName": "OrderLine", "recordId": "$brass" },
+              "source": {
+                "kind": "object",
+                "objectName": "OrderLine",
+                "recordId": "$brass"
+              },
               "alreadyLinked": false
             }
           ],
@@ -1374,7 +1955,9 @@
           "operation": "create",
           "alias": "setList",
           "objectName": "SetList",
-          "values": { "Name": "Main set" },
+          "values": {
+            "Name": "Main set"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1386,7 +1969,10 @@
           "operation": "create",
           "alias": "anthem",
           "objectName": "Song",
-          "values": { "Title": "Anthem", "Composer": "Ada" },
+          "values": {
+            "Title": "Anthem",
+            "Composer": "Ada"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1398,7 +1984,10 @@
           "operation": "create",
           "alias": "ballad",
           "objectName": "Song",
-          "values": { "Title": "Ballad", "Composer": "Bo" },
+          "values": {
+            "Title": "Ballad",
+            "Composer": "Bo"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1410,7 +1999,10 @@
           "operation": "create",
           "alias": "reel",
           "objectName": "Song",
-          "values": { "Title": "Reel", "Composer": "Rae" },
+          "values": {
+            "Title": "Reel",
+            "Composer": "Rae"
+          },
           "context": {
             "userId": "user-1",
             "roles": [],
@@ -1423,8 +2015,12 @@
           "alias": "balladItem",
           "objectName": "SetListItem",
           "values": {
-            "SetList": { "$ref": "setList.meta.guid" },
-            "Song": { "$ref": "ballad.meta.guid" },
+            "SetList": {
+              "$ref": "setList.meta.guid"
+            },
+            "Song": {
+              "$ref": "ballad.meta.guid"
+            },
             "Position": 1
           },
           "context": {
@@ -1438,21 +2034,31 @@
       "input": {
         "objectName": "SetList",
         "viewName": "SetListForm",
-        "parentRecordId": { "$ref": "setList.meta.guid" },
+        "parentRecordId": {
+          "$ref": "setList.meta.guid"
+        },
         "stagedChanges": [
           {
             "id": "anthemItem",
             "section": "Songs",
             "operation": "createChild",
             "childObject": "SetListItem",
-            "values": { "Song": { "$ref": "anthem.meta.guid" } }
+            "values": {
+              "Song": {
+                "$ref": "anthem.meta.guid"
+              }
+            }
           },
           {
             "id": "reelItem",
             "section": "Songs",
             "operation": "createChild",
             "childObject": "SetListItem",
-            "values": { "Song": { "$ref": "reel.meta.guid" } }
+            "values": {
+              "Song": {
+                "$ref": "reel.meta.guid"
+              }
+            }
           }
         ],
         "context": {
@@ -1483,11 +2089,31 @@
             ]
           },
           "queue": [
-            { "objectName": "SetList", "operation": "create", "recordId": "$setList" },
-            { "objectName": "Song", "operation": "create", "recordId": "$anthem" },
-            { "objectName": "Song", "operation": "create", "recordId": "$ballad" },
-            { "objectName": "Song", "operation": "create", "recordId": "$reel" },
-            { "objectName": "SetListItem", "operation": "create", "recordId": "$balladItem" },
+            {
+              "objectName": "SetList",
+              "operation": "create",
+              "recordId": "$setList"
+            },
+            {
+              "objectName": "Song",
+              "operation": "create",
+              "recordId": "$anthem"
+            },
+            {
+              "objectName": "Song",
+              "operation": "create",
+              "recordId": "$ballad"
+            },
+            {
+              "objectName": "Song",
+              "operation": "create",
+              "recordId": "$reel"
+            },
+            {
+              "objectName": "SetListItem",
+              "operation": "create",
+              "recordId": "$balladItem"
+            },
             {
               "objectName": "SetListItem",
               "operation": "batch",
@@ -1520,25 +2146,49 @@
             }
           ],
           "records": [
-            { "objectName": "SetList", "recordId": "$setList" },
+            {
+              "objectName": "SetList",
+              "recordId": "$setList"
+            },
             {
               "objectName": "SetListItem",
               "recordId": "$anthemItem",
-              "values": { "SetList": "$setList", "Song": "$anthem", "Position": 2 }
+              "values": {
+                "SetList": "$setList",
+                "Song": "$anthem",
+                "Position": 2
+              }
             },
             {
               "objectName": "SetListItem",
               "recordId": "$balladItem",
-              "values": { "SetList": "$setList", "Song": "$ballad", "Position": 1 }
+              "values": {
+                "SetList": "$setList",
+                "Song": "$ballad",
+                "Position": 1
+              }
             },
             {
               "objectName": "SetListItem",
               "recordId": "$reelItem",
-              "values": { "SetList": "$setList", "Song": "$reel", "Position": 3 }
+              "values": {
+                "SetList": "$setList",
+                "Song": "$reel",
+                "Position": 3
+              }
             },
-            { "objectName": "Song", "recordId": "$anthem" },
-            { "objectName": "Song", "recordId": "$ballad" },
-            { "objectName": "Song", "recordId": "$reel" }
+            {
+              "objectName": "Song",
+              "recordId": "$anthem"
+            },
+            {
+              "objectName": "Song",
+              "recordId": "$ballad"
+            },
+            {
+              "objectName": "Song",
+              "recordId": "$reel"
+            }
           ]
         }
       }
