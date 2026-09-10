@@ -1213,6 +1213,14 @@
           "context": "Band",
           "kind": "contextUnavailable"
         }
+      },
+      {
+        "command": "CreateBand",
+        "icon": "users",
+        "kind": "commandAction",
+        "label": "Create a band",
+        "name": "createBand",
+        "placement": "navDrawer"
       }
     ],
     "nav": {
@@ -1315,6 +1323,7 @@
     "navDrawer": {
       "controls": [
         "themeSwitch",
+        "createBand",
         "signOut"
       ],
       "title": "Giggle Band"

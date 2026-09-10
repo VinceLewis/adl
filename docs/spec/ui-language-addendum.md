@@ -441,8 +441,13 @@ authorization; runtime policy and context services still enforce access when an
 operation runs.
 
 Shell controls support `contextSelector`, `syncStatus`, `connectivity`,
-`themeSwitch`, `logout`, and `pwaInstall`. Controls whose host capability is
-unavailable render as unavailable controls rather than breaking the shell.
+`themeSwitch`, `logout`, and `pwaInstall`. A control that is meaningful for the
+current host but whose capability is temporarily unavailable renders disabled
+with its reason rather than breaking the shell. A control whose meaning is
+intrinsically inapplicable to the host is omitted instead: in particular,
+`pwaInstall` is browser/PWA chrome and does not render inside an already
+installed native application. Omitted controls occupy no layout or focus-order
+slot and have no accessibility node.
 
 `syncStatus` and `connectivity` answer two different questions and are declared
 separately:

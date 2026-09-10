@@ -762,7 +762,8 @@ async function expectAppReady(page: Page): Promise<void> {
 }
 
 /**
- * Phase 105's `1.12.0 -> 1.13.0` hop, against a real browser and the real app
+ * The latest declared migration hop, currently `1.13.0 -> 1.13.1`, against a
+ * real browser and the real app
  * URL, per `AGENTS.md`'s persisted-state upgrade rule.
  *
  * The seeded version and the expected version are both **read from the mounted

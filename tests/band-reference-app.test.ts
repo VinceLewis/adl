@@ -31,7 +31,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.13.0");
+    expect(model.modelVersion).toBe("1.13.1");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -117,6 +117,7 @@ describe("band reference app model", () => {
     // and shell content -- it moves the fingerprint -- and no object gains,
     // loses or renames a stored field.
     expect(model.migrations).toContainEqual({ from: "1.12.0", to: "1.13.0", objects: [] });
+    expect(model.migrations).toContainEqual({ from: "1.13.0", to: "1.13.1", objects: [] });
     expect(model.shell.controls).toContainEqual(
       expect.objectContaining({
         name: "createFirstBand",
@@ -124,6 +125,14 @@ describe("band reference app model", () => {
         command: "CreateBand",
         placement: "emptyState",
         visibility: { kind: "contextUnavailable", context: "Band" },
+      }),
+    );
+    expect(model.shell.controls).toContainEqual(
+      expect.objectContaining({
+        name: "createBand",
+        kind: "commandAction",
+        command: "CreateBand",
+        placement: "navDrawer",
       }),
     );
     // The declaration is the primary control on anonymous registration: an
@@ -142,7 +151,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-8be34b74be75e03cdce0e5836c23362d3b83134fbe273808dd15d80124f36c87",
+      "sha256-ddc437a5c8300dd13bdfb037b2a94dcca2338ea94e877a9e96e5f12bfffe6fc9",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -3135,25 +3144,19 @@ describe("Giggle Band invitee surface", () => {
     expect(controlWithText(app, "Create a band")).not.toBeUndefined();
   });
 
-  /**
-   * H− — and not for an invitee, because a grant made a `Band` context
-   * *available* and `VISIBLE WHEN CONTEXT Band UNAVAILABLE` cannot tell
-   * "available because somebody invited me" from "available because I joined".
-   *
-   * This pins today's behaviour rather than endorsing it; the Planning Handoff
-   * carries the case for a predicate that distinguishes the two. Either way it
-   * stops being an accident nobody wrote down.
-   */
-  it("expectCreateBandHiddenFromAnInvitee", async () => {
+  /** H−/I+ — onboarding self-removes, while normal authenticated creation remains. */
+  it("expectOnboardingCreateBandHiddenButPersistentCreateAvailableToInvitee", async () => {
     const scenario = await seedInviteeScenario();
     const app = await mountBandAppAs(scenario.seeded, scenario.inviteeContext);
     await navigateWithDrawer(app, "MyBandInvitationList");
     await waitForText(app, "Your invitations");
 
-    // The present anchor: the invitee has a working screen, and it is the
-    // absence of *this one control* that is under test, not an empty render.
+    // The present anchor: the invitee has a working screen. The onboarding
+    // control is absent because a context is available, while the persistent
+    // command remains reachable for creating another band.
     expect(presentationRowText(app)).toHaveLength(1);
-    expect(controlWithText(app, "Create a band")).toBeUndefined();
+    expect(app.querySelector("[data-shell-command-control='createFirstBand']")).toBeNull();
+    expect(app.querySelector("[data-shell-command-control='createBand']")).not.toBeNull();
   });
 
   /** I+ — a `BandAdmin` still sees everything their own band sent. */

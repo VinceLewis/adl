@@ -16,6 +16,17 @@ function listeningPid(port: number): number | undefined {
   return match === null ? undefined : Number(match[1]);
 }
 
+function portIsListening(port: number): boolean {
+  const probe = [
+    "const net = require('node:net');",
+    "const socket = net.connect({host: '127.0.0.1', port: Number(process.argv[1])});",
+    "socket.once('connect', () => { socket.destroy(); process.exit(0); });",
+    "socket.once('error', () => process.exit(1));",
+    "socket.setTimeout(500, () => { socket.destroy(); process.exit(1); });",
+  ].join("");
+  return spawnSync(process.execPath, ["-e", probe, String(port)]).status === 0;
+}
+
 async function waitFor(
   predicate: () => boolean,
   because: string,
@@ -137,23 +148,28 @@ describe("qa-kit project runner contract", () => {
   });
 
   it("keeps a preview inside env:up's interruptible group before state publication", async () => {
-    expect(listeningPid(4173), "the test needs an unused production-preview port").toBeUndefined();
+    expect(portIsListening(4173), "the test needs an unused production-preview port").toBe(false);
     const directory = await mkdtemp(`${tmpdir()}/adl-qa-kit-interrupt-`);
     const descriptor = join(directory, "environment.json");
     const state = `${descriptor}.qa-kit-environment.json`;
     const child = spawn(runner, ["env:up", "ui", descriptor], {
       cwd: root,
       detached: true,
-      env: { ...process.env, QA_KIT_TEST_ENV_UP_DELAY_SECONDS: "5" },
+      // Keep the pre-publication window open long enough for the portable TCP
+      // probe to observe it even while the full suite saturates a mobile host.
+      env: { ...process.env, QA_KIT_TEST_ENV_UP_DELAY_SECONDS: "30" },
       stdio: "ignore",
     });
     try {
-      await waitFor(() => listeningPid(4173) !== undefined, "preview never began listening");
+      // env:up performs the production build before it starts Vite. Slower
+      // supported hosts (including Termux) can legitimately spend more than
+      // the generic 15-second polling default in that build.
+      await waitFor(() => portIsListening(4173), "preview never began listening", 90_000);
       await expect(access(state)).rejects.toThrow();
       process.kill(-child.pid!, "SIGTERM");
       await new Promise<void>((resolveClose) => child.once("close", () => resolveClose()));
       await waitFor(
-        () => listeningPid(4173) === undefined,
+        () => !portIsListening(4173),
         "interrupted env:up orphaned its production preview",
         5_000,
       );
@@ -173,5 +189,5 @@ describe("qa-kit project runner contract", () => {
         if (group !== "") process.kill(-Number(group), "SIGKILL");
       }
     }
-  }, 30_000);
+  }, 120_000);
 });

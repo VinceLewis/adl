@@ -1642,7 +1642,11 @@ completeness, but is redundant because it is the default.
 [icon vocabulary](#icon-vocabulary), `PLACEMENT`, and `VISIBLE` metadata. Implemented control kinds are `contextSelector`,
 `syncStatus`, `connectivity`, `themeSwitch`, `logout`, `pwaInstall`, and
 `commandAction` (see [Command Action Controls](#command-action-controls));
-unsupported runtime capabilities degrade as unavailable controls. `SYNC_STATUS`
+unsupported runtime capabilities degrade as unavailable controls when the
+control remains meaningful for that host. Intrinsically inapplicable controls
+are omitted: `PWA_INSTALL` renders in browser/PWA hosts, but not inside an
+already installed native application. Omission removes the layout, focus, and
+accessibility slot; it does not make the control available or denied. `SYNC_STATUS`
 and `CONNECTIVITY` answer different questions and are separate controls:
 `SYNC_STATUS` reports the sync state of the device's own records, and
 `CONNECTIVITY` reports whether the authority is reachable. `TOP_BAR` declares context
@@ -1699,8 +1703,10 @@ because every context-scoped view renders its empty state for them.
 Placed in `EMPTY_STATE` with `VISIBLE WHEN CONTEXT Name UNAVAILABLE`, this is a
 first-run onboarding surface: it turns the empty state into the entry point,
 and takes itself away the moment the person belongs to something. Both
-reference apps declare exactly one — `createFirstBand` running `CreateBand`,
-and `createFirstCircle` running `CreateCircle`.
+reference apps declare an onboarding control of this shape — `createFirstBand`
+running `CreateBand`, and `createFirstCircle` running `CreateCircle`. An
+application may also bind the same command to persistent shell chrome when
+creating another context remains a normal authenticated workflow.
 
 Each region's control list defaults to the declared controls whose `PLACEMENT`
 names that region, so a placement is meaningful without a second declaration

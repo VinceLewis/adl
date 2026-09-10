@@ -1492,10 +1492,10 @@ function printSyncClause(sync: {
   predicate?: ResolvedExpression;
   conflict?: string;
 }): string {
-  const parts = ["SYNC"];
-  if (sync.mode !== undefined) {
-    parts.push(camelToUpperSnake(sync.mode));
-  }
+  // Text ADL requires a mode immediately after SYNC, while .adlj may omit it
+  // and inherit the catalog default. Spell out that default so printed source
+  // remains parseable without changing the resolved policy.
+  const parts = ["SYNC", camelToUpperSnake(sync.mode ?? "localFirst")];
   if (sync.scope !== undefined) {
     parts.push(`SCOPE ${sync.scope}`);
   }

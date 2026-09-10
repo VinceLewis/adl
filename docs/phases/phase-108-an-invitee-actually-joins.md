@@ -581,7 +581,9 @@ declares `CONTEXT_GRANT pendingCircleInvite ON Circle` *and* uses
   `allowGrantedContextReadCircle`; `1.7.0 → 1.8.0` with an empty-object migration.
 - `src/reference/giggle-band/domain.adlj` — `BandPolicy` gains
   `allowGrantedContextReadBand` and **loses** `allowAuthenticatedReadBandName`;
-  `1.13.0 → 1.14.0` with an empty-object migration.
+  `1.13.1 → 1.14.0` with an empty-object migration. The intervening `1.13.1`
+  hotfix added the persistent create-context shell binding without changing
+  stored object shape.
 - `conformance/runtime/context-grant-principal.json` — **new**, modelled on
   `conformance/runtime/self-principal.json`; plus cases in
   `conformance/runtime/context-grants.json` for the selection capture.
@@ -855,7 +857,7 @@ The `invitation` Playwright project. This is the Objective's own assertion.
 ### Pair L — model versions, both applications
 
 - **L+ `expectBothReferenceAppsAtOneNewVersion`.** Giggle Band is `1.14.0` with a
-  `1.13.0 → 1.14.0` empty-object migration; Jointly Care is `1.8.0` with a
+  `1.13.1 → 1.14.0` empty-object migration; Jointly Care is `1.8.0` with a
   `1.7.0 → 1.8.0` one. Both persisted-state upgrade tests seed the previous
   version's real shape, load the real app URL, and read the new version back from
   the mounted `<adl-app>`'s own `model.modelVersion`.

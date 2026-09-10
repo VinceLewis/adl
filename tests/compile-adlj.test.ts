@@ -864,7 +864,6 @@ describe("printPartialApplicationModelAsAdl", () => {
         "      SUMMARY SUM DurationSeconds",
         "        LABEL 'Total'",
         "        FORMAT DURATION 'm:ss'",
-        "        PLACEMENT FOOTER",
         "      END.SUMMARY",
       ].join("\n"),
     );
