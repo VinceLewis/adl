@@ -464,9 +464,14 @@
       "from": "1.13.0",
       "objects": [],
       "to": "1.13.1"
+    },
+    {
+      "from": "1.13.1",
+      "objects": [],
+      "to": "1.13.2"
     }
   ],
-  "modelVersion": "1.13.1",
+  "modelVersion": "1.13.2",
   "objects": [
     {
       "businessKey": "Email",

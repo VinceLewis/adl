@@ -31,7 +31,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.13.1");
+    expect(model.modelVersion).toBe("1.13.2");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -118,6 +118,13 @@ describe("band reference app model", () => {
     // loses or renames a stored field.
     expect(model.migrations).toContainEqual({ from: "1.12.0", to: "1.13.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.13.0", to: "1.13.1", objects: [] });
+    // `1.13.1 -> 1.13.2` is an empty-object hop: the explicitly declared
+    // sign-out icon changes from the close glyph to the logout glyph. Shell
+    // presentation content moves the fingerprint; stored object fields do not.
+    expect(model.migrations).toContainEqual({ from: "1.13.1", to: "1.13.2", objects: [] });
+    const signOut = model.shell.controls.find((control) => control.name === "signOut");
+    expect(signOut).toMatchObject({ kind: "logout", icon: "logout" });
+    expect(signOut?.icon).not.toBe("x");
     expect(model.shell.controls).toContainEqual(
       expect.objectContaining({
         name: "createFirstBand",
@@ -151,7 +158,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-ddc437a5c8300dd13bdfb037b2a94dcca2338ea94e877a9e96e5f12bfffe6fc9",
+      "sha256-ece2e0d7fd9e7b4c746c687632094573b55d7db8d8ba514fb1b5fd24f24c3ccd",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(

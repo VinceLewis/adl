@@ -1197,7 +1197,7 @@
         "name": "installApp"
       },
       {
-        "icon": "x",
+        "icon": "logout",
         "kind": "logout",
         "label": "Sign out",
         "name": "signOut",

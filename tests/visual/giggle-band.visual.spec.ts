@@ -762,7 +762,7 @@ async function expectAppReady(page: Page): Promise<void> {
 }
 
 /**
- * The latest declared migration hop, currently `1.13.0 -> 1.13.1`, against a
+ * The latest declared migration hop, currently `1.13.1 -> 1.13.2`, against a
  * real browser and the real app
  * URL, per `AGENTS.md`'s persisted-state upgrade rule.
  *
