@@ -34,6 +34,16 @@ generated, human-reviewable view produced from `.adlj` via
 also `docs/spec/language.md` for grammar/semantics (still authoritative for
 what a construct means; `.adlj` resolves to the same semantics, JSON-shaped).
 
+For a reference or deployable ADLJ application, also read the sibling native
+runner plan `../gio-kit/gio-playwright.md` when available. Once its v1 contract
+is published, maintain the application's declarative fixtures, bounded probe
+declarations, and routed UI scenarios under that application's `tests/`
+directory in the same change as behavioral `.adlj` edits. Run the affected fast
+scenarios during authoring; the complete application suite remains the final
+ADL-Gio integration gate. Until v1 is published, update the plan/checklist but
+do not claim a draft script is executable. These native scenarios supplement,
+not replace, this repository's browser Playwright and visual tests.
+
 ## What Belongs In This File And In `CLAUDE.md`
 
 This repository's rules are read in three places: `AGENTS.md` and `CLAUDE.md`
