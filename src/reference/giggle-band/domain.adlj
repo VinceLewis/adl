@@ -469,9 +469,14 @@
       "from": "1.13.1",
       "objects": [],
       "to": "1.13.2"
+    },
+    {
+      "from": "1.13.2",
+      "objects": [],
+      "to": "1.13.3"
     }
   ],
-  "modelVersion": "1.13.2",
+  "modelVersion": "1.13.3",
   "objects": [
     {
       "businessKey": "Email",
@@ -1288,7 +1293,15 @@
       ]
     },
     {
-      "computedFields": [],
+      "comment": "`PersonalCalendarLabel` exists only so cross-object union read models\n(`HomeUpcomingEvents`, `MyAvailabilityWithGigs`) can source-scope a\n'Personal calendar' venue placeholder to the availability branch alone,\nvia the same `FIELD ... FROM availability` raw pull every other\nsource-scoped read-model field already uses. A plain `VenueName ??\n'Personal calendar'` read-model expression cannot do this: `EventType`\nand `Title` on `Event` are `REQUIRED`, so their own nullness already\ndistinguishes \"no event row\" from \"event row, field left blank\", but\n`VenueName` is optional, so `EventVenueName ?? 'Personal calendar'`\ncannot tell a gig with no venue from an availability row -- both project\nas NULL. This computed field, read-time only and never stored, gives the\nread model a field that is non-NULL precisely when (and only when) the\nrow's `availability` source is present, exactly mirroring `AvailabilityDate`/`AvailabilityStatus`/`AvailabilityNotes` -- see the fix\nat `VenueName` in each read model.",
+      "computedFields": [
+        {
+          "expression": "'Personal calendar'",
+          "name": "PersonalCalendarLabel",
+          "strategy": "readTime",
+          "type": "text"
+        }
+      ],
       "constraints": [
         {
           "fields": [
@@ -3129,7 +3142,12 @@
           "source": "event"
         },
         {
-          "expression": "EventVenueName ?? 'Personal calendar'",
+          "field": "PersonalCalendarLabel",
+          "name": "AvailabilityPersonalCalendarLabel",
+          "source": "availability"
+        },
+        {
+          "expression": "EventVenueName ?? AvailabilityPersonalCalendarLabel",
           "name": "VenueName",
           "type": "text"
         }
@@ -3491,7 +3509,12 @@
           "source": "event"
         },
         {
-          "expression": "EventVenueName ?? 'Personal calendar'",
+          "field": "PersonalCalendarLabel",
+          "name": "AvailabilityPersonalCalendarLabel",
+          "source": "availability"
+        },
+        {
+          "expression": "EventVenueName ?? AvailabilityPersonalCalendarLabel",
           "name": "VenueName",
           "type": "text"
         }

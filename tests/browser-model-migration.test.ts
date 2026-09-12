@@ -166,7 +166,7 @@ describe("browser model migration over IndexedDB", () => {
       throw new Error("Giggle model is missing Event.");
     }
 
-    expect(model.modelVersion).toBe("1.13.2");
+    expect(model.modelVersion).toBe("1.13.3");
     expect(model.migrations).toContainEqual({
       from: "1.0.0",
       to: "1.1.0",
@@ -234,6 +234,16 @@ describe("browser model migration over IndexedDB", () => {
     expect(model.migrations).toContainEqual({ from: "1.12.0", to: "1.13.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.13.0", to: "1.13.1", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.13.1", to: "1.13.2", objects: [] });
+    // `1.13.2 -> 1.13.3` is an empty-object hop (HUF-06): `HomeDashboard`'s
+    // schedule/invitation rows move to a title-first order with `muted`
+    // secondary styling (plain `text`/`field` fragments; `conditional`
+    // fragments were tried and reverted -- no `.adl` text syntax, printer
+    // throws), its `ScheduleStatus` legend is removed, and the `VenueName`
+    // fallback is scoped to the availability branch via a new `readTime`
+    // computed field on `Availability`. Presentation, read-model and
+    // computed-field content move the fingerprint; a computed field is never
+    // stored, so no object gains, loses or renames a *stored* field.
+    expect(model.migrations).toContainEqual({ from: "1.13.2", to: "1.13.3", objects: [] });
 
     const storage = new IndexedDbObjectStorageBackend({ databaseName });
     const persistedBand = storedRecord("Band", "band-before-explicit-nav", band.schemaVersion, {
@@ -271,7 +281,7 @@ describe("browser model migration over IndexedDB", () => {
       expect.objectContaining({
         code: RUNTIME_STARTUP_COMPATIBILITY_CODES.MIGRATION_APPLIED,
         actual: "1.0.0",
-        expected: "1.13.2",
+        expected: "1.13.3",
       }),
     );
     expect(await storage.read("Band", persistedBand.meta.guid)).toEqual(persistedBand);
@@ -283,7 +293,7 @@ describe("browser model migration over IndexedDB", () => {
     expect(migratedEvent?.values.CreatedBy).toBeNull();
     expect(migratedEvent?.meta.revision).toBe(persistedEvent.meta.revision);
     expect(await storage.readApplicationMetadata()).toEqual({
-      modelVersion: "1.13.2",
+      modelVersion: "1.13.3",
       modelFingerprint: model.modelFingerprint,
     });
   });

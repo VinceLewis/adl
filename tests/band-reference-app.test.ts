@@ -31,7 +31,7 @@ describe("band reference app model", () => {
     const syncByObject = new Map(model.sync.map((sync) => [sync.object, sync]));
 
     expect(validateApplicationModel(model)).toEqual([]);
-    expect(model.modelVersion).toBe("1.13.2");
+    expect(model.modelVersion).toBe("1.13.3");
     expect(model.migrations).toContainEqual({ from: "1.0.0", to: "1.1.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.1.0", to: "1.2.0", objects: [] });
     expect(model.migrations).toContainEqual({ from: "1.2.0", to: "1.3.0", objects: [] });
@@ -125,6 +125,19 @@ describe("band reference app model", () => {
     const signOut = model.shell.controls.find((control) => control.name === "signOut");
     expect(signOut).toMatchObject({ kind: "logout", icon: "logout" });
     expect(signOut?.icon).not.toBe("x");
+    // `1.13.2 -> 1.13.3` is an empty-object hop (HUF-06): `HomeDashboard`'s
+    // schedule and invitation rows move to a title-first order with `muted`
+    // secondary styling (ordinary `text`/`field` fragments -- `conditional`
+    // fragments were tried and reverted, since they have no `.adl` text
+    // syntax and the printer throws for one), its `ScheduleStatus` legend is
+    // removed, and `HomeUpcomingEvents` / `MyAvailabilityWithGigs` fix
+    // `VenueName`'s `Personal calendar` fallback to the availability branch
+    // only via a new `Availability.PersonalCalendarLabel` computed field.
+    // Presentation, read-model and computed-field content all move the
+    // fingerprint; a computed field is `readTime`-only and never stored (see
+    // `stripComputedFieldValues`), so no object gains, loses or renames a
+    // *stored* field, and existing persisted records need no change.
+    expect(model.migrations).toContainEqual({ from: "1.13.2", to: "1.13.3", objects: [] });
     expect(model.shell.controls).toContainEqual(
       expect.objectContaining({
         name: "createFirstBand",
@@ -158,7 +171,7 @@ describe("band reference app model", () => {
     // your reminder to also bump modelVersion and add a migration step, not a
     // license to paste the new value and move on.
     expect(model.modelFingerprint).toBe(
-      "sha256-ece2e0d7fd9e7b4c746c687632094573b55d7db8d8ba514fb1b5fd24f24c3ccd",
+      "sha256-da7ba5004a3e24e4824a3979bff3e8c8c56d536346659c02e3fafe441b2b3837",
     );
     expect(model.app.startView).toBe("HomeDashboard");
     expect(model.objects.map((object) => object.name)).toEqual(
@@ -741,6 +754,15 @@ describe("band reference app runtime", () => {
         recordId: seeded.availability.meta.guid,
       },
     });
+    // `VenueName`'s `EventVenueName ?? AvailabilityPersonalCalendarLabel`
+    // read-model fix (HUF-06): positive half. A real availability row (no
+    // `Event` source at all) resolves to the `Personal calendar` placeholder --
+    // sourced from `Availability.PersonalCalendarLabel`, a computed field that
+    // is non-NULL precisely when (and only when) the row's `availability`
+    // source is present.
+    expect(home.rows[1]?.values.VenueName).toBe("Personal calendar");
+    expect(home.rows[3]?.values.VenueName).toBe("Personal calendar");
+    expect(home.rows[4]?.values.VenueName).toBe("Personal calendar");
 
     const calendar = await seeded.runtime.executeReadModel(
       "CalendarPlanningItems",
@@ -839,6 +861,198 @@ describe("band reference app runtime", () => {
       ]),
     );
     expect(setList.rows.map((row) => row.values.Position)).toEqual([1, 1, 2, 3]);
+  });
+
+  /**
+   * The negative half of the `VenueName` fix above: a real `Event` (not a
+   * union availability row) with no `VenueName` filled in must not inherit the
+   * availability branch's `Personal calendar` placeholder. Before HUF-06,
+   * `EventVenueName ?? 'Personal calendar'` could not tell "no availability
+   * source on this row" from "an event row whose optional `VenueName` was
+   * left blank" -- both project as NULL -- so a gig with no venue wrongly
+   * rendered `Personal calendar`.
+   */
+  it("does not inherit the availability branch's Personal calendar placeholder for a gig with no venue", async () => {
+    const seeded = await createSeededBandReferenceRuntime();
+
+    await seeded.runtime.create(
+      "Event",
+      {
+        Band: seeded.firstBand.meta.guid,
+        EventType: "Gig",
+        Date: "2026-09-20",
+        StartTime: "19:00",
+        Title: "No venue yet gig",
+        CreatedBy: seeded.musician.meta.guid,
+      },
+      seeded.firstBandContext,
+    );
+
+    const home = await seeded.runtime.executeReadModel("HomeUpcomingEvents", {
+      ...seeded.musicianContext,
+      selectedContexts: { Band: seeded.firstBand.meta.guid },
+    });
+    const noVenueRow = home.rows.find((row) => row.values.Title === "No venue yet gig");
+
+    expect(noVenueRow?.values.VenueName).not.toBe("Personal calendar");
+    expect(noVenueRow?.values.VenueName ?? null).toBeNull();
+  });
+
+  /**
+   * HUF-06 (revised): the coordinator decided against `conditional` fragments
+   * for Giggle Band -- they have no `.adl` text syntax (`docs/spec/adlj.md`),
+   * and `printPartialApplicationModelAsAdl` throws by design for one. The
+   * orphan-separator problem this was solving is instead handled generically,
+   * application-neutrally, by the Gio-Kit renderer in the ADL-Gio repo (not
+   * proven here). `HomeDashboard`'s schedule and invitation rows keep the
+   * title-first order and `muted` secondary styling, declared with ordinary
+   * `text`/`field` fragments.
+   *
+   * What this repo's own browser presentation runtime (`row-runtime.ts`)
+   * actually guarantees, and what this test proves: a row with every value
+   * present renders title, then date, then time, then venue in that order;
+   * and the declared row *template* itself never starts or ends with a bare
+   * separator, and never places two separator-only fragments back to back --
+   * a static property of the declaration, true regardless of any row's data.
+   * It does NOT prove that a row with a blank value renders no dangling
+   * separator: this runtime only drops a *pure-whitespace* literal ahead of
+   * an empty value (see `row-runtime.ts`'s own comment), so a punctuated
+   * separator like `" - "` or `" invited on "` is kept even when the value
+   * behind it is empty. That gap is real in this runtime and is exactly what
+   * the Gio-Kit renderer's generic collapsing now closes elsewhere.
+   */
+  it("declares title-first schedule and invitation rows with no orphaned separators in the template", async () => {
+    const model = await createBandReferenceModel();
+    const seeded = await createSeededBandReferenceRuntime();
+
+    await seeded.runtime.create(
+      "Event",
+      {
+        Band: seeded.firstBand.meta.guid,
+        EventType: "Gig",
+        Date: "2026-09-20",
+        StartTime: "19:00",
+        Title: "No venue yet gig",
+        CreatedBy: seeded.musician.meta.guid,
+      },
+      seeded.firstBandContext,
+    );
+
+    const presentation = await seeded.runtime.evaluatePresentationView(
+      "Event",
+      "HomeDashboard",
+      seeded.firstBandContext,
+    );
+
+    // Positive: the legend widget itself is gone from `HomeDashboard`...
+    expect(presentation.legends).toEqual([]);
+
+    const scheduleSection = presentation.sections.find(
+      (candidate) => candidate.name === "Schedule",
+    );
+    const scheduleList = scheduleSection?.lists.find(
+      (candidate) => candidate.name === "UpcomingEvents",
+    );
+    expect(scheduleList?.rows.length).toBeGreaterThan(0);
+
+    const rowText = (row: NonNullable<typeof scheduleList>["rows"][number]) =>
+      row.fragments.map((fragment) => (fragment.kind === "text" ? fragment.text : "")).join("");
+
+    const gigWithVenue = scheduleList?.rows.find(
+      (row) => row.values.Title === "Canal Street headline",
+    );
+    const gigWithNoVenue = scheduleList?.rows.find(
+      (row) => row.values.Title === "No venue yet gig",
+    );
+    expect(gigWithVenue).toBeDefined();
+    expect(gigWithNoVenue).toBeDefined();
+
+    // Positive: title first (bold), then date, then time, then venue, in
+    // that order, for a row where every value is present.
+    expect(gigWithVenue?.fragments[0]).toMatchObject({
+      kind: "text",
+      text: "Canal Street headline",
+    });
+    expect(rowText(gigWithVenue!)).toBe("Canal Street headline - Sat 1 Aug 8:00PM - Alpha Hall");
+
+    // Negative (value-level, unaffected by the fragment-declaration change):
+    // a gig with no venue still never renders `Personal calendar` -- the
+    // `VenueName` fix is independent of how separators are declared.
+    expect(gigWithNoVenue?.values.VenueName ?? null).toBeNull();
+    expect(rowText(gigWithNoVenue!)).not.toContain("Personal calendar");
+
+    // Negative, declaration-level: the *template* itself -- not any one
+    // row's rendered output -- never starts or ends with a bare separator,
+    // and never places two separator-only fragments back to back. This is
+    // what "no conditional needed" actually rests on: the author did not
+    // leave a stray separator in the declaration itself.
+    const separatorOnly = /^[\s-]+$/;
+    const assertNoOrphanSeparatorsInTemplate = (fragments: { kind: string; text?: string }[]) => {
+      expect(fragments.length).toBeGreaterThan(0);
+      expect(
+        fragments[0]?.kind === "text" && separatorOnly.test(fragments[0].text ?? ""),
+        "template must not start with a bare separator",
+      ).toBe(false);
+      const last = fragments[fragments.length - 1];
+      expect(
+        last?.kind === "text" && separatorOnly.test(last.text ?? ""),
+        "template must not end with a bare separator",
+      ).toBe(false);
+      fragments.forEach((fragment, index) => {
+        if (fragment.kind !== "text" || !separatorOnly.test(fragment.text ?? "")) {
+          return;
+        }
+        const next = fragments[index + 1];
+        const nextIsAlsoSeparatorOnly =
+          next?.kind === "text" && separatorOnly.test(next.text ?? "");
+        expect(nextIsAlsoSeparatorOnly, "two separator-only fragments back to back").toBe(false);
+      });
+    };
+
+    const homeView = model.objects
+      .find((object) => object.name === "Event")
+      ?.views.find((view) => view.name === "HomeDashboard");
+    const scheduleRowFragments =
+      homeView?.presentation?.sections
+        .find((section) => section.name === "Schedule")
+        ?.lists.find((list) => list.name === "UpcomingEvents")?.row.fragments ?? [];
+    const invitationRowFragments =
+      homeView?.presentation?.sections
+        .find((section) => section.name === "Invitations")
+        ?.lists.find((list) => list.name === "PendingInvitations")?.row.fragments ?? [];
+    expect(scheduleRowFragments.length).toBeGreaterThan(0);
+    expect(invitationRowFragments.length).toBeGreaterThan(0);
+    assertNoOrphanSeparatorsInTemplate(scheduleRowFragments);
+    assertNoOrphanSeparatorsInTemplate(invitationRowFragments);
+
+    await createPendingInvitation(seeded);
+    const presentationAfterInvite = await seeded.runtime.evaluatePresentationView(
+      "Event",
+      "HomeDashboard",
+      seeded.firstBandContext,
+    );
+    const invitationsList = presentationAfterInvite.sections
+      .find((section) => section.name === "Invitations")
+      ?.lists.find((list) => list.name === "PendingInvitations");
+    const invitationRow = invitationsList?.rows.find(
+      (row) => row.values.InviteeEmail === "riley.pending@example.com",
+    );
+    expect(invitationRow).toBeDefined();
+    // Positive: email first (bold), then role, then "invited on" and the
+    // date, in that order, for a row where every value is present.
+    const invitationRowText = invitationRow!.fragments
+      .map((fragment) => (fragment.kind === "text" ? fragment.text : ""))
+      .join("");
+    expect(invitationRowText).toBe("riley.pending@example.com - BandMember invited on Wed 8 Jul");
+
+    // Negative half of the legend removal: the statuses themselves are still
+    // declared and still reachable per row (inline, accessible), even though
+    // the separate legend widget is gone.
+    for (const row of scheduleList?.rows ?? []) {
+      expect(row.status?.name).toBeTruthy();
+      expect(row.status?.label).toBeTruthy();
+      expect(row.status?.accessibleLabel).toBeTruthy();
+    }
   });
 
   it("evaluates offline datasets for selected-band and cross-band views", async () => {

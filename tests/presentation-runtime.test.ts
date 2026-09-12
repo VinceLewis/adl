@@ -62,53 +62,34 @@ describe("presentation runtime", () => {
       "New set rehearsal",
       "Unavailable - session prep",
     ]);
-    expect(schedule?.lists[0]?.rows.map((row) => row.status?.name)).toEqual([
-      "event",
-      "unavailable",
-      "rehearsal",
-      "unavailable",
+    // Positive half of the legend removal below (HUF-06): every schedule row
+    // still exposes a full status -- name, label and accessible label -- even
+    // though the separate legend widget is gone.
+    expect(
+      schedule?.lists[0]?.rows.map((row) => ({
+        name: row.status?.name,
+        label: row.status?.label,
+        accessibleLabel: row.status?.accessibleLabel,
+      })),
+    ).toEqual([
+      { name: "event", label: "Gig", accessibleLabel: "Gig event" },
+      { name: "unavailable", label: "Unavailable", accessibleLabel: "Unavailable block" },
+      { name: "rehearsal", label: "Rehearsal", accessibleLabel: "Rehearsal event" },
+      { name: "unavailable", label: "Unavailable", accessibleLabel: "Unavailable block" },
     ]);
-    expect(home.legends).toEqual([
-      {
-        name: "ScheduleStatus",
-        title: "Schedule status",
-        include: "present",
-        items: [
-          {
-            status: expect.objectContaining({
-              name: "event",
-              label: "Gig",
-              accessibleLabel: "Gig event",
-              themeToken: "colorStatusEvent",
-            }),
-          },
-          {
-            status: expect.objectContaining({
-              name: "rehearsal",
-              label: "Rehearsal",
-              accessibleLabel: "Rehearsal event",
-              themeToken: "colorStatusAlternate",
-            }),
-          },
-          {
-            status: expect.objectContaining({
-              name: "unavailable",
-              label: "Unavailable",
-              accessibleLabel: "Unavailable block",
-              themeToken: "colorStatusUnavailable",
-            }),
-          },
-        ],
-      },
-    ]);
+    // Negative half: the separate `ScheduleStatus` legend widget is gone from
+    // `HomeDashboard`.
+    expect(home.legends).toEqual([]);
+    // HUF-06: title first (bold), then date/time/venue as muted secondary
+    // metadata -- reordered from the original date-first layout.
     expect(schedule?.lists[0]?.rows[0]?.fragments).toEqual([
-      { kind: "text", text: "Sat 1 Aug", style: "plain" },
-      { kind: "text", text: " ", style: "plain" },
-      { kind: "text", text: "8:00PM", style: "plain" },
-      { kind: "text", text: " - ", style: "plain" },
       { kind: "text", text: "Canal Street headline", style: "bold" },
-      { kind: "text", text: " - ", style: "plain" },
-      { kind: "text", text: "Alpha Hall", style: "plain" },
+      { kind: "text", text: " - ", style: "muted" },
+      { kind: "text", text: "Sat 1 Aug", style: "muted" },
+      { kind: "text", text: " ", style: "muted" },
+      { kind: "text", text: "8:00PM", style: "muted" },
+      { kind: "text", text: " - ", style: "muted" },
+      { kind: "text", text: "Alpha Hall", style: "muted" },
     ]);
     expect(invitations?.lists[0]?.rows).toEqual([]);
     expect(invitations?.lists[0]?.emptyState).toEqual({ text: "No pending invitations" });

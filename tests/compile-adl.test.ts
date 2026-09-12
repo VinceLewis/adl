@@ -1305,10 +1305,25 @@ END.POLICY
           ]),
         }),
       ],
+      // Positive half of the legend removal below: every schedule status is
+      // still fully declared -- name, label and accessible label -- so a row
+      // bound to `EventTypeStatus` can still render one inline.
       statuses: expect.arrayContaining([
-        expect.objectContaining({ name: "event", label: "Gig" }),
-        expect.objectContaining({ name: "rehearsal", label: "Rehearsal" }),
-        expect.objectContaining({ name: "unavailable", label: "Unavailable" }),
+        expect.objectContaining({
+          name: "event",
+          label: "Gig",
+          accessibleLabel: "Gig event",
+        }),
+        expect.objectContaining({
+          name: "rehearsal",
+          label: "Rehearsal",
+          accessibleLabel: "Rehearsal event",
+        }),
+        expect.objectContaining({
+          name: "unavailable",
+          label: "Unavailable",
+          accessibleLabel: "Unavailable block",
+        }),
       ]),
       statusMaps: [
         expect.objectContaining({
@@ -1320,12 +1335,11 @@ END.POLICY
           ]),
         }),
       ],
-      legends: [
-        expect.objectContaining({
-          name: "ScheduleStatus",
-          statuses: ["event", "rehearsal", "unavailable"],
-        }),
-      ],
+      // Negative half (HUF-06): the separate `ScheduleStatus` legend widget is
+      // gone from `HomeDashboard` -- every row now carries its status inline
+      // instead, per the `statuses`/`statusMaps` assertion above and the
+      // `Schedule` list's own `status` binding below.
+      legends: [],
       sections: expect.arrayContaining([
         expect.objectContaining({ name: "Welcome" }),
         expect.objectContaining({ name: "Filters" }),

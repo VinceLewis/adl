@@ -551,25 +551,21 @@ describe("browser UI runtime", () => {
     expect(app.querySelector("[data-icon='music']")).not.toBeNull();
     expect(app.querySelector("[data-icon='microphone']")).not.toBeNull();
     expect(app.querySelector("[data-icon='x']")).not.toBeNull();
-    expect(app.querySelector("[data-presentation-legend='ScheduleStatus']")).not.toBeNull();
-    expect(
-      requireElement<HTMLElement>(app, "[data-presentation-legend='ScheduleStatus']").textContent,
-    ).toContain("Gig");
-    // Phase 92: the legend's `role="list"` holds only `listitem` children. The
-    // title used to be a bare `<div>` inside it, which is invalid ARIA and also
-    // left the title-to-first-item gap identical to the item-to-item gap.
-    const scheduleLegend = requireElement<HTMLElement>(
-      app,
-      "[data-presentation-legend='ScheduleStatus']",
-    );
-    const legendList = requireElement<HTMLElement>(scheduleLegend, "[role='list']");
-    expect(
-      [...legendList.children].every((child) => child.getAttribute("role") === "listitem"),
-    ).toBe(true);
-    expect(legendList.querySelector(".adl-presentation-legend-title")).toBeNull();
-    expect(
-      requireElement<HTMLElement>(scheduleLegend, ".adl-presentation-legend-title").textContent,
-    ).toContain("Schedule status");
+    // Negative (HUF-06): the separate `ScheduleStatus` legend widget is gone
+    // from `HomeDashboard` -- every row now carries its status inline instead.
+    expect(app.querySelector("[data-presentation-legend='ScheduleStatus']")).toBeNull();
+    // Positive: the status itself is still fully declared -- name, label and
+    // accessible label -- and (per the `aria-label`/color assertions right
+    // below) still reachable per row, even with the legend gone.
+    const eventStatus = seeded.model.objects
+      .find((object) => object.name === "Event")
+      ?.views.find((view) => view.name === "HomeDashboard")
+      ?.presentation?.statuses.find((status) => status.name === "event");
+    expect(eventStatus).toMatchObject({
+      name: "event",
+      label: "Gig",
+      accessibleLabel: "Gig event",
+    });
     expect(
       requireElement<HTMLElement>(
         app,

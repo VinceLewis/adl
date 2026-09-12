@@ -50,17 +50,7 @@
                 ]
               }
             ],
-            "legends": [
-              {
-                "name": "ScheduleStatus",
-                "statuses": [
-                  "event",
-                  "rehearsal",
-                  "unavailable"
-                ],
-                "title": "Schedule status"
-              }
-            ],
+            "legends": [],
             "sections": [
               {
                 "calendars": [],
@@ -140,15 +130,27 @@
                     "row": {
                       "fragments": [
                         {
+                          "field": "Title",
+                          "kind": "field",
+                          "style": "bold"
+                        },
+                        {
+                          "kind": "text",
+                          "style": "muted",
+                          "text": " - "
+                        },
+                        {
                           "field": "EventDate",
                           "format": {
                             "kind": "date",
                             "pattern": "EEE d MMM"
                           },
-                          "kind": "field"
+                          "kind": "field",
+                          "style": "muted"
                         },
                         {
                           "kind": "text",
+                          "style": "muted",
                           "text": " "
                         },
                         {
@@ -157,24 +159,18 @@
                             "kind": "time",
                             "pattern": "h:mma"
                           },
-                          "kind": "field"
-                        },
-                        {
-                          "kind": "text",
-                          "text": " - "
-                        },
-                        {
-                          "field": "Title",
                           "kind": "field",
-                          "style": "bold"
+                          "style": "muted"
                         },
                         {
                           "kind": "text",
+                          "style": "muted",
                           "text": " - "
                         },
                         {
                           "field": "VenueName",
-                          "kind": "field"
+                          "kind": "field",
+                          "style": "muted"
                         }
                       ]
                     },
