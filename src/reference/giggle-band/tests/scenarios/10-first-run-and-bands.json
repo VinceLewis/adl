@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "name": "giggle.first-run-and-bands",
+  "fixture": "giggle.blank.v1",
+  "defaults": {"timeout": "5s"},
+  "steps": [
+    {"id": "startup", "op": "settle"},
+    {"id": "show-the-permanent-drawer", "op": "resize", "size": {"width": 1400, "height": 1900}, "metric": {"pxPerDp": 1, "pxPerSp": 1}},
+    {"id": "resized", "op": "settle"},
+
+    {"id": "identity-is-required-first", "op": "expect", "selector": {"label": "Complete identity setup"}, "expect": "present"},
+    {"id": "registration-cannot-commit-while-empty", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "SAVE & CLOSE"}]}, "expect": "disabled"},
+
+    {"id": "enter-a-name", "op": "type", "selector": {"all": [{"role": "editor"}, {"name": "Name"}]}, "text": "Casey Morgan"},
+    {"id": "named", "op": "settle"},
+    {"id": "enter-an-email", "op": "type", "selector": {"all": [{"role": "editor"}, {"name": "Email"}]}, "text": "casey@example.com"},
+    {"id": "emailed", "op": "settle"},
+    {"id": "registration-is-now-valid", "op": "expectSnapshot", "component": "form", "pointer": "/valid", "equals": true},
+    {"id": "nothing-written-before-save", "op": "expectProbe", "probe": "records", "args": {"object": "User"},
+     "equals": {"object": "User", "count": 0, "aliasCount": 0, "aliases": [], "unaliased": 0, "truncated": false}},
+
+    {"id": "register", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "SAVE & CLOSE"}]}},
+    {"id": "registered", "op": "settle"},
+    {"id": "one-local-identity-exists", "op": "expectProbe", "probe": "records", "args": {"object": "User"},
+     "equals": {"object": "User", "count": 1, "aliasCount": 0, "aliases": [], "unaliased": 1, "truncated": false}},
+    {"id": "the-device-now-asks-for-a-context", "op": "expect", "selector": {"label": "Select each required context."}, "expect": "present"},
+
+    {"id": "select-the-user-context", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "User: Casey Morgan"}]}},
+    {"id": "user-context-selected", "op": "settle"},
+    {"id": "navigation-is-now-reachable", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Home"}]}, "expect": "enabled"},
+    {"id": "no-band-is-auto-selected", "op": "expectProbe", "probe": "records", "args": {"object": "Band"},
+     "equals": {"object": "Band", "count": 0, "aliasCount": 0, "aliases": [], "unaliased": 0, "truncated": false}},
+
+    {"id": "open-create-band", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Create a band"}]}},
+    {"id": "create-band-open", "op": "settle"},
+    {"id": "name-the-first-band", "op": "type", "selector": {"all": [{"role": "editor"}, {"name": "Name"}]}, "text": "The Alphas"},
+    {"id": "first-band-named", "op": "settle"},
+    {"id": "create-the-first-band", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "SAVE & CLOSE"}]}},
+    {"id": "first-band-created", "op": "settle"},
+    {"id": "the-band-exists", "op": "expectProbe", "probe": "records", "args": {"object": "Band"},
+     "equals": {"object": "Band", "count": 1, "aliasCount": 0, "aliases": [], "unaliased": 1, "truncated": false}},
+    {"id": "the-founder-is-a-member", "op": "expectProbe", "probe": "records", "args": {"object": "BandMember"},
+     "equals": {"object": "BandMember", "count": 1, "aliasCount": 0, "aliases": [], "unaliased": 1, "truncated": false}},
+
+    {"id": "open-create-band-again", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Create a band"}]}},
+    {"id": "create-band-open-again", "op": "settle"},
+    {"id": "name-the-second-band", "op": "type", "selector": {"all": [{"role": "editor"}, {"name": "Name"}]}, "text": "The Betas"},
+    {"id": "second-band-named", "op": "settle"},
+    {"id": "create-the-second-band", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "SAVE & CLOSE"}]}},
+    {"id": "second-band-created", "op": "settle"},
+    {"id": "both-bands-exist", "op": "expectProbe", "probe": "records", "args": {"object": "Band"},
+     "equals": {"object": "Band", "count": 2, "aliasCount": 0, "aliases": [], "unaliased": 2, "truncated": false}},
+    {"id": "each-band-has-its-founder", "op": "expectProbe", "probe": "records", "args": {"object": "BandMember"},
+     "equals": {"object": "BandMember", "count": 2, "aliasCount": 0, "aliases": [], "unaliased": 2, "truncated": false}},
+
+    {"id": "creating-a-band-establishes-its-context", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Context Selector: Band: The Betas; User: Casey Morgan"}]}, "expect": "present"},
+    {"id": "band-scoped-navigation-appeared", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Calendar"}]}, "expect": "enabled"},
+
+    {"id": "open-the-context-sheet", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Context Selector: Band: The Betas; User: Casey Morgan"}]}},
+    {"id": "context-sheet-open", "op": "settle"},
+    {"id": "both-bands-are-offered", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Band: The Alphas"}]}, "expect": "enabled"},
+    {"id": "the-other-band-is-offered-too", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Band: The Betas"}]}, "expect": "enabled"},
+    {"id": "switch-to-the-first-band", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Band: The Alphas"}]}},
+    {"id": "switched", "op": "settle"},
+    {"id": "the-switch-is-reflected", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Context Selector: Band: The Alphas; User: Casey Morgan"}]}, "expect": "present"},
+    {"id": "two-contexts-are-selected", "op": "expectProbe", "probe": "client_state", "args": {},
+     "equals": {"authenticated": true, "modalDepth": 0, "route": "HomeDashboard", "routeDepth": 1,
+      "selectedContextCount": 2, "selectedContexts": [{"name": "Band", "record": "unaliased"}, {"name": "User", "record": "unaliased"}],
+      "selectedContextsTruncated": false, "theme": "light"}},
+    {"id": "the-founder-membership-is-intact", "op": "expectProbe", "probe": "records", "args": {"object": "BandMember"},
+     "equals": {"object": "BandMember", "count": 2, "aliasCount": 0, "aliases": [], "unaliased": 2, "truncated": false}}
+  ]
+}

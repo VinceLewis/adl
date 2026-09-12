@@ -1,0 +1,1144 @@
+{
+  "version": 1,
+  "name": "giggle.large-library",
+  "fixture": "giggle.large-library.v1",
+  "defaults": {
+    "timeout": "5s"
+  },
+  "steps": [
+    {
+      "id": "the-app-opens-on-a-ten-thousand-row-library",
+      "op": "settle"
+    },
+    {
+      "id": "widen-to-the-table-layout",
+      "op": "resize",
+      "size": {
+        "width": 1400,
+        "height": 1900
+      },
+      "metric": {
+        "pxPerDp": 1,
+        "pxPerSp": 1
+      }
+    },
+    {
+      "id": "the-table-layout-is-laid-out",
+      "op": "settle"
+    },
+    {
+      "id": "choose-the-signed-in-user-context",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "name": "User: Casey Morgan"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-user-context-is-selected",
+      "op": "settle"
+    },
+    {
+      "id": "open-the-context-sheet",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "name": "Context Selector: User: Casey Morgan"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-context-sheet-is-open",
+      "op": "settle"
+    },
+    {
+      "id": "choose-the-alphas-band-context",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "name": "Band: The Alphas"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-band-context-is-selected",
+      "op": "settle"
+    },
+    {
+      "id": "open-the-song-library",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "name": "Songs"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-library-has-loaded-its-first-page",
+      "op": "settle"
+    },
+    {
+      "id": "the-song-library-is-the-current-route",
+      "op": "expectSnapshot",
+      "component": "router",
+      "pointer": "/route/name",
+      "equals": "SongLibrary"
+    },
+    {
+      "id": "the-library-reaches-a-ready-state-at-scale",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/state",
+      "equals": "ready"
+    },
+    {
+      "id": "the-library-knows-its-full-row-count",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/totalRows",
+      "equals": 10000
+    },
+    {
+      "id": "the-declared-page-size-is-fifty",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/pageSize",
+      "equals": 50
+    },
+    {
+      "id": "only-the-first-page-has-been-loaded",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/loadedRange",
+      "equals": [
+        0,
+        50
+      ]
+    },
+    {
+      "id": "the-library-reports-more-pages-behind-it",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/hasMore",
+      "equals": true
+    },
+    {
+      "id": "the-library-opens-with-no-sort-applied",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort",
+      "equals": []
+    },
+    {
+      "id": "the-library-opens-with-nothing-selected",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/selectedCount",
+      "equals": 0
+    },
+    {
+      "id": "the-first-row-of-the-first-page-is-on-screen",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00001"
+          }
+        ]
+      },
+      "expect": "present"
+    },
+    {
+      "id": "a-row-beyond-the-first-page-is-not-loaded-yet",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00051"
+          }
+        ]
+      },
+      "expect": "absent"
+    },
+    {
+      "id": "all-ten-thousand-songs-really-are-stored",
+      "op": "expectProbe",
+      "probe": "records",
+      "args": {
+        "object": "Song"
+      },
+      "equals": {
+        "object": "Song",
+        "count": 10000,
+        "aliasCount": 2,
+        "aliases": [
+          "song-bulk-00001",
+          "song-bulk-10000"
+        ],
+        "unaliased": 9998,
+        "truncated": false
+      }
+    },
+    {
+      "id": "sort-the-library-by-title",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Sort by Title"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-title-sort-has-been-applied",
+      "op": "settle"
+    },
+    {
+      "id": "the-sort-is-recorded-against-the-title-column",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/columnId",
+      "equals": "Title"
+    },
+    {
+      "id": "the-title-sort-starts-ascending",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/descending",
+      "equals": false
+    },
+    {
+      "id": "ascending-titles-put-the-first-song-first",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/id",
+      "equals": "song-bulk-00001"
+    },
+    {
+      "id": "ascending-titles-put-the-second-song-second",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/1/id",
+      "equals": "song-bulk-00002"
+    },
+    {
+      "id": "reverse-the-title-sort",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Sort by Title"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-descending-title-sort-has-been-applied",
+      "op": "settle"
+    },
+    {
+      "id": "the-title-sort-is-now-descending",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/descending",
+      "equals": true
+    },
+    {
+      "id": "descending-titles-put-the-last-song-first",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/id",
+      "equals": "song-bulk-10000"
+    },
+    {
+      "id": "descending-titles-put-the-second-to-last-song-second",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/1/id",
+      "equals": "song-bulk-09999"
+    },
+    {
+      "id": "the-last-song-is-rendered-once-the-order-reverses",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 10000"
+          }
+        ]
+      },
+      "expect": "present"
+    },
+    {
+      "id": "the-first-song-leaves-the-page-once-the-order-reverses",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00001"
+          }
+        ]
+      },
+      "expect": "absent"
+    },
+    {
+      "id": "sort-the-library-by-duration",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Sort by DurationSeconds"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-duration-sort-has-been-applied",
+      "op": "settle"
+    },
+    {
+      "id": "the-sort-moves-to-the-duration-column",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/columnId",
+      "equals": "DurationSeconds"
+    },
+    {
+      "id": "a-new-column-starts-ascending-again",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/descending",
+      "equals": false
+    },
+    {
+      "id": "the-shortest-duration-leads-the-ascending-order",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/cells/DurationSeconds",
+      "equals": "120"
+    },
+    {
+      "id": "the-first-tie-on-the-shortest-duration-is-ordered-deterministically",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/id",
+      "equals": "song-bulk-00400"
+    },
+    {
+      "id": "the-second-tie-on-the-shortest-duration-follows-it",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/1/id",
+      "equals": "song-bulk-00800"
+    },
+    {
+      "id": "the-second-tie-really-does-share-the-duration",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/1/cells/DurationSeconds",
+      "equals": "120"
+    },
+    {
+      "id": "the-third-tie-on-the-shortest-duration-follows-those",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/2/id",
+      "equals": "song-bulk-01200"
+    },
+    {
+      "id": "reverse-the-duration-sort",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Sort by DurationSeconds"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-descending-duration-sort-has-been-applied",
+      "op": "settle"
+    },
+    {
+      "id": "the-duration-sort-is-now-descending",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/descending",
+      "equals": true
+    },
+    {
+      "id": "the-longest-duration-leads-the-descending-order",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/cells/DurationSeconds",
+      "equals": "519"
+    },
+    {
+      "id": "ties-on-the-longest-duration-keep-their-deterministic-order",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/id",
+      "equals": "song-bulk-00399"
+    },
+    {
+      "id": "the-second-longest-duration-tie-follows-it",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/1/id",
+      "equals": "song-bulk-00799"
+    },
+    {
+      "id": "sorting-ten-thousand-rows-never-invents-or-drops-any",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/totalRows",
+      "equals": 10000
+    },
+    {
+      "id": "sort-back-to-ascending-titles",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Sort by Title"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-ascending-title-sort-is-back",
+      "op": "settle"
+    },
+    {
+      "id": "the-title-column-owns-the-sort-again",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/columnId",
+      "equals": "Title"
+    },
+    {
+      "id": "the-restored-title-sort-is-ascending",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/descending",
+      "equals": false
+    },
+    {
+      "id": "the-first-song-leads-the-restored-order",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/id",
+      "equals": "song-bulk-00001"
+    },
+    {
+      "id": "select-the-third-song",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "checkbox"
+          },
+          {
+            "name": "Select Bulk Song 00003"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-selection-has-been-recorded",
+      "op": "settle"
+    },
+    {
+      "id": "exactly-one-row-is-selected",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/selectedCount",
+      "equals": 1
+    },
+    {
+      "id": "the-selected-row-is-the-third-song",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/2/selected",
+      "equals": true
+    },
+    {
+      "id": "sort-by-duration-while-a-row-is-selected",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Sort by DurationSeconds"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-duration-sort-has-been-reapplied",
+      "op": "settle"
+    },
+    {
+      "id": "the-selected-row-is-no-longer-in-the-loaded-window",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/2/id",
+      "equals": "song-bulk-01200"
+    },
+    {
+      "id": "the-selection-survives-a-sort-that-moves-it-away",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/selectedCount",
+      "equals": 1
+    },
+    {
+      "id": "sort-by-title-again-to-bring-the-selected-row-back",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Sort by Title"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-title-order-is-restored-around-the-selection",
+      "op": "settle"
+    },
+    {
+      "id": "the-selection-count-is-still-one-after-two-sorts",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/selectedCount",
+      "equals": 1
+    },
+    {
+      "id": "the-same-row-is-still-the-selected-one",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/2/selected",
+      "equals": true
+    },
+    {
+      "id": "scroll-down-past-the-first-page",
+      "op": "scroll",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00021"
+          }
+        ]
+      },
+      "delta": {
+        "x": 0,
+        "y": 4000
+      }
+    },
+    {
+      "id": "the-next-page-request-has-settled",
+      "op": "settle"
+    },
+    {
+      "id": "a-second-page-is-loaded-after-the-first-scroll",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/loadedRange",
+      "equals": [
+        0,
+        100
+      ]
+    },
+    {
+      "id": "the-viewport-has-moved-off-the-top-of-the-list",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/scroll/first",
+      "equals": 10
+    },
+    {
+      "id": "scroll-deeper-into-the-library",
+      "op": "scroll",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00031"
+          }
+        ]
+      },
+      "delta": {
+        "x": 0,
+        "y": 4000
+      }
+    },
+    {
+      "id": "the-third-page-request-has-settled",
+      "op": "settle"
+    },
+    {
+      "id": "a-third-page-is-loaded",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/loadedRange",
+      "equals": [
+        0,
+        150
+      ]
+    },
+    {
+      "id": "scroll-deeper-still",
+      "op": "scroll",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00081"
+          }
+        ]
+      },
+      "delta": {
+        "x": 0,
+        "y": 4000
+      }
+    },
+    {
+      "id": "the-fourth-page-request-has-settled",
+      "op": "settle"
+    },
+    {
+      "id": "a-fourth-page-is-loaded",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/loadedRange",
+      "equals": [
+        0,
+        200
+      ]
+    },
+    {
+      "id": "scroll-well-down-the-library",
+      "op": "scroll",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00131"
+          }
+        ]
+      },
+      "delta": {
+        "x": 0,
+        "y": 4000
+      }
+    },
+    {
+      "id": "the-fifth-page-request-has-settled",
+      "op": "settle"
+    },
+    {
+      "id": "a-fifth-page-is-loaded",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/loadedRange",
+      "equals": [
+        0,
+        250
+      ]
+    },
+    {
+      "id": "the-viewport-is-now-well-down-the-library",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/scroll/first",
+      "equals": 160
+    },
+    {
+      "id": "the-library-is-still-ready-after-five-pages",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/state",
+      "equals": "ready"
+    },
+    {
+      "id": "paging-reported-no-error",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/error",
+      "equals": ""
+    },
+    {
+      "id": "the-row-at-the-new-scroll-position-is-the-right-one",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00161"
+          }
+        ]
+      },
+      "expect": "present"
+    },
+    {
+      "id": "a-row-from-the-fifth-page-is-rendered-in-order",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00200"
+          }
+        ]
+      },
+      "expect": "present"
+    },
+    {
+      "id": "a-row-beyond-the-fifth-page-is-still-unloaded",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00251"
+          }
+        ]
+      },
+      "expect": "absent"
+    },
+    {
+      "id": "the-scrolled-away-first-row-is-absent-from-the-tree",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00001"
+          }
+        ]
+      },
+      "expect": "absent"
+    },
+    {
+      "id": "that-absent-row-is-virtualised-not-deleted",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/virtualized",
+      "equals": true
+    },
+    {
+      "id": "the-virtualised-row-is-still-the-first-loaded-row",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/id",
+      "equals": "song-bulk-00001"
+    },
+    {
+      "id": "virtualisation-left-the-total-row-count-alone",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/totalRows",
+      "equals": 10000
+    },
+    {
+      "id": "the-selection-survives-scrolling-out-of-view",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/2/selected",
+      "equals": true
+    },
+    {
+      "id": "the-selection-count-survives-scrolling",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/selectedCount",
+      "equals": 1
+    },
+    {
+      "id": "record-the-deeply-scrolled-library",
+      "op": "capture",
+      "name": "library-scrolled",
+      "components": [
+        "router",
+        "grid"
+      ],
+      "screenshot": "optional"
+    },
+    {
+      "id": "open-a-row-far-down-the-library",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00181"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-record-has-opened",
+      "op": "settle"
+    },
+    {
+      "id": "opening-a-row-pushes-a-record-route",
+      "op": "expectSnapshot",
+      "component": "router",
+      "pointer": "/route/params/mode",
+      "equals": "edit"
+    },
+    {
+      "id": "the-opened-record-is-the-row-that-was-tapped",
+      "op": "expectSnapshot",
+      "component": "router",
+      "pointer": "/route/params/record",
+      "equals": "song-bulk-00181"
+    },
+    {
+      "id": "the-record-route-sits-above-the-list",
+      "op": "expectSnapshot",
+      "component": "router",
+      "pointer": "/stackCount",
+      "equals": 3
+    },
+    {
+      "id": "the-opened-record-shows-its-own-title",
+      "op": "expectSnapshot",
+      "component": "form",
+      "pointer": "/fields/0/value",
+      "equals": "Bulk Song 00181"
+    },
+    {
+      "id": "go-back-to-the-library",
+      "op": "back"
+    },
+    {
+      "id": "the-library-has-been-restored",
+      "op": "settle"
+    },
+    {
+      "id": "back-returns-to-the-library-route",
+      "op": "expectSnapshot",
+      "component": "router",
+      "pointer": "/route/name",
+      "equals": "SongLibrary"
+    },
+    {
+      "id": "back-pops-the-record-route",
+      "op": "expectSnapshot",
+      "component": "router",
+      "pointer": "/stackCount",
+      "equals": 2
+    },
+    {
+      "id": "back-restores-the-scroll-position",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/scroll/first",
+      "equals": 160
+    },
+    {
+      "id": "back-restores-the-loaded-pages",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/loadedRange",
+      "equals": [
+        0,
+        250
+      ]
+    },
+    {
+      "id": "back-restores-the-sort",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/columnId",
+      "equals": "Title"
+    },
+    {
+      "id": "back-restores-the-selection",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/selectedCount",
+      "equals": 1
+    },
+    {
+      "id": "back-restores-which-row-is-selected",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/2/selected",
+      "equals": true
+    },
+    {
+      "id": "the-restored-list-shows-the-row-it-was-parked-on",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00161"
+          }
+        ]
+      },
+      "expect": "present"
+    },
+    {
+      "id": "the-restored-list-has-not-jumped-back-to-the-top",
+      "op": "expect",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00001"
+          }
+        ]
+      },
+      "expect": "absent"
+    },
+    {
+      "id": "start-another-page-load",
+      "op": "scroll",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "label": "Open Bulk Song 00181"
+          }
+        ]
+      },
+      "delta": {
+        "x": 0,
+        "y": 4000
+      }
+    },
+    {
+      "id": "that-page-load-is-genuinely-outstanding",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/loading",
+      "equals": true
+    },
+    {
+      "id": "leave-the-library-while-the-page-is-still-loading",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "name": "Home"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-dashboard-has-taken-over",
+      "op": "settle"
+    },
+    {
+      "id": "leaving-mid-load-lands-on-the-dashboard",
+      "op": "expectSnapshot",
+      "component": "router",
+      "pointer": "/route/name",
+      "equals": "HomeDashboard"
+    },
+    {
+      "id": "the-dashboard-exposes-no-grid-surface",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/available",
+      "equals": false
+    },
+    {
+      "id": "the-abandoned-load-wrote-no-operation",
+      "op": "expectProbe",
+      "probe": "operations",
+      "args": {},
+      "equals": {
+        "status": "",
+        "count": 0,
+        "operations": [],
+        "truncated": false
+      }
+    },
+    {
+      "id": "the-abandoned-load-wrote-no-song",
+      "op": "expectProbe",
+      "probe": "records",
+      "args": {
+        "object": "Song"
+      },
+      "equals": {
+        "object": "Song",
+        "count": 10000,
+        "aliasCount": 2,
+        "aliases": [
+          "song-bulk-00001",
+          "song-bulk-10000"
+        ],
+        "unaliased": 9998,
+        "truncated": false
+      }
+    },
+    {
+      "id": "return-to-the-library-after-the-abandoned-load",
+      "op": "tap",
+      "selector": {
+        "all": [
+          {
+            "role": "button"
+          },
+          {
+            "name": "Songs"
+          }
+        ]
+      }
+    },
+    {
+      "id": "the-library-is-back-on-screen",
+      "op": "settle"
+    },
+    {
+      "id": "the-library-is-ready-again-after-the-abandoned-load",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/state",
+      "equals": "ready"
+    },
+    {
+      "id": "the-abandoned-load-raised-no-error",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/error",
+      "equals": ""
+    },
+    {
+      "id": "the-abandoned-load-left-the-sort-alone",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/sort/0/columnId",
+      "equals": "Title"
+    },
+    {
+      "id": "the-library-still-knows-every-row",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/totalRows",
+      "equals": 10000
+    },
+    {
+      "id": "the-library-kept-its-selection-through-all-of-it",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/selectedCount",
+      "equals": 1
+    },
+    {
+      "id": "the-library-kept-its-first-loaded-row-correct",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/id",
+      "equals": "song-bulk-00001"
+    },
+    {
+      "id": "the-library-kept-its-first-loaded-title-correct",
+      "op": "expectSnapshot",
+      "component": "grid",
+      "pointer": "/rows/0/cells/Title",
+      "equals": "Bulk Song 00001"
+    },
+    {
+      "id": "nothing-in-this-scenario-wrote-an-operation",
+      "op": "expectProbe",
+      "probe": "operations",
+      "args": {},
+      "equals": {
+        "status": "",
+        "count": 0,
+        "operations": [],
+        "truncated": false
+      }
+    }
+  ]
+}

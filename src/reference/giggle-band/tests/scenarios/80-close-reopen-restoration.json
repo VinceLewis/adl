@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "name": "giggle.close-and-write",
+  "fixture": "giggle.admin-seeded.v1",
+  "defaults": {"timeout": "5s"},
+  "steps": [
+    {"id": "startup", "op": "settle"},
+    {"id": "show-the-permanent-drawer", "op": "resize", "size": {"width": 1400, "height": 1900}, "metric": {"pxPerDp": 1, "pxPerSp": 1}},
+    {"id": "resized", "op": "settle"},
+
+    {"id": "select-the-user-context", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "User: Casey Morgan"}]}},
+    {"id": "user-selected", "op": "settle"},
+    {"id": "open-the-context-sheet", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Context Selector: User: Casey Morgan"}]}},
+    {"id": "sheet-open", "op": "settle"},
+    {"id": "select-the-band", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Band: The Alphas"}]}},
+    {"id": "band-selected", "op": "settle"},
+
+    {"id": "go-to-songs", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Songs"}]}},
+    {"id": "songs-open", "op": "settle"},
+    {"id": "song-library-route", "op": "expectSnapshot", "component": "router", "pointer": "/route/name", "equals": "SongLibrary"},
+
+    {"id": "add-a-song", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "ADD"}]}},
+    {"id": "editor-open", "op": "settle"},
+    {"id": "name-the-song", "op": "type", "selector": {"all": [{"role": "editor"}, {"name": "Title"}]}, "text": "Restored Signal"},
+    {"id": "named", "op": "settle"},
+    {"id": "commit-the-song", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "SAVE & CLOSE"}]}},
+    {"id": "committed", "op": "settle"},
+    {"id": "the-song-is-committed", "op": "expectProbe", "probe": "records", "args": {"object": "Song"},
+     "equals": {"object": "Song", "count": 78, "aliasCount": 7,
+      "aliases": ["song-beta-only", "song-harbour-lights", "song-late-signal", "song-library-001", "song-library-072", "song-neon-map", "song-slow-tide"],
+      "unaliased": 71, "truncated": false}},
+
+    {"id": "switch-the-theme", "op": "tap", "selector": {"all": [{"role": "switch"}, {"name": "Theme"}]}},
+    {"id": "theme-switched", "op": "settle"},
+
+    {"id": "leave-the-editor-open-on-set-lists", "op": "tap", "selector": {"all": [{"role": "button"}, {"name": "Set Lists"}]}},
+    {"id": "set-lists-open", "op": "settle"},
+    {"id": "set-list-route", "op": "expectSnapshot", "component": "router", "pointer": "/route/name", "equals": "SetListList"}
+  ]
+}

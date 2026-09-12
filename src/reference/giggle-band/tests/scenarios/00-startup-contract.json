@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "name": "giggle.startup-contract",
+  "fixture": "giggle.blank.v1",
+  "defaults": {"timeout": "5s"},
+  "steps": [
+    {"id": "startup", "op": "settle"},
+    {"id": "show-the-permanent-drawer", "op": "resize", "size": {"width": 1400, "height": 1900}, "metric": {"pxPerDp": 1, "pxPerSp": 1}},
+    {"id": "resized", "op": "settle"},
+    {"id": "declared-start-view", "op": "expectSnapshot", "component": "router", "pointer": "/route/name", "equals": "HomeDashboard"},
+    {"id": "single-entry-on-the-stack", "op": "expectSnapshot", "component": "router", "pointer": "/stackCount", "equals": 1},
+
+    {"id": "identity-setup-is-required-first", "op": "expect", "selector": {"label": "Complete identity setup"}, "expect": "present"},
+    {"id": "navigation-waits-for-an-identity", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Home"}]}, "expect": "disabled"},
+    {"id": "library-waits-too", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Songs"}]}, "expect": "disabled"},
+    {"id": "no-context-can-be-chosen-yet", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Context Selector"}]}, "expect": "disabled"},
+
+    {"id": "connectivity-is-unavailable", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Connection"}]}, "expect": "disabled"},
+    {"id": "sync-is-unavailable", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Sync Status"}]}, "expect": "disabled"},
+    {"id": "sign-out-is-unavailable", "op": "expect", "selector": {"all": [{"role": "button"}, {"name": "Sign out"}]}, "expect": "disabled"},
+    {"id": "the-reason-is-shown", "op": "expect", "selector": {"label": "Available when connected"}, "expect": "present"},
+
+    {"id": "the-store-is-empty", "op": "expectProbe", "probe": "records", "args": {"object": "User"},
+     "equals": {"object": "User", "count": 0, "aliasCount": 0, "aliases": [], "unaliased": 0, "truncated": false}},
+    {"id": "no-bands-exist", "op": "expectProbe", "probe": "records", "args": {"object": "Band"},
+     "equals": {"object": "Band", "count": 0, "aliasCount": 0, "aliases": [], "unaliased": 0, "truncated": false}},
+    {"id": "nothing-has-been-written", "op": "expectProbe", "probe": "operations", "args": {},
+     "equals": {"status": "", "count": 0, "operations": [], "truncated": false}}
+  ]
+}

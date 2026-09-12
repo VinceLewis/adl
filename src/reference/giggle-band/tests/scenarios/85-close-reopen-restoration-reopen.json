@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "name": "giggle.close-reopen-restoration-reopen",
+  "fixture": "giggle.admin-seeded.v1",
+  "defaults": {"timeout": "5s"},
+  "steps": [
+    {"id": "startup", "op": "settle"},
+    {"id": "show-the-permanent-drawer", "op": "resize", "size": {"width": 1400, "height": 1900}, "metric": {"pxPerDp": 1, "pxPerSp": 1}},
+    {"id": "resized", "op": "settle"},
+
+    {"id": "the-committed-song-survived-the-close", "op": "expectProbe", "probe": "records", "args": {"object": "Song"},
+     "equals": {"object": "Song", "count": 78, "aliasCount": 7,
+      "aliases": ["song-beta-only", "song-harbour-lights", "song-late-signal", "song-library-001", "song-library-072", "song-neon-map", "song-slow-tide"],
+      "unaliased": 71, "truncated": false}},
+    {"id": "the-fixture-did-not-reseed", "op": "expectProbe", "probe": "records", "args": {"object": "Band"},
+     "equals": {"object": "Band", "count": 2, "aliasCount": 2, "aliases": ["band-alphas", "band-betas"], "unaliased": 0, "truncated": false}},
+    {"id": "the-set-lists-are-untouched", "op": "expectProbe", "probe": "records", "args": {"object": "SetListItem"},
+     "equals": {"object": "SetListItem", "count": 4, "aliasCount": 4,
+      "aliases": ["item-headline-1", "item-headline-2", "item-headline-3", "item-rehearsal-1"], "unaliased": 0, "truncated": false}},
+
+    {"id": "storage-is-coherent-after-reopening", "op": "expectProbe", "probe": "persistence", "args": {"records": ["song-neon-map", "setlist-headline"]},
+     "equals": {"database": true, "attachments": true, "sessionFile": true,
+      "fingerprintPresent": true, "fingerprintMatched": true, "modelVersion": "1.13.3",
+      "records": {"present": ["setlist-headline", "song-neon-map"], "missing": []},
+      "state": {"authenticated": true, "modalDepth": 0, "route": "SetListList", "routeDepth": 3,
+       "selectedContextCount": 2, "selectedContexts": [{"name": "Band", "record": "band-alphas"}, {"name": "User", "record": "user-casey"}],
+       "selectedContextsTruncated": false, "theme": "dark"}}},
+
+    {"id": "the-route-was-restored", "op": "expectSnapshot", "component": "router", "pointer": "/route/name", "equals": "SetListList"},
+    {"id": "no-guard-is-pending", "op": "expectSnapshot", "component": "dialog", "pointer": "/available", "equals": false},
+    {"id": "the-committed-write-kept-its-durable-operation", "op": "expectProbe", "probe": "operations", "args": {},
+     "equals": {"status": "", "count": 1, "truncated": false,
+      "operations": [{"alias": "unaliased", "kind": "create", "object": "Song", "record": "unaliased",
+        "status": "pending", "actor": "[redacted]", "transactionPresent": true, "writeCount": 1}]}},
+    {"id": "reopening-did-not-replay-it", "op": "expectProbe", "probe": "records", "args": {"object": "Song"},
+     "equals": {"object": "Song", "count": 78, "aliasCount": 7,
+      "aliases": ["song-beta-only", "song-harbour-lights", "song-late-signal", "song-library-001", "song-library-072", "song-neon-map", "song-slow-tide"],
+      "unaliased": 71, "truncated": false}}
+  ]
+}
